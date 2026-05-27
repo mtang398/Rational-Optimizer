@@ -4925,6 +4925,77 @@ def learning_rate(step, args):
     return args.min_lr + cosine * (args.lr - args.min_lr)
 
 
+def sam_rho(step, args):
+    rho = float(args.sam_rho)
+    if rho <= 0.0:
+        return 0.0
+    progress = float(step + 1) / max(1, int(args.steps))
+    if progress < float(args.sam_start) or progress > float(args.sam_end):
+        return 0.0
+    if args.sam_warmup > 0.0:
+        warm_end = min(float(args.sam_end), float(args.sam_start) + float(args.sam_warmup))
+        if progress < warm_end:
+            denom = max(1e-8, warm_end - float(args.sam_start))
+            rho *= min(1.0, max(0.0, (progress - float(args.sam_start)) / denom))
+    return rho
+
+
+def sam_parameter_scale(name, param, args):
+    scale = 1.0
+    match = re.search(r"(?:^|\.)layers\.(\d+)\.", name)
+    if match and args.layers > 1:
+        depth = float(int(match.group(1))) / float(args.layers - 1)
+        scale *= min(2.0, max(0.25, 1.0 + float(args.sam_depth_gain) * (depth - 0.5)))
+    if is_rational_optimizer_parameter_name(name):
+        scale *= float(args.sam_rational_scale)
+    if param.dim() < 2:
+        scale *= float(args.sam_no_decay_scale)
+    return max(0.0, scale)
+
+
+@torch.no_grad()
+def sam_first_step(model, rho, args, device, is_distributed):
+    perturbations = []
+    if rho <= 0.0:
+        return perturbations
+    local_sq = torch.zeros((), device=device)
+    entries = []
+    for name, param in model.named_parameters():
+        if not param.requires_grad or param.grad is None:
+            continue
+        scale = sam_parameter_scale(name, param, args)
+        if scale <= 0.0:
+            continue
+        grad = param.grad.detach()
+        if bool(args.sam_adaptive):
+            adaptive = param.detach().abs().clamp_min(float(args.sam_adaptive_eps))
+            norm_term = grad * adaptive * scale
+        else:
+            adaptive = None
+            norm_term = grad * scale
+        local_sq.add_(norm_term.float().square().sum())
+        entries.append((param, grad, adaptive, scale))
+    if is_distributed:
+        dist.all_reduce(local_sq, op=dist.ReduceOp.SUM)
+    grad_norm = torch.sqrt(local_sq).clamp_min(float(args.sam_eps))
+    rho_over_norm = float(rho) / float(grad_norm.item())
+    for param, grad, adaptive, scale in entries:
+        if adaptive is None:
+            direction = grad * scale
+        else:
+            direction = grad * adaptive.square() * scale
+        perturb = direction * rho_over_norm
+        param.add_(perturb)
+        perturbations.append((param, perturb))
+    return perturbations
+
+
+@torch.no_grad()
+def sam_restore(perturbations):
+    for param, perturb in perturbations:
+        param.sub_(perturb)
+
+
 def write_jsonl(path, record):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -5127,6 +5198,16 @@ def parse_args():
     parser.add_argument("--beta1", type=float, default=0.9)
     parser.add_argument("--beta2", type=float, default=0.95)
     parser.add_argument("--eps", type=float, default=1e-8)
+    parser.add_argument("--sam-rho", type=float, default=0.0)
+    parser.add_argument("--sam-start", type=float, default=0.05)
+    parser.add_argument("--sam-end", type=float, default=1.0)
+    parser.add_argument("--sam-warmup", type=float, default=0.05)
+    parser.add_argument("--sam-adaptive", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--sam-depth-gain", type=float, default=0.0)
+    parser.add_argument("--sam-rational-scale", type=float, default=0.35)
+    parser.add_argument("--sam-no-decay-scale", type=float, default=0.35)
+    parser.add_argument("--sam-adaptive-eps", type=float, default=1e-3)
+    parser.add_argument("--sam-eps", type=float, default=1e-12)
     parser.add_argument("--muon-momentum", type=float, default=0.95)
     parser.add_argument("--muon-ns-steps", type=int, default=5)
     parser.add_argument("--muon-adjust-lr-fn", choices=["original", "match_rms_adamw"], default="match_rms_adamw")
@@ -5412,6 +5493,14 @@ def main():
         "optimizer_lr": args.lr,
         "optimizer_min_lr": args.min_lr,
         "optimizer_weight_decay": args.weight_decay,
+        "sam_rho": args.sam_rho,
+        "sam_start": args.sam_start,
+        "sam_end": args.sam_end,
+        "sam_warmup": args.sam_warmup,
+        "sam_adaptive": args.sam_adaptive,
+        "sam_depth_gain": args.sam_depth_gain,
+        "sam_rational_scale": args.sam_rational_scale,
+        "sam_no_decay_scale": args.sam_no_decay_scale,
         "rational_coeff_atom_lr_scale": args.rational_coeff_atom_lr_scale if args.optimizer.startswith("rational_") else None,
         "rational_coeff_center_lr_scale": args.rational_coeff_center_lr_scale if args.optimizer.startswith("rational_") else None,
         "rational_coeff_curve_decay": args.rational_coeff_curve_decay if args.optimizer.startswith("rational_") else None,
@@ -5662,15 +5751,39 @@ def main():
         optimizer.zero_grad(set_to_none=True)
 
         local_loss = 0.0
-        for _ in range(args.grad_accum):
-            x, y = sample_batch(train_tokens, args.batch_size, args.seq_len, offsets, train_generator, device)
-            logits = model(x)
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
-            (loss / args.grad_accum).backward()
-            local_loss += float(loss.item())
-        if args.grad_clip > 0:
-            nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-        optimizer.step()
+        rho = sam_rho(step, args)
+        if rho > 0.0:
+            batches = []
+            for _ in range(args.grad_accum):
+                x, y = sample_batch(train_tokens, args.batch_size, args.seq_len, offsets, train_generator, device)
+                batches.append((x, y))
+                logits = model(x)
+                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
+                (loss / args.grad_accum).backward()
+                local_loss += float(loss.item())
+            if args.grad_clip > 0:
+                nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            perturbations = sam_first_step(model, rho, args, device, is_distributed)
+            if perturbations:
+                optimizer.zero_grad(set_to_none=True)
+                for x, y in batches:
+                    logits = model(x)
+                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
+                    (loss / args.grad_accum).backward()
+                sam_restore(perturbations)
+                if args.grad_clip > 0:
+                    nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            optimizer.step()
+        else:
+            for _ in range(args.grad_accum):
+                x, y = sample_batch(train_tokens, args.batch_size, args.seq_len, offsets, train_generator, device)
+                logits = model(x)
+                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
+                (loss / args.grad_accum).backward()
+                local_loss += float(loss.item())
+            if args.grad_clip > 0:
+                nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            optimizer.step()
         if device.type == "cuda":
             torch.cuda.synchronize(device)
 
@@ -5690,6 +5803,7 @@ def main():
                 "step": step + 1,
                 "loss": loss_since_log / max(1, steps_since_log),
                 "lr": lr,
+                "sam_rho": rho,
                 "tokens_per_second": tokens_per_second,
                 "seconds_per_step": sum(recent) / len(recent),
             }
