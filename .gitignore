@@ -1,0 +1,23 @@
+# Local environments
+.venv*/
+venv/
+env/
+
+# Python caches and build outputs
+__pycache__/
+*.py[cod]
+*.so
+build/
+dist/
+*.egg-info/
+
+# Local experiment caches and large model artifacts
+experiments/cache/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Editor and OS noise
+.DS_Store
+*.swp
