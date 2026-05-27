@@ -111,44 +111,45 @@ rational_transport_onpolicy h3072 matrix=0.65       3.615149  PPL 37.157
 rational_transport_onpolicy h3072 matrix=0.70       3.615180  PPL 37.158
 ```
 
-The seed-1337 incumbents are `3.614862` for `rational_jacobian_onpolicy + h3072` and `3.614475` for `rational_quotient_onpolicy + h2880`. The new probes beat AdamW/SILU on that seed, but they did not beat the existing rational-specific rows, so the full three-seed recommendation remains unchanged. Transport experiments showed that aggressive rational coefficient schedules improve some early checkpoints but create a late penalty; selector cooldown and coefficient pullback reduced but did not remove that penalty. The safest transport setting found is matrix-only transport with baseline coefficient dynamics.
+The seed-1337 external baseline is `AdamW + SiLU/SwiGLU` at `3.621982` loss and `37.412` PPL. The activation-controlled baseline is `AdamW + RLB h3072` at `3.617501` loss and `37.244` PPL. Jacobian is not the baseline; it is the current best rational-specific optimizer row. On seed 1337 it reaches `3.614862`, which is `-0.007120` loss versus SiLU+AdamW and `-0.002639` versus RLB+AdamW. The full three-seed recommendation remains unchanged because the new transport probes did not increase that headline gap.
 
 ### Transport Probe Analysis
 
 The compact analysis artifacts are in `experiments/results/transport_optimizer_analysis_2026_05_27/`:
 
 ```text
-loss_ppl_curves.png          validation loss and PPL curves
+loss_ppl_curves.png          optimizer comparison validation loss/PPL curves; x-axis starts at step 1
 final_loss_ppl_bars.png      final validation loss and PPL bars
-transport_probe_summary.csv  retained probe metrics
+transport_probe_summary.csv  retained probe metrics with SiLU/RLB baseline deltas
 ```
 
-![Seed-1337 h3072 validation curves](experiments/results/transport_optimizer_analysis_2026_05_27/loss_ppl_curves.png)
+![Seed-1337 optimizer comparison curves](experiments/results/transport_optimizer_analysis_2026_05_27/loss_ppl_curves.png)
 
-![Seed-1337 h3072 final metrics](experiments/results/transport_optimizer_analysis_2026_05_27/final_loss_ppl_bars.png)
+![Seed-1337 final metrics](experiments/results/transport_optimizer_analysis_2026_05_27/final_loss_ppl_bars.png)
 
-Same seed, same h3072 RLB setting:
+Seed-1337 comparison. Negative gaps are better than the named baseline:
 
-| row | final loss | final PPL | gap vs Jacobian |
-| --- | ---: | ---: | ---: |
-| `rational_jacobian_onpolicy` | 3.614862 | 37.146 | +0.000000 |
-| `rational_transport_onpolicy`, matrix `0.65`, baseline coeffs | 3.615149 | 37.157 | +0.000287 |
-| `rational_transport_onpolicy`, matrix `0.70`, baseline coeffs | 3.615180 | 37.158 | +0.000318 |
-| `rational_transport_onpolicy`, matrix-only early probe | 3.615939 | 37.186 | +0.001077 |
-| `rational_transport_onpolicy`, matrix `0.60` plus time ramp | 3.616660 | 37.213 | +0.001798 |
-| `rational_adaptive_metric_onpolicy` | 3.617174 | 37.232 | +0.002312 |
-| AdamW on h3072 RLB | 3.617501 | 37.244 | +0.002639 |
-| layer-staggered coefficient switch, pre-fix run | 3.619816 | 37.331 | +0.004954 |
-| selector plus coefficient pullback | 3.619819 | 37.331 | +0.004957 |
-| global switch at 43% progress | 3.620000 | 37.338 | +0.005138 |
-| depth-corrected layer switch | 3.621418 | 37.391 | +0.006556 |
-| aggressive xfast coefficient schedule | 3.625419 | 37.540 | +0.010557 |
+| row | final loss | final PPL | gap vs SiLU+AdamW | gap vs RLB+AdamW |
+| --- | ---: | ---: | ---: | ---: |
+| AdamW + SiLU/SwiGLU | 3.621982 | 37.412 | +0.000000 | +0.004480 |
+| AdamW + RLB h3072 | 3.617501 | 37.244 | -0.004480 | +0.000000 |
+| RLB h3072 + `rational_jacobian_onpolicy` | 3.614862 | 37.146 | -0.007120 | -0.002639 |
+| RLB h3072 + transport matrix `0.65`, baseline coeffs | 3.615149 | 37.157 | -0.006833 | -0.002352 |
+| RLB h3072 + transport matrix `0.70`, baseline coeffs | 3.615180 | 37.158 | -0.006802 | -0.002321 |
+| RLB h3072 + transport matrix-only early probe | 3.615939 | 37.186 | -0.006042 | -0.001562 |
+| RLB h3072 + transport matrix `0.60` plus time ramp | 3.616660 | 37.213 | -0.005322 | -0.000841 |
+| RLB h3072 + `rational_adaptive_metric_onpolicy` | 3.617174 | 37.232 | -0.004807 | -0.000327 |
+| RLB h3072 + selector plus coefficient pullback | 3.619819 | 37.331 | -0.002162 | +0.002318 |
+| RLB h3072 + depth-corrected layer switch | 3.621418 | 37.391 | -0.000564 | +0.003917 |
+| RLB h3072 + aggressive xfast coefficient schedule | 3.625419 | 37.540 | +0.003438 | +0.007918 |
 
-The main positive result is narrow but real: RLB-aware matrix geometry is consistently useful. The best transport rows kept the rational coefficients on the conservative baseline path and only changed how the matrices see the learned rational curves. Raising the matrix preconditioner from the first matrix-only attempt to `0.65` closed most of the gap to the incumbent Jacobian optimizer, and `0.70` was essentially tied but slightly worse. A time ramp on the same mechanism was worse, which suggests the useful part is stable curve-aware scaling, not late extra pressure.
+The important decomposition is: non-GLU RLB itself beats SiLU+AdamW by `-0.004480` on this seed, and the current best rational optimizer adds another `-0.002639` beyond RLB+AdamW. That is useful, but it is not yet the much larger gap we want against the real baseline, `AdamW + SiLU/SwiGLU`.
 
-The main negative result is also consistent: aggressive coefficient motion is the wrong place to spend risk in this benchmark. The coefficient selector, layer-specific switches, reset-on-switch, freezes, and late pullback were all trying to avoid the late-penalty pattern, but they still landed well behind the matrix-only transport rows. The likely reason is that rational coefficients are small function parameters, not ordinary dense weights. Early large moves can change the learned scalar nonlinearity enough that later cooldown only stops further damage; it does not restore the better function-space basin.
+The main positive transport result is narrow: RLB-aware matrix geometry is consistently useful. The best transport rows kept the rational coefficients on the conservative baseline path and only changed how the matrices see the learned rational curves. A time ramp was worse, which suggests the useful part is stable curve-aware scaling, not late extra pressure.
 
-The next optimizer design should therefore make selection reversible and acceptance-based instead of only scheduled. A stronger rational-specific optimizer should treat matrix preconditioning and gauge balancing as the default path, then allow coefficient proposals only when a local function-space test accepts them: bound the change on the probe grid, compare a short on-policy loss proxy against a frozen-coefficient shadow update, and roll back or decay the proposal when it loses. Layer-specific behavior is still worth using, but it should choose among validated conservative actions rather than switching into aggressive coefficient modes because a schedule says the phase changed.
+The main negative result is stronger: aggressive coefficient motion is the wrong place to spend risk in this benchmark. The coefficient selector, layer-specific switches, reset-on-switch, freezes, and late pullback were all trying to avoid the late-penalty pattern, but they still landed behind the matrix-only transport rows and often gave back most of the SiLU+AdamW gap. The likely reason is that rational coefficients are small function parameters, not ordinary dense weights. Early large moves can change the learned scalar nonlinearity enough that later cooldown only stops further damage; it does not restore the better function-space basin.
+
+The next optimizer design should therefore target a larger gap to SiLU+AdamW directly. Matrix preconditioning and gauge balancing should be the default path; coefficient moves should become reversible, function-space-bounded proposals accepted only when a local on-policy test says they help. Layer-specific behavior is still worth using, but it should choose among validated conservative actions rather than switching into aggressive coefficient modes because a schedule says the phase changed.
 
 ## Layout
 
