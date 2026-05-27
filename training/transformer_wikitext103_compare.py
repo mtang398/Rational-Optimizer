@@ -82,11 +82,14 @@ RATIONAL_ACTIVATIONS = {
 }
 
 
-CLASSIC_OPTIMIZERS = {"adamw", "muon"}
+CLASSIC_OPTIMIZERS = {"adamw", "muon", "factored_adamw"}
 RATIONAL_SPECIFIC_OPTIMIZERS = {
     "rational_onpolicy_balance",
     "rational_quotient_onpolicy",
     "rational_jacobian_onpolicy",
+    "rational_jacobian_factored_onpolicy",
+    "rational_layerwise_switch_onpolicy",
+    "rational_layerwise_factored_switch_onpolicy",
     "rational_quotient_jacobian_onpolicy",
     "rational_adaptive_metric_onpolicy",
     "rational_transport_onpolicy",
@@ -4228,6 +4231,31 @@ def rational_optimizer_layer_index(name):
     return int(match.group(1)) if match else -1
 
 
+def dense_layerwise_lr_scale(name, param, args):
+    layer_index = rational_optimizer_layer_index(name)
+    if layer_index < 0 or args.layers <= 1:
+        return 1.0
+    depth = float(layer_index) / float(args.layers - 1)
+    scale = 1.0 + float(args.rational_dense_depth_gain) * (depth - 0.5)
+    if is_no_decay_parameter(name, param):
+        scale *= float(args.rational_dense_no_decay_lr_scale)
+    return min(
+        float(args.rational_dense_max_lr_scale),
+        max(float(args.rational_dense_min_lr_scale), scale),
+    )
+
+
+def append_dense_layerwise_group(group_map, name, param, args):
+    weight_decay = 0.0 if is_no_decay_parameter(name, param) else float(args.weight_decay)
+    lr_scale = round(float(dense_layerwise_lr_scale(name, param, args)), 6)
+    key = (weight_decay, lr_scale)
+    group = group_map.get(key)
+    if group is None:
+        group = {"params": [], "weight_decay": weight_decay, "lr_scale": lr_scale}
+        group_map[key] = group
+    group["params"].append(param)
+
+
 def count_rational_optimizer_parameters(model):
     return sum(
         param.numel()
@@ -4294,6 +4322,18 @@ def configure_optimizer(model, args):
             lr=args.lr,
             betas=(args.beta1, args.beta2),
             eps=args.eps,
+        )
+    if args.optimizer == "factored_adamw":
+        from optimizer_design import FactoredAdamW
+
+        return FactoredAdamW(
+            groups,
+            lr=args.lr,
+            betas=(args.beta1, args.beta2),
+            eps=args.eps,
+            weight_decay=args.weight_decay,
+            factored_min_dim=args.factored_min_dim,
+            clip_threshold=args.factored_clip_threshold,
         )
     if args.optimizer == "muon":
         muon_named = []
@@ -4583,6 +4623,212 @@ def configure_optimizer(model, args):
             eps=args.rlb_gauge_eps,
         )
 
+
+    if args.optimizer == "rational_jacobian_factored_onpolicy":
+        from optimizer_design import FactoredAdamW, FunctionSpaceRationalOptimizer, RationalJacobianOnPolicyOptimizer
+
+        curve_groups = collect_rlb_optimizer_groups(model, args)
+        if not curve_groups:
+            raise ValueError("Accepted activations for rational_jacobian_factored_onpolicy are RLB activations")
+
+        rational_groups = []
+        factored_decay = []
+        factored_no_decay = []
+        for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue
+            if is_rational_optimizer_parameter_name(name):
+                rational_groups.append({"params": [param], "role": rational_optimizer_role(name)})
+            elif is_no_decay_parameter(name, param):
+                factored_no_decay.append(param)
+            else:
+                factored_decay.append(param)
+        if not rational_groups:
+            raise ValueError("rational_jacobian_factored_onpolicy requires trainable rational activation parameters")
+
+        optimizers = []
+        factored_groups = []
+        if factored_decay:
+            factored_groups.append({"params": factored_decay, "weight_decay": args.weight_decay})
+        if factored_no_decay:
+            factored_groups.append({"params": factored_no_decay, "weight_decay": 0.0})
+        if factored_groups:
+            optimizers.append(
+                FactoredAdamW(
+                    factored_groups,
+                    lr=args.lr,
+                    betas=(args.beta1, args.beta2),
+                    eps=args.eps,
+                    weight_decay=args.weight_decay,
+                    factored_min_dim=args.factored_min_dim,
+                    clip_threshold=args.factored_clip_threshold,
+                )
+            )
+        optimizers.append(
+            FunctionSpaceRationalOptimizer(
+                rational_groups,
+                lr=args.lr,
+                numerator_lr_scale=args.rational_coeff_num_lr_scale,
+                denominator_lr_scale=args.rational_coeff_den_lr_scale,
+                atom_lr_scale=args.rational_coeff_atom_lr_scale,
+                center_lr_scale=args.rational_coeff_center_lr_scale,
+                other_lr_scale=args.rational_coeff_other_lr_scale,
+                trust=args.rational_coeff_trust,
+                probe_range=args.rational_coeff_probe_range,
+                probe_points=args.rational_coeff_probe_points,
+                curve_decay=args.rational_coeff_curve_decay,
+                update_gain=args.rational_coeff_update_gain,
+                metric=args.rational_coeff_metric,
+                metric_damping=args.rational_coeff_metric_damping,
+                eps=args.rational_coeff_eps,
+            )
+        )
+        return RationalJacobianOnPolicyOptimizer(
+            optimizers,
+            curve_groups,
+            total_steps=args.steps,
+            target_weight=args.rlb_gauge_target_weight,
+            metric_every=args.rlb_gauge_metric_every,
+            probe_range=args.rlb_gauge_probe_range,
+            probe_points=args.rlb_gauge_probe_points,
+            strength=args.rlb_gauge_strength,
+            max_log_step=args.rlb_gauge_max_log_step,
+            start=args.rlb_gauge_start,
+            end=args.rlb_gauge_end,
+            depth_gain=args.rlb_gauge_depth_gain,
+            every=args.rlb_gauge_every,
+            stat_decay=args.rational_onpolicy_stat_decay,
+            pressure_weight=args.rational_onpolicy_pressure_weight,
+            pressure_clip=args.rational_onpolicy_pressure_clip,
+            rational_activity_weight=args.rational_onpolicy_rational_activity_weight,
+            activity_gain_min=args.rational_onpolicy_activity_gain_min,
+            activity_gain_max=args.rational_onpolicy_activity_gain_max,
+            covariant_state=True,
+            matrix_strength=args.rational_jacobian_matrix_strength,
+            matrix_min_scale=args.rational_jacobian_min_scale,
+            matrix_max_scale=args.rational_jacobian_max_scale,
+            matrix_every=args.rational_jacobian_every,
+            eps=args.rlb_gauge_eps,
+        )
+
+
+
+    if args.optimizer in {"rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy"}:
+        from optimizer_design import FactoredAdamW, RationalJacobianOnPolicyOptimizer, SwitchingRationalOptimizer
+
+        curve_groups = collect_rlb_optimizer_groups(model, args)
+        if not curve_groups:
+            raise ValueError("Accepted activations for rational_layerwise_switch_onpolicy are RLB activations")
+
+        curve_group_indices = {int(group.get("layer_index", -1)): index for index, group in enumerate(curve_groups)}
+        rational_groups = []
+        dense_group_map = {}
+        for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue
+            if is_rational_optimizer_parameter_name(name):
+                layer_index = rational_optimizer_layer_index(name)
+                rational_groups.append(
+                    {
+                        "params": [param],
+                        "role": rational_optimizer_role(name),
+                        "weight_decay": 0.0,
+                        "layer_index": layer_index,
+                        "num_layers": args.layers,
+                        "selector_index": curve_group_indices.get(layer_index, -1),
+                    }
+                )
+            else:
+                append_dense_layerwise_group(dense_group_map, name, param, args)
+        if not rational_groups:
+            raise ValueError("rational_layerwise_switch_onpolicy requires trainable rational activation parameters")
+
+        optimizers = []
+        dense_groups = list(dense_group_map.values())
+        if dense_groups:
+            if args.optimizer == "rational_layerwise_factored_switch_onpolicy":
+                optimizers.append(
+                    FactoredAdamW(
+                        dense_groups,
+                        lr=args.lr,
+                        betas=(args.beta1, args.beta2),
+                        eps=args.eps,
+                        weight_decay=args.weight_decay,
+                        factored_min_dim=args.factored_min_dim,
+                        clip_threshold=args.factored_clip_threshold,
+                    )
+                )
+            else:
+                optimizers.append(
+                    torch.optim.AdamW(
+                        dense_groups,
+                        lr=args.lr,
+                        betas=(args.beta1, args.beta2),
+                        eps=args.eps,
+                    )
+                )
+        optimizers.append(
+            SwitchingRationalOptimizer(
+                rational_groups,
+                lr=args.lr,
+                betas=(args.beta1, args.beta2),
+                eps=args.eps,
+                weight_decay=0.0,
+                total_steps=args.steps,
+                switch_start=args.rational_switch_start,
+                switch_end=args.rational_switch_end,
+                switch_depth_shift=args.rational_switch_depth_shift,
+                adam_lr_scale=args.rational_switch_adam_lr_scale,
+                function_lr_scale=args.rational_switch_function_lr_scale,
+                select_strength=args.rational_switch_select_strength,
+                select_start=args.rational_switch_select_start,
+                select_end=args.rational_switch_select_end,
+                select_activity_threshold=args.rational_switch_select_activity_threshold,
+                select_activity_width=args.rational_switch_select_activity_width,
+                select_pressure_weight=args.rational_switch_select_pressure_weight,
+                selector_groups=curve_groups,
+                numerator_lr_scale=args.rational_coeff_num_lr_scale,
+                denominator_lr_scale=args.rational_coeff_den_lr_scale,
+                atom_lr_scale=args.rational_coeff_atom_lr_scale,
+                center_lr_scale=args.rational_coeff_center_lr_scale,
+                other_lr_scale=args.rational_coeff_other_lr_scale,
+                trust=args.rational_coeff_trust,
+                probe_range=args.rational_coeff_probe_range,
+                probe_points=args.rational_coeff_probe_points,
+                curve_decay=args.rational_coeff_curve_decay,
+                update_gain=args.rational_coeff_update_gain,
+                metric=args.rational_coeff_metric,
+                metric_damping=args.rational_coeff_metric_damping,
+                function_eps=args.rational_coeff_eps,
+            )
+        )
+        return RationalJacobianOnPolicyOptimizer(
+            optimizers,
+            curve_groups,
+            total_steps=args.steps,
+            target_weight=args.rlb_gauge_target_weight,
+            metric_every=args.rlb_gauge_metric_every,
+            probe_range=args.rlb_gauge_probe_range,
+            probe_points=args.rlb_gauge_probe_points,
+            strength=args.rlb_gauge_strength,
+            max_log_step=args.rlb_gauge_max_log_step,
+            start=args.rlb_gauge_start,
+            end=args.rlb_gauge_end,
+            depth_gain=args.rlb_gauge_depth_gain,
+            every=args.rlb_gauge_every,
+            stat_decay=args.rational_onpolicy_stat_decay,
+            pressure_weight=args.rational_onpolicy_pressure_weight,
+            pressure_clip=args.rational_onpolicy_pressure_clip,
+            rational_activity_weight=args.rational_onpolicy_rational_activity_weight,
+            activity_gain_min=args.rational_onpolicy_activity_gain_min,
+            activity_gain_max=args.rational_onpolicy_activity_gain_max,
+            covariant_state=True,
+            matrix_strength=args.rational_jacobian_matrix_strength,
+            matrix_min_scale=args.rational_jacobian_min_scale,
+            matrix_max_scale=args.rational_jacobian_max_scale,
+            matrix_every=args.rational_jacobian_every,
+            eps=args.rlb_gauge_eps,
+        )
 
     if args.optimizer == "rational_quotient_jacobian_onpolicy":
         from optimizer_design import FunctionSpaceRationalOptimizer, RationalQuotientJacobianOnPolicyOptimizer
@@ -5198,6 +5444,23 @@ def parse_args():
     parser.add_argument("--beta1", type=float, default=0.9)
     parser.add_argument("--beta2", type=float, default=0.95)
     parser.add_argument("--eps", type=float, default=1e-8)
+    parser.add_argument("--factored-min-dim", type=int, default=128)
+    parser.add_argument("--factored-clip-threshold", type=float, default=1.0)
+    parser.add_argument("--rational-dense-depth-gain", type=float, default=0.15)
+    parser.add_argument("--rational-dense-no-decay-lr-scale", type=float, default=0.75)
+    parser.add_argument("--rational-dense-min-lr-scale", type=float, default=0.70)
+    parser.add_argument("--rational-dense-max-lr-scale", type=float, default=1.20)
+    parser.add_argument("--rational-switch-start", type=float, default=0.36)
+    parser.add_argument("--rational-switch-end", type=float, default=0.58)
+    parser.add_argument("--rational-switch-depth-shift", type=float, default=-0.16)
+    parser.add_argument("--rational-switch-adam-lr-scale", type=float, default=1.0)
+    parser.add_argument("--rational-switch-function-lr-scale", type=float, default=1.0)
+    parser.add_argument("--rational-switch-select-strength", type=float, default=0.35)
+    parser.add_argument("--rational-switch-select-start", type=float, default=0.20)
+    parser.add_argument("--rational-switch-select-end", type=float, default=0.55)
+    parser.add_argument("--rational-switch-select-activity-threshold", type=float, default=0.08)
+    parser.add_argument("--rational-switch-select-activity-width", type=float, default=0.32)
+    parser.add_argument("--rational-switch-select-pressure-weight", type=float, default=0.25)
     parser.add_argument("--sam-rho", type=float, default=0.0)
     parser.add_argument("--sam-start", type=float, default=0.05)
     parser.add_argument("--sam-end", type=float, default=1.0)
@@ -5493,6 +5756,23 @@ def main():
         "optimizer_lr": args.lr,
         "optimizer_min_lr": args.min_lr,
         "optimizer_weight_decay": args.weight_decay,
+        "factored_min_dim": args.factored_min_dim if "factored" in args.optimizer else None,
+        "factored_clip_threshold": args.factored_clip_threshold if "factored" in args.optimizer else None,
+        "rational_dense_depth_gain": args.rational_dense_depth_gain if "layerwise" in args.optimizer else None,
+        "rational_dense_no_decay_lr_scale": args.rational_dense_no_decay_lr_scale if "layerwise" in args.optimizer else None,
+        "rational_dense_min_lr_scale": args.rational_dense_min_lr_scale if "layerwise" in args.optimizer else None,
+        "rational_dense_max_lr_scale": args.rational_dense_max_lr_scale if "layerwise" in args.optimizer else None,
+        "rational_switch_start": args.rational_switch_start if "switch" in args.optimizer else None,
+        "rational_switch_end": args.rational_switch_end if "switch" in args.optimizer else None,
+        "rational_switch_depth_shift": args.rational_switch_depth_shift if "switch" in args.optimizer else None,
+        "rational_switch_adam_lr_scale": args.rational_switch_adam_lr_scale if "switch" in args.optimizer else None,
+        "rational_switch_function_lr_scale": args.rational_switch_function_lr_scale if "switch" in args.optimizer else None,
+        "rational_switch_select_strength": args.rational_switch_select_strength if "switch" in args.optimizer else None,
+        "rational_switch_select_start": args.rational_switch_select_start if "switch" in args.optimizer else None,
+        "rational_switch_select_end": args.rational_switch_select_end if "switch" in args.optimizer else None,
+        "rational_switch_select_activity_threshold": args.rational_switch_select_activity_threshold if "switch" in args.optimizer else None,
+        "rational_switch_select_activity_width": args.rational_switch_select_activity_width if "switch" in args.optimizer else None,
+        "rational_switch_select_pressure_weight": args.rational_switch_select_pressure_weight if "switch" in args.optimizer else None,
         "sam_rho": args.sam_rho,
         "sam_start": args.sam_start,
         "sam_end": args.sam_end,
@@ -5519,17 +5799,17 @@ def main():
         "rlb_gauge_end": args.rlb_gauge_end if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
         "rlb_gauge_depth_gain": args.rlb_gauge_depth_gain if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
         "rlb_gauge_every": args.rlb_gauge_every if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
-        "rational_onpolicy_stat_decay": args.rational_onpolicy_stat_decay if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_pressure_weight": args.rational_onpolicy_pressure_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_pressure_clip": args.rational_onpolicy_pressure_clip if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_rational_activity_weight": args.rational_onpolicy_rational_activity_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_activity_gain_min": args.rational_onpolicy_activity_gain_min if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_activity_gain_max": args.rational_onpolicy_activity_gain_max if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_stat_decay": args.rational_onpolicy_stat_decay if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_pressure_weight": args.rational_onpolicy_pressure_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_pressure_clip": args.rational_onpolicy_pressure_clip if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_rational_activity_weight": args.rational_onpolicy_rational_activity_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_activity_gain_min": args.rational_onpolicy_activity_gain_min if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_activity_gain_max": args.rational_onpolicy_activity_gain_max if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
         "rational_quotient_strength": args.rational_quotient_strength if args.optimizer == "rational_quotient_onpolicy" else None,
-        "rational_jacobian_matrix_strength": args.rational_jacobian_matrix_strength if args.optimizer in {"rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
-        "rational_jacobian_min_scale": args.rational_jacobian_min_scale if args.optimizer in {"rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
-        "rational_jacobian_max_scale": args.rational_jacobian_max_scale if args.optimizer in {"rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
-        "rational_jacobian_every": args.rational_jacobian_every if args.optimizer in {"rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
+        "rational_jacobian_matrix_strength": args.rational_jacobian_matrix_strength if args.optimizer in {"rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
+        "rational_jacobian_min_scale": args.rational_jacobian_min_scale if args.optimizer in {"rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
+        "rational_jacobian_max_scale": args.rational_jacobian_max_scale if args.optimizer in {"rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
+        "rational_jacobian_every": args.rational_jacobian_every if args.optimizer in {"rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
         "rational_qjacobian_quotient_strength": args.rational_qjacobian_quotient_strength if args.optimizer == "rational_quotient_jacobian_onpolicy" else None,
         "rational_qjacobian_quotient_start": args.rational_qjacobian_quotient_start if args.optimizer == "rational_quotient_jacobian_onpolicy" else None,
         "rational_qjacobian_quotient_end": args.rational_qjacobian_quotient_end if args.optimizer == "rational_quotient_jacobian_onpolicy" else None,

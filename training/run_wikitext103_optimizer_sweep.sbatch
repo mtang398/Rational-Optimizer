@@ -32,7 +32,7 @@ EVAL_INTERVAL="${EVAL_INTERVAL:-250}"
 EVAL_BATCHES="${EVAL_BATCHES:-20}"
 LOG_INTERVAL="${LOG_INTERVAL:-25}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
-ACTIVE_OPTIMIZERS="adamw muon rational_onpolicy_balance rational_quotient_onpolicy rational_jacobian_onpolicy rational_quotient_jacobian_onpolicy rational_adaptive_metric_onpolicy rational_transport_onpolicy"
+ACTIVE_OPTIMIZERS="adamw factored_adamw muon rational_onpolicy_balance rational_quotient_onpolicy rational_jacobian_onpolicy rational_jacobian_factored_onpolicy rational_layerwise_switch_onpolicy rational_layerwise_factored_switch_onpolicy rational_quotient_jacobian_onpolicy rational_adaptive_metric_onpolicy rational_transport_onpolicy"
 
 for optimizer in ${OPTIMIZERS}; do
   case " ${ACTIVE_OPTIMIZERS} " in

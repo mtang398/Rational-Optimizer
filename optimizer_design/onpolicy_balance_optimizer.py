@@ -277,19 +277,34 @@ class RationalOnPolicyBalanceOptimizer:
             if not state:
                 continue
             for key, value in state.items():
-                if not torch.is_tensor(value) or value.shape != param.shape:
+                if not torch.is_tensor(value):
                     continue
-                factor = scale
-                if "sq" in str(key) or "square" in str(key):
-                    factor = scale.square()
-                if in_like:
-                    view = value.view(scale.numel(), -1, value.shape[-1])
-                    view.mul_(factor.to(device=value.device, dtype=value.dtype).view(scale.numel(), 1, 1))
-                else:
-                    groups = scale.numel()
-                    width = value.shape[1] // groups
-                    view = value.view(value.shape[0], groups, width).permute(1, 2, 0)
-                    view.mul_(factor.to(device=value.device, dtype=value.dtype).view(groups, 1, 1))
+                key_text = str(key)
+                factor = scale.square() if "sq" in key_text or "square" in key_text else scale
+                factor = factor.to(device=value.device, dtype=value.dtype)
+                if value.shape == param.shape:
+                    if in_like:
+                        view = value.view(scale.numel(), -1, value.shape[-1])
+                        view.mul_(factor.view(scale.numel(), 1, 1))
+                    else:
+                        groups = scale.numel()
+                        width = value.shape[1] // groups
+                        view = value.view(value.shape[0], groups, width).permute(1, 2, 0)
+                        view.mul_(factor.view(groups, 1, 1))
+                    continue
+
+                if key_text == "exp_avg_sq_row" and value.dim() == 1:
+                    if in_like and value.numel() == param.shape[0]:
+                        value.view(scale.numel(), -1).mul_(factor.view(scale.numel(), 1))
+                    elif (not in_like) and value.numel() == param.shape[0]:
+                        value.mul_(factor.mean())
+                    continue
+                if key_text == "exp_avg_sq_col" and value.dim() == 1:
+                    if in_like and value.numel() == param.shape[1]:
+                        value.mul_(factor.mean())
+                    elif (not in_like) and value.numel() == param.shape[1]:
+                        value.view(scale.numel(), -1).mul_(factor.view(scale.numel(), 1))
+                    continue
 
     @torch.no_grad()
     def _balance(self):
