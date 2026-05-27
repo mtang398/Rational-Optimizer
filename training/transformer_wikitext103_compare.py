@@ -89,6 +89,7 @@ RATIONAL_SPECIFIC_OPTIMIZERS = {
     "rational_jacobian_onpolicy",
     "rational_quotient_jacobian_onpolicy",
     "rational_adaptive_metric_onpolicy",
+    "rational_transport_onpolicy",
 }
 ACTIVE_OPTIMIZERS = sorted(CLASSIC_OPTIMIZERS | RATIONAL_SPECIFIC_OPTIMIZERS)
 
@@ -4769,6 +4770,149 @@ def configure_optimizer(model, args):
             eps=args.rlb_gauge_eps,
         )
 
+    if args.optimizer == "rational_transport_onpolicy":
+        from optimizer_design import FunctionSpaceRationalOptimizer, RationalTransportOnPolicyOptimizer
+
+        curve_groups = collect_rlb_optimizer_groups(model, args)
+        if not curve_groups:
+            raise ValueError("Accepted activations for rational_transport_onpolicy are RLB activations")
+
+        rational_groups = []
+        curve_group_indices = {int(group.get("layer_index", -1)): index for index, group in enumerate(curve_groups)}
+        adam_decay = []
+        adam_no_decay = []
+        for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue
+            if is_rational_optimizer_parameter_name(name):
+                layer_index = rational_optimizer_layer_index(name)
+                rational_groups.append(
+                    {
+                        "params": [param],
+                        "role": rational_optimizer_role(name),
+                        "layer_index": layer_index,
+                        "num_layers": args.layers,
+                        "selector_index": curve_group_indices.get(layer_index, -1),
+                    }
+                )
+            elif is_no_decay_parameter(name, param):
+                adam_no_decay.append(param)
+            else:
+                adam_decay.append(param)
+        if not rational_groups:
+            raise ValueError("rational_transport_onpolicy requires trainable rational activation parameters")
+
+        optimizers = []
+        adam_groups = []
+        if adam_decay:
+            adam_groups.append({"params": adam_decay, "weight_decay": args.weight_decay})
+        if adam_no_decay:
+            adam_groups.append({"params": adam_no_decay, "weight_decay": 0.0})
+        if adam_groups:
+            optimizers.append(
+                torch.optim.AdamW(
+                    adam_groups,
+                    lr=args.lr,
+                    betas=(args.beta1, args.beta2),
+                    eps=args.eps,
+                )
+            )
+        optimizers.append(
+            FunctionSpaceRationalOptimizer(
+                rational_groups,
+                lr=args.lr,
+                numerator_lr_scale=args.rational_coeff_num_lr_scale,
+                denominator_lr_scale=args.rational_transport_coeff_den_lr_scale,
+                denominator_lr_scale_final=args.rational_transport_coeff_den_lr_scale_final,
+                atom_lr_scale=args.rational_transport_coeff_atom_lr_scale,
+                atom_lr_scale_final=args.rational_transport_coeff_atom_lr_scale_final,
+                center_lr_scale=args.rational_coeff_center_lr_scale,
+                other_lr_scale=args.rational_coeff_other_lr_scale,
+                trust=args.rational_transport_coeff_trust,
+                trust_final=args.rational_transport_coeff_trust_final,
+                probe_range=args.rational_coeff_probe_range,
+                probe_points=args.rational_coeff_probe_points,
+                curve_decay=args.rational_coeff_curve_decay,
+                update_gain=args.rational_transport_coeff_update_gain,
+                update_gain_final=args.rational_transport_coeff_update_gain_final,
+                update_gain_decay_start=args.rational_transport_coeff_decay_start,
+                update_gain_decay_end=args.rational_transport_coeff_decay_end,
+                update_depth_gain=args.rational_transport_coeff_depth_gain,
+                update_switch_depth_shift=args.rational_transport_coeff_switch_depth_shift,
+                reset_on_switch=args.rational_transport_coeff_reset_on_switch,
+                selector_groups=curve_groups,
+                select_strength=args.rational_transport_coeff_select_strength,
+                select_start=args.rational_transport_coeff_select_start,
+                select_end=args.rational_transport_coeff_select_end,
+                select_activity_threshold=args.rational_transport_coeff_select_activity_threshold,
+                select_activity_width=args.rational_transport_coeff_select_activity_width,
+                select_pressure_weight=args.rational_transport_coeff_select_pressure_weight,
+                denominator_decay=args.rational_transport_coeff_den_decay,
+                atom_decay=args.rational_transport_coeff_atom_decay,
+                total_steps=args.steps,
+                metric=args.rational_coeff_metric,
+                metric_damping=args.rational_coeff_metric_damping,
+                eps=args.rational_coeff_eps,
+            )
+        )
+        return RationalTransportOnPolicyOptimizer(
+            optimizers,
+            curve_groups,
+            total_steps=args.steps,
+            target_weight=args.rlb_gauge_target_weight,
+            metric_every=args.rlb_gauge_metric_every,
+            probe_range=args.rlb_gauge_probe_range,
+            probe_points=args.rlb_gauge_probe_points,
+            strength=args.rlb_gauge_strength,
+            max_log_step=args.rlb_gauge_max_log_step,
+            start=args.rlb_gauge_start,
+            end=args.rlb_gauge_end,
+            depth_gain=args.rlb_gauge_depth_gain,
+            every=args.rlb_gauge_every,
+            stat_decay=args.rational_onpolicy_stat_decay,
+            pressure_weight=args.rational_onpolicy_pressure_weight,
+            pressure_clip=args.rational_onpolicy_pressure_clip,
+            rational_activity_weight=args.rational_onpolicy_rational_activity_weight,
+            activity_gain_min=args.rational_onpolicy_activity_gain_min,
+            activity_gain_max=args.rational_onpolicy_activity_gain_max,
+            covariant_state=True,
+            matrix_strength=args.rational_transport_matrix_strength,
+            matrix_min_scale=args.rational_adaptive_min_scale,
+            matrix_max_scale=args.rational_adaptive_max_scale,
+            matrix_every=args.rational_adaptive_every,
+            stat_every=args.rational_transport_stat_every,
+            stat_samples=args.rational_adaptive_stat_samples,
+            coeff_strength=args.rational_adaptive_coeff_strength,
+            coeff_start=args.rational_adaptive_coeff_start,
+            coeff_end=args.rational_adaptive_coeff_end,
+            coeff_late_decay=args.rational_adaptive_coeff_late_decay,
+            coeff_metric_damping=args.rational_adaptive_coeff_metric_damping,
+            coeff_norm_clip=args.rational_adaptive_coeff_norm_clip,
+            coeff_max_blend=args.rational_adaptive_coeff_max_blend,
+            coeff_depth_gain=args.rational_adaptive_coeff_depth_gain,
+            matrix_time_gain=args.rational_transport_matrix_time_gain,
+            matrix_depth_gain=args.rational_transport_matrix_depth_gain,
+            quotient_strength=args.rational_transport_quotient_strength,
+            transport_strength=args.rational_transport_strength,
+            transport_start=args.rational_transport_start,
+            transport_end=args.rational_transport_end,
+            transport_every=args.rational_transport_every,
+            transport_max_log_step=args.rational_transport_max_log_step,
+            transport_derivative_weight=args.rational_transport_derivative_weight,
+            transport_headroom=args.rational_transport_headroom,
+            transport_depth_gain=args.rational_transport_depth_gain,
+            transport_derivative_depth_gain=args.rational_transport_derivative_depth_gain,
+            matrix_input_depth_gain=args.rational_transport_matrix_input_depth_gain,
+            matrix_output_depth_gain=args.rational_transport_matrix_output_depth_gain,
+            matrix_live_stats=args.rational_transport_live_matrix_stats,
+            pressure_precond_strength=args.rational_transport_pressure_strength,
+            pressure_precond_depth_gain=args.rational_transport_pressure_depth_gain,
+            pressure_precond_min_scale=args.rational_transport_pressure_min_scale,
+            pressure_precond_max_scale=args.rational_transport_pressure_max_scale,
+            eps=args.rlb_gauge_eps,
+        )
+
+
     allowed = ", ".join(ACTIVE_OPTIMIZERS)
     raise ValueError(f"Accepted optimizer choices: {allowed}")
 
@@ -5042,6 +5186,48 @@ def parse_args():
     parser.add_argument("--rational-adaptive-matrix-time-gain", type=float, default=0.15)
     parser.add_argument("--rational-adaptive-matrix-depth-gain", type=float, default=0.10)
     parser.add_argument("--rational-adaptive-quotient-strength", type=float, default=0.0)
+    parser.add_argument("--rational-transport-quotient-strength", type=float, default=0.0)
+    parser.add_argument("--rational-transport-strength", type=float, default=0.0)
+    parser.add_argument("--rational-transport-start", type=float, default=0.04)
+    parser.add_argument("--rational-transport-end", type=float, default=0.70)
+    parser.add_argument("--rational-transport-every", type=int, default=5)
+    parser.add_argument("--rational-transport-max-log-step", type=float, default=0.025)
+    parser.add_argument("--rational-transport-derivative-weight", type=float, default=0.50)
+    parser.add_argument("--rational-transport-headroom", type=float, default=0.92)
+    parser.add_argument("--rational-transport-depth-gain", type=float, default=0.30)
+    parser.add_argument("--rational-transport-derivative-depth-gain", type=float, default=0.35)
+    parser.add_argument("--rational-transport-matrix-strength", type=float, default=0.65)
+    parser.add_argument("--rational-transport-matrix-depth-gain", type=float, default=0.0)
+    parser.add_argument("--rational-transport-matrix-time-gain", type=float, default=0.0)
+    parser.add_argument("--rational-transport-stat-every", type=int, default=8)
+    parser.add_argument("--rational-transport-matrix-input-depth-gain", type=float, default=0.0)
+    parser.add_argument("--rational-transport-matrix-output-depth-gain", type=float, default=0.0)
+    parser.add_argument("--rational-transport-live-matrix-stats", action="store_true")
+    parser.add_argument("--rational-transport-coeff-update-gain", type=float, default=4.5)
+    parser.add_argument("--rational-transport-coeff-update-gain-final", type=float, default=4.5)
+    parser.add_argument("--rational-transport-coeff-decay-start", type=float, default=1.1)
+    parser.add_argument("--rational-transport-coeff-decay-end", type=float, default=1.1)
+    parser.add_argument("--rational-transport-coeff-depth-gain", type=float, default=0.0)
+    parser.add_argument("--rational-transport-coeff-switch-depth-shift", type=float, default=0.0)
+    parser.add_argument("--rational-transport-coeff-reset-on-switch", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--rational-transport-coeff-select-strength", type=float, default=0.0)
+    parser.add_argument("--rational-transport-coeff-select-start", type=float, default=0.25)
+    parser.add_argument("--rational-transport-coeff-select-end", type=float, default=0.55)
+    parser.add_argument("--rational-transport-coeff-select-activity-threshold", type=float, default=0.10)
+    parser.add_argument("--rational-transport-coeff-select-activity-width", type=float, default=0.40)
+    parser.add_argument("--rational-transport-coeff-select-pressure-weight", type=float, default=0.25)
+    parser.add_argument("--rational-transport-coeff-atom-decay", type=float, default=0.0)
+    parser.add_argument("--rational-transport-coeff-den-decay", type=float, default=0.0)
+    parser.add_argument("--rational-transport-coeff-atom-lr-scale", type=float, default=2.25)
+    parser.add_argument("--rational-transport-coeff-atom-lr-scale-final", type=float, default=2.25)
+    parser.add_argument("--rational-transport-coeff-den-lr-scale", type=float, default=1.125)
+    parser.add_argument("--rational-transport-coeff-den-lr-scale-final", type=float, default=1.125)
+    parser.add_argument("--rational-transport-coeff-trust", type=float, default=0.01)
+    parser.add_argument("--rational-transport-coeff-trust-final", type=float, default=0.01)
+    parser.add_argument("--rational-transport-pressure-strength", type=float, default=0.0)
+    parser.add_argument("--rational-transport-pressure-depth-gain", type=float, default=0.25)
+    parser.add_argument("--rational-transport-pressure-min-scale", type=float, default=0.70)
+    parser.add_argument("--rational-transport-pressure-max-scale", type=float, default=1.40)
     parser.add_argument("--grad-clip", type=float, default=1.0)
     parser.add_argument("--log-interval", type=int, default=10)
     parser.add_argument("--eval-interval", type=int, default=250)
@@ -5244,12 +5430,12 @@ def main():
         "rlb_gauge_end": args.rlb_gauge_end if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
         "rlb_gauge_depth_gain": args.rlb_gauge_depth_gain if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
         "rlb_gauge_every": args.rlb_gauge_every if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
-        "rational_onpolicy_stat_decay": args.rational_onpolicy_stat_decay if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy"} else None,
-        "rational_onpolicy_pressure_weight": args.rational_onpolicy_pressure_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy"} else None,
-        "rational_onpolicy_pressure_clip": args.rational_onpolicy_pressure_clip if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy"} else None,
-        "rational_onpolicy_rational_activity_weight": args.rational_onpolicy_rational_activity_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy"} else None,
-        "rational_onpolicy_activity_gain_min": args.rational_onpolicy_activity_gain_min if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy"} else None,
-        "rational_onpolicy_activity_gain_max": args.rational_onpolicy_activity_gain_max if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy"} else None,
+        "rational_onpolicy_stat_decay": args.rational_onpolicy_stat_decay if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_pressure_weight": args.rational_onpolicy_pressure_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_pressure_clip": args.rational_onpolicy_pressure_clip if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_rational_activity_weight": args.rational_onpolicy_rational_activity_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_activity_gain_min": args.rational_onpolicy_activity_gain_min if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_activity_gain_max": args.rational_onpolicy_activity_gain_max if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
         "rational_quotient_strength": args.rational_quotient_strength if args.optimizer == "rational_quotient_onpolicy" else None,
         "rational_jacobian_matrix_strength": args.rational_jacobian_matrix_strength if args.optimizer in {"rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
         "rational_jacobian_min_scale": args.rational_jacobian_min_scale if args.optimizer in {"rational_jacobian_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
@@ -5259,23 +5445,65 @@ def main():
         "rational_qjacobian_quotient_start": args.rational_qjacobian_quotient_start if args.optimizer == "rational_quotient_jacobian_onpolicy" else None,
         "rational_qjacobian_quotient_end": args.rational_qjacobian_quotient_end if args.optimizer == "rational_quotient_jacobian_onpolicy" else None,
         "rational_qjacobian_quotient_depth_gain": args.rational_qjacobian_quotient_depth_gain if args.optimizer == "rational_quotient_jacobian_onpolicy" else None,
-        "rational_adaptive_stat_every": args.rational_adaptive_stat_every if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_stat_samples": args.rational_adaptive_stat_samples if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_coeff_strength": args.rational_adaptive_coeff_strength if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_coeff_start": args.rational_adaptive_coeff_start if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_coeff_end": args.rational_adaptive_coeff_end if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_coeff_late_decay": args.rational_adaptive_coeff_late_decay if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_coeff_metric_damping": args.rational_adaptive_coeff_metric_damping if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_coeff_norm_clip": args.rational_adaptive_coeff_norm_clip if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_coeff_max_blend": args.rational_adaptive_coeff_max_blend if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_coeff_depth_gain": args.rational_adaptive_coeff_depth_gain if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_matrix_strength": args.rational_adaptive_matrix_strength if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_min_scale": args.rational_adaptive_min_scale if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_max_scale": args.rational_adaptive_max_scale if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_every": args.rational_adaptive_every if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_matrix_time_gain": args.rational_adaptive_matrix_time_gain if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
-        "rational_adaptive_matrix_depth_gain": args.rational_adaptive_matrix_depth_gain if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
+        "rational_adaptive_stat_every": args.rational_adaptive_stat_every if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_stat_samples": args.rational_adaptive_stat_samples if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_coeff_strength": args.rational_adaptive_coeff_strength if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_coeff_start": args.rational_adaptive_coeff_start if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_coeff_end": args.rational_adaptive_coeff_end if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_coeff_late_decay": args.rational_adaptive_coeff_late_decay if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_coeff_metric_damping": args.rational_adaptive_coeff_metric_damping if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_coeff_norm_clip": args.rational_adaptive_coeff_norm_clip if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_coeff_max_blend": args.rational_adaptive_coeff_max_blend if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_coeff_depth_gain": args.rational_adaptive_coeff_depth_gain if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_matrix_strength": args.rational_adaptive_matrix_strength if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_min_scale": args.rational_adaptive_min_scale if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_max_scale": args.rational_adaptive_max_scale if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_every": args.rational_adaptive_every if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_matrix_time_gain": args.rational_adaptive_matrix_time_gain if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_adaptive_matrix_depth_gain": args.rational_adaptive_matrix_depth_gain if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
         "rational_adaptive_quotient_strength": args.rational_adaptive_quotient_strength if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
+        "rational_transport_quotient_strength": args.rational_transport_quotient_strength if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_strength": args.rational_transport_strength if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_start": args.rational_transport_start if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_end": args.rational_transport_end if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_every": args.rational_transport_every if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_max_log_step": args.rational_transport_max_log_step if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_derivative_weight": args.rational_transport_derivative_weight if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_headroom": args.rational_transport_headroom if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_depth_gain": args.rational_transport_depth_gain if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_derivative_depth_gain": args.rational_transport_derivative_depth_gain if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_matrix_strength": args.rational_transport_matrix_strength if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_matrix_depth_gain": args.rational_transport_matrix_depth_gain if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_matrix_time_gain": args.rational_transport_matrix_time_gain if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_stat_every": args.rational_transport_stat_every if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_matrix_input_depth_gain": args.rational_transport_matrix_input_depth_gain if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_matrix_output_depth_gain": args.rational_transport_matrix_output_depth_gain if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_live_matrix_stats": args.rational_transport_live_matrix_stats if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_update_gain": args.rational_transport_coeff_update_gain if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_update_gain_final": args.rational_transport_coeff_update_gain_final if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_decay_start": args.rational_transport_coeff_decay_start if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_decay_end": args.rational_transport_coeff_decay_end if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_depth_gain": args.rational_transport_coeff_depth_gain if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_switch_depth_shift": args.rational_transport_coeff_switch_depth_shift if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_reset_on_switch": args.rational_transport_coeff_reset_on_switch if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_select_strength": args.rational_transport_coeff_select_strength if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_select_start": args.rational_transport_coeff_select_start if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_select_end": args.rational_transport_coeff_select_end if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_select_activity_threshold": args.rational_transport_coeff_select_activity_threshold if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_select_activity_width": args.rational_transport_coeff_select_activity_width if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_select_pressure_weight": args.rational_transport_coeff_select_pressure_weight if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_atom_decay": args.rational_transport_coeff_atom_decay if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_den_decay": args.rational_transport_coeff_den_decay if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_atom_lr_scale": args.rational_transport_coeff_atom_lr_scale if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_atom_lr_scale_final": args.rational_transport_coeff_atom_lr_scale_final if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_den_lr_scale": args.rational_transport_coeff_den_lr_scale if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_den_lr_scale_final": args.rational_transport_coeff_den_lr_scale_final if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_trust": args.rational_transport_coeff_trust if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_coeff_trust_final": args.rational_transport_coeff_trust_final if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_pressure_strength": args.rational_transport_pressure_strength if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_pressure_depth_gain": args.rational_transport_pressure_depth_gain if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_pressure_min_scale": args.rational_transport_pressure_min_scale if args.optimizer == "rational_transport_onpolicy" else None,
+        "rational_transport_pressure_max_scale": args.rational_transport_pressure_max_scale if args.optimizer == "rational_transport_onpolicy" else None,
         "muon_adjust_lr_fn": args.muon_adjust_lr_fn if args.optimizer == "muon" else None,
         "muon_momentum": args.muon_momentum if args.optimizer == "muon" else None,
         "muon_ns_steps": args.muon_ns_steps if args.optimizer == "muon" else None,

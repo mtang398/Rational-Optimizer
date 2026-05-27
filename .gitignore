@@ -21,3 +21,7 @@ experiments/cache/
 # Editor and OS noise
 .DS_Store
 *.swp
+
+# Generated experiment logs and raw transport probes
+experiments/runs/logs/ract-wt103-opt-*.out
+experiments/runs/wikitext103/rational_transport_*/

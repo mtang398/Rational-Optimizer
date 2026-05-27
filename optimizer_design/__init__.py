@@ -6,6 +6,7 @@ from .quotient_onpolicy_optimizer import RationalQuotientOnPolicyOptimizer
 from .jacobian_onpolicy_optimizer import RationalJacobianOnPolicyOptimizer
 from .quotient_jacobian_onpolicy_optimizer import RationalQuotientJacobianOnPolicyOptimizer
 from .adaptive_metric_onpolicy_optimizer import RationalAdaptiveMetricOnPolicyOptimizer
+from .transport_onpolicy_optimizer import RationalTransportOnPolicyOptimizer
 
 __all__ = [
     "FunctionSpaceRationalOptimizer",
@@ -14,4 +15,5 @@ __all__ = [
     "RationalJacobianOnPolicyOptimizer",
     "RationalQuotientJacobianOnPolicyOptimizer",
     "RationalAdaptiveMetricOnPolicyOptimizer",
+    "RationalTransportOnPolicyOptimizer",
 ]

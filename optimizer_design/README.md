@@ -22,6 +22,7 @@ rational_quotient_onpolicy
 rational_jacobian_onpolicy
 rational_quotient_jacobian_onpolicy
 rational_adaptive_metric_onpolicy
+rational_transport_onpolicy          tested prototype
 ```
 
 These are used only with RLB activations. Standard comparison optimizers are `adamw` and `muon`.
@@ -35,6 +36,7 @@ quotient_onpolicy_optimizer.py             gauge-gradient quotient wrapper for R
 jacobian_onpolicy_optimizer.py             curve-aware RLB matrix preconditioner
 quotient_jacobian_onpolicy_optimizer.py    quotient projection plus Jacobian preconditioning
 adaptive_metric_onpolicy_optimizer.py      on-policy empirical metric prototype
+transport_onpolicy_optimizer.py            rational-curve transport and matrix selector prototype
 ```
 
 ## RLB Gauge
@@ -47,6 +49,15 @@ W_out,g <- W_out,g / c
 ```
 
 The represented function is unchanged for positive `c`. This is the main structure the optimizer uses.
+
+The transport prototype also uses a second exact rational-only amplitude gauge:
+
+```text
+R_g     <- a R_g
+W_out,g <- W_out,g / a
+```
+
+It is implemented by scaling each rational group numerator and local atom coefficients, then compensating the corresponding output-matrix group. Denominator parameters are left unchanged, so the rational curve is amplitude-transported without changing its poles or local length scale.
 
 ## Function-Space Coefficient Updates
 
@@ -121,6 +132,8 @@ This is specific to RLB because `W_in` gradients pass through `R'_g`, while `W_o
 
 `RationalAdaptiveMetricOnPolicyOptimizer` enables RLB modules to collect empirical output and derivative gains on the actual normalized training activations. It also contains an optional empirical Gram solve for rational coefficients, but this is off by default because probes showed it over-conditioned the small coefficient tensors.
 
+`RationalTransportOnPolicyOptimizer` is a tested prototype. It keeps the adaptive metric path and adds optional rational amplitude transport, optional pressure preconditioning, and a coefficient-mode selector that can switch from aggressive early rational coefficient updates to safer late updates by layer using live on-policy gradient activity. In the 2026-05-27 runs, aggressive coefficient switching and late coefficient pullback did not beat the incumbent. The best transport setting was the conservative matrix-only mode: baseline coefficient dynamics with `matrix_strength = 0.65`, no live matrix stats, and no amplitude transport.
+
 ## Current Result
 
 Three-seed aggregate on the 100M-token WikiText-103 task:
@@ -133,4 +146,6 @@ RLB h3072 + rational_quotient_onpolicy      3.606664  PPL 36.847  sec/step 0.205
 RLB h3072 + rational_jacobian_onpolicy      3.605394  PPL 36.800  sec/step 0.204885
 ```
 
-The Jacobian on-policy row improves the mean loss by `-0.004736` versus AdamW + SiLU/SwiGLU and by `-0.001236` versus AdamW on the same RLB activation. The 2026-05-27 prototypes did not supersede this row, so `rational_jacobian_onpolicy` remains the recommended optimizer.
+The Jacobian on-policy row improves the mean loss by `-0.004736` versus AdamW + SiLU/SwiGLU and by `-0.001236` versus AdamW on the same RLB activation. The 2026-05-27 transport probes did not supersede this row, so `rational_jacobian_onpolicy` remains the recommended optimizer. On seed 1337, the incumbent h3072 Jacobian row was `3.614862`; the best transport row found was baseline coefficient dynamics plus matrix strength `0.65` at `3.615149`. Aggressive coefficient schedules, selector-triggered cooldown, and coefficient pullback all landed between `3.6198` and `3.6217`, so they are implemented as ablation controls rather than recommended defaults.
+
+The loss/PPL plots and compact probe table are stored in `experiments/results/transport_optimizer_analysis_2026_05_27/`. The design lesson from those plots is that rational-specific matrix geometry is the robust signal; coefficient movement should be treated as a reversible, function-space-bounded proposal rather than a scheduled phase switch.

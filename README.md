@@ -18,6 +18,7 @@ RLB + rational_quotient_onpolicy
 RLB + rational_jacobian_onpolicy
 RLB + rational_quotient_jacobian_onpolicy   prototype
 RLB + rational_adaptive_metric_onpolicy     prototype
+RLB + rational_transport_onpolicy           tested prototype
 ```
 
 Rational-specific optimizers are applied only to RLB. The standard optimizer names are `adamw` and `muon`.
@@ -60,6 +61,7 @@ rational_quotient_onpolicy
 rational_jacobian_onpolicy
 rational_quotient_jacobian_onpolicy
 rational_adaptive_metric_onpolicy
+rational_transport_onpolicy
 ```
 
 `rational_onpolicy_balance` uses live gradient pressure, rational curve activity, and layer depth to apply a function-preserving group-scale correction after each child optimizer step.
@@ -71,6 +73,8 @@ rational_adaptive_metric_onpolicy
 `rational_quotient_jacobian_onpolicy` is a prototype that combines quotient projection with the Jacobian preconditioner. It is useful as an ablation but did not beat the verified Jacobian row in the seed-1337 probe.
 
 `rational_adaptive_metric_onpolicy` is a prototype that can use live on-policy RLB activation statistics. Its default keeps coefficient Gram conditioning off because that over-conditioned the small rational tensors in probes.
+
+`rational_transport_onpolicy` is a tested prototype. It adds optional rational-only amplitude transport, optional pressure preconditioning, and an on-policy coefficient selector. The selector can switch from aggressive early rational coefficient updates to safer late updates by layer using live coefficient-vs-matrix gradient activity. The validated default is conservative: baseline coefficient dynamics plus matrix preconditioning, because aggressive coefficient schedules caused a late loss penalty.
 
 ## Current Full Result
 
@@ -100,12 +104,51 @@ The best measured row is `rational_jacobian_onpolicy + rlb_fused_fixed_strong_ff
 Additional RLB-specific optimizers were implemented and probed on seed 1337 before deciding whether to launch a full multi-seed sweep:
 
 ```text
-rational_adaptive_metric_onpolicy h3072   3.615887  PPL 37.184
-rational_adaptive_metric_onpolicy h2880   3.615114  PPL 37.156
-rational_quotient_jacobian_onpolicy h3072 3.615571  PPL 37.173
+rational_adaptive_metric_onpolicy h3072             3.615887  PPL 37.184
+rational_adaptive_metric_onpolicy h2880             3.615114  PPL 37.156
+rational_quotient_jacobian_onpolicy h3072           3.615571  PPL 37.173
+rational_transport_onpolicy h3072 matrix=0.65       3.615149  PPL 37.157
+rational_transport_onpolicy h3072 matrix=0.70       3.615180  PPL 37.158
 ```
 
-The seed-1337 incumbents are `3.614862` for `rational_jacobian_onpolicy + h3072` and `3.614475` for `rational_quotient_onpolicy + h2880`. The new probes beat AdamW/SILU on that seed, but they did not beat the existing rational-specific rows, so the full three-seed recommendation remains unchanged. The coefficient-Gram probe and the h2880 quotient-Jacobian row were stopped early after underperforming checkpoints.
+The seed-1337 incumbents are `3.614862` for `rational_jacobian_onpolicy + h3072` and `3.614475` for `rational_quotient_onpolicy + h2880`. The new probes beat AdamW/SILU on that seed, but they did not beat the existing rational-specific rows, so the full three-seed recommendation remains unchanged. Transport experiments showed that aggressive rational coefficient schedules improve some early checkpoints but create a late penalty; selector cooldown and coefficient pullback reduced but did not remove that penalty. The safest transport setting found is matrix-only transport with baseline coefficient dynamics.
+
+### Transport Probe Analysis
+
+The compact analysis artifacts are in `experiments/results/transport_optimizer_analysis_2026_05_27/`:
+
+```text
+loss_ppl_curves.png          validation loss and PPL curves
+final_loss_ppl_bars.png      final validation loss and PPL bars
+transport_probe_summary.csv  retained probe metrics
+```
+
+![Seed-1337 h3072 validation curves](experiments/results/transport_optimizer_analysis_2026_05_27/loss_ppl_curves.png)
+
+![Seed-1337 h3072 final metrics](experiments/results/transport_optimizer_analysis_2026_05_27/final_loss_ppl_bars.png)
+
+Same seed, same h3072 RLB setting:
+
+| row | final loss | final PPL | gap vs Jacobian |
+| --- | ---: | ---: | ---: |
+| `rational_jacobian_onpolicy` | 3.614862 | 37.146 | +0.000000 |
+| `rational_transport_onpolicy`, matrix `0.65`, baseline coeffs | 3.615149 | 37.157 | +0.000287 |
+| `rational_transport_onpolicy`, matrix `0.70`, baseline coeffs | 3.615180 | 37.158 | +0.000318 |
+| `rational_transport_onpolicy`, matrix-only early probe | 3.615939 | 37.186 | +0.001077 |
+| `rational_transport_onpolicy`, matrix `0.60` plus time ramp | 3.616660 | 37.213 | +0.001798 |
+| `rational_adaptive_metric_onpolicy` | 3.617174 | 37.232 | +0.002312 |
+| AdamW on h3072 RLB | 3.617501 | 37.244 | +0.002639 |
+| layer-staggered coefficient switch, pre-fix run | 3.619816 | 37.331 | +0.004954 |
+| selector plus coefficient pullback | 3.619819 | 37.331 | +0.004957 |
+| global switch at 43% progress | 3.620000 | 37.338 | +0.005138 |
+| depth-corrected layer switch | 3.621418 | 37.391 | +0.006556 |
+| aggressive xfast coefficient schedule | 3.625419 | 37.540 | +0.010557 |
+
+The main positive result is narrow but real: RLB-aware matrix geometry is consistently useful. The best transport rows kept the rational coefficients on the conservative baseline path and only changed how the matrices see the learned rational curves. Raising the matrix preconditioner from the first matrix-only attempt to `0.65` closed most of the gap to the incumbent Jacobian optimizer, and `0.70` was essentially tied but slightly worse. A time ramp on the same mechanism was worse, which suggests the useful part is stable curve-aware scaling, not late extra pressure.
+
+The main negative result is also consistent: aggressive coefficient motion is the wrong place to spend risk in this benchmark. The coefficient selector, layer-specific switches, reset-on-switch, freezes, and late pullback were all trying to avoid the late-penalty pattern, but they still landed well behind the matrix-only transport rows. The likely reason is that rational coefficients are small function parameters, not ordinary dense weights. Early large moves can change the learned scalar nonlinearity enough that later cooldown only stops further damage; it does not restore the better function-space basin.
+
+The next optimizer design should therefore make selection reversible and acceptance-based instead of only scheduled. A stronger rational-specific optimizer should treat matrix preconditioning and gauge balancing as the default path, then allow coefficient proposals only when a local function-space test accepts them: bound the change on the probe grid, compare a short on-policy loss proxy against a frozen-coefficient shadow update, and roll back or decay the proposal when it loses. Layer-specific behavior is still worth using, but it should choose among validated conservative actions rather than switching into aggressive coefficient modes because a schedule says the phase changed.
 
 ## Layout
 
