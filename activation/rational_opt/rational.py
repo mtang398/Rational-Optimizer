@@ -1,4 +1,5 @@
 import math
+import os
 
 import torch
 from torch import nn
@@ -329,9 +330,72 @@ class _RationalVersionA5_4Function(torch.autograd.Function):
         return tuple(_C.version_a_backward(grad_work, x, numerator, denominator))
 
 
+def _use_torch_fallback() -> bool:
+    return os.environ.get("RATIONAL_OPT_TORCH_FALLBACK", "0") in {"1", "true", "True", "yes"}
+
+
+def _rational_version_a5_4_torch(x, numerator, denominator):
+    a = numerator.to(device=x.device, dtype=x.dtype)
+    b = denominator.abs().to(device=x.device, dtype=x.dtype)
+    x2 = x.square()
+    x4 = x2.square()
+    p = (((((a[..., 5] * x + a[..., 4]) * x + a[..., 3]) * x + a[..., 2]) * x + a[..., 1]) * x + a[..., 0])
+    q = 1.0 + b[..., 0] * x.abs() + b[..., 1] * x2 + b[..., 2] * x.abs() * x2 + b[..., 3] * x4
+    return p / q.clamp_min(torch.finfo(x.dtype).tiny)
+
+
 def rational_version_a5_4(x, numerator, denominator):
+    if _use_torch_fallback():
+        return _rational_version_a5_4_torch(x, numerator, denominator)
     return _RationalVersionA5_4Function.apply(x, numerator, denominator)
 
+
+
+def _rational_local_basis_torch(x, numerator, denominator, coeff_logits, centers, beta, coeff_limit, eps, hidden_dim, groups):
+    shape = x.shape
+    groups = int(groups)
+    hidden_dim = int(hidden_dim)
+    width = hidden_dim // groups
+    grouped = x.view(*shape[:-1], groups, width)
+    rms = torch.sqrt(grouped.square().mean(dim=-1, keepdim=True) + float(eps))
+    t = grouped / rms
+
+    prefix = (1,) * (grouped.dim() - 2)
+    coeff_shape = (*prefix, groups, 1)
+    a = numerator.to(device=x.device, dtype=x.dtype)
+    b = denominator.abs().to(device=x.device, dtype=x.dtype)
+    a0 = a[:, 0].view(coeff_shape)
+    a1 = a[:, 1].view(coeff_shape)
+    a2 = a[:, 2].view(coeff_shape)
+    a3 = a[:, 3].view(coeff_shape)
+    a4 = a[:, 4].view(coeff_shape)
+    a5 = a[:, 5].view(coeff_shape)
+    b0 = b[:, 0].view(coeff_shape)
+    b1 = b[:, 1].view(coeff_shape)
+    b2 = b[:, 2].view(coeff_shape)
+    b3 = b[:, 3].view(coeff_shape)
+    t2 = t.square()
+    t4 = t2.square()
+    base_num = (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t + a0)
+    base_den = 1.0 + b0 * t.abs() + b1 * t2 + b2 * t.abs() * t2 + b3 * t4
+    base = base_num / base_den.clamp_min(torch.finfo(x.dtype).tiny)
+
+    centers = centers.to(device=x.device, dtype=x.dtype)
+    beta = beta.to(device=x.device, dtype=x.dtype)
+    coeff = float(coeff_limit) * torch.tanh(coeff_logits).to(device=x.device, dtype=x.dtype)
+    atom_shape = (*prefix, groups, 1)
+    delta = torch.zeros_like(t)
+    for basis_idx in range(centers.shape[1]):
+        center = centers[:, basis_idx].view(atom_shape)
+        beta_i = beta[:, basis_idx].view(atom_shape)
+        u = t - center
+        den = 1.0 + beta_i * u.square()
+        odd = u / den
+        zero_level = 1.0 / (1.0 + beta_i * center.square())
+        bump = 1.0 / den - zero_level
+        coeff_i = coeff[:, basis_idx].view(*atom_shape, 2)
+        delta = delta + coeff_i[..., 0] * odd + coeff_i[..., 1] * bump
+    return ((base + delta) * rms).reshape(shape)
 
 
 class _RationalLocalBasisFunction(torch.autograd.Function):
@@ -383,6 +447,10 @@ class _RationalLocalBasisFunction(torch.autograd.Function):
 
 
 def rational_local_basis(x, numerator, denominator, coeff_logits, centers, beta, coeff_limit, eps, hidden_dim, groups):
+    if _use_torch_fallback():
+        return _rational_local_basis_torch(
+            x, numerator, denominator, coeff_logits, centers, beta, coeff_limit, eps, hidden_dim, groups
+        )
     return _RationalLocalBasisFunction.apply(
         x, numerator, denominator, coeff_logits, centers, beta, coeff_limit, eps, hidden_dim, groups
     )

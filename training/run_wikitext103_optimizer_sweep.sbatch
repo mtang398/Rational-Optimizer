@@ -2,7 +2,7 @@
 #SBATCH --job-name=ract-wt103-opt
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:nvidia_rtx_a6000:4
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=96G
 #SBATCH --time=04:00:00
@@ -49,7 +49,8 @@ done
 "${PYTHON}" setup.py build_ext --inplace ${BUILD_EXT_ARGS}
 "${PYTHON}" training/transformer_wikitext103_compare.py \
   --prepare-only \
-  --run-name "${RUN_NAME}"
+  --run-name "${RUN_NAME}" \
+  ${EXTRA_ARGS}
 
 for seed in ${SEEDS}; do
   for optimizer in ${OPTIMIZERS}; do

@@ -4015,8 +4015,51 @@ def token_cache_path(args, split, max_tokens):
     cache_dir = Path(args.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     max_part = "all" if max_tokens is None else str(max_tokens)
-    name = f"{sanitize_name(args.dataset_name)}_{sanitize_name(args.dataset_config)}_{sanitize_name(args.tokenizer)}_{split}_{max_part}.pt"
+    config_name = args.dataset_config if args.dataset_config else "none"
+    name = f"{sanitize_name(args.dataset_name)}_{sanitize_name(config_name)}_{sanitize_name(args.tokenizer)}_{split}_{max_part}.pt"
     return cache_dir / name
+
+
+def synthetic_arithmetic_text(index: int) -> str:
+    a = (index * 48271 + 17) % 10000
+    b = (index * 69621 + 23) % 10000
+    c = a + b
+    lo = min(a, b)
+    hi = max(a, b)
+    step = index % 17 + 2
+    first = (index * 37 + 11) % 2000
+    seq = [first + step * offset for offset in range(5)]
+    mode = index % 4
+    if mode == 0:
+        return f"Task add: {a} plus {b} equals {c}. Check: {c} minus {b} equals {a}."
+    if mode == 1:
+        return f"Task compare: between {a} and {b}, smaller is {lo}, larger is {hi}. Difference is {hi - lo}."
+    if mode == 2:
+        return f"Task sequence: {seq[0]}, {seq[1]}, {seq[2]}, {seq[3]}; next is {seq[4]}. Step size is {step}."
+    product = (a % 100) * (b % 100)
+    return f"Task multiply-small: {a % 100} times {b % 100} equals {product}. Inputs came from {a} and {b}."
+
+
+def tokenize_synthetic_arithmetic(args, split, max_tokens, tokenizer, eos_id):
+    if max_tokens is None:
+        raise ValueError("synthetic/arithmetic requires max_tokens")
+    tokens = array("I")
+    split_offset = {"train": 0, "validation": 50_000_000, "test": 75_000_000}.get(split, 90_000_000)
+    index = 0
+    while len(tokens) < max_tokens:
+        texts = [
+            synthetic_arithmetic_text(split_offset + index + item)
+            for item in range(args.tokenize_batch_size)
+        ]
+        index += args.tokenize_batch_size
+        batch = tokenizer(texts, add_special_tokens=False)
+        for ids in batch["input_ids"]:
+            if ids:
+                tokens.extend(ids)
+                tokens.append(eos_id)
+            if len(tokens) >= max_tokens:
+                break
+    return tokens
 
 
 def load_or_tokenize(args, split, max_tokens):
@@ -4032,22 +4075,26 @@ def load_or_tokenize(args, split, max_tokens):
     if eos_id is None:
         raise ValueError("tokenizer must define eos_token_id or pad_token_id")
 
-    dataset = load_dataset(args.dataset_name, args.dataset_config, split=split, cache_dir=args.hf_cache)
-    tokens = array("I")
-    for start in range(0, len(dataset), args.tokenize_batch_size):
-        end = min(start + args.tokenize_batch_size, len(dataset))
-        texts = [text for text in dataset[start:end]["text"] if text and text.strip()]
-        if not texts:
-            continue
-        batch = tokenizer(texts, add_special_tokens=False)
-        for ids in batch["input_ids"]:
-            if ids:
-                tokens.extend(ids)
-                tokens.append(eos_id)
+    if args.dataset_name == "synthetic/arithmetic":
+        tokens = tokenize_synthetic_arithmetic(args, split, max_tokens, tokenizer, eos_id)
+    else:
+        dataset_config = args.dataset_config if args.dataset_config else None
+        dataset = load_dataset(args.dataset_name, dataset_config, split=split, cache_dir=args.hf_cache)
+        tokens = array("I")
+        for start in range(0, len(dataset), args.tokenize_batch_size):
+            end = min(start + args.tokenize_batch_size, len(dataset))
+            texts = [text for text in dataset[start:end]["text"] if text and text.strip()]
+            if not texts:
+                continue
+            batch = tokenizer(texts, add_special_tokens=False)
+            for ids in batch["input_ids"]:
+                if ids:
+                    tokens.extend(ids)
+                    tokens.append(eos_id)
+                if max_tokens is not None and len(tokens) >= max_tokens:
+                    break
             if max_tokens is not None and len(tokens) >= max_tokens:
                 break
-        if max_tokens is not None and len(tokens) >= max_tokens:
-            break
 
     np_tokens = np.frombuffer(tokens, dtype=np.uint32)
     if max_tokens is not None:
@@ -5290,6 +5337,10 @@ def configure_optimizer(model, args):
                 adam_decay_start=args.rational_matrix_policy_adam_decay_start,
                 adam_decay_end=args.rational_matrix_policy_adam_decay_end,
                 adam_decay_depth_shift=args.rational_matrix_policy_adam_decay_depth_shift,
+                adam_beta2_final=args.rational_matrix_policy_adam_beta2_final,
+                adam_beta2_decay_start=args.rational_matrix_policy_adam_beta2_decay_start,
+                adam_beta2_decay_end=args.rational_matrix_policy_adam_beta2_decay_end,
+                adam_beta2_decay_depth_shift=args.rational_matrix_policy_adam_beta2_decay_depth_shift,
                 adam_role_strength=args.rational_matrix_policy_adam_role_strength,
                 adam_stat_strength=args.rational_matrix_policy_adam_stat_strength,
                 adam_pressure_balance=args.rational_matrix_policy_adam_pressure_balance,
@@ -5931,6 +5982,10 @@ def parse_args():
     parser.add_argument("--rational-matrix-policy-adam-decay-start", type=float, default=1.1)
     parser.add_argument("--rational-matrix-policy-adam-decay-end", type=float, default=1.1)
     parser.add_argument("--rational-matrix-policy-adam-decay-depth-shift", type=float, default=0.0)
+    parser.add_argument("--rational-matrix-policy-adam-beta2-final", type=float, default=None)
+    parser.add_argument("--rational-matrix-policy-adam-beta2-decay-start", type=float, default=1.1)
+    parser.add_argument("--rational-matrix-policy-adam-beta2-decay-end", type=float, default=1.1)
+    parser.add_argument("--rational-matrix-policy-adam-beta2-decay-depth-shift", type=float, default=0.0)
     parser.add_argument("--rational-matrix-policy-adam-role-strength", type=float, default=1.20)
     parser.add_argument("--rational-matrix-policy-adam-stat-strength", type=float, default=0.0)
     parser.add_argument("--rational-matrix-policy-adam-pressure-balance", type=float, default=0.0)
@@ -6267,6 +6322,10 @@ def main():
         "rational_matrix_policy_adam_decay_start": args.rational_matrix_policy_adam_decay_start if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_decay_end": args.rational_matrix_policy_adam_decay_end if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_decay_depth_shift": args.rational_matrix_policy_adam_decay_depth_shift if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_adam_beta2_final": args.rational_matrix_policy_adam_beta2_final if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_adam_beta2_decay_start": args.rational_matrix_policy_adam_beta2_decay_start if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_adam_beta2_decay_end": args.rational_matrix_policy_adam_beta2_decay_end if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_adam_beta2_decay_depth_shift": args.rational_matrix_policy_adam_beta2_decay_depth_shift if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_role_strength": args.rational_matrix_policy_adam_role_strength if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_stat_strength": args.rational_matrix_policy_adam_stat_strength if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_pressure_balance": args.rational_matrix_policy_adam_pressure_balance if args.optimizer == "rational_matrix_policy_onpolicy" else None,

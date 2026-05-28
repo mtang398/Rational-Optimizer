@@ -1,16 +1,16 @@
 # Training
 
-This folder contains the WikiText-103 benchmark entrypoints.
+This folder contains the benchmark entrypoints and Slurm launchers.
 
 ## Files
 
 ```text
-transformer_wikitext103_compare.py      model, activations, optimizer wiring, train/eval loop
-run_wikitext103_optimizer_sweep.sbatch  accepted 4-GPU Slurm sweep launcher
-aggregate_wikitext103_multiseed.py      JSONL aggregation into CSV/JSON/README summaries
+transformer_wikitext103_compare.py      model, activations, optimizers, WikiText and synthetic tasks
+run_wikitext103_optimizer_sweep.sbatch  common 4x A6000 sweep launcher
+aggregate_wikitext103_multiseed.py      JSONL aggregation helper
 ```
 
-## Benchmark
+## Main Benchmark
 
 ```text
 dataset:      Salesforce/wikitext, wikitext-103-raw-v1
@@ -18,15 +18,31 @@ task:         causal language modeling
 tokenizer:    GPT-2 tokenizer
 model:        LLaMA-style decoder-only Transformer
 size:         about 123M parameters
-depth:        12 layers
+layers:       12
 width:        d_model 768
 heads:        12
 sequence:     256 tokens
 ```
 
-## Current Best Optimizer
+The synthetic transfer task is selected with `--dataset-name synthetic/arithmetic --dataset-config v1` and uses the same 100M-token, 123M-parameter training setup.
 
-The names below match the JSONL config keys where possible. `optimizer_lr` and `optimizer_min_lr` are the values passed by `--lr` and `--min-lr`.
+## GPU Rule
+
+Use A6000 GPUs only. Each sweep job requests 4 GPUs, so run at most two concurrent jobs.
+
+```bash
+squeue -u mt872
+```
+
+The A6000 nodes need the PyTorch fallback because the checked-in CUDA extension was not built with a usable A6000 kernel image:
+
+```text
+RATIONAL_OPT_TORCH_FALLBACK=1
+```
+
+The A6000 fallback runs used `--batch-size 16 --grad-accum 2`, preserving `32768` global tokens per step.
+
+## Current Best Optimizer
 
 ```text
 optimizer                                           rational_matrix_policy_onpolicy
@@ -40,7 +56,18 @@ rational_matrix_policy_backbone_beta2               0.999
 rational_matrix_policy_beta2                        0.999
 rational_matrix_policy_adam_lr_scale                3.00
 rational_matrix_policy_adam_lr_scale_final          null
+rational_matrix_policy_adam_decay_start             1.10
+rational_matrix_policy_adam_decay_end               1.10
+rational_matrix_policy_adam_decay_depth_shift       0.00
+rational_matrix_policy_adam_beta2_final             null
+rational_matrix_policy_adam_beta2_decay_start       1.10
+rational_matrix_policy_adam_beta2_decay_end         1.10
+rational_matrix_policy_adam_beta2_decay_depth_shift 0.00
 rational_matrix_policy_adam_role_strength           1.20
+rational_matrix_policy_adam_stat_strength           0.00
+rational_matrix_policy_adam_pressure_balance        0.00
+rational_matrix_policy_adam_stat_start              0.00
+rational_matrix_policy_adam_stat_end                0.00
 rational_matrix_policy_adam_min_lr_scale            0.40
 rational_matrix_policy_adam_max_lr_scale            4.00
 rational_matrix_policy_input_depth_gain            -0.50
@@ -75,18 +102,7 @@ rlb_gauge_end                                       0.35
 rlb_gauge_every                                     5
 ```
 
-Use `rational_matrix_policy_onpolicy` only with RLB activations. The training defaults now match the best run, so no extra MatrixPolicy args are needed.
-
 ## Optimizer Wiring
-
-`transformer_wikitext103_compare.py` builds the optimizer as child optimizers wrapped by the RLB on-policy/gauge optimizer:
-
-| parameter set | optimizer behavior |
-| --- | --- |
-| Non-RLB backbone weights | AdamW, beta2=0.999 in this branch |
-| Norms, biases, tied embeddings | AdamW no-decay group |
-| RLB `W_in/W_out` matrices | `RationalMatrixPolicyOptimizer` with MatrixPolicy AdamW plus early Muon |
-| Rational coefficients | AdamW by default |
 
 ```text
 1. backward pass computes gradients
@@ -105,24 +121,27 @@ Use `rational_matrix_policy_onpolicy` only with RLB activations. The training de
 ## Run Current Best
 
 ```bash
-env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1 \
+env RATIONAL_OPT_TORCH_FALLBACK=1 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1 \
   RUN_NAME=rlb_matrix_policy_muon_switch \
   STEPS=3051 SEEDS=1337 \
   OPTIMIZERS=rational_matrix_policy_onpolicy \
   ACTIVATIONS=rlb_fused_fixed_strong_ffn \
   EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100 \
-  sbatch --time=02:00:00 --gres=gpu:nvidia_rtx_6000_ada_generation:4 \
-  training/run_wikitext103_optimizer_sweep.sbatch
+  EXTRA_ARGS="--batch-size 16 --grad-accum 2" \
+  sbatch --gres=gpu:nvidia_rtx_a6000:4 training/run_wikitext103_optimizer_sweep.sbatch
 ```
 
-## GPU Rule
+## Current Result
 
-Use at most 4 GPUs total. Check active jobs before launching:
+| row | final loss | final PPL |
+| --- | ---: | ---: |
+| RLB MatrixPolicy-Muon | 3.476232 | 32.34 |
+| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 |
+| SiLU+AdamW beta2=0.999 | 3.549346 | 34.79 |
+| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 |
+| RLB+AdamW | 3.617501 | 37.24 |
+| SiLU+AdamW | 3.621982 | 37.41 |
+| SiLU+Muon | 3.644921 | 38.28 |
+| RLB+Muon | 3.657877 | 38.78 |
 
-```bash
-squeue -u mt872
-```
-
-## Rule For Claims
-
-Do not use high-LR ablations as the headline result. The optimizer must win under the same LR schedule against SiLU+AdamW, RLB+AdamW, and the beta2-tuned AdamW controls.
+Do not headline LR ablations. The optimizer must win under the same global LR schedule against SiLU+AdamW, RLB+AdamW, and Muon controls.

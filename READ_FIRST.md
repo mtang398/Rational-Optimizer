@@ -1,13 +1,13 @@
 # Read First
 
-This repo is for designing an RLB-specific optimizer. Do not claim wins from a different global LR schedule.
+This repo is about designing an RLB-specific optimizer. Do not claim wins from a different global LR schedule.
 
-## GPU Limit
+## GPU Rule
 
-Use at most 4 GPUs total.
+Use A6000 GPUs only. A normal job requests 4 GPUs, and the maximum concurrent request is 8 A6000s total.
 
 ```text
---gres=gpu:nvidia_rtx_6000_ada_generation:4
+--gres=gpu:nvidia_rtx_a6000:4
 --nproc_per_node=4
 ```
 
@@ -17,9 +17,7 @@ Check active jobs before launching:
 squeue -u mt872
 ```
 
-## Exact Current Optimizer
-
-The names below match the JSONL config keys where possible. `optimizer_lr` and `optimizer_min_lr` are the values passed by `--lr` and `--min-lr`.
+## Current Optimizer
 
 ```text
 optimizer                                           rational_matrix_policy_onpolicy
@@ -33,7 +31,18 @@ rational_matrix_policy_backbone_beta2               0.999
 rational_matrix_policy_beta2                        0.999
 rational_matrix_policy_adam_lr_scale                3.00
 rational_matrix_policy_adam_lr_scale_final          null
+rational_matrix_policy_adam_decay_start             1.10
+rational_matrix_policy_adam_decay_end               1.10
+rational_matrix_policy_adam_decay_depth_shift       0.00
+rational_matrix_policy_adam_beta2_final             null
+rational_matrix_policy_adam_beta2_decay_start       1.10
+rational_matrix_policy_adam_beta2_decay_end         1.10
+rational_matrix_policy_adam_beta2_decay_depth_shift 0.00
 rational_matrix_policy_adam_role_strength           1.20
+rational_matrix_policy_adam_stat_strength           0.00
+rational_matrix_policy_adam_pressure_balance        0.00
+rational_matrix_policy_adam_stat_start              0.00
+rational_matrix_policy_adam_stat_end                0.00
 rational_matrix_policy_adam_min_lr_scale            0.40
 rational_matrix_policy_adam_max_lr_scale            4.00
 rational_matrix_policy_input_depth_gain            -0.50
@@ -68,7 +77,7 @@ rlb_gauge_end                                       0.35
 rlb_gauge_every                                     5
 ```
 
-The optimizer is `rational_matrix_policy_onpolicy` on `rlb_fused_fixed_strong_ffn`. It uses ordinary AdamW for the non-RLB backbone and rational coefficients, and `RationalMatrixPolicyOptimizer` for RLB `W_in/W_out` matrices. Only those RLB matrices receive the early Muon switch.
+The optimizer is `rational_matrix_policy_onpolicy` on `rlb_fused_fixed_strong_ffn`. It uses AdamW for the non-RLB backbone and rational coefficients, and `RationalMatrixPolicyOptimizer` for RLB `W_in/W_out` matrices. Only those RLB matrices receive the short early Muon switch.
 
 ## Current Result
 
@@ -80,35 +89,30 @@ The optimizer is `rational_matrix_policy_onpolicy` on `rlb_fused_fixed_strong_ff
 | RLB+AdamW beta2=0.999 | 3.550018 | 34.81 |
 | RLB+AdamW | 3.617501 | 37.24 |
 | SiLU+AdamW | 3.621982 | 37.41 |
+| SiLU+Muon | 3.644921 | 38.28 |
+| RLB+Muon | 3.657877 | 38.78 |
 
-The current best clears 2-3 PPL versus beta2-tuned controls, but does not yet clear the requested 0.2-0.3 final loss gap. Do not run or report LR ablations as the main story until the same-LR loss gap is much larger.
+The result is real but not yet the requested large gap: `0.0731` loss / `2.45` PPL versus `SiLU+AdamW beta2=0.999`.
 
-## Operational Notes
+## Latest Probe Readout
 
-```text
-1. backward pass computes gradients
-2. outer on-policy wrapper updates live RLB statistics
-3. transport, coefficient-function optimizer, and group-gradient policy are off by default
-4. ordinary AdamW steps the non-RLB backbone, no-decay group, and rational coefficients
-5. MatrixPolicy handles RLB W_in/W_out matrices:
-   - compute role/depth AdamW scale
-   - compute early Muon fraction
-   - step AdamW with lr = global_lr * adam_scale * (1 - muon_fraction)
-   - step Muon with lr = global_lr * muon_lr_scale * muon_fraction
-   - restore scheduler-provided base group lrs
-6. outer wrapper applies exact RLB gauge balance
-```
+| probe | last step | loss | readout |
+| --- | ---: | ---: | --- |
+| A6000 matched default | 1250 | 4.052293 | matched fallback screen |
+| beta2 tail 0.995 | 1250 | 4.049556 | tiny +0.002738 vs matched default, not close to old best short curve |
+| group policy 0.30 | 1000 | 4.141706 | neutral/worse vs matched default at 1000 |
+| late Muon 0.05 | 500 | 4.673611 | worse than matched default at 500 |
+| layer statgate | 250 | 5.369072 | tied with matched default |
+| statgate+group 0.18 | 750 | 4.331103 | tiny +0.000628 vs matched default, noise-level |
+
+Plain Muon is worse than AdamW controls, and RLB+Muon is worse than SiLU+Muon. Synthetic arithmetic transfers early speed but not final loss.
 
 ## Artifact Policy
 
-Commit compact current summaries and plots under:
+Commit compact summaries and plots under:
 
 ```text
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
 ```
 
-Do not commit raw local probe folders under:
-
-```text
-experiments/runs/wikitext103/
-```
+Do not commit raw local run folders or Slurm logs under `experiments/runs/`.

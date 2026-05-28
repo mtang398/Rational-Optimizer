@@ -35,6 +35,10 @@ class RationalMatrixPolicyOptimizer:
         adam_decay_start: float = 1.1,
         adam_decay_end: float = 1.1,
         adam_decay_depth_shift: float = 0.0,
+        adam_beta2_final: float | None = None,
+        adam_beta2_decay_start: float = 1.1,
+        adam_beta2_decay_end: float = 1.1,
+        adam_beta2_decay_depth_shift: float = 0.0,
         adam_role_strength: float = 1.20,
         adam_stat_strength: float = 0.0,
         adam_pressure_balance: float = 0.0,
@@ -83,6 +87,12 @@ class RationalMatrixPolicyOptimizer:
         self.adam_decay_start = float(adam_decay_start)
         self.adam_decay_end = float(adam_decay_end)
         self.adam_decay_depth_shift = float(adam_decay_depth_shift)
+        self.adam_beta1 = float(betas[0])
+        self.adam_beta2 = float(betas[1])
+        self.adam_beta2_final = None if adam_beta2_final is None else float(adam_beta2_final)
+        self.adam_beta2_decay_start = float(adam_beta2_decay_start)
+        self.adam_beta2_decay_end = float(adam_beta2_decay_end)
+        self.adam_beta2_decay_depth_shift = float(adam_beta2_decay_depth_shift)
         self.adam_role_strength = float(adam_role_strength)
         self.adam_stat_strength = float(adam_stat_strength)
         self.adam_pressure_balance = float(adam_pressure_balance)
@@ -125,6 +135,8 @@ class RationalMatrixPolicyOptimizer:
             and self.max_muon > 0.0
             and (self.muon_strength != 0.0 or self.final_muon != 0.0 or self.min_muon > 0.0)
         )
+        if self.adam_beta2_final is not None and not (0.0 <= self.adam_beta2_final < 1.0):
+            raise ValueError("adam_beta2_final must be in [0, 1)")
         if self.adam_min_lr_scale < 0.0:
             raise ValueError("adam_min_lr_scale must be non-negative")
         if self.adam_max_lr_scale < self.adam_min_lr_scale:
@@ -256,6 +268,22 @@ class RationalMatrixPolicyOptimizer:
         factor = self._adam_role_factor(group) * self._adam_stat_factor(group)
         scale = scheduled * factor
         return min(self.adam_max_lr_scale, max(self.adam_min_lr_scale, scale))
+
+    def _adam_beta2_phase(self, group: dict) -> float:
+        if self.adam_beta2_final is None:
+            return 0.0
+        progress = self._progress()
+        offset = self.adam_beta2_decay_depth_shift * (self._depth(group) - 0.5)
+        start = min(1.0, max(0.0, self.adam_beta2_decay_start + offset))
+        end = min(1.0, max(0.0, self.adam_beta2_decay_end + offset))
+        return _smoothstep(start, end, progress)
+
+    def _adam_betas(self, group: dict) -> tuple[float, float]:
+        if self.adam_beta2_final is None:
+            return group["betas"]
+        phase = self._adam_beta2_phase(group)
+        beta2 = self.adam_beta2 * (1.0 - phase) + self.adam_beta2_final * phase
+        return (self.adam_beta1, min(0.9999, max(0.0, beta2)))
 
     def _adam_role_factor(self, group: dict) -> float:
         if self.adam_role_strength == 0.0:
@@ -453,13 +481,16 @@ class RationalMatrixPolicyOptimizer:
         self._apply_group_policy_to_gradients()
 
         saved_adam_lrs = []
+        saved_adam_betas = []
         for group in self.adam.param_groups:
             lr = float(group["lr"])
             saved_adam_lrs.append(lr)
+            saved_adam_betas.append(group["betas"])
             self._maybe_reset_adam_state(group)
             fraction = self._muon_fraction(group) if self.muon is not None else 0.0
             self._maybe_reset_adam_after_muon(group, fraction)
             group["lr"] = lr * self._adam_lr_scale(group) * (1.0 - fraction)
+            group["betas"] = self._adam_betas(group)
 
         saved_muon_lrs = []
         if self.muon is not None:
@@ -473,8 +504,9 @@ class RationalMatrixPolicyOptimizer:
         if self.muon is not None:
             self.muon.step()
 
-        for group, lr in zip(self.adam.param_groups, saved_adam_lrs):
+        for group, lr, betas in zip(self.adam.param_groups, saved_adam_lrs, saved_adam_betas):
             group["lr"] = lr
+            group["betas"] = betas
         if self.muon is not None:
             for group, lr in zip(self.muon.param_groups, saved_muon_lrs):
                 group["lr"] = lr
