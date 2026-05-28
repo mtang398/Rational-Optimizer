@@ -13,15 +13,19 @@ SiLU/SwiGLU + AdamW
 SiLU/SwiGLU + Muon
 RLB + AdamW
 RLB + Muon
+RLB + factored_adamw                         negative probe
 RLB + rational_onpolicy_balance
 RLB + rational_quotient_onpolicy
 RLB + rational_jacobian_onpolicy
-RLB + rational_quotient_jacobian_onpolicy   prototype
-RLB + rational_adaptive_metric_onpolicy     prototype
-RLB + rational_transport_onpolicy           tested prototype
+RLB + rational_quotient_jacobian_onpolicy    prototype
+RLB + rational_adaptive_metric_onpolicy      prototype
+RLB + rational_transport_onpolicy            tested prototype
+RLB + rational_jacobian_factored_onpolicy    negative probe
+RLB + rational_layerwise_switch_onpolicy     negative probe
+RLB + rational_layerwise_factored_switch_onpolicy prototype
 ```
 
-Rational-specific optimizers are applied only to RLB. The standard optimizer names are `adamw` and `muon`.
+Rational-specific optimizers are applied only to RLB. The standard optimizer names are `adamw`, `muon`, and the negative-probe ablation `factored_adamw`.
 
 ## RLB FFN
 
@@ -62,6 +66,9 @@ rational_jacobian_onpolicy
 rational_quotient_jacobian_onpolicy
 rational_adaptive_metric_onpolicy
 rational_transport_onpolicy
+rational_jacobian_factored_onpolicy
+rational_layerwise_switch_onpolicy
+rational_layerwise_factored_switch_onpolicy
 ```
 
 `rational_onpolicy_balance` uses live gradient pressure, rational curve activity, and layer depth to apply a function-preserving group-scale correction after each child optimizer step.
@@ -150,6 +157,50 @@ The main positive transport result is narrow: RLB-aware matrix geometry is consi
 The main negative result is stronger: aggressive coefficient motion is the wrong place to spend risk in this benchmark. The coefficient selector, layer-specific switches, reset-on-switch, freezes, and late pullback were all trying to avoid the late-penalty pattern, but they still landed behind the matrix-only transport rows and often gave back most of the SiLU+AdamW gap. The likely reason is that rational coefficients are small function parameters, not ordinary dense weights. Early large moves can change the learned scalar nonlinearity enough that later cooldown only stops further damage; it does not restore the better function-space basin.
 
 The next optimizer design should therefore target a larger gap to SiLU+AdamW directly. Matrix preconditioning and gauge balancing should be the default path; coefficient moves should become reversible, function-space-bounded proposals accepted only when a local on-policy test says they help. Layer-specific behavior is still worth using, but it should choose among validated conservative actions rather than switching into aggressive coefficient modes because a schedule says the phase changed.
+
+
+## 2026-05-27 High-LR Follow-Up
+
+The aggressive optimizer pass added four implementation paths before the high-LR controls were run:
+
+```text
+factored_adamw
+rational_jacobian_factored_onpolicy
+rational_layerwise_switch_onpolicy
+rational_layerwise_factored_switch_onpolicy
+```
+
+The compact artifacts are in `experiments/results/high_lr_optimizer_followup_2026_05_27/`:
+
+```text
+loss_ppl_curves.png          validation loss/PPL curves; x-axis starts at step 1
+train_loss_curves.png        training loss curves including the real step-1 point
+final_loss_ppl_bars.png      final validation loss and PPL bars
+summary.csv                  fixed-LR and high-LR main comparison rows
+negative_probe_summary.csv   cancelled/negative ASAM, factored, and layerwise probes
+analysis.md                  compact written interpretation
+```
+
+![High-LR validation loss and PPL curves](experiments/results/high_lr_optimizer_followup_2026_05_27/loss_ppl_curves.png)
+
+![High-LR train loss curves](experiments/results/high_lr_optimizer_followup_2026_05_27/train_loss_curves.png)
+
+![High-LR final metrics](experiments/results/high_lr_optimizer_followup_2026_05_27/final_loss_ppl_bars.png)
+
+Seed-1337 comparison. Negative gaps are better than the named baseline:
+
+| row | final loss | final PPL | gap vs original SiLU+AdamW | gap vs high-LR SiLU+AdamW | gap vs high-LR RLB+AdamW |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Fixed LR AdamW + SiLU/SwiGLU | 3.621982 | 37.412 | +0.000000 | +0.165357 | +0.166190 |
+| Fixed LR AdamW + RLB h3072 | 3.617501 | 37.244 | -0.004480 | +0.160876 | +0.161709 |
+| Fixed LR RLB + `rational_jacobian_onpolicy` | 3.614862 | 37.146 | -0.007120 | +0.158237 | +0.159070 |
+| High LR AdamW + SiLU/SwiGLU | 3.456625 | 31.710 | -0.165357 | +0.000000 | +0.000833 |
+| High LR AdamW + RLB h3072 | 3.455792 | 31.683 | -0.166190 | -0.000833 | +0.000000 |
+| High LR RLB + `rational_jacobian_onpolicy` | 3.459508 | 31.801 | -0.162473 | +0.002883 | +0.003716 |
+
+The high-LR schedule creates the large headline gap versus the old fixed-LR `SiLU+AdamW` row: `-0.166190` loss and `-5.728` PPL for high-LR `RLB+AdamW`. But this is a schedule result, not a rational-optimizer result. Under the same high-LR schedule, `RLB+AdamW` is the best seed-1337 row, high-LR `SiLU+AdamW` is only `0.000833` loss behind it, and high-LR `RLB+rational_jacobian_onpolicy` is worse by `0.003716` loss.
+
+The optimizer lesson is stricter than the earlier transport pass. The robust signal is still conservative matrix/gauge geometry, but the large practical improvement came from correcting the learning-rate budget. ASAM, factored AdamW second moments, and aggressive layerwise coefficient switching all made things worse or were cancelled early because their curves were clearly behind. The next serious design should start from the tuned high-LR `RLB+AdamW` control and only accept rational-specific changes that beat that control, not just the old fixed-LR SiLU baseline.
 
 ## Layout
 

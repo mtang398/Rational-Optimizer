@@ -25,3 +25,9 @@ experiments/cache/
 # Generated experiment logs and raw transport probes
 experiments/runs/logs/ract-wt103-opt-*.out
 experiments/runs/wikitext103/rational_transport_*/
+experiments/runs/wikitext103/adamw_lr5e4_controls_*/
+experiments/runs/wikitext103/rlb_conservative_stage_factored_probe_*/
+experiments/runs/wikitext103/rlb_factored_jacobian_probe_*/
+experiments/runs/wikitext103/rlb_jacobian_lr5e4*_probe_*/
+experiments/runs/wikitext103/rlb_layerwise_asam_probe_*/
+experiments/runs/wikitext103/rlb_stagewise_optimizer_probe_*/

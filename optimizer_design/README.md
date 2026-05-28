@@ -23,14 +23,19 @@ rational_jacobian_onpolicy
 rational_quotient_jacobian_onpolicy
 rational_adaptive_metric_onpolicy
 rational_transport_onpolicy          tested prototype
+rational_jacobian_factored_onpolicy  negative probe
+rational_layerwise_switch_onpolicy   negative probe
+rational_layerwise_factored_switch_onpolicy prototype
 ```
 
-These are used only with RLB activations. Standard comparison optimizers are `adamw` and `muon`.
+These are used only with RLB activations. Standard comparison optimizers are `adamw`, `muon`, and the negative-probe ablation `factored_adamw`.
 
 ## Files
 
 ```text
 function_space_rational_optimizer.py       fixed-grid function-space coefficient optimizer
+factored_adamw.py                          AdamW with factored second moments for matrix ablations
+switching_rational_optimizer.py            layer/depth/time coefficient optimizer switch prototype
 onpolicy_balance_optimizer.py              live RLB group-gauge optimizer wrapper
 quotient_onpolicy_optimizer.py             gauge-gradient quotient wrapper for RLB matrices
 jacobian_onpolicy_optimizer.py             curve-aware RLB matrix preconditioner
@@ -134,6 +139,15 @@ This is specific to RLB because `W_in` gradients pass through `R'_g`, while `W_o
 
 `RationalTransportOnPolicyOptimizer` is a tested prototype. It keeps the adaptive metric path and adds optional rational amplitude transport, optional pressure preconditioning, and a coefficient-mode selector that can switch from aggressive early rational coefficient updates to safer late updates by layer using live on-policy gradient activity. In the 2026-05-27 runs, aggressive coefficient switching and late coefficient pullback did not beat the incumbent. The best transport setting was the conservative matrix-only mode: baseline coefficient dynamics with `matrix_strength = 0.65`, no live matrix stats, and no amplitude transport.
 
+
+## Stagewise And Factored Probes
+
+`FactoredAdamW` keeps AdamW's first moment and decoupled weight decay, but stores row/column factored second moments for large matrices. It was added as a high-leverage matrix optimizer ablation. In the seed-1337 probe, `rational_jacobian_factored_onpolicy` was far behind by step 1000 (`4.775638` loss, `118.586` PPL), so factored second moments are not recommended for this benchmark.
+
+`SwitchingRationalOptimizer` blends AdamW coefficient updates with the function-space rational optimizer by layer depth and training progress, with an optional on-policy selector from the outer RLB wrapper. This implements the many-switch idea directly: different layers can enter the function-space coefficient optimizer at different times, and live rational-vs-matrix activity can pull the switch forward. The aggressive seed-1337 probe was worse by step 1000 (`4.221224` loss, `68.117` PPL), so scheduled coefficient switching is also not recommended yet.
+
+The implementation remains useful as an ablation harness, but the empirical rule is now clear: do not spend risk on rational coefficient motion unless an on-policy acceptance test proves it beats tuned `RLB+AdamW`. The successful part of the older rational optimizer family is conservative matrix/gauge handling, not forced coefficient phases.
+
 ## Current Result
 
 Three-seed aggregate on the 100M-token WikiText-103 task:
@@ -146,6 +160,8 @@ RLB h3072 + rational_quotient_onpolicy      3.606664  PPL 36.847  sec/step 0.205
 RLB h3072 + rational_jacobian_onpolicy      3.605394  PPL 36.800  sec/step 0.204885
 ```
 
-The Jacobian on-policy row improves the mean loss by `-0.004736` versus AdamW + SiLU/SwiGLU and by `-0.001236` versus AdamW on the same RLB activation. The 2026-05-27 transport probes did not supersede this row, so `rational_jacobian_onpolicy` remains the recommended optimizer. On seed 1337, the incumbent h3072 Jacobian row was `3.614862`; the best transport row found was baseline coefficient dynamics plus matrix strength `0.65` at `3.615149`. Aggressive coefficient schedules, selector-triggered cooldown, and coefficient pullback all landed between `3.6198` and `3.6217`, so they are implemented as ablation controls rather than recommended defaults.
+The Jacobian on-policy row improves the mean loss by `-0.004736` versus AdamW + SiLU/SwiGLU and by `-0.001236` versus AdamW on the same RLB activation. The 2026-05-27 transport probes did not supersede this row, so `rational_jacobian_onpolicy` remains the best measured rational-specific optimizer in the fixed-LR full sweep. On seed 1337, the incumbent h3072 Jacobian row was `3.614862`; the best transport row found was baseline coefficient dynamics plus matrix strength `0.65` at `3.615149`. Aggressive coefficient schedules, selector-triggered cooldown, and coefficient pullback all landed between `3.6198` and `3.6217`, so they are implemented as ablation controls rather than recommended defaults.
 
-The loss/PPL plots and compact probe table are stored in `experiments/results/transport_optimizer_analysis_2026_05_27/`. The design lesson from those plots is that rational-specific matrix geometry is the robust signal; coefficient movement should be treated as a reversible, function-space-bounded proposal rather than a scheduled phase switch.
+The high-LR follow-up changes the practical recommendation. With `--lr 5e-4 --min-lr 5e-5`, seed-1337 `RLB+AdamW` reaches `3.455792` / `31.683`, `SiLU+AdamW` reaches `3.456625` / `31.710`, and `RLB+rational_jacobian_onpolicy` reaches `3.459508` / `31.801`. The large gap versus the original fixed-LR SiLU baseline is therefore a learning-rate schedule effect. Future optimizer work should use tuned high-LR `RLB+AdamW` and tuned high-LR `SiLU+AdamW` as the hard controls.
+
+The loss/PPL plots and compact probe tables are stored in `experiments/results/transport_optimizer_analysis_2026_05_27/` and `experiments/results/high_lr_optimizer_followup_2026_05_27/`. The design lesson from both sets of plots is that rational-specific matrix geometry is the robust signal; coefficient movement should be treated as a reversible, function-space-bounded proposal rather than a scheduled phase switch.
