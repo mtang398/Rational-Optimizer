@@ -1,124 +1,118 @@
 # RationalOPT
 
-RationalOPT is an optimizer-design repo for the no-GLU Rational Local Basis FFN (RLB). The goal is not to win by changing the global learning-rate schedule. The goal is an RLB-specific optimizer that beats both hard controls under the same model, token budget, base LR, warmup, cosine schedule, and evaluation protocol:
+RationalOPT is an optimizer-design repo for the no-GLU Rational Local Basis FFN (RLB). The goal is an RLB-specific optimizer, not a different global learning-rate schedule. The hard comparisons are always:
 
 ```text
-SiLU/SwiGLU + AdamW
-RLB + AdamW
+SiLU+AdamW
+RLB+AdamW
+SiLU+AdamW beta2=0.999
+RLB+AdamW beta2=0.999
 ```
 
-Jacobian, transport, matrix-policy, and other rational optimizers are candidate methods, not baselines. LR ablations are not part of the main claim until the same-LR optimizer has a much larger gap.
+Jacobian, transport, MatrixPolicy, Muon switches, and other rational optimizers are candidate methods. They are not the baseline. LR ablations stay out of the main claim until the same-LR optimizer has a much larger final gap.
 
-## Current Best Result
+## Current Best
 
 The current best same-LR optimizer is:
 
 ```text
-RLB + rational_matrix_policy_onpolicy
+optimizer:   rational_matrix_policy_onpolicy
+activation:  rlb_fused_fixed_strong_ffn
+mechanism:   MatrixPolicy-Muon switch
+global LR:   lr=3e-4, min_lr=3e-5, warmup=200, cosine, unchanged
+seed:        1337
+steps:       3051
 ```
 
-The default `rational_matrix_policy_onpolicy` is now Smooth-MatrixPolicy. It keeps the benchmark LR schedule fixed at `lr=3e-4`, `min_lr=3e-5`, `warmup=200`, and the same cosine decay as the controls. The optimizer change is inside the update rule:
+`rational_matrix_policy_onpolicy` now defaults to the best policy: RLB `W_in/W_out` matrices get a short early Muon phase, then switch back to the RLB MatrixPolicy AdamW update. The rest of the model keeps AdamW. The global LR schedule is unchanged.
 
-```text
-- RLB W_in/W_out matrices use a layer/side-specific MatrixPolicy.
-- MatrixPolicy uses smoother AdamW second moments, beta2=0.999.
-- Non-RLB AdamW groups inside the MatrixPolicy branch also use beta2=0.999.
-- Exact RLB gauge balance remains active after the step.
-- Muon, coefficient-function updates, and rational transport are off by default.
-```
-
-Single-seed full 3051-step WikiText-103 result, seed 1337, same LR schedule:
-
-| row | final loss | final PPL | gap vs winner loss | gap vs winner PPL |
+| row | final loss | final PPL | loss gap vs best | PPL gap vs best |
 | --- | ---: | ---: | ---: | ---: |
-| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 | 0.000000 | 0.00 |
-| RLB MatrixPolicy-Y | 3.548665 | 34.77 | 0.055455 | 1.88 |
-| SiLU/SwiGLU + AdamW beta2=0.999 | 3.549346 | 34.79 | 0.056136 | 1.90 |
-| RLB + AdamW beta2=0.999 | 3.550018 | 34.81 | 0.056808 | 1.92 |
-| RLB + AdamW | 3.617501 | 37.24 | 0.124291 | 4.35 |
-| SiLU/SwiGLU + AdamW | 3.621982 | 37.41 | 0.128772 | 4.52 |
+| RLB MatrixPolicy-Muon | 3.476232 | 32.34 | 0.000000 | 0.00 |
+| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 | 0.016978 | 0.55 |
+| SiLU+AdamW beta2=0.999 | 3.549346 | 34.79 | 0.073114 | 2.45 |
+| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 | 0.073786 | 2.48 |
+| RLB+AdamW | 3.617501 | 37.24 | 0.141269 | 4.91 |
+| SiLU+AdamW | 3.621982 | 37.41 | 0.145750 | 5.07 |
 
-The headline gap versus the original hard controls is now large in PPL and meaningful in loss: about `4.5` PPL and `0.129` loss versus `SiLU/SwiGLU+AdamW`, and about `4.35` PPL and `0.124` loss versus `RLB+AdamW`. The stricter tuned-control gap is smaller but still real: about `1.9` PPL and `0.056` loss versus beta2-tuned AdamW controls. This is still below the desired `0.2-0.3` loss gap, so the research target is not finished.
+The final PPL gap now clears 2-3 PPL versus beta2-tuned AdamW controls, but the final loss gap is still below the requested 0.2-0.3. The current result is progress, not a finished research target.
 
 ## Plots
 
-Validation starts at step 250 because that is the first evaluation point. Training loss starts at step 1.
+Validation begins at the first eval point, step 250. Training loss begins at step 1.
 
-![Same-LR validation loss](experiments/results/rlb_smooth_matrix_policy_2026_05_28/same_lr_validation_loss.png)
+![Same-LR validation loss](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_loss.png)
 
-![Same-LR validation PPL](experiments/results/rlb_smooth_matrix_policy_2026_05_28/same_lr_validation_ppl.png)
+![Same-LR validation PPL](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_ppl.png)
 
-![Same-LR training loss from step 1](experiments/results/rlb_smooth_matrix_policy_2026_05_28/same_lr_training_loss_from_step1.png)
+![Same-LR training loss from step 1](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
 
-## What Helped
+## Why This Helped
 
-The important discovery was not another LR schedule. It was optimizer-state timescale. The strong RLB matrix policy takes much larger rational-matrix steps than ordinary AdamW, and the default `beta2=0.95` second moment is too reactive for that policy. Moving the MatrixPolicy branch to smooth second moments made the gain durable across the whole run.
-
-What improved results:
-
-| change | effect |
-| --- | --- |
-| Separate RLB matrices from ordinary AdamW | lets `W_in/W_out` receive a rational-specific policy |
-| Strong layer/side MatrixPolicy | creates the main RLB advantage over ordinary RLB+AdamW |
-| Smoother second moments, beta2=0.999 | largest new improvement; stabilizes the larger RLB matrix updates |
-| Exact RLB gauge balance | preserves function while keeping RLB matrix representatives conditioned |
-| Compare to beta2-tuned AdamW controls | proves the win is not only generic AdamW smoothing |
-
-The current default settings are:
+RLB factorizes the FFN into domain-forming matrices, per-group rational curves, and output composition:
 
 ```text
-adam_lr_scale                  3.00
-adam_role_strength             1.20
-input_depth_gain              -0.50
-output_depth_gain              1.00
-adam_min_lr_scale              0.40
-adam_max_lr_scale              4.00
-rational_matrix_policy_beta2   0.999
-backbone_beta2 in this branch   0.999
-muon_strength                  0.00
-transport_strength             0.00
+v = x W_in
+u_g = v_g / rms(v_g)
+h_g = rms(v_g) R_g(u_g)
+y = h W_out
 ```
 
-## What Hurt
+The useful optimizer behavior came from using that structure directly:
 
-Several plausible mechanisms were tested and rejected or left as non-default ablations:
-
-| method | result |
+| mechanism | effect |
 | --- | --- |
-| Higher MatrixPolicy scale beyond Y | helped short 1250-step screens but hurt full 3051-step loss |
-| On-policy group gain/pressure equalization | only about `0.001` at 1250, not durable |
-| Stronger exact gauge balancing | slightly better early, worse late |
-| Rational amplitude transport | helped early, then became a late penalty; early-off switch was only tiny gain |
-| Muon on the non-RLB backbone | badly worse by step 1250 |
-| Freezing rational coefficients | badly worse early/mid |
-| Function-space coefficient switching | worse than matrix-only policy |
+| Separate RLB `W_in/W_out` groups | lets rational matrices use a different update than the backbone |
+| Layer/side MatrixPolicy | gives input/domain and output/composition matrices different scaling |
+| beta2=0.999 in the MatrixPolicy branch | stabilizes the larger RLB matrix policy |
+| Early matrix-only Muon phase | improves the trajectory before the late-penalty pattern appears |
+| Switch back to MatrixPolicy AdamW | avoids making Muon the late optimizer |
+| Exact RLB gauge balance | preserves represented function while conditioning matrix representatives |
 
-The lesson is that the RLB matrix policy wants a slower optimizer state, not more switching or more coefficient motion. Coefficients and transport can move the represented rational function too aggressively; the durable win comes from matrix role/depth policy plus smooth moments.
-
-## Reproducing The Current Best
-
-Run the best same-LR policy directly. No extra MatrixPolicy args are needed because the defaults now match Smooth-MatrixPolicy:
-
-```bash
-env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1   RUN_NAME=rlb_smooth_matrix_policy   STEPS=3051 SEEDS=1337   OPTIMIZERS=rational_matrix_policy_onpolicy   ACTIVATIONS=rlb_fused_fixed_strong_ffn   EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100   sbatch --time=02:00:00 --gres=gpu:nvidia_rtx_6000_ada_generation:4   training/run_wikitext103_optimizer_sweep.sbatch
-```
-
-Run beta2-tuned hard controls under the same LR schedule:
-
-```bash
-env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1   RUN_NAME=beta2_0999_adamw_controls   STEPS=3051 SEEDS=1337   OPTIMIZERS=adamw   ACTIVATIONS="silu rlb_fused_fixed_strong_ffn"   EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100   EXTRA_ARGS=--beta2=0.999   sbatch --time=03:00:00 --gres=gpu:nvidia_rtx_6000_ada_generation:4   training/run_wikitext103_optimizer_sweep.sbatch
-```
-
-## Next Work
-
-The next optimizer should try to turn the tuned-control gap from `0.056` loss into the requested `0.2-0.3` loss. The best direction is still optimizer-state structure, not LR scheduling:
+Current promoted MatrixPolicy settings:
 
 ```text
-1. keep Smooth-MatrixPolicy as the base
-2. split beta2 by parameter class instead of one smooth value for the branch
-3. make RLB matrix beta2 depend on layer/side and live gradient pressure
-4. keep coefficient and transport updates off unless they beat matrix-only on the full run
-5. verify against both default AdamW controls and beta2-tuned AdamW controls
+adam_lr_scale                         3.00
+adam_role_strength                    1.20
+input_depth_gain                     -0.50
+output_depth_gain                     1.00
+rational_matrix_policy_beta2          0.999
+rational_matrix_policy_backbone_beta2 0.999
+muon_strength                         0.75
+muon_lr_scale                         1.00
+muon window                           start 0.02, end 0.12, decay 0.20-0.36
+muon_reset_adam_state                 false
+transport_strength                    0.00
+```
+
+## What Got Worse
+
+| probe | result |
+| --- | --- |
+| Smooth-MatrixPolicy without Muon | strong, but final loss was 0.016978 worse |
+| Muon strength 0.55 | weaker full final, 3.482822 |
+| Muon lr-scale 1.10 | close but worse full final, 3.477492 |
+| Muon lr-scale 1.25 | best short screen, worse full final, 3.479543 |
+| Post-Muon Adam reset | worse than keeping moments at the winning strength |
+| Global earlier Muon shutoff | lost the useful 750-step gain |
+| On-policy Muon damping | worsened the 1000-1250 region |
+| Layer/role Muon timing shifts | killed the useful input-side Muon contribution |
+| Covariant Adam state under gauge | worse than matched short control |
+| RLB matrix weight-decay reduction | worse than matched short control |
+
+## Reproduce Current Best
+
+No extra MatrixPolicy args are needed because the defaults now match the current best.
+
+```bash
+env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1 \
+  RUN_NAME=rlb_matrix_policy_muon_switch \
+  STEPS=3051 SEEDS=1337 \
+  OPTIMIZERS=rational_matrix_policy_onpolicy \
+  ACTIVATIONS=rlb_fused_fixed_strong_ffn \
+  EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100 \
+  sbatch --time=02:00:00 --gres=gpu:nvidia_rtx_6000_ada_generation:4 \
+  training/run_wikitext103_optimizer_sweep.sbatch
 ```
 
 ## Layout
@@ -127,5 +121,5 @@ The next optimizer should try to turn the tuned-control gap from `0.056` loss in
 activation/         rational activation package and CUDA extension
 training/           WikiText-103 training, sweep, and aggregation scripts
 optimizer_design/   RLB-specific optimizer components
-experiments/        compact result artifacts and local raw run outputs
+experiments/        compact current result artifacts and ignored raw runs
 ```

@@ -38,3 +38,4 @@ experiments/runs/wikitext103/rlb_1250_same_schedule_controls_*/
 experiments/runs/wikitext103/beta2_*_controls_full_*/
 experiments/runs/wikitext103/rlb_matrix_policy_*_full_*/
 experiments/runs/wikitext103/rlb_group_*_probe*/
+experiments/runs/wikitext103/rlb_matrix_policy_*_control_*/

@@ -5302,6 +5302,10 @@ def configure_optimizer(model, args):
                 end=args.rational_matrix_policy_end,
                 decay_start=args.rational_matrix_policy_decay_start,
                 decay_end=args.rational_matrix_policy_decay_end,
+                muon_decay_depth_shift=args.rational_matrix_policy_muon_decay_depth_shift,
+                muon_input_decay_shift=args.rational_matrix_policy_muon_input_decay_shift,
+                muon_output_decay_shift=args.rational_matrix_policy_muon_output_decay_shift,
+                muon_reset_adam_state=args.rational_matrix_policy_muon_reset_adam_state,
                 final_muon=args.rational_matrix_policy_final_muon,
                 min_muon=args.rational_matrix_policy_min_muon,
                 max_muon=args.rational_matrix_policy_max_muon,
@@ -5920,8 +5924,8 @@ def parse_args():
     parser.add_argument("--rational-matrix-policy-backbone-optimizer", choices=["adamw", "muon"], default="adamw")
     parser.add_argument("--rational-matrix-policy-backbone-beta2", type=float, default=0.999)
     parser.add_argument("--rational-matrix-policy-beta2", type=float, default=0.999)
-    parser.add_argument("--rational-matrix-policy-muon-strength", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-muon-lr-scale", type=float, default=0.0)
+    parser.add_argument("--rational-matrix-policy-muon-strength", type=float, default=0.75)
+    parser.add_argument("--rational-matrix-policy-muon-lr-scale", type=float, default=1.0)
     parser.add_argument("--rational-matrix-policy-adam-lr-scale", type=float, default=3.0)
     parser.add_argument("--rational-matrix-policy-adam-lr-scale-final", type=float, default=None)
     parser.add_argument("--rational-matrix-policy-adam-decay-start", type=float, default=1.1)
@@ -5937,13 +5941,17 @@ def parse_args():
     parser.add_argument("--rational-matrix-policy-adam-reset-on-switch", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--rational-matrix-policy-weight-decay-scale", type=float, default=1.0)
     parser.add_argument("--rational-matrix-policy-function-coeff", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--rational-matrix-policy-start", type=float, default=0.06)
-    parser.add_argument("--rational-matrix-policy-end", type=float, default=0.32)
-    parser.add_argument("--rational-matrix-policy-decay-start", type=float, default=0.34)
-    parser.add_argument("--rational-matrix-policy-decay-end", type=float, default=0.62)
+    parser.add_argument("--rational-matrix-policy-start", type=float, default=0.02)
+    parser.add_argument("--rational-matrix-policy-end", type=float, default=0.12)
+    parser.add_argument("--rational-matrix-policy-decay-start", type=float, default=0.20)
+    parser.add_argument("--rational-matrix-policy-decay-end", type=float, default=0.36)
+    parser.add_argument("--rational-matrix-policy-muon-decay-depth-shift", type=float, default=0.0)
+    parser.add_argument("--rational-matrix-policy-muon-input-decay-shift", type=float, default=0.0)
+    parser.add_argument("--rational-matrix-policy-muon-output-decay-shift", type=float, default=0.0)
+    parser.add_argument("--rational-matrix-policy-muon-reset-adam-state", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--rational-matrix-policy-final-muon", type=float, default=0.0)
     parser.add_argument("--rational-matrix-policy-min-muon", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-max-muon", type=float, default=0.0)
+    parser.add_argument("--rational-matrix-policy-max-muon", type=float, default=0.75)
     parser.add_argument("--rational-matrix-policy-input-depth-gain", type=float, default=-0.50)
     parser.add_argument("--rational-matrix-policy-output-depth-gain", type=float, default=1.00)
     parser.add_argument("--rational-matrix-policy-pressure-weight", type=float, default=0.30)
@@ -6273,6 +6281,10 @@ def main():
         "rational_matrix_policy_end": args.rational_matrix_policy_end if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_decay_start": args.rational_matrix_policy_decay_start if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_decay_end": args.rational_matrix_policy_decay_end if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_muon_decay_depth_shift": args.rational_matrix_policy_muon_decay_depth_shift if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_muon_input_decay_shift": args.rational_matrix_policy_muon_input_decay_shift if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_muon_output_decay_shift": args.rational_matrix_policy_muon_output_decay_shift if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_muon_reset_adam_state": args.rational_matrix_policy_muon_reset_adam_state if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_final_muon": args.rational_matrix_policy_final_muon if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_min_muon": args.rational_matrix_policy_min_muon if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_max_muon": args.rational_matrix_policy_max_muon if args.optimizer == "rational_matrix_policy_onpolicy" else None,

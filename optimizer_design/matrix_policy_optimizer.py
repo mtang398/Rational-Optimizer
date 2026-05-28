@@ -15,8 +15,8 @@ def _smoothstep(edge0: float, edge1: float, x: float) -> float:
 class RationalMatrixPolicyOptimizer:
     """Layer/side-specific AdamW policy for RLB FFN matrices.
 
-    Muon support remains available for ablation runs, but the verified default
-    disables it and only applies the RLB-specific AdamW matrix policy.
+    The verified default uses a short early Muon phase on RLB matrices,
+    then switches back to the RLB-specific AdamW matrix policy.
     """
 
     def __init__(
@@ -28,30 +28,34 @@ class RationalMatrixPolicyOptimizer:
         weight_decay: float = 0.1,
         total_steps: int = 0,
         selector_groups=None,
-        muon_strength: float = 0.55,
-        muon_lr_scale: float = 0.70,
-        adam_lr_scale: float = 1.0,
+        muon_strength: float = 0.75,
+        muon_lr_scale: float = 1.00,
+        adam_lr_scale: float = 3.0,
         adam_lr_scale_final: float | None = None,
         adam_decay_start: float = 1.1,
         adam_decay_end: float = 1.1,
         adam_decay_depth_shift: float = 0.0,
-        adam_role_strength: float = 0.0,
+        adam_role_strength: float = 1.20,
         adam_stat_strength: float = 0.0,
         adam_pressure_balance: float = 0.0,
         adam_stat_start: float = 0.0,
         adam_stat_end: float = 0.0,
-        adam_min_lr_scale: float = 0.0,
-        adam_max_lr_scale: float = 10.0,
+        adam_min_lr_scale: float = 0.40,
+        adam_max_lr_scale: float = 4.0,
         adam_reset_on_switch: bool = False,
-        start: float = 0.06,
-        end: float = 0.32,
-        decay_start: float = 0.34,
-        decay_end: float = 0.62,
+        start: float = 0.02,
+        end: float = 0.12,
+        decay_start: float = 0.20,
+        decay_end: float = 0.36,
+        muon_decay_depth_shift: float = 0.0,
+        muon_input_decay_shift: float = 0.0,
+        muon_output_decay_shift: float = 0.0,
+        muon_reset_adam_state: bool = False,
         final_muon: float = 0.0,
         min_muon: float = 0.0,
         max_muon: float = 0.75,
-        input_depth_gain: float = -0.10,
-        output_depth_gain: float = 0.22,
+        input_depth_gain: float = -0.50,
+        output_depth_gain: float = 1.00,
         pressure_weight: float = 0.30,
         activity_weight: float = 0.65,
         activity_target: float = 0.05,
@@ -91,6 +95,10 @@ class RationalMatrixPolicyOptimizer:
         self.end = float(end)
         self.decay_start = float(decay_start)
         self.decay_end = float(decay_end)
+        self.muon_decay_depth_shift = float(muon_decay_depth_shift)
+        self.muon_input_decay_shift = float(muon_input_decay_shift)
+        self.muon_output_decay_shift = float(muon_output_decay_shift)
+        self.muon_reset_adam_state = bool(muon_reset_adam_state)
         self.final_muon = float(final_muon)
         self.min_muon = float(min_muon)
         self.max_muon = float(max_muon)
@@ -409,12 +417,32 @@ class RationalMatrixPolicyOptimizer:
 
     def _muon_fraction(self, group: dict) -> float:
         progress = self._progress()
-        on_phase = _smoothstep(self.start, self.end, progress)
-        off_phase = _smoothstep(self.decay_start, self.decay_end, progress)
+        depth_offset = self.muon_decay_depth_shift * (self._depth(group) - 0.5)
+        role = str(group.get("matrix_role", "matrix"))
+        role_offset = self.muon_output_decay_shift if role == "out" else self.muon_input_decay_shift
+        offset = depth_offset + role_offset
+        start = min(1.0, max(0.0, self.start + offset))
+        end = min(1.0, max(0.0, self.end + offset))
+        decay_start = min(1.0, max(0.0, self.decay_start + offset))
+        decay_end = min(1.0, max(0.0, self.decay_end + offset))
+        on_phase = _smoothstep(start, end, progress)
+        off_phase = _smoothstep(decay_start, decay_end, progress)
         base_strength = self.muon_strength * (1.0 - off_phase) + self.final_muon * off_phase
         base = base_strength * on_phase
         value = base * self._role_depth_factor(group) * self._stat_factor(group)
         return min(self.max_muon, max(self.min_muon, value))
+
+    def _maybe_reset_adam_after_muon(self, group: dict, fraction: float):
+        if not self.muon_reset_adam_state:
+            return
+        if fraction > 1.0e-4:
+            group["_muon_was_active"] = True
+            return
+        if not group.get("_muon_was_active") or group.get("_muon_adam_reset_done"):
+            return
+        for param in group["params"]:
+            self.adam.state.pop(param, None)
+        group["_muon_adam_reset_done"] = True
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -430,6 +458,7 @@ class RationalMatrixPolicyOptimizer:
             saved_adam_lrs.append(lr)
             self._maybe_reset_adam_state(group)
             fraction = self._muon_fraction(group) if self.muon is not None else 0.0
+            self._maybe_reset_adam_after_muon(group, fraction)
             group["lr"] = lr * self._adam_lr_scale(group) * (1.0 - fraction)
 
         saved_muon_lrs = []

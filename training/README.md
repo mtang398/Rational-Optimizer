@@ -26,18 +26,25 @@ sequence:     256 tokens
 
 ## Current Best Optimizer
 
-The active RLB-specific optimizer is:
-
 ```text
-rational_matrix_policy_onpolicy
+optimizer:   rational_matrix_policy_onpolicy
+activation:  rlb_fused_fixed_strong_ffn
+mechanism:   early RLB-matrix Muon switch, then MatrixPolicy AdamW
 ```
 
-It now defaults to Smooth-MatrixPolicy: strong RLB layer/side matrix policy, exact on-policy gauge balancing, and `beta2=0.999` inside the MatrixPolicy branch. Use it only with RLB activations.
+Use it only with RLB activations. The training defaults now match the best run, so no extra MatrixPolicy args are needed.
 
 ## Run Current Best
 
 ```bash
-env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1   RUN_NAME=rlb_smooth_matrix_policy   STEPS=3051 SEEDS=1337   OPTIMIZERS=rational_matrix_policy_onpolicy   ACTIVATIONS=rlb_fused_fixed_strong_ffn   EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100   sbatch --time=02:00:00 --gres=gpu:nvidia_rtx_6000_ada_generation:4   training/run_wikitext103_optimizer_sweep.sbatch
+env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1 \
+  RUN_NAME=rlb_matrix_policy_muon_switch \
+  STEPS=3051 SEEDS=1337 \
+  OPTIMIZERS=rational_matrix_policy_onpolicy \
+  ACTIVATIONS=rlb_fused_fixed_strong_ffn \
+  EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100 \
+  sbatch --time=02:00:00 --gres=gpu:nvidia_rtx_6000_ada_generation:4 \
+  training/run_wikitext103_optimizer_sweep.sbatch
 ```
 
 ## GPU Rule
@@ -48,8 +55,6 @@ Use at most 4 GPUs total. Check active jobs before launching:
 squeue -u mt872
 ```
 
-## Accepted Optimizers
+## Rule For Claims
 
-The launcher accepts the optimizer names from `ACTIVE_OPTIMIZERS` in `transformer_wikitext103_compare.py`. Rational-specific optimizers are skipped on non-RLB activations by the launcher.
-
-Do not use high-LR ablations as the headline result. The optimizer must win under the same LR schedule.
+Do not use high-LR ablations as the headline result. The optimizer must win under the same LR schedule against SiLU+AdamW, RLB+AdamW, and the beta2-tuned AdamW controls.
