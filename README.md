@@ -2,34 +2,24 @@
 
 Read [READ_FIRST.md](READ_FIRST.md) before running jobs.
 
-This repo studies rational activations and optimizers in a controlled WikiText-103 causal language-modeling benchmark. The current benchmark is a 123M-parameter LLaMA-style decoder-only Transformer. The active question is optimizer-specific: design an optimizer that uses the structure of the no-GLU Rational Local Basis FFN, then compare it fairly against RLB with AdamW/Muon and SiLU/SwiGLU with AdamW/Muon.
-
-## Accepted Comparison
-
-New optimizer experiments use this grid:
+RationalOPT studies whether a no-GLU rational feed-forward layer can justify its own optimizer. The target is not simply to lower loss with a better global learning-rate schedule. The target is an on-policy optimizer that uses structure unique to the Rational Local Basis FFN (RLB) and produces a real lead over both:
 
 ```text
 SiLU/SwiGLU + AdamW
-SiLU/SwiGLU + Muon
 RLB + AdamW
-RLB + Muon
-RLB + factored_adamw                         negative probe
-RLB + rational_onpolicy_balance
-RLB + rational_quotient_onpolicy
-RLB + rational_jacobian_onpolicy
-RLB + rational_quotient_jacobian_onpolicy    prototype
-RLB + rational_adaptive_metric_onpolicy      prototype
-RLB + rational_transport_onpolicy            tested prototype
-RLB + rational_jacobian_factored_onpolicy    negative probe
-RLB + rational_layerwise_switch_onpolicy     negative probe
-RLB + rational_layerwise_factored_switch_onpolicy prototype
 ```
 
-Rational-specific optimizers are applied only to RLB. The standard optimizer names are `adamw`, `muon`, and the negative-probe ablation `factored_adamw`.
+A useful result must survive those controls under the same model size, token budget, evaluation protocol, and training schedule. Jacobian, transport, layerwise switching, and any other rational-specific optimizer are candidate rows, not baselines.
 
-## RLB FFN
+## Model
 
-RLB is a no-GLU feed-forward layer. It has one expansion projection, grouped rational feature generation, and one output projection:
+The benchmark is a 123M-parameter LLaMA-style decoder-only Transformer on WikiText-103 with 100M training tokens per row. The main RLB activation row is:
+
+```text
+rlb_fused_fixed_strong_ffn        h = 3072
+```
+
+RLB replaces the SwiGLU FFN with one expansion projection, grouped rational feature generation, and one output projection:
 
 ```text
 v = x W_in
@@ -39,53 +29,30 @@ h_g = s_g R_g(u_g)
 y = h W_out
 ```
 
-There is no gate projection, no up projection, and no SiLU inside the RLB FFN. The current activation variants are:
+There is no gate projection, no up projection, and no SiLU inside the RLB FFN.
+
+## Fair Comparisons
+
+The current comparison set is:
 
 ```text
-rlb_fused_fixed_strong_ffn        h = 3072
-rlb_fused_fixed_strong_h2880_ffn  h = 2880
+SiLU/SwiGLU + AdamW                    primary external baseline
+RLB + AdamW                            activation-controlled baseline
+RLB + rational_onpolicy_balance        tested
+RLB + rational_quotient_onpolicy       tested
+RLB + rational_jacobian_onpolicy       tested, best fixed-LR rational row
+RLB + rational_transport_onpolicy      tested prototype
+RLB + rational_adaptive_metric_onpolicy prototype
+RLB + rational_quotient_jacobian_onpolicy prototype
+RLB + rational_jacobian_factored_onpolicy negative probe
+RLB + rational_layerwise_switch_onpolicy  negative probe
 ```
 
-## Why The Optimizer Is RLB-Specific
+Muon and `factored_adamw` are ablation controls, not the main claim. Rational-specific optimizers are only valid on RLB rows.
 
-RLB has an exact positive group gauge:
+## Current Result
 
-```text
-W_in,g  <- c W_in,g
-W_out,g <- W_out,g / c
-```
-
-For positive `c`, the layer function is unchanged. This gives an optimizer a real rational-specific degree of freedom: it can choose the scale representative of each group without changing the model function.
-
-The active optimizer path is:
-
-```text
-rational_onpolicy_balance
-rational_quotient_onpolicy
-rational_jacobian_onpolicy
-rational_quotient_jacobian_onpolicy
-rational_adaptive_metric_onpolicy
-rational_transport_onpolicy
-rational_jacobian_factored_onpolicy
-rational_layerwise_switch_onpolicy
-rational_layerwise_factored_switch_onpolicy
-```
-
-`rational_onpolicy_balance` uses live gradient pressure, rational curve activity, and layer depth to apply a function-preserving group-scale correction after each child optimizer step.
-
-`rational_quotient_onpolicy` removes pure gauge motion from the RLB matrix gradients before the child optimizer step, then applies the same on-policy balance transform.
-
-`rational_jacobian_onpolicy` keeps the on-policy balance transform and adds a low-overhead curve-aware preconditioner. It scales each group of `W_in` by the inverse relative rational derivative gain and each group of `W_out` by the inverse relative rational output gain. This directly uses the fact that RLB matrix updates pass through the current learned rational functions.
-
-`rational_quotient_jacobian_onpolicy` is a prototype that combines quotient projection with the Jacobian preconditioner. It is useful as an ablation but did not beat the verified Jacobian row in the seed-1337 probe.
-
-`rational_adaptive_metric_onpolicy` is a prototype that can use live on-policy RLB activation statistics. Its default keeps coefficient Gram conditioning off because that over-conditioned the small rational tensors in probes.
-
-`rational_transport_onpolicy` is a tested prototype. It adds optional rational-only amplitude transport, optional pressure preconditioning, and an on-policy coefficient selector. The selector can switch from aggressive early rational coefficient updates to safer late updates by layer using live coefficient-vs-matrix gradient activity. The validated default is conservative: baseline coefficient dynamics plus matrix preconditioning, because aggressive coefficient schedules caused a late loss penalty.
-
-## Current Full Result
-
-Completed full sweep:
+Three-seed fixed-LR full sweep:
 
 ```text
 run name: rlb_optimizer_empirical_ngram_full
@@ -94,113 +61,80 @@ seeds:    1337, 2024, 31415
 budget:   100M training tokens per row
 ```
 
-Aggregate losses from `experiments/results/rlb_optimizer_empirical_ngram_full/aggregate.csv`:
+Mean validation result:
 
-```text
-AdamW + SiLU/SwiGLU                         3.610129  PPL 36.973  sec/step 0.188997
-AdamW + RLB h3072                           3.606629  PPL 36.845  sec/step 0.205268
-RLB h3072 + rational_onpolicy_balance       3.606226  PPL 36.831  sec/step 0.209027
-RLB h3072 + rational_quotient_onpolicy      3.606664  PPL 36.847  sec/step 0.205176
-RLB h3072 + rational_jacobian_onpolicy      3.605394  PPL 36.800  sec/step 0.204885
-```
-
-The best measured row is `rational_jacobian_onpolicy + rlb_fused_fixed_strong_ffn`, with mean loss gap `-0.004736` versus AdamW + SiLU/SwiGLU and mean gap `-0.001236` versus AdamW on the same RLB activation.
-
-## 2026-05-27 Optimizer Probes
-
-Additional RLB-specific optimizers were implemented and probed on seed 1337 before deciding whether to launch a full multi-seed sweep:
-
-```text
-rational_adaptive_metric_onpolicy h3072             3.615887  PPL 37.184
-rational_adaptive_metric_onpolicy h2880             3.615114  PPL 37.156
-rational_quotient_jacobian_onpolicy h3072           3.615571  PPL 37.173
-rational_transport_onpolicy h3072 matrix=0.65       3.615149  PPL 37.157
-rational_transport_onpolicy h3072 matrix=0.70       3.615180  PPL 37.158
-```
-
-The seed-1337 external baseline is `AdamW + SiLU/SwiGLU` at `3.621982` loss and `37.412` PPL. The activation-controlled baseline is `AdamW + RLB h3072` at `3.617501` loss and `37.244` PPL. Jacobian is not the baseline; it is the current best rational-specific optimizer row. On seed 1337 it reaches `3.614862`, which is `-0.007120` loss versus SiLU+AdamW and `-0.002639` versus RLB+AdamW. The full three-seed recommendation remains unchanged because the new transport probes did not increase that headline gap.
-
-### Transport Probe Analysis
-
-The compact analysis artifacts are in `experiments/results/transport_optimizer_analysis_2026_05_27/`:
-
-```text
-loss_ppl_curves.png          optimizer comparison validation loss/PPL curves; x-axis starts at step 1
-final_loss_ppl_bars.png      final validation loss and PPL bars
-transport_probe_summary.csv  retained probe metrics with SiLU/RLB baseline deltas
-```
-
-![Seed-1337 optimizer comparison curves](experiments/results/transport_optimizer_analysis_2026_05_27/loss_ppl_curves.png)
-
-![Seed-1337 final metrics](experiments/results/transport_optimizer_analysis_2026_05_27/final_loss_ppl_bars.png)
-
-Seed-1337 comparison. Negative gaps are better than the named baseline:
-
-| row | final loss | final PPL | gap vs SiLU+AdamW | gap vs RLB+AdamW |
+| row | loss | PPL | gap vs SiLU+AdamW | gap vs RLB+AdamW |
 | --- | ---: | ---: | ---: | ---: |
-| AdamW + SiLU/SwiGLU | 3.621982 | 37.412 | +0.000000 | +0.004480 |
-| AdamW + RLB h3072 | 3.617501 | 37.244 | -0.004480 | +0.000000 |
-| RLB h3072 + `rational_jacobian_onpolicy` | 3.614862 | 37.146 | -0.007120 | -0.002639 |
-| RLB h3072 + transport matrix `0.65`, baseline coeffs | 3.615149 | 37.157 | -0.006833 | -0.002352 |
-| RLB h3072 + transport matrix `0.70`, baseline coeffs | 3.615180 | 37.158 | -0.006802 | -0.002321 |
-| RLB h3072 + transport matrix-only early probe | 3.615939 | 37.186 | -0.006042 | -0.001562 |
-| RLB h3072 + transport matrix `0.60` plus time ramp | 3.616660 | 37.213 | -0.005322 | -0.000841 |
-| RLB h3072 + `rational_adaptive_metric_onpolicy` | 3.617174 | 37.232 | -0.004807 | -0.000327 |
-| RLB h3072 + selector plus coefficient pullback | 3.619819 | 37.331 | -0.002162 | +0.002318 |
-| RLB h3072 + depth-corrected layer switch | 3.621418 | 37.391 | -0.000564 | +0.003917 |
-| RLB h3072 + aggressive xfast coefficient schedule | 3.625419 | 37.540 | +0.003438 | +0.007918 |
+| AdamW + SiLU/SwiGLU | 3.610129 | 36.973 | +0.000000 | +0.003500 |
+| AdamW + RLB h3072 | 3.606629 | 36.845 | -0.003500 | +0.000000 |
+| RLB + `rational_onpolicy_balance` | 3.606226 | 36.831 | -0.003903 | -0.000403 |
+| RLB + `rational_quotient_onpolicy` | 3.606664 | 36.847 | -0.003465 | +0.000035 |
+| RLB + `rational_jacobian_onpolicy` | 3.605394 | 36.800 | -0.004736 | -0.001236 |
 
-The important decomposition is: non-GLU RLB itself beats SiLU+AdamW by `-0.004480` on this seed, and the current best rational optimizer adds another `-0.002639` beyond RLB+AdamW. That is useful, but it is not yet the much larger gap we want against the real baseline, `AdamW + SiLU/SwiGLU`.
+The honest conclusion is that the best measured rational optimizer is real but small. It improves the three-seed mean by `-0.004736` loss versus `SiLU/SwiGLU+AdamW` and by `-0.001236` loss versus `RLB+AdamW`. This is not close to the desired `0.2-0.3` loss or `2-3` PPL gap.
 
-The main positive transport result is narrow: RLB-aware matrix geometry is consistently useful. The best transport rows kept the rational coefficients on the conservative baseline path and only changed how the matrices see the learned rational curves. A time ramp was worse, which suggests the useful part is stable curve-aware scaling, not late extra pressure.
+## What The Probes Mean
 
-The main negative result is stronger: aggressive coefficient motion is the wrong place to spend risk in this benchmark. The coefficient selector, layer-specific switches, reset-on-switch, freezes, and late pullback were all trying to avoid the late-penalty pattern, but they still landed behind the matrix-only transport rows and often gave back most of the SiLU+AdamW gap. The likely reason is that rational coefficients are small function parameters, not ordinary dense weights. Early large moves can change the learned scalar nonlinearity enough that later cooldown only stops further damage; it does not restore the better function-space basin.
+The recent probes are diagnostic, not separate stacked recommendations.
 
-The next optimizer design should therefore target a larger gap to SiLU+AdamW directly. Matrix preconditioning and gauge balancing should be the default path; coefficient moves should become reversible, function-space-bounded proposals accepted only when a local on-policy test says they help. Layer-specific behavior is still worth using, but it should choose among validated conservative actions rather than switching into aggressive coefficient modes because a schedule says the phase changed.
+| probe | result | interpretation |
+| --- | ---: | --- |
+| Transport matrix-only, seed 1337 | best `3.615149`, PPL `37.157` | close to Jacobian, but not better; matrix geometry helps a little |
+| Aggressive coefficient transport/switching | up to `3.625419`, PPL `37.540` | scheduled coefficient motion damages the function path |
+| ASAM with fixed-LR rows | SiLU `3.622873`, RLB `3.618500` | did not improve the AdamW controls |
+| Factored second moments | step-1000 loss `4.775638` | badly hurts this setup |
+| Aggressive layerwise switch | step-1000 loss `4.221224` | switching by schedule is not enough |
+| High-LR control | RLB+AdamW `3.455792`, SiLU+AdamW `3.456625` | reveals the old schedule was undertrained; not an optimizer win |
 
+The high-LR run is kept because it prevents a false claim. High-LR `RLB+rational_jacobian_onpolicy` reaches `3.459508`, which looks excellent versus the old fixed-LR `SiLU+AdamW` row, but it loses to high-LR `RLB+AdamW` by `+0.003716` loss. Therefore the large absolute loss drop is a schedule/control issue, not the rational optimizer we are trying to design.
 
-## 2026-05-27 High-LR Follow-Up
-
-The aggressive optimizer pass added four implementation paths before the high-LR controls were run:
-
-```text
-factored_adamw
-rational_jacobian_factored_onpolicy
-rational_layerwise_switch_onpolicy
-rational_layerwise_factored_switch_onpolicy
-```
-
-The compact artifacts are in `experiments/results/high_lr_optimizer_followup_2026_05_27/`:
+Compact artifacts:
 
 ```text
-loss_ppl_curves.png          validation loss/PPL curves; x-axis starts at step 1
-train_loss_curves.png        training loss curves including the real step-1 point
-final_loss_ppl_bars.png      final validation loss and PPL bars
-summary.csv                  fixed-LR and high-LR main comparison rows
-negative_probe_summary.csv   cancelled/negative ASAM, factored, and layerwise probes
-analysis.md                  compact written interpretation
+experiments/results/rlb_optimizer_empirical_ngram_full/
+experiments/results/transport_optimizer_analysis_2026_05_27/
+experiments/results/high_lr_optimizer_followup_2026_05_27/
 ```
 
-![High-LR validation loss and PPL curves](experiments/results/high_lr_optimizer_followup_2026_05_27/loss_ppl_curves.png)
+![Fixed-LR rational optimizer comparison](experiments/results/transport_optimizer_analysis_2026_05_27/loss_ppl_curves.png)
 
-![High-LR train loss curves](experiments/results/high_lr_optimizer_followup_2026_05_27/train_loss_curves.png)
+![High-LR diagnostic control](experiments/results/high_lr_optimizer_followup_2026_05_27/loss_ppl_curves.png)
 
-![High-LR final metrics](experiments/results/high_lr_optimizer_followup_2026_05_27/final_loss_ppl_bars.png)
+## RLB Structure The Optimizer Must Use
 
-Seed-1337 comparison. Negative gaps are better than the named baseline:
+RLB has more exploitable structure than an ordinary MLP layer:
 
-| row | final loss | final PPL | gap vs original SiLU+AdamW | gap vs high-LR SiLU+AdamW | gap vs high-LR RLB+AdamW |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Fixed LR AdamW + SiLU/SwiGLU | 3.621982 | 37.412 | +0.000000 | +0.165357 | +0.166190 |
-| Fixed LR AdamW + RLB h3072 | 3.617501 | 37.244 | -0.004480 | +0.160876 | +0.161709 |
-| Fixed LR RLB + `rational_jacobian_onpolicy` | 3.614862 | 37.146 | -0.007120 | +0.158237 | +0.159070 |
-| High LR AdamW + SiLU/SwiGLU | 3.456625 | 31.710 | -0.165357 | +0.000000 | +0.000833 |
-| High LR AdamW + RLB h3072 | 3.455792 | 31.683 | -0.166190 | -0.000833 | +0.000000 |
-| High LR RLB + `rational_jacobian_onpolicy` | 3.459508 | 31.801 | -0.162473 | +0.002883 | +0.003716 |
+```text
+W_in,g  <- c W_in,g
+W_out,g <- W_out,g / c
+```
 
-The high-LR schedule creates the large headline gap versus the old fixed-LR `SiLU+AdamW` row: `-0.166190` loss and `-5.728` PPL for high-LR `RLB+AdamW`. But this is a schedule result, not a rational-optimizer result. Under the same high-LR schedule, `RLB+AdamW` is the best seed-1337 row, high-LR `SiLU+AdamW` is only `0.000833` loss behind it, and high-LR `RLB+rational_jacobian_onpolicy` is worse by `0.003716` loss.
+This exact positive group gauge preserves the represented function. An optimizer can choose the best scale representative without changing the model.
 
-The optimizer lesson is stricter than the earlier transport pass. The robust signal is still conservative matrix/gauge geometry, but the large practical improvement came from correcting the learning-rate budget. ASAM, factored AdamW second moments, and aggressive layerwise coefficient switching all made things worse or were cancelled early because their curves were clearly behind. The next serious design should start from the tuned high-LR `RLB+AdamW` control and only accept rational-specific changes that beat that control, not just the old fixed-LR SiLU baseline.
+The rational curve also gives on-policy functional information that AdamW ignores:
+
+```text
+R_g(u)                 feature amplitude seen by W_out
+R'_g(u)                derivative seen by W_in
+J_coeff R_g(u)         functional effect of coefficient updates
+pole / denominator     stability risk of coefficient movement
+u distribution         actual active scalar domain per layer/group
+```
+
+A real RLB optimizer should use these signals every step, by layer and by group, without relying on a hand-written phase schedule.
+
+## Next Optimizer Target
+
+The next serious design should be an on-policy functional trust optimizer for RLB. The intended behavior is:
+
+1. Collect per-layer/per-group samples of `u`, `R(u)`, `R'(u)`, denominator margin, feature scale, and incoming/outgoing gradient pressure.
+2. Remove exact gauge-gradient components from `W_in/W_out`, then apply a function-preserving gauge rebalance that minimizes predicted optimizer noise.
+3. Precondition matrix gradients with on-policy derivative/output metrics, not a fixed probe grid.
+4. Treat rational coefficients as function parameters: build a tiny per-group Gram/Gauss-Newton metric from `J_coeff R(u)`, damp it by denominator risk, and trust-clip by predicted function change.
+5. Couple coefficient and matrix updates through a per-group controller. The controller can choose matrix-only, coefficient-natural-gradient, gauge-rebalance, or freeze mode based on live improvement/risk signals, not training step.
+6. Accept coefficient motion only when on-policy gradient agreement and predicted functional gain are strong enough; otherwise spend the step on matrix and gauge updates.
+
+This is the path most aligned with the goal: use all rational-specific advantages to beat `SiLU+AdamW` and `RLB+AdamW`, rather than finding an easier global schedule.
 
 ## Layout
 
@@ -213,15 +147,15 @@ experiments/        cache, active runs, logs, and aggregate outputs
 
 ## Commands
 
-Run the active full comparison set:
+Run a fixed-schedule comparison sweep:
 
 ```bash
 env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1 \
   RUN_NAME=rlb_optimizer_empirical_ngram_full \
   STEPS=0 \
   SEEDS="1337 2024 31415" \
-  OPTIMIZERS="adamw muon rational_onpolicy_balance rational_quotient_onpolicy rational_jacobian_onpolicy rational_quotient_jacobian_onpolicy rational_adaptive_metric_onpolicy" \
-  ACTIVATIONS="silu rlb_fused_fixed_strong_ffn rlb_fused_fixed_strong_h2880_ffn" \
+  OPTIMIZERS="adamw rational_onpolicy_balance rational_quotient_onpolicy rational_jacobian_onpolicy rational_transport_onpolicy" \
+  ACTIVATIONS="silu rlb_fused_fixed_strong_ffn" \
   EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100 \
   sbatch --time=08:00:00 --gres=gpu:nvidia_rtx_6000_ada_generation:4 training/run_wikitext103_optimizer_sweep.sbatch
 ```
