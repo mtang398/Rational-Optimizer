@@ -1,6 +1,8 @@
 # RationalOPT
 
-RationalOPT is an optimizer-design repo for the no-GLU Rational Local Basis FFN (RLB). The goal is an RLB-specific optimizer, not a different global learning-rate schedule. The hard comparisons are always:
+RationalOPT is an optimizer-design repo for the no-GLU Rational Local Basis FFN (RLB). The current work is about an RLB-specific optimizer, not changing the global learning-rate schedule.
+
+The hard controls are always:
 
 ```text
 SiLU+AdamW
@@ -9,26 +11,11 @@ SiLU+AdamW beta2=0.999
 RLB+AdamW beta2=0.999
 ```
 
-Jacobian, transport, MatrixPolicy, Muon switches, and other rational optimizers are candidate methods. They are not the baseline. LR ablations stay out of the main claim until the same-LR optimizer has a much larger final gap.
-
-## Current Best
-
-The current best same-LR optimizer is:
-
-```text
-optimizer:   rational_matrix_policy_onpolicy
-activation:  rlb_fused_fixed_strong_ffn
-mechanism:   MatrixPolicy-Muon switch
-global LR:   lr=3e-4, min_lr=3e-5, warmup=200, cosine, unchanged
-seed:        1337
-steps:       3051
-```
-
-`rational_matrix_policy_onpolicy` now defaults to the best policy: RLB `W_in/W_out` matrices get a short early Muon phase, then switch back to the RLB MatrixPolicy AdamW update. The rest of the model keeps AdamW. The global LR schedule is unchanged.
+Jacobian, transport, MatrixPolicy, Muon switches, and other rational optimizers are candidate methods. They are not baselines. LR ablations stay out of the main claim until the same-LR optimizer has a much larger final gap.
 
 ## Exact Optimizer
 
-The optimizer used in the headline row is exactly:
+The headline optimizer is exactly:
 
 ```text
 rational_matrix_policy_onpolicy
@@ -40,109 +27,142 @@ Use it with:
 activation: rlb_fused_fixed_strong_ffn
 ```
 
-It is not a standalone new activation and it is not an LR schedule. It is a parameter-group policy for the RLB FFN inside the same Transformer training loop.
+It is not a new activation and it is not an LR schedule. It is a parameter-group optimizer for RLB FFN matrices inside the same Transformer training loop.
 
-### Parameter Groups
+## Current Best
 
-The training script splits parameters this way:
+The names below match the JSONL config keys where possible. `optimizer_lr` and `optimizer_min_lr` are the values passed by `--lr` and `--min-lr`.
+
+```text
+optimizer                                           rational_matrix_policy_onpolicy
+activation                                          rlb_fused_fixed_strong_ffn
+optimizer_lr                                        3e-4
+optimizer_min_lr                                    3e-5
+warmup_steps                                        200
+lr_schedule                                         cosine
+rational_matrix_policy_backbone_optimizer           adamw
+rational_matrix_policy_backbone_beta2               0.999
+rational_matrix_policy_beta2                        0.999
+rational_matrix_policy_adam_lr_scale                3.00
+rational_matrix_policy_adam_lr_scale_final          null
+rational_matrix_policy_adam_role_strength           1.20
+rational_matrix_policy_adam_min_lr_scale            0.40
+rational_matrix_policy_adam_max_lr_scale            4.00
+rational_matrix_policy_input_depth_gain            -0.50
+rational_matrix_policy_output_depth_gain            1.00
+rational_matrix_policy_muon_strength                0.75
+rational_matrix_policy_muon_lr_scale                1.00
+rational_matrix_policy_max_muon                     0.75
+rational_matrix_policy_min_muon                     0.00
+rational_matrix_policy_final_muon                   0.00
+rational_matrix_policy_start                        0.02
+rational_matrix_policy_end                          0.12
+rational_matrix_policy_decay_start                  0.20
+rational_matrix_policy_decay_end                    0.36
+rational_matrix_policy_muon_decay_depth_shift       0.00
+rational_matrix_policy_muon_input_decay_shift       0.00
+rational_matrix_policy_muon_output_decay_shift      0.00
+rational_matrix_policy_muon_reset_adam_state        false
+rational_matrix_policy_pressure_weight              0.30
+rational_matrix_policy_activity_weight              0.65
+rational_matrix_policy_weight_decay_scale           1.00
+rational_matrix_policy_function_coeff               false
+rational_matrix_policy_group_gain_strength          0.00
+rational_matrix_policy_group_pressure_strength      0.00
+rational_matrix_policy_group_activity_damping       0.00
+rational_transport_strength                         0.00
+rational_transport_matrix_strength                  0.00
+rational_transport_quotient_strength                0.00
+rational_adaptive_coeff_strength                    0.00
+rlb_gauge_strength                                  0.50
+rlb_gauge_start                                     0.03
+rlb_gauge_end                                       0.35
+rlb_gauge_every                                     5
+```
+
+Result: `3.476232` validation loss and `32.34` PPL at step 3051, seed 1337.
+
+| row | final loss | final PPL |
+| --- | ---: | ---: |
+| RLB MatrixPolicy-Muon | 3.476232 | 32.34 |
+| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 |
+| SiLU+AdamW beta2=0.999 | 3.549346 | 34.79 |
+| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 |
+| RLB+AdamW | 3.617501 | 37.24 |
+| SiLU+AdamW | 3.621982 | 37.41 |
+
+The final PPL gap clears 2-3 PPL versus beta2-tuned AdamW controls, but the final loss gap is still below the requested 0.2-0.3. This is progress, not the finished research target.
+
+## What The Optimizer Touches
 
 | parameter set | optimizer behavior |
 | --- | --- |
 | Non-RLB backbone weights | AdamW, same global LR schedule, beta2=0.999 in this branch |
 | Norms, biases, tied embeddings | AdamW no-decay group |
-| RLB `W_in` and `W_out` matrices | `RationalMatrixPolicyOptimizer`, with both AdamW and early Muon on the same matrix tensors |
+| RLB `W_in` and `W_out` matrices | `RationalMatrixPolicyOptimizer`, with AdamW plus early Muon on the same matrix tensors |
 | Rational coefficients | ordinary AdamW by default; function-space coefficient optimizer is off |
 
-The Muon part is not used on the backbone. It is only used on the RLB `W_in/W_out` matrices during the early switch window.
+Muon is not used on the backbone. It is only blended into the RLB `W_in/W_out` matrix update during the early switch window.
 
-### MatrixPolicy Formula
+## How It Works
 
-For an RLB matrix group at layer depth `d in [0, 1]`, MatrixPolicy computes a role/depth factor:
+RLB factorizes the FFN into domain-forming matrices, per-group rational curves, and output composition:
+
+```text
+v = x W_in
+s_g = sqrt(mean(v_g^2) + eps)
+u_g = v_g / s_g
+h_g = s_g R_g(u_g)
+y = h W_out
+```
+
+`W_in` controls the rational input domain and derivatives. `W_out` composes rational features back into the model stream. MatrixPolicy uses this split by scaling input-side and output-side matrix updates differently by layer depth.
+
+For an RLB matrix group at layer depth `d in [0, 1]`:
 
 ```text
 role_factor = clamp(1 + gain(role) * (d - 0.5), 0.55, 1.40)
 gain(in)    = -0.50
 gain(out)   =  1.00
-```
 
-The AdamW side then uses:
-
-```text
 adam_scale = clamp(3.00 * (1 + 1.20 * (role_factor - 1)), 0.40, 4.00)
 adam_lr    = global_lr * adam_scale * (1 - muon_fraction)
 ```
 
-This means shallow input matrices, deep output matrices, and middle-layer matrices do not all receive the same effective matrix update. The policy is tied to the RLB decomposition: `W_in` forms the rational input domain, while `W_out` composes rational features back into the model stream.
-
-### Muon Switch
-
-Muon is blended only for RLB matrices and only early in training:
-
-```text
-muon_strength  = 0.75
-muon_lr_scale  = 1.00
-max_muon       = 0.75
-start/end      = 0.02 -> 0.12 of total steps
-decay/off      = 0.20 -> 0.36 of total steps
-final_muon     = 0.00
-```
-
-For the 3051-step run, Muon ramps in during roughly steps 61-366, then fades out during roughly steps 610-1098. After that, RLB matrices are updated by MatrixPolicy AdamW only.
-
-The actual per-group fraction is:
+The early Muon fraction is:
 
 ```text
 on_phase      = smoothstep(0.02, 0.12, progress)
 off_phase     = smoothstep(0.20, 0.36, progress)
 muon_fraction = clamp(
-  muon_strength * on_phase * (1 - off_phase)
+  0.75 * on_phase * (1 - off_phase)
   * role_factor
   * on_policy_stat_factor,
   0.0,
   0.75
 )
+muon_lr = global_lr * 1.00 * muon_fraction
 ```
 
-The winning default keeps Adam moments through the switch:
+For the 3051-step run, Muon ramps in around steps 61-366 and fades out around steps 610-1098. After that, RLB matrices are updated by MatrixPolicy AdamW only.
+
+## Step Order
 
 ```text
-muon_reset_adam_state = false
-```
-
-Resetting Adam state after Muon was tested and was worse.
-
-### Step Order
-
-Each training step does this:
-
-```text
-1. regular backward pass computes gradients
-2. outer on-policy wrapper updates live RLB stats
-3. default transport, coefficient, and group-gradient policies are skipped
-4. ordinary AdamW child optimizer steps the non-RLB backbone and rational coefficients
-5. MatrixPolicy child optimizer handles RLB W_in/W_out matrices:
-   - compute MatrixPolicy AdamW scale
+1. backward pass computes gradients
+2. outer on-policy wrapper updates live RLB statistics
+3. transport, coefficient-function optimizer, and group-gradient policy are off by default
+4. ordinary AdamW steps the non-RLB backbone, no-decay group, and rational coefficients
+5. MatrixPolicy handles RLB W_in/W_out matrices:
+   - compute role/depth AdamW scale
    - compute early Muon fraction
-   - set AdamW lr to global_lr * matrix_scale * (1 - muon_fraction)
-   - set Muon lr to global_lr * muon_lr_scale * muon_fraction
-   - step MatrixPolicy AdamW
-   - step Muon while its fraction is nonzero
-   - restore the original scheduler-provided group lrs
+   - step AdamW with lr = global_lr * adam_scale * (1 - muon_fraction)
+   - step Muon with lr = global_lr * muon_lr_scale * muon_fraction
+   - restore scheduler-provided base group lrs
 6. outer wrapper applies exact RLB gauge balance
 ```
 
 The exact gauge balance is function-preserving. It changes the internal representative of each RLB group, not the represented FFN function.
-
-| row | final loss | final PPL | loss gap vs best | PPL gap vs best |
-| --- | ---: | ---: | ---: | ---: |
-| RLB MatrixPolicy-Muon | 3.476232 | 32.34 | 0.000000 | 0.00 |
-| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 | 0.016978 | 0.55 |
-| SiLU+AdamW beta2=0.999 | 3.549346 | 34.79 | 0.073114 | 2.45 |
-| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 | 0.073786 | 2.48 |
-| RLB+AdamW | 3.617501 | 37.24 | 0.141269 | 4.91 |
-| SiLU+AdamW | 3.621982 | 37.41 | 0.145750 | 5.07 |
-
-The final PPL gap now clears 2-3 PPL versus beta2-tuned AdamW controls, but the final loss gap is still below the requested 0.2-0.3. The current result is progress, not a finished research target.
 
 ## Plots
 
@@ -154,44 +174,6 @@ Validation begins at the first eval point, step 250. Training loss begins at ste
 
 ![Same-LR training loss from step 1](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
 
-## Why This Helped
-
-RLB factorizes the FFN into domain-forming matrices, per-group rational curves, and output composition:
-
-```text
-v = x W_in
-u_g = v_g / rms(v_g)
-h_g = rms(v_g) R_g(u_g)
-y = h W_out
-```
-
-The useful optimizer behavior came from using that structure directly:
-
-| mechanism | effect |
-| --- | --- |
-| Separate RLB `W_in/W_out` groups | lets rational matrices use a different update than the backbone |
-| Layer/side MatrixPolicy | gives input/domain and output/composition matrices different scaling |
-| beta2=0.999 in the MatrixPolicy branch | stabilizes the larger RLB matrix policy |
-| Early matrix-only Muon phase | improves the trajectory before the late-penalty pattern appears |
-| Switch back to MatrixPolicy AdamW | avoids making Muon the late optimizer |
-| Exact RLB gauge balance | preserves represented function while conditioning matrix representatives |
-
-Current promoted MatrixPolicy settings:
-
-```text
-adam_lr_scale                         3.00
-adam_role_strength                    1.20
-input_depth_gain                     -0.50
-output_depth_gain                     1.00
-rational_matrix_policy_beta2          0.999
-rational_matrix_policy_backbone_beta2 0.999
-muon_strength                         0.75
-muon_lr_scale                         1.00
-muon window                           start 0.02, end 0.12, decay 0.20-0.36
-muon_reset_adam_state                 false
-transport_strength                    0.00
-```
-
 ## What Got Worse
 
 | probe | result |
@@ -202,7 +184,7 @@ transport_strength                    0.00
 | Muon lr-scale 1.25 | best short screen, worse full final, 3.479543 |
 | Post-Muon Adam reset | worse than keeping moments at the winning strength |
 | Global earlier Muon shutoff | lost the useful 750-step gain |
-| On-policy Muon damping | worsened the 1000-1250 region |
+| Stronger/extra on-policy Muon damping | worsened the 1000-1250 region |
 | Layer/role Muon timing shifts | killed the useful input-side Muon contribution |
 | Covariant Adam state under gauge | worse than matched short control |
 | RLB matrix weight-decay reduction | worse than matched short control |

@@ -1,6 +1,6 @@
 # Activation
 
-This folder contains the rational activation implementation and CUDA extension.
+This folder contains the rational activation implementation and CUDA extension. Optimizer logic does not live here; RLB modules only expose the structure and statistics that the optimizer uses.
 
 ## Package
 
@@ -21,20 +21,9 @@ Import check:
 PYTHONPATH=activation .venv-cu128/bin/python -c "import rational_opt; print(rational_opt.__all__)"
 ```
 
-## Version A 5/4
+## RLB FFN Target
 
-The reusable scalar rational family is:
-
-```text
-R_A(x) = (a0 + a1 x + a2 x^2 + a3 x^3 + a4 x^4 + a5 x^5)
-         / (1 + |b1 x| + |b2 x^2| + |b3 x^3| + |b4 x^4|)
-```
-
-The CUDA extension provides fused forward/backward kernels for the rational paths used by the training code.
-
-## RLB FFN
-
-The active optimizer work targets the fused no-GLU Rational Local Basis FFN:
+The current optimizer work targets the fused no-GLU Rational Local Basis FFN:
 
 ```text
 rlb_fused_fixed_strong_ffn        h = 3072
@@ -53,9 +42,19 @@ y = h W_out
 
 This is a rational FFN, not a GLU variant. There is no gate projection, no up branch, and no SiLU path inside the RLB layer.
 
-## Optimizer Interface
+## Interface Used By The Optimizer
 
-RLB modules expose group structure and on-policy statistics used by the optimizer code:
+The current optimizer is `rational_matrix_policy_onpolicy`, implemented outside this folder. It uses RLB's structure in three ways:
+
+| RLB item | optimizer use |
+| --- | --- |
+| `W_in` | matrix group for rational input-domain formation |
+| `W_out` | matrix group for rational feature composition |
+| group/layer metadata | layer-depth and matrix-role policy |
+| live stats | optional on-policy damping and diagnostics |
+| exact gauge | function-preserving post-step matrix rebalance |
+
+RLB modules expose optimizer statistics such as:
 
 ```text
 abs_moments
@@ -64,13 +63,19 @@ num_gram
 den_gram
 atom_gram
 atom_rms
+output_rms
+derivative_rms
 ```
 
-The optimizer side also uses the exact positive group gauge:
+The exact positive group gauge is:
 
 ```text
 W_in,g  <- c W_in,g
 W_out,g <- W_out,g / c
 ```
 
-The activation implementation should remain optimizer-independent. Optimizer logic belongs in `optimizer_design/` and wiring belongs in `training/`.
+`rational_matrix_policy_onpolicy` applies that gauge after optimizer steps. The activation implementation should remain optimizer-independent: activation code exposes structure and stats; optimizer policy belongs in `optimizer_design/`; training wiring belongs in `training/`.
+
+## Current Optimizer Context
+
+The current best uses RLB `W_in/W_out` matrices with MatrixPolicy AdamW plus a short early Muon phase. The non-RLB backbone and rational coefficients remain on AdamW. The global LR schedule is unchanged.
