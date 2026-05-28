@@ -26,6 +26,113 @@ steps:       3051
 
 `rational_matrix_policy_onpolicy` now defaults to the best policy: RLB `W_in/W_out` matrices get a short early Muon phase, then switch back to the RLB MatrixPolicy AdamW update. The rest of the model keeps AdamW. The global LR schedule is unchanged.
 
+## Exact Optimizer
+
+The optimizer used in the headline row is exactly:
+
+```text
+rational_matrix_policy_onpolicy
+```
+
+Use it with:
+
+```text
+activation: rlb_fused_fixed_strong_ffn
+```
+
+It is not a standalone new activation and it is not an LR schedule. It is a parameter-group policy for the RLB FFN inside the same Transformer training loop.
+
+### Parameter Groups
+
+The training script splits parameters this way:
+
+| parameter set | optimizer behavior |
+| --- | --- |
+| Non-RLB backbone weights | AdamW, same global LR schedule, beta2=0.999 in this branch |
+| Norms, biases, tied embeddings | AdamW no-decay group |
+| RLB `W_in` and `W_out` matrices | `RationalMatrixPolicyOptimizer`, with both AdamW and early Muon on the same matrix tensors |
+| Rational coefficients | ordinary AdamW by default; function-space coefficient optimizer is off |
+
+The Muon part is not used on the backbone. It is only used on the RLB `W_in/W_out` matrices during the early switch window.
+
+### MatrixPolicy Formula
+
+For an RLB matrix group at layer depth `d in [0, 1]`, MatrixPolicy computes a role/depth factor:
+
+```text
+role_factor = clamp(1 + gain(role) * (d - 0.5), 0.55, 1.40)
+gain(in)    = -0.50
+gain(out)   =  1.00
+```
+
+The AdamW side then uses:
+
+```text
+adam_scale = clamp(3.00 * (1 + 1.20 * (role_factor - 1)), 0.40, 4.00)
+adam_lr    = global_lr * adam_scale * (1 - muon_fraction)
+```
+
+This means shallow input matrices, deep output matrices, and middle-layer matrices do not all receive the same effective matrix update. The policy is tied to the RLB decomposition: `W_in` forms the rational input domain, while `W_out` composes rational features back into the model stream.
+
+### Muon Switch
+
+Muon is blended only for RLB matrices and only early in training:
+
+```text
+muon_strength  = 0.75
+muon_lr_scale  = 1.00
+max_muon       = 0.75
+start/end      = 0.02 -> 0.12 of total steps
+decay/off      = 0.20 -> 0.36 of total steps
+final_muon     = 0.00
+```
+
+For the 3051-step run, Muon ramps in during roughly steps 61-366, then fades out during roughly steps 610-1098. After that, RLB matrices are updated by MatrixPolicy AdamW only.
+
+The actual per-group fraction is:
+
+```text
+on_phase      = smoothstep(0.02, 0.12, progress)
+off_phase     = smoothstep(0.20, 0.36, progress)
+muon_fraction = clamp(
+  muon_strength * on_phase * (1 - off_phase)
+  * role_factor
+  * on_policy_stat_factor,
+  0.0,
+  0.75
+)
+```
+
+The winning default keeps Adam moments through the switch:
+
+```text
+muon_reset_adam_state = false
+```
+
+Resetting Adam state after Muon was tested and was worse.
+
+### Step Order
+
+Each training step does this:
+
+```text
+1. regular backward pass computes gradients
+2. outer on-policy wrapper updates live RLB stats
+3. default transport, coefficient, and group-gradient policies are skipped
+4. ordinary AdamW child optimizer steps the non-RLB backbone and rational coefficients
+5. MatrixPolicy child optimizer handles RLB W_in/W_out matrices:
+   - compute MatrixPolicy AdamW scale
+   - compute early Muon fraction
+   - set AdamW lr to global_lr * matrix_scale * (1 - muon_fraction)
+   - set Muon lr to global_lr * muon_lr_scale * muon_fraction
+   - step MatrixPolicy AdamW
+   - step Muon while its fraction is nonzero
+   - restore the original scheduler-provided group lrs
+6. outer wrapper applies exact RLB gauge balance
+```
+
+The exact gauge balance is function-preserving. It changes the internal representative of each RLB group, not the represented FFN function.
+
 | row | final loss | final PPL | loss gap vs best | PPL gap vs best |
 | --- | ---: | ---: | ---: | ---: |
 | RLB MatrixPolicy-Muon | 3.476232 | 32.34 | 0.000000 | 0.00 |
