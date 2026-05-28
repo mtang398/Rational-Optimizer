@@ -57,6 +57,15 @@ class RationalMatrixPolicyOptimizer:
         activity_target: float = 0.05,
         activity_width: float = 0.45,
         pressure_clip: float = 1.50,
+        group_gain_strength: float = 0.0,
+        group_pressure_strength: float = 0.0,
+        group_activity_damping: float = 0.0,
+        group_activity_target: float = 0.05,
+        group_activity_width: float = 0.45,
+        group_start: float = 0.02,
+        group_end: float = 0.35,
+        group_min_scale: float = 0.65,
+        group_max_scale: float = 1.55,
         muon_momentum: float = 0.95,
         muon_ns_steps: int = 5,
         muon_adjust_lr_fn: str | None = "match_rms_adamw",
@@ -92,6 +101,15 @@ class RationalMatrixPolicyOptimizer:
         self.activity_target = float(activity_target)
         self.activity_width = max(float(activity_width), eps)
         self.pressure_clip = float(pressure_clip)
+        self.group_gain_strength = float(group_gain_strength)
+        self.group_pressure_strength = float(group_pressure_strength)
+        self.group_activity_damping = float(group_activity_damping)
+        self.group_activity_target = float(group_activity_target)
+        self.group_activity_width = max(float(group_activity_width), eps)
+        self.group_start = float(group_start)
+        self.group_end = float(group_end)
+        self.group_min_scale = float(group_min_scale)
+        self.group_max_scale = float(group_max_scale)
         self.eps = float(eps)
         self.step_index = 0
         self.use_muon = (
@@ -105,6 +123,10 @@ class RationalMatrixPolicyOptimizer:
             raise ValueError("adam_max_lr_scale must be >= adam_min_lr_scale")
         if self.max_muon < self.min_muon:
             raise ValueError("max_muon must be >= min_muon")
+        if self.group_min_scale <= 0.0:
+            raise ValueError("group_min_scale must be positive")
+        if self.group_max_scale < self.group_min_scale:
+            raise ValueError("group_max_scale must be >= group_min_scale")
 
         adam_groups = []
         muon_groups = []
@@ -179,6 +201,22 @@ class RationalMatrixPolicyOptimizer:
         return min(1.0, max(0.0, float(self.step_index) / float(self.total_steps)))
 
     @staticmethod
+    def _centered_inverse_scale(gain: torch.Tensor, strength: float, eps: float) -> torch.Tensor:
+        gain_f = gain.detach().float().clamp_min(eps)
+        center = torch.exp(torch.log(gain_f).mean()).clamp_min(eps)
+        return (center / gain_f).pow(float(strength))
+
+    def _group_policy_phase(self) -> float:
+        return _smoothstep(self.group_start, self.group_end, self._progress())
+
+    def _group_policy_enabled(self) -> bool:
+        return (
+            self.group_gain_strength != 0.0
+            or self.group_pressure_strength != 0.0
+            or self.group_activity_damping != 0.0
+        )
+
+    @staticmethod
     def _depth(group: dict) -> float:
         layer = int(group.get("layer_index", -1))
         layers = max(1, int(group.get("num_layers", 1)))
@@ -251,6 +289,93 @@ class RationalMatrixPolicyOptimizer:
         factor = pressure_factor * activity_factor
         return float(factor.clamp(0.35, 1.45).item())
 
+    def _group_policy_scale(self, group: dict, device: torch.device, dtype: torch.dtype) -> torch.Tensor | None:
+        if not self._group_policy_enabled():
+            return None
+        phase = self._group_policy_phase()
+        if phase <= 0.0:
+            return None
+        selector_index = int(group.get("selector_index", -1))
+        if selector_index < 0 or selector_index >= len(self.selector_groups):
+            return None
+        curve_group = self.selector_groups[selector_index]
+        groups = int(curve_group.get("groups", 0))
+        if groups <= 0:
+            return None
+
+        scale = torch.ones(groups, device=device, dtype=torch.float32)
+        role = str(group.get("matrix_role", "matrix"))
+        module = curve_group.get("module")
+        stats = getattr(module, "_rlb_optimizer_stats", None) if module is not None else None
+        if self.group_gain_strength != 0.0 and stats:
+            key = "derivative_rms" if role == "in" else "output_rms"
+            gain = stats.get(key)
+            if torch.is_tensor(gain) and gain.numel() == groups:
+                scale.mul_(
+                    self._centered_inverse_scale(
+                        gain.to(device=device),
+                        self.group_gain_strength * phase,
+                        self.eps,
+                    ).to(device=device)
+                )
+
+        state = curve_group.get("_onpolicy")
+        if state is not None and (self.group_pressure_strength != 0.0 or self.group_activity_damping != 0.0):
+            in_rel = state["in_rel_ema"].to(device=device, dtype=torch.float32).clamp_min(self.eps)
+            out_rel = state["out_rel_ema"].to(device=device, dtype=torch.float32).clamp_min(self.eps)
+            rat_rel = state["rat_rel_ema"].to(device=device, dtype=torch.float32).clamp_min(self.eps)
+            if in_rel.numel() == groups and out_rel.numel() == groups and rat_rel.numel() == groups:
+                if self.group_pressure_strength != 0.0:
+                    pressure = (torch.log(in_rel) - torch.log(out_rel)).clamp(
+                        min=-self.pressure_clip,
+                        max=self.pressure_clip,
+                    )
+                    direction = -pressure if role == "in" else pressure
+                    scale.mul_(torch.exp(self.group_pressure_strength * phase * direction))
+                if self.group_activity_damping != 0.0:
+                    matrix_log = 0.5 * (torch.log(in_rel) + torch.log(out_rel))
+                    rational_activity = torch.log(rat_rel) - matrix_log
+                    excess = torch.relu((rational_activity - self.group_activity_target) / self.group_activity_width)
+                    scale.mul_(torch.exp(-self.group_activity_damping * phase * excess))
+
+        scale = scale.clamp_min(self.eps)
+        scale = scale / torch.exp(torch.log(scale).mean()).clamp_min(self.eps)
+        scale = scale.clamp(self.group_min_scale, self.group_max_scale)
+        return scale.to(device=device, dtype=dtype)
+
+    def _apply_group_policy_to_gradients(self):
+        if not self._group_policy_enabled():
+            return
+        for group in self.adam.param_groups:
+            role = str(group.get("matrix_role", "matrix"))
+            if role not in {"in", "out"}:
+                continue
+            selector_index = int(group.get("selector_index", -1))
+            if selector_index < 0 or selector_index >= len(self.selector_groups):
+                continue
+            curve_group = self.selector_groups[selector_index]
+            groups = int(curve_group.get("groups", 0))
+            hidden_dim = int(curve_group.get("hidden_dim", 0))
+            if groups <= 0 or hidden_dim <= 0 or hidden_dim % groups != 0:
+                continue
+            width = hidden_dim // groups
+            for param in group["params"]:
+                if param.grad is None:
+                    continue
+                scale = self._group_policy_scale(group, param.grad.device, param.grad.dtype)
+                if scale is None:
+                    continue
+                if role == "in":
+                    if param.grad.shape[0] != hidden_dim:
+                        continue
+                    param.grad.view(groups, width, -1).mul_(scale.view(groups, 1, 1))
+                else:
+                    if param.grad.shape[1] != hidden_dim:
+                        continue
+                    param.grad.view(param.grad.shape[0], groups, width).permute(1, 2, 0).mul_(
+                        scale.view(groups, 1, 1)
+                    )
+
     def _maybe_reset_adam_state(self, group: dict):
         if not self.adam_reset_on_switch or self.adam_lr_scale_final is None:
             return
@@ -296,6 +421,8 @@ class RationalMatrixPolicyOptimizer:
         if closure is not None:
             raise RuntimeError("RationalMatrixPolicyOptimizer does not support closures")
         self.step_index += 1
+
+        self._apply_group_policy_to_gradients()
 
         saved_adam_lrs = []
         for group in self.adam.param_groups:

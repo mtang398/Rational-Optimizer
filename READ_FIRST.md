@@ -28,26 +28,27 @@ SiLU/SwiGLU + AdamW
 RLB + AdamW
 ```
 
-Only run LR ablations after the same-LR optimizer has a much larger gap. The current same-LR winner has a good PPL gap but only about `0.07` loss gap, so LR ablations are diagnostic only and not the main story.
+Also report beta2-tuned AdamW controls when the optimizer uses smooth moments. The current best keeps the same LR schedule but uses smoother optimizer state inside the MatrixPolicy branch.
 
 ## Current Best
 
 ```text
 optimizer:   rational_matrix_policy_onpolicy
 activation:  rlb_fused_fixed_strong_ffn
-schedule:    same lr=3e-4, min_lr=3e-5 as the controls
-result:      3.548665 loss, 34.77 PPL at step 3051, seed 1337
+schedule:    same lr=3e-4, min_lr=3e-5, warmup=200, cosine decay
+result:      3.493210 loss, 32.89 PPL at step 3051, seed 1337
 ```
 
-Control results under the same full schedule:
+Important controls under the same LR schedule:
 
 ```text
-RLB + AdamW                 3.617501 loss, 37.24 PPL
-RLB + Jacobian              3.614862 loss, 37.15 PPL
-SiLU/SwiGLU + AdamW         3.621982 loss, 37.41 PPL
+SiLU/SwiGLU + AdamW          3.621982 loss, 37.41 PPL
+RLB + AdamW                  3.617501 loss, 37.24 PPL
+SiLU/SwiGLU + AdamW b2=.999  3.549346 loss, 34.79 PPL
+RLB + AdamW b2=.999          3.550018 loss, 34.81 PPL
 ```
 
-The optimizer works by applying a strong layer/side-specific policy to RLB `W_in` and `W_out`, while leaving the global LR and the rest of AdamW unchanged.
+The current optimizer beats the original controls by more than 4 PPL and about 0.125 loss. It beats beta2-tuned controls by about 1.9 PPL and 0.056 loss. This is good progress but still below the desired 0.2-0.3 tuned-control loss gap.
 
 ## Artifact Policy
 

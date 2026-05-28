@@ -32,17 +32,12 @@ The active RLB-specific optimizer is:
 rational_matrix_policy_onpolicy
 ```
 
-It now defaults to the verified same-LR MatrixPolicy-Y settings. Use it only with RLB activations. The hard controls remain:
-
-```text
-adamw + silu
-adamw + rlb_fused_fixed_strong_ffn
-```
+It now defaults to Smooth-MatrixPolicy: strong RLB layer/side matrix policy, exact on-policy gauge balancing, and `beta2=0.999` inside the MatrixPolicy branch. Use it only with RLB activations.
 
 ## Run Current Best
 
 ```bash
-env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1   RUN_NAME=rlb_matrix_policy_same_lr   STEPS=3051 SEEDS=1337   OPTIMIZERS=rational_matrix_policy_onpolicy   ACTIVATIONS=rlb_fused_fixed_strong_ffn   EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100   sbatch --time=02:00:00 --gres=gpu:nvidia_rtx_6000_ada_generation:4   training/run_wikitext103_optimizer_sweep.sbatch
+env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True NCCL_P2P_DISABLE=1   RUN_NAME=rlb_smooth_matrix_policy   STEPS=3051 SEEDS=1337   OPTIMIZERS=rational_matrix_policy_onpolicy   ACTIVATIONS=rlb_fused_fixed_strong_ffn   EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100   sbatch --time=02:00:00 --gres=gpu:nvidia_rtx_6000_ada_generation:4   training/run_wikitext103_optimizer_sweep.sbatch
 ```
 
 ## GPU Rule
@@ -55,6 +50,6 @@ squeue -u mt872
 
 ## Accepted Optimizers
 
-The launcher accepts the active and historical optimizer names from `ACTIVE_OPTIMIZERS` in `transformer_wikitext103_compare.py`. Rational-specific optimizers are skipped on non-RLB activations by the launcher.
+The launcher accepts the optimizer names from `ACTIVE_OPTIMIZERS` in `transformer_wikitext103_compare.py`. Rational-specific optimizers are skipped on non-RLB activations by the launcher.
 
-Do not use high-LR ablations as the headline result. The optimizer must first win clearly under the same LR/schedule.
+Do not use high-LR ablations as the headline result. The optimizer must win under the same LR schedule.

@@ -5181,17 +5181,38 @@ def configure_optimizer(model, args):
                     }
                 )
 
+        backbone_muon_named = []
         adam_decay = []
         adam_no_decay = []
         for name, param in model.named_parameters():
             if not param.requires_grad or id(param) in matrix_param_ids or id(param) in rational_param_ids:
                 continue
-            if is_no_decay_parameter(name, param):
+            no_decay_param = is_no_decay_parameter(name, param)
+            tied_embedding = name in {"token_embedding.weight", "lm_head.weight"}
+            if (
+                args.rational_matrix_policy_backbone_optimizer == "muon"
+                and param.dim() == 2
+                and not no_decay_param
+                and not tied_embedding
+            ):
+                backbone_muon_named.append((name, param))
+            elif no_decay_param or tied_embedding:
                 adam_no_decay.append(param)
             else:
                 adam_decay.append(param)
 
         optimizers = []
+        if backbone_muon_named:
+            optimizers.append(
+                torch.optim.Muon(
+                    backbone_muon_named,
+                    lr=args.lr,
+                    weight_decay=args.weight_decay,
+                    momentum=args.muon_momentum,
+                    ns_steps=args.muon_ns_steps,
+                    adjust_lr_fn=args.muon_adjust_lr_fn,
+                )
+            )
         adam_groups = []
         if adam_decay:
             adam_groups.append({"params": adam_decay, "weight_decay": args.weight_decay})
@@ -5202,7 +5223,12 @@ def configure_optimizer(model, args):
                 torch.optim.AdamW(
                     adam_groups,
                     lr=args.lr,
-                    betas=(args.beta1, args.beta2),
+                    betas=(
+                        args.beta1,
+                        args.beta2
+                        if args.rational_matrix_policy_backbone_beta2 is None
+                        else args.rational_matrix_policy_backbone_beta2,
+                    ),
                     eps=args.eps,
                 )
             )
@@ -5249,7 +5275,10 @@ def configure_optimizer(model, args):
             RationalMatrixPolicyOptimizer(
                 matrix_groups,
                 lr=args.lr,
-                betas=(args.beta1, args.beta2),
+                betas=(
+                    args.beta1,
+                    args.beta2 if args.rational_matrix_policy_beta2 is None else args.rational_matrix_policy_beta2,
+                ),
                 eps=args.eps,
                 weight_decay=args.weight_decay,
                 total_steps=args.steps,
@@ -5283,6 +5312,15 @@ def configure_optimizer(model, args):
                 activity_target=args.rational_matrix_policy_activity_target,
                 activity_width=args.rational_matrix_policy_activity_width,
                 pressure_clip=args.rational_matrix_policy_pressure_clip,
+                group_gain_strength=args.rational_matrix_policy_group_gain_strength,
+                group_pressure_strength=args.rational_matrix_policy_group_pressure_strength,
+                group_activity_damping=args.rational_matrix_policy_group_activity_damping,
+                group_activity_target=args.rational_matrix_policy_group_activity_target,
+                group_activity_width=args.rational_matrix_policy_group_activity_width,
+                group_start=args.rational_matrix_policy_group_start,
+                group_end=args.rational_matrix_policy_group_end,
+                group_min_scale=args.rational_matrix_policy_group_min_scale,
+                group_max_scale=args.rational_matrix_policy_group_max_scale,
                 muon_momentum=args.muon_momentum,
                 muon_ns_steps=args.muon_ns_steps,
                 muon_adjust_lr_fn=args.muon_adjust_lr_fn,
@@ -5327,8 +5365,11 @@ def configure_optimizer(model, args):
             matrix_depth_gain=args.rational_transport_matrix_depth_gain,
             quotient_strength=args.rational_transport_quotient_strength,
             transport_strength=args.rational_transport_strength,
+            transport_final_strength=args.rational_transport_final_strength,
             transport_start=args.rational_transport_start,
             transport_end=args.rational_transport_end,
+            transport_decay_start=args.rational_transport_decay_start,
+            transport_decay_end=args.rational_transport_decay_end,
             transport_every=args.rational_transport_every,
             transport_max_log_step=args.rational_transport_max_log_step,
             transport_derivative_weight=args.rational_transport_derivative_weight,
@@ -5469,8 +5510,11 @@ def configure_optimizer(model, args):
             matrix_depth_gain=args.rational_transport_matrix_depth_gain,
             quotient_strength=args.rational_transport_quotient_strength,
             transport_strength=args.rational_transport_strength,
+            transport_final_strength=args.rational_transport_final_strength,
             transport_start=args.rational_transport_start,
             transport_end=args.rational_transport_end,
+            transport_decay_start=args.rational_transport_decay_start,
+            transport_decay_end=args.rational_transport_decay_end,
             transport_every=args.rational_transport_every,
             transport_max_log_step=args.rational_transport_max_log_step,
             transport_derivative_weight=args.rational_transport_derivative_weight,
@@ -5873,6 +5917,9 @@ def parse_args():
     parser.add_argument("--rational-trust-atom-risk", type=float, default=1.00)
     parser.add_argument("--rational-trust-numerator-risk", type=float, default=1.00)
     parser.add_argument("--rational-trust-depth-gain", type=float, default=0.10)
+    parser.add_argument("--rational-matrix-policy-backbone-optimizer", choices=["adamw", "muon"], default="adamw")
+    parser.add_argument("--rational-matrix-policy-backbone-beta2", type=float, default=0.999)
+    parser.add_argument("--rational-matrix-policy-beta2", type=float, default=0.999)
     parser.add_argument("--rational-matrix-policy-muon-strength", type=float, default=0.0)
     parser.add_argument("--rational-matrix-policy-muon-lr-scale", type=float, default=0.0)
     parser.add_argument("--rational-matrix-policy-adam-lr-scale", type=float, default=3.0)
@@ -5904,10 +5951,22 @@ def parse_args():
     parser.add_argument("--rational-matrix-policy-activity-target", type=float, default=0.05)
     parser.add_argument("--rational-matrix-policy-activity-width", type=float, default=0.45)
     parser.add_argument("--rational-matrix-policy-pressure-clip", type=float, default=1.50)
+    parser.add_argument("--rational-matrix-policy-group-gain-strength", type=float, default=0.0)
+    parser.add_argument("--rational-matrix-policy-group-pressure-strength", type=float, default=0.0)
+    parser.add_argument("--rational-matrix-policy-group-activity-damping", type=float, default=0.0)
+    parser.add_argument("--rational-matrix-policy-group-activity-target", type=float, default=0.05)
+    parser.add_argument("--rational-matrix-policy-group-activity-width", type=float, default=0.45)
+    parser.add_argument("--rational-matrix-policy-group-start", type=float, default=0.02)
+    parser.add_argument("--rational-matrix-policy-group-end", type=float, default=0.35)
+    parser.add_argument("--rational-matrix-policy-group-min-scale", type=float, default=0.65)
+    parser.add_argument("--rational-matrix-policy-group-max-scale", type=float, default=1.55)
     parser.add_argument("--rational-transport-quotient-strength", type=float, default=0.0)
     parser.add_argument("--rational-transport-strength", type=float, default=0.0)
+    parser.add_argument("--rational-transport-final-strength", type=float, default=None)
     parser.add_argument("--rational-transport-start", type=float, default=0.04)
     parser.add_argument("--rational-transport-end", type=float, default=0.70)
+    parser.add_argument("--rational-transport-decay-start", type=float, default=1.1)
+    parser.add_argument("--rational-transport-decay-end", type=float, default=1.1)
     parser.add_argument("--rational-transport-every", type=int, default=5)
     parser.add_argument("--rational-transport-max-log-step", type=float, default=0.025)
     parser.add_argument("--rational-transport-derivative-weight", type=float, default=0.50)
@@ -6190,6 +6249,9 @@ def main():
         "rational_trust_atom_risk": args.rational_trust_atom_risk if args.optimizer == "rational_functional_trust_onpolicy" else None,
         "rational_trust_numerator_risk": args.rational_trust_numerator_risk if args.optimizer == "rational_functional_trust_onpolicy" else None,
         "rational_trust_depth_gain": args.rational_trust_depth_gain if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_matrix_policy_backbone_optimizer": args.rational_matrix_policy_backbone_optimizer if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_backbone_beta2": args.rational_matrix_policy_backbone_beta2 if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_beta2": args.rational_matrix_policy_beta2 if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_muon_strength": args.rational_matrix_policy_muon_strength if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_muon_lr_scale": args.rational_matrix_policy_muon_lr_scale if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_lr_scale": args.rational_matrix_policy_adam_lr_scale if args.optimizer == "rational_matrix_policy_onpolicy" else None,
@@ -6221,10 +6283,22 @@ def main():
         "rational_matrix_policy_activity_target": args.rational_matrix_policy_activity_target if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_activity_width": args.rational_matrix_policy_activity_width if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_pressure_clip": args.rational_matrix_policy_pressure_clip if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_group_gain_strength": args.rational_matrix_policy_group_gain_strength if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_group_pressure_strength": args.rational_matrix_policy_group_pressure_strength if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_group_activity_damping": args.rational_matrix_policy_group_activity_damping if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_group_activity_target": args.rational_matrix_policy_group_activity_target if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_group_activity_width": args.rational_matrix_policy_group_activity_width if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_group_start": args.rational_matrix_policy_group_start if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_group_end": args.rational_matrix_policy_group_end if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_group_min_scale": args.rational_matrix_policy_group_min_scale if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_group_max_scale": args.rational_matrix_policy_group_max_scale if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_transport_quotient_strength": args.rational_transport_quotient_strength if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,
         "rational_transport_strength": args.rational_transport_strength if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,
+        "rational_transport_final_strength": args.rational_transport_final_strength if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,
         "rational_transport_start": args.rational_transport_start if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,
         "rational_transport_end": args.rational_transport_end if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,
+        "rational_transport_decay_start": args.rational_transport_decay_start if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,
+        "rational_transport_decay_end": args.rational_transport_decay_end if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,
         "rational_transport_every": args.rational_transport_every if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,
         "rational_transport_max_log_step": args.rational_transport_max_log_step if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,
         "rational_transport_derivative_weight": args.rational_transport_derivative_weight if args.optimizer in {"rational_transport_onpolicy", "rational_matrix_policy_onpolicy"} else None,

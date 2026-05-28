@@ -1,5 +1,0 @@
-series,optimizer,activation,seed,steps,final_step,final_loss,final_ppl,loss_gap_vs_winner,ppl_gap_vs_winner
-RLB MatrixPolicy-Y (same LR),rational_matrix_policy_onpolicy,rlb_fused_fixed_strong_ffn,1337,3051,3051,3.5486652851104736,34.76688262993897,0.0,0.0
-RLB + Jacobian,rational_jacobian_onpolicy,rlb_fused_fixed_strong_ffn,1337,3051,3051,3.6148619651794434,37.14621810019562,0.06619668006896973,2.379335470256649
-RLB + AdamW,adamw,rlb_fused_fixed_strong_ffn,1337,3051,3051,3.6175012588500977,37.24438737029662,0.06883597373962402,2.4775047403576522
-SiLU/SwiGLU + AdamW,adamw,silu,1337,3051,3051,3.621981620788574,37.41163008006393,0.07331633567810059,2.64474745012496

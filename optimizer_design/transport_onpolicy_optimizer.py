@@ -38,8 +38,11 @@ class RationalTransportOnPolicyOptimizer(RationalAdaptiveMetricOnPolicyOptimizer
         self,
         *args,
         transport_strength: float = 0.0,
+        transport_final_strength: float | None = None,
         transport_start: float = 0.04,
         transport_end: float = 0.70,
+        transport_decay_start: float = 1.1,
+        transport_decay_end: float = 1.1,
         transport_every: int = 5,
         transport_max_log_step: float = 0.025,
         transport_derivative_weight: float = 0.50,
@@ -57,8 +60,13 @@ class RationalTransportOnPolicyOptimizer(RationalAdaptiveMetricOnPolicyOptimizer
     ):
         super().__init__(*args, **kwargs)
         self.transport_strength = float(transport_strength)
+        self.transport_final_strength = (
+            None if transport_final_strength is None else float(transport_final_strength)
+        )
         self.transport_start = float(transport_start)
         self.transport_end = float(transport_end)
+        self.transport_decay_start = float(transport_decay_start)
+        self.transport_decay_end = float(transport_decay_end)
         self.transport_every = max(1, int(transport_every))
         self.transport_max_log_step = float(transport_max_log_step)
         self.transport_derivative_weight = min(1.0, max(0.0, float(transport_derivative_weight)))
@@ -80,8 +88,13 @@ class RationalTransportOnPolicyOptimizer(RationalAdaptiveMetricOnPolicyOptimizer
             raise ValueError("pressure_precond_max_scale must be >= pressure_precond_min_scale")
 
     def _transport_phase(self) -> float:
-        phase = _smoothstep(self.transport_start, self.transport_end, self._progress())
-        return max(0.0, self.transport_strength * phase)
+        progress = self._progress()
+        phase = _smoothstep(self.transport_start, self.transport_end, progress)
+        strength = self.transport_strength
+        if self.transport_final_strength is not None:
+            late = _smoothstep(self.transport_decay_start, self.transport_decay_end, progress)
+            strength = self.transport_strength * (1.0 - late) + self.transport_final_strength * late
+        return max(0.0, strength * phase)
 
     def _depth_factor(self, group: dict, gain: float, late_positive: bool) -> float:
         depth = self._depth(group)
