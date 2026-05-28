@@ -93,6 +93,7 @@ RATIONAL_SPECIFIC_OPTIMIZERS = {
     "rational_quotient_jacobian_onpolicy",
     "rational_adaptive_metric_onpolicy",
     "rational_transport_onpolicy",
+    "rational_functional_trust_onpolicy",
 }
 ACTIVE_OPTIMIZERS = sorted(CLASSIC_OPTIMIZERS | RATIONAL_SPECIFIC_OPTIMIZERS)
 
@@ -5016,6 +5017,111 @@ def configure_optimizer(model, args):
             eps=args.rlb_gauge_eps,
         )
 
+    if args.optimizer == "rational_functional_trust_onpolicy":
+        from optimizer_design import FunctionSpaceRationalOptimizer, RationalFunctionalTrustOnPolicyOptimizer
+
+        curve_groups = collect_rlb_optimizer_groups(model, args)
+        if not curve_groups:
+            raise ValueError("Accepted activations for rational_functional_trust_onpolicy are RLB activations")
+
+        rational_groups = []
+        adam_decay = []
+        adam_no_decay = []
+        for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue
+            if is_rational_optimizer_parameter_name(name):
+                rational_groups.append({"params": [param], "role": rational_optimizer_role(name)})
+            elif is_no_decay_parameter(name, param):
+                adam_no_decay.append(param)
+            else:
+                adam_decay.append(param)
+        if not rational_groups:
+            raise ValueError("rational_functional_trust_onpolicy requires trainable rational activation parameters")
+
+        optimizers = []
+        adam_groups = []
+        if adam_decay:
+            adam_groups.append({"params": adam_decay, "weight_decay": args.weight_decay})
+        if adam_no_decay:
+            adam_groups.append({"params": adam_no_decay, "weight_decay": 0.0})
+        if adam_groups:
+            optimizers.append(
+                torch.optim.AdamW(
+                    adam_groups,
+                    lr=args.lr,
+                    betas=(args.beta1, args.beta2),
+                    eps=args.eps,
+                )
+            )
+        optimizers.append(
+            FunctionSpaceRationalOptimizer(
+                rational_groups,
+                lr=args.lr,
+                numerator_lr_scale=args.rational_coeff_num_lr_scale,
+                denominator_lr_scale=args.rational_coeff_den_lr_scale,
+                atom_lr_scale=args.rational_coeff_atom_lr_scale,
+                center_lr_scale=args.rational_coeff_center_lr_scale,
+                other_lr_scale=args.rational_coeff_other_lr_scale,
+                trust=args.rational_coeff_trust,
+                probe_range=args.rational_coeff_probe_range,
+                probe_points=args.rational_coeff_probe_points,
+                curve_decay=args.rational_coeff_curve_decay,
+                update_gain=args.rational_coeff_update_gain,
+                metric=args.rational_coeff_metric,
+                metric_damping=args.rational_coeff_metric_damping,
+                eps=args.rational_coeff_eps,
+            )
+        )
+        return RationalFunctionalTrustOnPolicyOptimizer(
+            optimizers,
+            curve_groups,
+            total_steps=args.steps,
+            target_weight=args.rlb_gauge_target_weight,
+            metric_every=args.rlb_gauge_metric_every,
+            probe_range=args.rlb_gauge_probe_range,
+            probe_points=args.rlb_gauge_probe_points,
+            strength=args.rlb_gauge_strength,
+            max_log_step=args.rlb_gauge_max_log_step,
+            start=args.rlb_gauge_start,
+            end=args.rlb_gauge_end,
+            depth_gain=args.rlb_gauge_depth_gain,
+            every=args.rlb_gauge_every,
+            stat_decay=args.rational_onpolicy_stat_decay,
+            pressure_weight=args.rational_onpolicy_pressure_weight,
+            pressure_clip=args.rational_onpolicy_pressure_clip,
+            rational_activity_weight=args.rational_onpolicy_rational_activity_weight,
+            activity_gain_min=args.rational_onpolicy_activity_gain_min,
+            activity_gain_max=args.rational_onpolicy_activity_gain_max,
+            covariant_state=True,
+            matrix_strength=args.rational_adaptive_matrix_strength,
+            matrix_min_scale=args.rational_adaptive_min_scale,
+            matrix_max_scale=args.rational_adaptive_max_scale,
+            matrix_every=args.rational_adaptive_every,
+            stat_every=args.rational_adaptive_stat_every,
+            stat_samples=args.rational_adaptive_stat_samples,
+            coeff_metric_damping=args.rational_adaptive_coeff_metric_damping,
+            coeff_norm_clip=args.rational_adaptive_coeff_norm_clip,
+            matrix_time_gain=args.rational_adaptive_matrix_time_gain,
+            matrix_depth_gain=args.rational_adaptive_matrix_depth_gain,
+            quotient_strength=args.rational_adaptive_quotient_strength,
+            trust_coeff_strength=args.rational_trust_coeff_strength,
+            trust_radius=args.rational_trust_radius,
+            trust_min_scale=args.rational_trust_min_scale,
+            trust_max_scale=args.rational_trust_max_scale,
+            trust_activity_target=args.rational_trust_activity_target,
+            trust_activity_width=args.rational_trust_activity_width,
+            trust_pressure_weight=args.rational_trust_pressure_weight,
+            trust_agreement_decay=args.rational_trust_agreement_decay,
+            trust_agreement_floor=args.rational_trust_agreement_floor,
+            trust_metric_blend=args.rational_trust_metric_blend,
+            trust_denominator_risk=args.rational_trust_denominator_risk,
+            trust_atom_risk=args.rational_trust_atom_risk,
+            trust_numerator_risk=args.rational_trust_numerator_risk,
+            trust_depth_gain=args.rational_trust_depth_gain,
+            eps=args.rlb_gauge_eps,
+        )
+
     if args.optimizer == "rational_transport_onpolicy":
         from optimizer_design import FunctionSpaceRationalOptimizer, RationalTransportOnPolicyOptimizer
 
@@ -5530,6 +5636,20 @@ def parse_args():
     parser.add_argument("--rational-adaptive-matrix-time-gain", type=float, default=0.15)
     parser.add_argument("--rational-adaptive-matrix-depth-gain", type=float, default=0.10)
     parser.add_argument("--rational-adaptive-quotient-strength", type=float, default=0.0)
+    parser.add_argument("--rational-trust-coeff-strength", type=float, default=1.0)
+    parser.add_argument("--rational-trust-radius", type=float, default=0.018)
+    parser.add_argument("--rational-trust-min-scale", type=float, default=0.05)
+    parser.add_argument("--rational-trust-max-scale", type=float, default=1.15)
+    parser.add_argument("--rational-trust-activity-target", type=float, default=0.85)
+    parser.add_argument("--rational-trust-activity-width", type=float, default=0.55)
+    parser.add_argument("--rational-trust-pressure-weight", type=float, default=0.25)
+    parser.add_argument("--rational-trust-agreement-decay", type=float, default=0.90)
+    parser.add_argument("--rational-trust-agreement-floor", type=float, default=0.15)
+    parser.add_argument("--rational-trust-metric-blend", type=float, default=0.45)
+    parser.add_argument("--rational-trust-denominator-risk", type=float, default=1.75)
+    parser.add_argument("--rational-trust-atom-risk", type=float, default=1.00)
+    parser.add_argument("--rational-trust-numerator-risk", type=float, default=1.00)
+    parser.add_argument("--rational-trust-depth-gain", type=float, default=0.10)
     parser.add_argument("--rational-transport-quotient-strength", type=float, default=0.0)
     parser.add_argument("--rational-transport-strength", type=float, default=0.0)
     parser.add_argument("--rational-transport-start", type=float, default=0.04)
@@ -5799,12 +5919,12 @@ def main():
         "rlb_gauge_end": args.rlb_gauge_end if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
         "rlb_gauge_depth_gain": args.rlb_gauge_depth_gain if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
         "rlb_gauge_every": args.rlb_gauge_every if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
-        "rational_onpolicy_stat_decay": args.rational_onpolicy_stat_decay if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_pressure_weight": args.rational_onpolicy_pressure_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_pressure_clip": args.rational_onpolicy_pressure_clip if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_rational_activity_weight": args.rational_onpolicy_rational_activity_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_activity_gain_min": args.rational_onpolicy_activity_gain_min if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_onpolicy_activity_gain_max": args.rational_onpolicy_activity_gain_max if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
+        "rational_onpolicy_stat_decay": args.rational_onpolicy_stat_decay if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_onpolicy_pressure_weight": args.rational_onpolicy_pressure_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_onpolicy_pressure_clip": args.rational_onpolicy_pressure_clip if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_onpolicy_rational_activity_weight": args.rational_onpolicy_rational_activity_weight if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_onpolicy_activity_gain_min": args.rational_onpolicy_activity_gain_min if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_onpolicy_activity_gain_max": args.rational_onpolicy_activity_gain_max if args.optimizer in {"rational_onpolicy_balance", "rational_quotient_onpolicy", "rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy", "rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
         "rational_quotient_strength": args.rational_quotient_strength if args.optimizer == "rational_quotient_onpolicy" else None,
         "rational_jacobian_matrix_strength": args.rational_jacobian_matrix_strength if args.optimizer in {"rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
         "rational_jacobian_min_scale": args.rational_jacobian_min_scale if args.optimizer in {"rational_jacobian_onpolicy", "rational_jacobian_factored_onpolicy", "rational_layerwise_switch_onpolicy", "rational_layerwise_factored_switch_onpolicy", "rational_quotient_jacobian_onpolicy"} else None,
@@ -5814,23 +5934,36 @@ def main():
         "rational_qjacobian_quotient_start": args.rational_qjacobian_quotient_start if args.optimizer == "rational_quotient_jacobian_onpolicy" else None,
         "rational_qjacobian_quotient_end": args.rational_qjacobian_quotient_end if args.optimizer == "rational_quotient_jacobian_onpolicy" else None,
         "rational_qjacobian_quotient_depth_gain": args.rational_qjacobian_quotient_depth_gain if args.optimizer == "rational_quotient_jacobian_onpolicy" else None,
-        "rational_adaptive_stat_every": args.rational_adaptive_stat_every if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_stat_samples": args.rational_adaptive_stat_samples if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_coeff_strength": args.rational_adaptive_coeff_strength if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_coeff_start": args.rational_adaptive_coeff_start if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_coeff_end": args.rational_adaptive_coeff_end if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_coeff_late_decay": args.rational_adaptive_coeff_late_decay if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_coeff_metric_damping": args.rational_adaptive_coeff_metric_damping if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_coeff_norm_clip": args.rational_adaptive_coeff_norm_clip if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_coeff_max_blend": args.rational_adaptive_coeff_max_blend if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_coeff_depth_gain": args.rational_adaptive_coeff_depth_gain if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_matrix_strength": args.rational_adaptive_matrix_strength if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_min_scale": args.rational_adaptive_min_scale if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_max_scale": args.rational_adaptive_max_scale if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_every": args.rational_adaptive_every if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_matrix_time_gain": args.rational_adaptive_matrix_time_gain if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_matrix_depth_gain": args.rational_adaptive_matrix_depth_gain if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy"} else None,
-        "rational_adaptive_quotient_strength": args.rational_adaptive_quotient_strength if args.optimizer == "rational_adaptive_metric_onpolicy" else None,
+        "rational_adaptive_stat_every": args.rational_adaptive_stat_every if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_stat_samples": args.rational_adaptive_stat_samples if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_coeff_strength": args.rational_adaptive_coeff_strength if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_coeff_start": args.rational_adaptive_coeff_start if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_coeff_end": args.rational_adaptive_coeff_end if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_coeff_late_decay": args.rational_adaptive_coeff_late_decay if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_coeff_metric_damping": args.rational_adaptive_coeff_metric_damping if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_coeff_norm_clip": args.rational_adaptive_coeff_norm_clip if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_coeff_max_blend": args.rational_adaptive_coeff_max_blend if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_coeff_depth_gain": args.rational_adaptive_coeff_depth_gain if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_matrix_strength": args.rational_adaptive_matrix_strength if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_min_scale": args.rational_adaptive_min_scale if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_max_scale": args.rational_adaptive_max_scale if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_every": args.rational_adaptive_every if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_matrix_time_gain": args.rational_adaptive_matrix_time_gain if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_matrix_depth_gain": args.rational_adaptive_matrix_depth_gain if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_transport_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_adaptive_quotient_strength": args.rational_adaptive_quotient_strength if args.optimizer in {"rational_adaptive_metric_onpolicy", "rational_functional_trust_onpolicy"} else None,
+        "rational_trust_coeff_strength": args.rational_trust_coeff_strength if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_radius": args.rational_trust_radius if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_min_scale": args.rational_trust_min_scale if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_max_scale": args.rational_trust_max_scale if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_activity_target": args.rational_trust_activity_target if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_activity_width": args.rational_trust_activity_width if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_pressure_weight": args.rational_trust_pressure_weight if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_agreement_decay": args.rational_trust_agreement_decay if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_metric_blend": args.rational_trust_metric_blend if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_denominator_risk": args.rational_trust_denominator_risk if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_atom_risk": args.rational_trust_atom_risk if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_numerator_risk": args.rational_trust_numerator_risk if args.optimizer == "rational_functional_trust_onpolicy" else None,
+        "rational_trust_depth_gain": args.rational_trust_depth_gain if args.optimizer == "rational_functional_trust_onpolicy" else None,
         "rational_transport_quotient_strength": args.rational_transport_quotient_strength if args.optimizer == "rational_transport_onpolicy" else None,
         "rational_transport_strength": args.rational_transport_strength if args.optimizer == "rational_transport_onpolicy" else None,
         "rational_transport_start": args.rational_transport_start if args.optimizer == "rational_transport_onpolicy" else None,
