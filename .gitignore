@@ -31,3 +31,7 @@ experiments/runs/wikitext103/rlb_factored_jacobian_probe_*/
 experiments/runs/wikitext103/rlb_jacobian_lr5e4*_probe_*/
 experiments/runs/wikitext103/rlb_layerwise_asam_probe_*/
 experiments/runs/wikitext103/rlb_stagewise_optimizer_probe_*/
+# Local RLB optimizer probe runs (compact summaries/plots live under experiments/results/)
+experiments/runs/wikitext103/rlb_*_probe*/
+experiments/runs/wikitext103/rlb_*_full_probe*/
+experiments/runs/wikitext103/rlb_1250_same_schedule_controls_*/

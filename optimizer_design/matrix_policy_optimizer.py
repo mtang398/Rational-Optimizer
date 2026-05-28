@@ -1,0 +1,325 @@
+"""Layerwise matrix-policy optimizer for RLB FFN matrices."""
+
+from __future__ import annotations
+
+import torch
+
+
+def _smoothstep(edge0: float, edge1: float, x: float) -> float:
+    if edge1 <= edge0:
+        return 1.0 if x >= edge1 else 0.0
+    t = min(1.0, max(0.0, (x - edge0) / (edge1 - edge0)))
+    return t * t * (3.0 - 2.0 * t)
+
+
+class RationalMatrixPolicyOptimizer:
+    """Layer/side-specific AdamW policy for RLB FFN matrices.
+
+    Muon support remains available for ablation runs, but the verified default
+    disables it and only applies the RLB-specific AdamW matrix policy.
+    """
+
+    def __init__(
+        self,
+        params,
+        lr: float,
+        betas: tuple[float, float] = (0.9, 0.95),
+        eps: float = 1e-8,
+        weight_decay: float = 0.1,
+        total_steps: int = 0,
+        selector_groups=None,
+        muon_strength: float = 0.55,
+        muon_lr_scale: float = 0.70,
+        adam_lr_scale: float = 1.0,
+        adam_lr_scale_final: float | None = None,
+        adam_decay_start: float = 1.1,
+        adam_decay_end: float = 1.1,
+        adam_decay_depth_shift: float = 0.0,
+        adam_role_strength: float = 0.0,
+        adam_stat_strength: float = 0.0,
+        adam_pressure_balance: float = 0.0,
+        adam_stat_start: float = 0.0,
+        adam_stat_end: float = 0.0,
+        adam_min_lr_scale: float = 0.0,
+        adam_max_lr_scale: float = 10.0,
+        adam_reset_on_switch: bool = False,
+        start: float = 0.06,
+        end: float = 0.32,
+        decay_start: float = 0.34,
+        decay_end: float = 0.62,
+        final_muon: float = 0.0,
+        min_muon: float = 0.0,
+        max_muon: float = 0.75,
+        input_depth_gain: float = -0.10,
+        output_depth_gain: float = 0.22,
+        pressure_weight: float = 0.30,
+        activity_weight: float = 0.65,
+        activity_target: float = 0.05,
+        activity_width: float = 0.45,
+        pressure_clip: float = 1.50,
+        muon_momentum: float = 0.95,
+        muon_ns_steps: int = 5,
+        muon_adjust_lr_fn: str | None = "match_rms_adamw",
+    ):
+        self.total_steps = int(total_steps)
+        self.selector_groups = list(selector_groups) if selector_groups is not None else []
+        self.muon_strength = float(muon_strength)
+        self.muon_lr_scale = float(muon_lr_scale)
+        self.adam_lr_scale = float(adam_lr_scale)
+        self.adam_lr_scale_final = None if adam_lr_scale_final is None else float(adam_lr_scale_final)
+        self.adam_decay_start = float(adam_decay_start)
+        self.adam_decay_end = float(adam_decay_end)
+        self.adam_decay_depth_shift = float(adam_decay_depth_shift)
+        self.adam_role_strength = float(adam_role_strength)
+        self.adam_stat_strength = float(adam_stat_strength)
+        self.adam_pressure_balance = float(adam_pressure_balance)
+        self.adam_stat_start = float(adam_stat_start)
+        self.adam_stat_end = float(adam_stat_end)
+        self.adam_min_lr_scale = float(adam_min_lr_scale)
+        self.adam_max_lr_scale = float(adam_max_lr_scale)
+        self.adam_reset_on_switch = bool(adam_reset_on_switch)
+        self.start = float(start)
+        self.end = float(end)
+        self.decay_start = float(decay_start)
+        self.decay_end = float(decay_end)
+        self.final_muon = float(final_muon)
+        self.min_muon = float(min_muon)
+        self.max_muon = float(max_muon)
+        self.input_depth_gain = float(input_depth_gain)
+        self.output_depth_gain = float(output_depth_gain)
+        self.pressure_weight = float(pressure_weight)
+        self.activity_weight = float(activity_weight)
+        self.activity_target = float(activity_target)
+        self.activity_width = max(float(activity_width), eps)
+        self.pressure_clip = float(pressure_clip)
+        self.eps = float(eps)
+        self.step_index = 0
+        self.use_muon = (
+            self.muon_lr_scale != 0.0
+            and self.max_muon > 0.0
+            and (self.muon_strength != 0.0 or self.final_muon != 0.0 or self.min_muon > 0.0)
+        )
+        if self.adam_min_lr_scale < 0.0:
+            raise ValueError("adam_min_lr_scale must be non-negative")
+        if self.adam_max_lr_scale < self.adam_min_lr_scale:
+            raise ValueError("adam_max_lr_scale must be >= adam_min_lr_scale")
+        if self.max_muon < self.min_muon:
+            raise ValueError("max_muon must be >= min_muon")
+
+        adam_groups = []
+        muon_groups = []
+        for group in params:
+            meta = {
+                "layer_index": int(group.get("layer_index", -1)),
+                "num_layers": int(group.get("num_layers", 0)),
+                "selector_index": int(group.get("selector_index", -1)),
+                "matrix_role": str(group.get("matrix_role", "matrix")),
+                "weight_decay": float(group.get("weight_decay", weight_decay)),
+            }
+            adam_groups.append({"params": list(group["params"]), **meta})
+            muon_groups.append({"params": list(group["params"]), **meta})
+
+        self.adam = torch.optim.AdamW(
+            adam_groups,
+            lr=lr,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+        )
+        self.muon = None
+        if self.use_muon:
+            self.muon = torch.optim.Muon(
+                muon_groups,
+                lr=lr,
+                weight_decay=weight_decay,
+                momentum=muon_momentum,
+                ns_steps=muon_ns_steps,
+                adjust_lr_fn=muon_adjust_lr_fn,
+            )
+        self.param_groups = self.adam.param_groups if self.muon is None else self.adam.param_groups + self.muon.param_groups
+
+    def zero_grad(self, set_to_none=True):
+        seen = set()
+        for optimizer in (self.adam, self.muon):
+            if optimizer is None:
+                continue
+            for group in optimizer.param_groups:
+                for param in group["params"]:
+                    ident = id(param)
+                    if ident in seen:
+                        continue
+                    seen.add(ident)
+                    if param.grad is None:
+                        continue
+                    if set_to_none:
+                        param.grad = None
+                    else:
+                        param.grad.detach_()
+                        param.grad.zero_()
+
+    def state_dict(self):
+        state = {
+            "adam": self.adam.state_dict(),
+            "step_index": self.step_index,
+            "use_muon": self.use_muon,
+        }
+        if self.muon is not None:
+            state["muon"] = self.muon.state_dict()
+        return state
+
+    def load_state_dict(self, state_dict):
+        self.adam.load_state_dict(state_dict["adam"])
+        if self.muon is not None and "muon" in state_dict:
+            self.muon.load_state_dict(state_dict["muon"])
+        self.step_index = int(state_dict.get("step_index", 0))
+
+    def _progress(self) -> float:
+        if self.total_steps <= 1:
+            return 0.0
+        return min(1.0, max(0.0, float(self.step_index) / float(self.total_steps)))
+
+    @staticmethod
+    def _depth(group: dict) -> float:
+        layer = int(group.get("layer_index", -1))
+        layers = max(1, int(group.get("num_layers", 1)))
+        if layer < 0 or layers <= 1:
+            return 0.5
+        return min(1.0, max(0.0, float(layer) / float(layers - 1)))
+
+    def _role_depth_factor(self, group: dict) -> float:
+        depth = self._depth(group)
+        role = str(group.get("matrix_role", "matrix"))
+        gain = self.output_depth_gain if role == "out" else self.input_depth_gain
+        return min(1.40, max(0.55, 1.0 + gain * (depth - 0.5)))
+
+    def _adam_decay_phase(self, group: dict) -> float:
+        if self.adam_lr_scale_final is None:
+            return 0.0
+        progress = self._progress()
+        offset = self.adam_decay_depth_shift * (self._depth(group) - 0.5)
+        start = min(1.0, max(0.0, self.adam_decay_start + offset))
+        end = min(1.0, max(0.0, self.adam_decay_end + offset))
+        return _smoothstep(start, end, progress)
+
+    def _adam_lr_scale(self, group: dict) -> float:
+        if self.adam_lr_scale_final is None:
+            scheduled = self.adam_lr_scale
+        else:
+            phase = self._adam_decay_phase(group)
+            scheduled = self.adam_lr_scale * (1.0 - phase) + self.adam_lr_scale_final * phase
+        factor = self._adam_role_factor(group) * self._adam_stat_factor(group)
+        scale = scheduled * factor
+        return min(self.adam_max_lr_scale, max(self.adam_min_lr_scale, scale))
+
+    def _adam_role_factor(self, group: dict) -> float:
+        if self.adam_role_strength == 0.0:
+            return 1.0
+        role_factor = self._role_depth_factor(group)
+        return max(0.10, 1.0 + self.adam_role_strength * (role_factor - 1.0))
+
+    def _adam_stat_phase(self) -> float:
+        return _smoothstep(self.adam_stat_start, self.adam_stat_end, self._progress())
+
+    def _adam_stat_factor(self, group: dict) -> float:
+        if self.adam_stat_strength == 0.0 and self.adam_pressure_balance == 0.0:
+            return 1.0
+        phase = self._adam_stat_phase()
+        if phase <= 0.0:
+            return 1.0
+        selector_index = int(group.get("selector_index", -1))
+        if selector_index < 0 or selector_index >= len(self.selector_groups):
+            return 1.0
+        state = self.selector_groups[selector_index].get("_onpolicy")
+        if state is None:
+            return 1.0
+
+        in_rel = state["in_rel_ema"].detach().float().clamp_min(self.eps)
+        out_rel = state["out_rel_ema"].detach().float().clamp_min(self.eps)
+        rat_rel = state["rat_rel_ema"].detach().float().clamp_min(self.eps)
+        log_in = torch.log(in_rel)
+        log_out = torch.log(out_rel)
+        pressure = (log_in - log_out).mean().clamp(min=-self.pressure_clip, max=self.pressure_clip)
+        role = str(group.get("matrix_role", "matrix"))
+        pressure_direction = -pressure if role == "in" else pressure
+        pressure_factor = torch.exp((self.adam_pressure_balance * phase) * pressure_direction)
+
+        matrix_log = 0.5 * (log_in + log_out)
+        rational_activity = (torch.log(rat_rel) - matrix_log).mean()
+        excess_activity = torch.relu((rational_activity - self.activity_target) / self.activity_width)
+        activity_factor = torch.exp(-self.activity_weight * self.adam_stat_strength * phase * excess_activity)
+
+        factor = pressure_factor * activity_factor
+        return float(factor.clamp(0.35, 1.45).item())
+
+    def _maybe_reset_adam_state(self, group: dict):
+        if not self.adam_reset_on_switch or self.adam_lr_scale_final is None:
+            return
+        if group.get("_adam_reset_done"):
+            return
+        if self._adam_decay_phase(group) < 0.999:
+            return
+        for param in group["params"]:
+            self.adam.state.pop(param, None)
+        group["_adam_reset_done"] = True
+
+    def _stat_factor(self, group: dict) -> float:
+        selector_index = int(group.get("selector_index", -1))
+        if selector_index < 0 or selector_index >= len(self.selector_groups):
+            return 1.0
+        state = self.selector_groups[selector_index].get("_onpolicy")
+        if state is None:
+            return 1.0
+
+        in_rel = state["in_rel_ema"].detach().float().clamp_min(self.eps)
+        out_rel = state["out_rel_ema"].detach().float().clamp_min(self.eps)
+        rat_rel = state["rat_rel_ema"].detach().float().clamp_min(self.eps)
+        log_in = torch.log(in_rel)
+        log_out = torch.log(out_rel)
+        pressure = (log_in - log_out).abs().mean().clamp(max=self.pressure_clip)
+        matrix_log = 0.5 * (log_in + log_out)
+        rational_activity = (torch.log(rat_rel) - matrix_log).mean()
+        excess_activity = torch.relu((rational_activity - self.activity_target) / self.activity_width)
+        penalty = self.pressure_weight * pressure + self.activity_weight * excess_activity
+        return float(torch.exp(-penalty).clamp(0.10, 1.15).item())
+
+    def _muon_fraction(self, group: dict) -> float:
+        progress = self._progress()
+        on_phase = _smoothstep(self.start, self.end, progress)
+        off_phase = _smoothstep(self.decay_start, self.decay_end, progress)
+        base_strength = self.muon_strength * (1.0 - off_phase) + self.final_muon * off_phase
+        base = base_strength * on_phase
+        value = base * self._role_depth_factor(group) * self._stat_factor(group)
+        return min(self.max_muon, max(self.min_muon, value))
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        if closure is not None:
+            raise RuntimeError("RationalMatrixPolicyOptimizer does not support closures")
+        self.step_index += 1
+
+        saved_adam_lrs = []
+        for group in self.adam.param_groups:
+            lr = float(group["lr"])
+            saved_adam_lrs.append(lr)
+            self._maybe_reset_adam_state(group)
+            fraction = self._muon_fraction(group) if self.muon is not None else 0.0
+            group["lr"] = lr * self._adam_lr_scale(group) * (1.0 - fraction)
+
+        saved_muon_lrs = []
+        if self.muon is not None:
+            for group in self.muon.param_groups:
+                lr = float(group["lr"])
+                saved_muon_lrs.append(lr)
+                fraction = self._muon_fraction(group)
+                group["lr"] = lr * self.muon_lr_scale * fraction
+
+        self.adam.step()
+        if self.muon is not None:
+            self.muon.step()
+
+        for group, lr in zip(self.adam.param_groups, saved_adam_lrs):
+            group["lr"] = lr
+        if self.muon is not None:
+            for group, lr in zip(self.muon.param_groups, saved_muon_lrs):
+                group["lr"] = lr
+        return None

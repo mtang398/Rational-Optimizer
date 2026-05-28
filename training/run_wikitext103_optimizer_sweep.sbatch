@@ -34,7 +34,7 @@ LOG_INTERVAL="${LOG_INTERVAL:-25}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
 BUILD_EXT_ARGS="${BUILD_EXT_ARGS:-}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
-ACTIVE_OPTIMIZERS="adamw factored_adamw muon rational_onpolicy_balance rational_quotient_onpolicy rational_jacobian_onpolicy rational_jacobian_factored_onpolicy rational_layerwise_switch_onpolicy rational_layerwise_factored_switch_onpolicy rational_quotient_jacobian_onpolicy rational_adaptive_metric_onpolicy rational_transport_onpolicy rational_functional_trust_onpolicy"
+ACTIVE_OPTIMIZERS="adamw factored_adamw muon rational_onpolicy_balance rational_quotient_onpolicy rational_jacobian_onpolicy rational_jacobian_factored_onpolicy rational_layerwise_switch_onpolicy rational_layerwise_factored_switch_onpolicy rational_quotient_jacobian_onpolicy rational_adaptive_metric_onpolicy rational_transport_onpolicy rational_functional_trust_onpolicy rational_matrix_policy_onpolicy"
 
 for optimizer in ${OPTIMIZERS}; do
   case " ${ACTIVE_OPTIMIZERS} " in

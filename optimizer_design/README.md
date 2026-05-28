@@ -1,128 +1,99 @@
 # Optimizer Design
 
-This folder contains optimizer components for the no-GLU Rational Local Basis FFN (RLB). The purpose is not to tune a generic training schedule. The purpose is to build an on-policy optimizer that uses rational-specific structure and beats both `SiLU/SwiGLU+AdamW` and `RLB+AdamW` under the same schedule.
+This folder contains optimizer components for RLB, the no-GLU Rational Local Basis FFN. The design rule is strict: optimizer claims must beat `SiLU/SwiGLU+AdamW` and `RLB+AdamW` under the same global LR schedule.
 
-## Target Layer
+## Current Active Optimizer
 
-```text
-v = x W_in
-s_g = sqrt(mean(v_g^2) + eps)
-u_g = v_g / s_g
-h_g = s_g R_g(u_g)
-y = h W_out
-```
-
-RLB has no GLU gate and no SiLU inside the FFN. Optimizers in this folder are for RLB rows only unless explicitly marked as an ablation.
-
-## Implemented Components
-
-| component | status | purpose |
-| --- | --- | --- |
-| `FunctionSpaceRationalOptimizer` | ablation utility | coefficient updates measured by function change on probe points |
-| `RationalOnPolicyBalanceOptimizer` | tested | live group-gauge rebalance after a child optimizer step |
-| `RationalQuotientOnPolicyOptimizer` | tested | remove exact matrix gauge-gradient direction before stepping |
-| `RationalJacobianOnPolicyOptimizer` | best fixed-LR row | curve-aware matrix preconditioner plus gauge rebalance |
-| `RationalQuotientJacobianOnPolicyOptimizer` | prototype | quotient projection plus Jacobian matrix scaling |
-| `RationalAdaptiveMetricOnPolicyOptimizer` | prototype | collect on-policy activation/derivative metrics |
-| `RationalTransportOnPolicyOptimizer` | tested prototype | rational amplitude transport and matrix/coefficient selectors |
-| `FactoredAdamW` | negative probe | Adafactor-style matrix second moments; failed badly here |
-| `SwitchingRationalOptimizer` | negative probe harness | layer/depth/time coefficient switching; scheduled switching failed |
-
-Current optimizer names exposed by training:
+`RationalMatrixPolicyOptimizer` is the active optimizer component behind:
 
 ```text
-rational_onpolicy_balance
-rational_quotient_onpolicy
-rational_jacobian_onpolicy
-rational_quotient_jacobian_onpolicy
-rational_adaptive_metric_onpolicy
-rational_transport_onpolicy
-rational_jacobian_factored_onpolicy
-rational_layerwise_switch_onpolicy
-rational_layerwise_factored_switch_onpolicy
+rational_matrix_policy_onpolicy
 ```
 
-## Rational Structure
+It separates the RLB FFN matrices from the rest of the model. Ordinary non-RLB parameters remain on AdamW. The RLB `W_in` and `W_out` matrices get a layer/side-specific matrix policy, then the existing on-policy gauge wrapper rebalances the RLB gauge after each step.
 
-RLB has an exact positive group gauge:
+Verified same-LR Probe Y defaults:
 
 ```text
-W_in,g  <- c W_in,g
-W_out,g <- W_out,g / c
+adam_lr_scale       = 3.00
+adam_role_strength  = 1.20
+input_depth_gain    = -0.50
+output_depth_gain   = 1.00
+adam_min_lr_scale   = 0.40
+adam_max_lr_scale   = 4.00
+muon_strength       = 0.00
+transport_matrix    = 0.00
 ```
 
-This preserves the represented function for positive `c`. Optimizers can use it to pick a numerically better representative of the same function.
-
-RLB matrix gradients also see different local rational geometry:
+The policy is rational-specific because it uses the RLB decomposition:
 
 ```text
-W_in gradient path:   R'_g(u)
-W_out gradient path:  R_g(u)
+W_in gradient path:   derivative of R_g(u)
+W_out gradient path:  feature amplitude R_g(u)
+shallow layers:       input/domain formation matters more
+deep layers:          output feature composition matters more
 ```
 
-Rational coefficients are not ordinary dense weights. A small coefficient update changes a scalar function over the active `u` distribution, and denominator/pole behavior can make nominally small parameter steps unsafe.
+## Verified Result
 
-## Current Empirical State
+Seed-1337 full 3051-step WikiText-103, same global LR/schedule:
 
-Three-seed fixed-LR result on the 100M-token WikiText-103 benchmark:
+| row | final loss | final PPL |
+| --- | ---: | ---: |
+| RLB MatrixPolicy-Y | 3.548665 | 34.77 |
+| RLB + Jacobian | 3.614862 | 37.15 |
+| RLB + AdamW | 3.617501 | 37.24 |
+| SiLU/SwiGLU + AdamW | 3.621982 | 37.41 |
 
-| row | loss | PPL | gap vs SiLU+AdamW | gap vs RLB+AdamW |
-| --- | ---: | ---: | ---: | ---: |
-| AdamW + SiLU/SwiGLU | 3.610129 | 36.973 | +0.000000 | +0.003500 |
-| AdamW + RLB h3072 | 3.606629 | 36.845 | -0.003500 | +0.000000 |
-| RLB + `rational_onpolicy_balance` | 3.606226 | 36.831 | -0.003903 | -0.000403 |
-| RLB + `rational_quotient_onpolicy` | 3.606664 | 36.847 | -0.003465 | +0.000035 |
-| RLB + `rational_jacobian_onpolicy` | 3.605394 | 36.800 | -0.004736 | -0.001236 |
+This is a real optimizer win, not an LR-schedule win. It is still below the desired `0.2-0.3` loss gap.
 
-`rational_jacobian_onpolicy` is the best verified fixed-LR rational-specific optimizer, but the gain is too small for the project goal.
+## Components Kept
 
-High-LR controls are diagnostic only. They showed that a large apparent loss drop can come from schedule correction: seed-1337 high-LR `RLB+AdamW` reached `3.455792`, high-LR `SiLU+AdamW` reached `3.456625`, and high-LR `RLB+rational_jacobian_onpolicy` reached `3.459508`. That means the large high-LR gap is not a rational optimizer win.
+| component | role |
+| --- | --- |
+| `FunctionSpaceRationalOptimizer` | coefficient/function-space utility, useful for probes |
+| `RationalOnPolicyBalanceOptimizer` | exact RLB group-gauge rebalance |
+| `RationalQuotientOnPolicyOptimizer` | removes pure gauge-gradient direction |
+| `RationalJacobianOnPolicyOptimizer` | stable earlier rational-specific comparator |
+| `RationalTransportOnPolicyOptimizer` | wrapper used for gauge/stat collection around matrix policy |
+| `RationalMatrixPolicyOptimizer` | current best active optimizer |
+| `FactoredAdamW` and switching wrappers | retained as negative/ablation tools |
 
-## Lessons From Failed Probes
+The failed manual `RationalMatrixAdamWOptimizer` was removed from active code because it did not beat the matrix-policy path.
 
-Matrix-side rational geometry is consistently the least bad signal. Jacobian scaling and conservative gauge balancing helped slightly; transport matrix-only settings were close to the incumbent.
+## Lessons
 
-Scheduled coefficient motion is the wrong lever so far. Aggressive coefficient transport, late pullback, and layerwise switches changed the rational function path too much and did not recover later.
-
-Factored matrix second moments are not suitable in this setup. `rational_jacobian_factored_onpolicy` was at `4.775638` loss by step 1000, far behind normal AdamW-style moments.
-
-ASAM did not fix the small-gap problem. It made fixed-LR `SiLU+AdamW` and `RLB+AdamW` slightly worse in the probe.
-
-## Next Design: On-Policy Functional Trust
-
-The next optimizer should not be another step-index schedule. It should be a per-layer/per-group controller driven by live RLB signals.
-
-Proposed update decomposition:
+What worked:
 
 ```text
-1. collect on-policy u, R(u), R'(u), denominator margin, feature scale
-2. split matrix gradients into horizontal function directions plus exact gauge direction
-3. use gauge rebalance to choose a stable representative without changing the function
-4. scale W_in groups by derivative metric and W_out groups by output-feature metric
-5. build tiny per-group coefficient metrics from J_coeff R(u)
-6. damp coefficient solves by denominator risk and clip by predicted function change
-7. choose matrix-only, coefficient-natural, gauge-only, or freeze mode per group from live signals
+- sustained RLB matrix policy
+- strong layer/side asymmetry
+- shallow W_in emphasis and deep W_out emphasis
+- default AdamW for non-RLB parameters
+- exact RLB gauge balancing after the step
 ```
 
-The controller should prefer coefficient updates only when all of these are true:
+What did not work:
 
 ```text
-gradient agreement is positive
-predicted function-space improvement is larger than matrix-only update
-predicted change in R(u) is inside trust radius
-denominator margin is safe
-coefficient activity is not already dominating matrix activity
+- Muon on RLB matrices
+- scheduled coefficient phase switches
+- functional-trust coefficient updates
+- transport-matrix preconditioning as the main lever
+- early pressure/activity gating
+- factored matrix moments
 ```
 
-Otherwise the optimizer should spend the step on matrix preconditioning and gauge balancing. This keeps the optimizer rational-specific while avoiding the failure mode seen in scheduled coefficient switches.
+## Next Design Direction
 
-## Design Rule
-
-A new optimizer is interesting only if it beats both hard controls under the same schedule:
+The next useful optimizer should keep MatrixPolicy-Y as the base and make the controller more on-policy without changing global LR:
 
 ```text
-SiLU/SwiGLU + AdamW
-RLB + AdamW
+1. collect per-layer/per-group update pressure
+2. predict matrix-only functional improvement
+3. predict coefficient functional improvement on actual u samples
+4. apply coefficient updates only when they beat matrix-only updates safely
+5. otherwise spend the step on layer/side matrix policy and gauge rebalance
 ```
 
-Beating an undertrained fixed-LR baseline is not enough. The optimizer must create an RLB-specific advantage, not borrow improvement from a generic scheduler.
+Do not treat high-LR runs as evidence for this optimizer until the same-LR loss gap is much larger.

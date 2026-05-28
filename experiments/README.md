@@ -1,73 +1,46 @@
 # Experiments
 
-Generated experiment artifacts live here.
+Generated experiment artifacts live here. Raw Slurm JSONL runs are local artifacts; compact result summaries and plots live under `experiments/results/` and are the files meant to be committed.
 
-## Layout
-
-```text
-cache/    Hugging Face dataset cache and tokenized WikiText-103 tensors
-runs/     active JSONL run files and Slurm logs
-results/  aggregate CSV/JSON summaries produced after runs finish
-```
-
-## Active Run
-
-The active comparison directory is:
+## Current Result Artifact
 
 ```text
-experiments/runs/wikitext103/rlb_optimizer_empirical_ngram_full/
+experiments/results/rlb_matrix_policy_2026_05_28/
 ```
 
-Completed jobs in this run:
+Important files:
 
 ```text
-763059   baseline and first optimizer sweep
-813929   rational_quotient_onpolicy extension
-821187   rational_jacobian_onpolicy extension
+summary.md
+summary.csv
+same_lr_validation_loss.png
+same_lr_validation_ppl.png
+same_lr_training_loss_from_step1.png
+matrix_policy_ablation_loss.png
+matrix_policy_ablation_ppl.png
+same_lr_1250_loss.png
+same_lr_1250_ppl.png
 ```
 
-Important logs:
+The active best run is `RLB + rational_matrix_policy_onpolicy` with the same global LR schedule as the controls.
+
+## Main Same-LR Result
+
+| row | final loss | final PPL |
+| --- | ---: | ---: |
+| RLB MatrixPolicy-Y | 3.548665 | 34.77 |
+| RLB + Jacobian | 3.614862 | 37.15 |
+| RLB + AdamW | 3.617501 | 37.24 |
+| SiLU/SwiGLU + AdamW | 3.621982 | 37.41 |
+
+## Artifact Policy
+
+Keep:
 
 ```text
-experiments/runs/logs/ract-wt103-opt-763059.out
-experiments/runs/logs/ract-wt103-opt-813929.out
-experiments/runs/logs/ract-wt103-opt-821187.out
+experiments/cache/                         local dataset/token cache
+experiments/results/                       compact committed summaries/plots
+experiments/runs/wikitext103/...           local raw JSONL while actively analyzing
 ```
 
-Aggregate output:
-
-```text
-experiments/results/rlb_optimizer_empirical_ngram_full/
-```
-
-Current best aggregate row:
-
-```text
-rational_jacobian_onpolicy + rlb_fused_fixed_strong_ffn
-mean loss 3.605394, PPL 36.800, sec/step 0.204885
-```
-
-## Cleanup Policy
-
-Keep dataset/token caches while active experiments need them:
-
-```text
-experiments/cache/
-```
-
-Keep active run JSONL files, Slurm logs, and aggregate results:
-
-```text
-experiments/runs/logs/
-experiments/runs/wikitext103/rlb_optimizer_empirical_ngram_full/
-experiments/results/rlb_optimizer_empirical_ngram_full/
-```
-
-Remove repo-local generated artifacts after compile/test runs:
-
-```text
-build/
-training/__pycache__/
-optimizer_design/__pycache__/
-activation/rational_opt/__pycache__/
-```
+Do not commit raw probe directories. `.gitignore` ignores the current local `rlb_*probe*` run folders.
