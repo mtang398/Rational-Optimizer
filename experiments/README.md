@@ -59,7 +59,20 @@ Synthetic Code/Symbolic/Reasoning mix plots are committed under `experiments/res
 | Symbolic | MatrixPolicy is fastest early, but all rows are near solved. | step 250 MatrixPolicy: `0.0487` / `1.0499` vs `0.0609` / `1.0628`. | final differences are too small to claim broad superiority. |
 | Reasoning mix | MatrixPolicy/group-stat lead the early and mid curve. | step 250 MatrixPolicy: `0.3450` / `1.4120` vs `0.4127` / `1.5109`. | final generic RLB+Muon is slightly best, but the curve signal is cleaner. |
 
-The completed synthetic tasks are near saturation, so final-loss/PPL differences are not the main readout. The main synthetic evidence is that rational rows reach the low-loss regime faster. Full curve diagnostics are in `results/synthetic_fair_full_2026_05_29/curve_diagnostics.md`.
+The completed sparse synthetic run is only a provisional curve smoke test. It logs validation too sparsely and training only every 100 steps, so it cannot support a final curve claim. Full provisional diagnostics, including both validation and training curves, are in `results/synthetic_fair_full_2026_05_29/curve_diagnostics.md`.
+
+## Dense Curve Rerun
+
+Dense run `952433` uses `experiments/scripts/run_synthetic_dense_curves_20260529.sh` with `LOG_INTERVAL=10`, `EVAL_INTERVAL=25`, `EVAL_BATCHES=10`, `OUTPUT_ROOT=experiments/runs/synthetic_dense_curves_20260529`, and `RUN_SUFFIX=20260529_dense_curve`. It is a 4x A6000 run and keeps the same optimizer/model/task rows.
+
+After completion:
+
+```bash
+.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py \
+  --run-root experiments/runs/synthetic_dense_curves_20260529 \
+  --suffix 20260529_dense_curve \
+  --result-dir experiments/results/synthetic_dense_curves_2026_05_29
+```
 
 ## Proposed Short Task Queue
 
@@ -81,4 +94,4 @@ Do not treat a task as a meaningful optimizer benchmark if the best controls rea
 .venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
 ```
 
-The default summary combines Code/Symbolic from `experiments/runs/synthetic_fair_full_20260529/` with the clean Reasoning mix rerun from `experiments/runs/synthetic_fair_reasoning_mix_20260529/`. The committed artifact includes `summary.md`, `curve_diagnostics.md`, CSV curve diagnostics, raw curve CSVs, and loss/PPL PNGs for each task.
+The default summary combines Code/Symbolic from `experiments/runs/synthetic_fair_full_20260529/` with the clean Reasoning mix rerun from `experiments/runs/synthetic_fair_reasoning_mix_20260529/`. The committed sparse artifact includes `summary.md`, `curve_diagnostics.md`, validation/training curve diagnostics, raw curve CSVs, and loss/PPL PNGs for each task.

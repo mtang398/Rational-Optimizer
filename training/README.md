@@ -27,7 +27,7 @@ The global LR schedule, token budget, seed, batch shape, eval cadence, and model
 
 ## Low-Loss Warning
 
-The completed synthetic tasks are near saturation, so final-loss/PPL differences are not the main readout. The important signal is the curve: Code step 250 has MatrixPolicy group-stat at `0.1661` loss / `1.1807` PPL versus `SiLU/SwiGLU+AdamW` at `0.4895` / `1.6314`; Reasoning mix step 250 has MatrixPolicy at `0.3450` / `1.4120` versus `0.4127` / `1.5109`.
+The completed synthetic tasks are near saturation, so final-loss/PPL differences are not the main readout. The sparse run suggests faster rational drops, but it is not sampled densely enough: validation was every 250 steps and training was every 100 steps. Dense curve runs should log training every 10 steps and validation every 25 steps.
 
 For these saturated synthetic tasks, graphs and early curves matter more than tiny final PPL differences. A future task should be harder if we want to test whether the early rational speed can become a decisive final-loss gap.
 
@@ -54,15 +54,14 @@ Fresh runs log validation at step 1, then at the eval interval, then at the fina
 ```text
 937608: completed Code and Symbolic, preempted during Reasoning mix
 951127: reran Reasoning mix from scratch with Requeue=1 and completed
+952433: dense synthetic curve rerun, 4x A6000, LOG_INTERVAL=10, EVAL_INTERVAL=25, EVAL_BATCHES=10
 ```
 
 ```bash
-sbatch --job-name=synth-reason \
-  --export=ALL,SYNTHETIC_TASKS=synthetic/reasoning_mix,RUN_SUFFIX=20260529_reasoning_rerun,OUTPUT_ROOT=experiments/runs/synthetic_fair_reasoning_mix_20260529 \
-  experiments/scripts/run_synthetic_fair_full_20260529.sh
+sbatch experiments/scripts/run_synthetic_dense_curves_20260529.sh
 ```
 
-Completed artifact: `experiments/results/synthetic_fair_full_2026_05_29/`. Regenerate the combined artifact with:
+Sparse completed artifact: `experiments/results/synthetic_fair_full_2026_05_29/`. Regenerate the combined sparse artifact with:
 
 ```bash
 .venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py

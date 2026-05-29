@@ -53,7 +53,7 @@ Synthetic curve status:
 | Symbolic | MatrixPolicy is fastest early, but all methods are near solved. | step 250 MatrixPolicy: `0.0487` / `1.0499` vs `0.0609` / `1.0628`. |
 | Reasoning mix | MatrixPolicy/group-stat lead early and mid curve. | step 250 MatrixPolicy: `0.3450` / `1.4120` vs `0.4127` / `1.5109`. |
 
-The completed synthetic tasks are near saturation, so final-loss/PPL differences are not the main readout. The main synthetic evidence is that rational rows reach the low-loss regime faster. The open optimizer problem is preserving that early curve advantage on harder tasks and later training, without changing the shared global LR schedule.
+The completed synthetic tasks are near saturation, so final-loss/PPL differences are not the main readout. The sparse synthetic run suggests faster rational drops, but it is not sampled densely enough for a final curve claim. The open optimizer problem is preserving the early rational speed on harder tasks and later training, without changing the shared global LR schedule.
 
 ## Plots
 
@@ -89,6 +89,6 @@ Use A6000 only and keep total active allocation at or below 8 A6000s.
 squeue -u mt872
 ```
 
-Latest continuation `951127` completed successfully with `Requeue=1`.
+Latest completed continuation `951127` finished successfully with `Requeue=1`. Dense curve rerun `952433` is pending/running depending on scheduler state; it uses 4x A6000, `LOG_INTERVAL=10`, `EVAL_INTERVAL=25`, and `EVAL_BATCHES=10`.
 
 The launcher is restart-safe at row granularity: completed rows are skipped, incomplete run directories are archived before rerun, and the job asks Slurm to requeue on the pre-timeout signal.

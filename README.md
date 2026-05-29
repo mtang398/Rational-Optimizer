@@ -92,7 +92,7 @@ Secondary final-state plots:
 
 ## Synthetic Curve Status
 
-The synthetic evidence is curve speed, not the final row. The final losses are too close to the floor, so a tiny final PPL edge is less meaningful than how fast each optimizer gets into the low-loss regime.
+The synthetic evidence should be curve speed, not the final row. The current committed synthetic run is too sparsely sampled for a final curve claim, especially for the early drop. Treat it as a provisional smoke result until the dense rerun finishes.
 
 | task | curve signal | strongest early gap vs `SiLU/SwiGLU+AdamW` | final readout |
 | --- | --- | --- | --- |
@@ -100,7 +100,7 @@ The synthetic evidence is curve speed, not the final row. The final losses are t
 | Symbolic | MatrixPolicy is the fastest early row, but the task is almost solved by every method. | step 250: MatrixPolicy `0.0487` / `1.0499` vs `0.0609` / `1.0628`; gap `-0.0122` loss and `-0.0129` PPL. | final differences are too small to claim broad superiority. |
 | Reasoning mix | MatrixPolicy and group-stat lead the early/mid curve. | step 250: MatrixPolicy `0.3450` / `1.4120` vs `0.4127` / `1.5109`; gap `-0.0677` loss and `-0.0989` PPL. | final generic RLB+Muon is slightly best, but the curve win is the cleaner signal. |
 
-AUC from step 250 to 1250 also favors rational rows: Code best is `RLB+AdamW`, Symbolic best is `RLB MatrixPolicy`, and Reasoning mix best is `RLB MatrixPolicy group-stat`. Full curve diagnostics are in `experiments/results/synthetic_fair_full_2026_05_29/curve_diagnostics.md`.
+The sparse run still shows rational rows dropping faster at the sampled checkpoints, but the sampling is not dense enough to locate the actual crossover or early slope. Full provisional diagnostics are in `experiments/results/synthetic_fair_full_2026_05_29/curve_diagnostics.md`; they now include both validation and training curves.
 
 ## Next Short Tests
 
@@ -116,7 +116,31 @@ The next tests should be short enough to run on 4x A6000, but hard enough that f
 
 A proposed task should be rejected as a benchmark if `SiLU/SwiGLU+AdamW` reaches loss `<0.1` by 1250 steps. At that point it can still be a smoke test, but not a meaningful optimizer-discrimination task.
 
-## Completed Synthetic Run
+## Dense Curve Rerun
+
+The sparse synthetic run logged validation every 250 steps and training every 100 steps. That is not enough for the curve claim. The dense rerun logs training every 10 steps and validation every 25 steps, with `eval_batches=10`, under the same optimizer/model/task comparison.
+
+```text
+job:        952433
+name:       synth-dense
+status:     running on fang-compute-02 at doc update
+GPUs:       4x nvidia_rtx_a6000
+train log:  every 10 steps
+validation: every 25 steps
+run root:   experiments/runs/synthetic_dense_curves_20260529/
+suffix:     20260529_dense_curve
+```
+
+After completion, regenerate a dense artifact with:
+
+```bash
+.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py \
+  --run-root experiments/runs/synthetic_dense_curves_20260529 \
+  --suffix 20260529_dense_curve \
+  --result-dir experiments/results/synthetic_dense_curves_2026_05_29
+```
+
+## Completed Sparse Synthetic Run
 
 ```text
 937608: Code and Symbolic complete, preempted during Reasoning mix
@@ -124,7 +148,7 @@ A proposed task should be rejected as a benchmark if `SiLU/SwiGLU+AdamW` reaches
 artifact: experiments/results/synthetic_fair_full_2026_05_29/
 ```
 
-The synthetic artifact contains CSV summaries, curve diagnostics, and loss/PPL plots for Code, Symbolic, and Reasoning mix. Regenerate it with:
+The sparse synthetic artifact contains CSV summaries, training/validation curve diagnostics, and loss/PPL plots for Code, Symbolic, and Reasoning mix. Regenerate it with:
 
 ```bash
 .venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
