@@ -90,24 +90,23 @@ Hard rule: do not count a global LR schedule change as optimizer progress.
 purpose: dense synthetic train/validation curves
 GPUs:    4x A6000
 cadence: training every 10 steps, validation every 25 steps
-status:  running when this TODO was written
+status:  running
+
+952584 rlb-gauge
+purpose: RLB positive-gauge optimizer stress test
+GPUs:    4x A6000
+steps:   750
+tasks:   synthetic/code synthetic/reasoning_mix
+gauge:   0.0 and 2.0 log-scale
+status:  running
 ```
 
-Next GPU job to submit when total active A6000 use stays at or below 8:
-
-```text
-rlb-gauge stress
-script: experiments/scripts/run_rlb_gauge_stress_20260529.sh
-GPUs:   4x A6000
-steps:  750
-tasks:  synthetic/code synthetic/reasoning_mix
-gauge:  0.0 and 2.0 log-scale
-```
+These two jobs already use the full 8 A6000 cap. Do not submit another GPU job until one completes or is intentionally cancelled.
 
 ## Immediate Implementation TODO
 
 1. Finish dense synthetic run `952433` and summarize into `experiments/results/synthetic_dense_curves_2026_05_29/`.
-2. Run RLB gauge-stress job and compare gauge sensitivity by optimizer.
+2. Summarize RLB gauge-stress job and compare gauge sensitivity by optimizer.
 3. Add a gauge-stress summarizer that reports:
    - train AUC degradation: gauge 2.0 minus gauge 0.0
    - validation AUC degradation

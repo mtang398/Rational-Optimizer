@@ -1,35 +1,53 @@
 # Optimizer Design
 
-This folder contains the RLB-specific optimizer implementation. The current research method is `RationalMatrixPolicyOptimizer`, wired through `rational_matrix_policy_onpolicy`.
+This folder contains the RLB-specific optimizer implementation. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed through `rational_matrix_policy_onpolicy`.
 
-## Method
+## Thesis
 
-RLB exposes optimizer structure that a normal SiLU/SwiGLU FFN does not:
+RLB should not be optimized as an ordinary FFN with unusual coefficients. It exposes roles and symmetries that generic AdamW and Muon do not explicitly respect:
 
-| RLB object | optimizer handle |
+| RLB structure | optimizer implication |
 | --- | --- |
-| `W_in` | chooses rational input domains and derivative exposure. |
-| rational basis | supplies learnable nonlinear shape inside each domain. |
-| `W_out` | recombines rational features into the residual stream. |
-| positive gauge | permits scale rebalance between `W_in` and `W_out`. |
-| live stats | can reveal group activity, pressure, and saturation. |
+| `W_in` | Controls which normalized domains the rational groups see. |
+| rational coefficients | Move the shape of each local rational function. |
+| `W_out` | Controls how rational features are used by the residual stream. |
+| group activity | Shows whether a rational group is used, dead, or saturated. |
+| derivative pressure | Shows whether updates are landing in responsive regions. |
+| positive gauge | Separates useful function change from scale drift. |
 
-MatrixPolicy is an RLB-matrix optimizer, not a global LR scheduler. It leaves the base warmup/cosine schedule shared with the controls. The optimizer-specific move is local: treat `W_in` and `W_out` differently because they have different rational jobs.
+The optimizer hypothesis is that using these signals can produce better training curves than generic optimizers under the same base LR schedule.
 
-`W_in` chooses the input domain seen by each rational group. `W_out` recombines the resulting rational features. The positive scale gauge means the same represented function can have bad or good matrix conditioning. MatrixPolicy tries to spend optimizer effort on useful function change instead of useless scale drift.
+## Current Method
+
+`RLB MatrixPolicy-Muon` is a role-aware matrix optimizer:
 
 ```text
-for each optimizer step:
-  update ordinary Transformer weights with AdamW
-  update rational coefficients with AdamW
-  for each RLB layer:
-    read the matrix role: W_in or W_out
-    read normalized layer depth
-    assign a role/depth-specific MatrixPolicy AdamW scale
-    during the early window, blend in Muon only for W_in/W_out
-    after the early window, return those matrices to MatrixPolicy AdamW
-  apply exact positive-gauge rebalance to each rational group
+ordinary Transformer weights -> AdamW
+rational coefficients        -> AdamW
+RLB W_in matrices            -> MatrixPolicy AdamW with input-role scaling
+RLB W_out matrices           -> MatrixPolicy AdamW with output-role scaling
+early RLB matrix window      -> Muon blend on W_in/W_out only
+group scale drift            -> positive-gauge rebalance
 ```
+
+Layer depth is part of the policy because shallow and deep rational FFNs use features differently. The early Muon phase is restricted to rational matrices; it is not a whole-model optimizer swap. The base warmup/cosine schedule remains shared with the controls.
+
+## Why The Gauge Matters
+
+For a group `g`, the transform
+
+```text
+W_in[g]  <- a_g W_in[g]
+W_out[g] <- W_out[g] / a_g
+```
+
+preserves the represented RLB function for `a_g > 0`, but changes matrix norms and optimizer conditioning. This gives a direct mechanism test:
+
+```text
+A rational-specific optimizer should degrade less under gauge stress than generic RLB+AdamW or RLB+Muon.
+```
+
+If MatrixPolicy fails this test, the current optimizer is not exploiting the clearest symmetry in the model class and should be redesigned before adding more benchmark tasks.
 
 ## Verified Result
 
@@ -44,14 +62,36 @@ for each optimizer step:
 | SiLU/SwiGLU+Muon | 3.644921 | 38.28 | generic Muon control |
 | RLB+Muon | 3.657877 | 38.78 | generic Muon on RLB |
 
-The current method is promising because it wins on WikiText under the same LR schedule, but the margin is still too small for the final goal.
+This verifies that the optimizer family can beat strong same-LR controls, but the margin is still below the desired paper-level gap.
 
-## Benchmark Targets
+## Mechanistic Tests
 
-The next short benchmarks should test rational optimizer behavior without saturating. Good candidates are `synthetic/rule_chain_hard`, `synthetic/key_value_recall`, `synthetic/carry_arithmetic`, `synthetic/stack_brackets`, and `synthetic/noisy_copy_transform`.
+The next optimizer work should be evaluated by these measurements, not only by final PPL:
 
-The acceptance rule is simple: if a generic control reaches loss `<0.1` at the target budget, the task is too easy to support an optimizer claim. MatrixPolicy needs tests where the final loss scale leaves room for a real `0.2-0.3` gap, or at least enough headroom that PPL differences are not compressed to noise.
+| metric | reason |
+| --- | --- |
+| train and validation AUC | Measures full-curve improvement instead of one checkpoint. |
+| time to loss threshold | Tests whether rational speedup appears early and persists. |
+| gauge-stress degradation | Tests sensitivity to equivalent reparameterization. |
+| group input/output RMS | Shows whether groups are active and used. |
+| derivative pressure | Distinguishes responsive groups from saturated groups. |
+| denominator margin | Tracks rational stability risk. |
+| `W_in`/`W_out` norm product | Measures gauge drift. |
+| function probe delta | Measures useful function movement per parameter movement. |
 
-## Current Research Problem
+These diagnostics are the path toward a stronger optimizer. More global scheduling without a geometry signal should not count as progress.
 
-The sparse synthetic curves suggest a useful signal and a real problem, but they are under-sampled. The useful signal is speed at the observed checkpoints; the problem is that this early rational advantage often compresses near the final loss floor or is not preserved late. The dense rerun logs training every 10 steps and validation every 25 steps, which is the minimum needed before making a stronger curve claim. The next optimizer should preserve the early curve win on harder tasks and later training, likely by using live rational group information more selectively rather than adding another global schedule.
+## V2 Direction
+
+The next non-trivial optimizer should make decisions per layer, role, and group:
+
+| policy input | possible action |
+| --- | --- |
+| low group activity | revive or raise matrix scale only for that group. |
+| high saturation pressure | damp coefficient updates and rebalance the input domain. |
+| denominator risk | shrink coefficient trust radius. |
+| `W_in`/`W_out` norm imbalance | apply stronger gauge rebalance. |
+| stable gradient agreement | allow larger role-specific matrix steps. |
+| late-layer instability | reduce output-role movement without changing global LR. |
+
+The acceptance bar is strict: a new optimizer should beat `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, and `RLB+Muon` under the same base LR schedule, then survive LR ablations after the large same-LR gap exists.

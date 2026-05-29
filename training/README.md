@@ -1,75 +1,88 @@
 # Training
 
-This folder contains the LLM harness and synthetic task generators used to compare optimizers fairly.
+This folder contains the language-model harness, synthetic task generators, and comparison plumbing used by the optimizer experiments.
 
-## Comparisons
+## Fair Comparison Contract
 
-Every serious run should include:
+Every serious comparison should keep these fixed across rows:
+
+```text
+model size
+token budget
+seed
+batch shape
+sequence length
+base LR schedule
+evaluation cadence
+dataset and dataset config
+```
+
+The required control set is:
 
 ```text
 SiLU/SwiGLU+AdamW
 RLB+AdamW
 SiLU/SwiGLU+Muon
 RLB+Muon
-RLB MatrixPolicy
+RLB MatrixPolicy variants
 ```
 
-The global LR schedule, token budget, seed, batch shape, eval cadence, and model size should match across rows.
+Learning-rate scheduler changes are not optimizer wins for this project. LR ablations only become useful after a rational-specific optimizer shows a large same-LR advantage.
 
-## Tasks
+## RLB Training Hooks
 
-| task | purpose | current meaning |
+The harness supports RLB-specific optimizer tests:
+
+| hook | purpose |
+| --- | --- |
+| `rational_matrix_policy_onpolicy` | Role/depth-aware optimizer for RLB matrices. |
+| group-stat policy flags | Live activity and pressure signals for per-group scaling. |
+| `--rlb-init-gauge-log-scale` | Equivalent-function positive gauge stress at initialization. |
+| `--rlb-init-gauge-seed` | Reproducible gauge sampling. |
+| `log_interval` / `eval_interval` | Dense training and validation curves from step 1. |
+
+The gauge flags apply only to RLB FFNs. A local parameter-level validation confirmed that the gauge transform preserves per-group `W_out @ W_in` products up to `1.4e-9`; full forward validation on CPU is blocked by the rational CUDA extension path, so the running GPU gauge stress is the relevant end-to-end test.
+
+## Task Interpretation
+
+| task | current role | caveat |
 | --- | --- | --- |
-| WikiText-103 | main language-modeling benchmark | MatrixPolicy-Muon has the verified lead. |
-| synthetic/code | structured program-like patterns | RLB drops much faster early; final loss is saturated. |
-| synthetic/symbolic | rewrite/parity/bracket/copy patterns | MatrixPolicy is fastest early; final deltas are tiny. |
-| synthetic/reasoning_mix | mixed arithmetic/code/symbolic transfer | MatrixPolicy/group-stat lead early and mid curve; final deltas are tiny. |
+| WikiText-103 | Main small-LM benchmark. | Current best gap is real but modest. |
+| synthetic/code | Tests program-like local structure. | RLB drops faster early, but final loss saturates. |
+| synthetic/symbolic | Tests rewrite/parity/bracket/copy patterns. | Too easy for a final optimizer claim. |
+| synthetic/reasoning_mix | Tests mixed arithmetic/code/symbolic patterns. | Useful curve signal, but final PPL is compressed. |
 
-## Low-Loss Warning
+For saturated synthetic tasks, curve shape matters more than the final row. Training loss must be plotted too, because validation-only plots can hide optimizer phase behavior.
 
-The completed synthetic tasks are near saturation, so final-loss/PPL differences are not the main readout. The sparse run suggests faster rational drops, but it is not sampled densely enough: validation was every 250 steps and training was every 100 steps. Dense curve runs should log training every 10 steps and validation every 25 steps.
+## Logging Standard
 
-For these saturated synthetic tasks, graphs and early curves matter more than tiny final PPL differences. A future task should be harder if we want to test whether the early rational speed can become a decisive final-loss gap.
-
-## Proposed Short Tasks
-
-The current Code and Symbolic tasks are too close to saturation. The next synthetic tasks should be harder and should target final control loss around `0.25-1.0` at 1250 steps.
-
-| task name | generator idea | primary signal |
-| --- | --- | --- |
-| `synthetic/rule_chain_hard` | sample rewrite rules, include distractors, ask for a 3-6 hop result. | compositional symbolic updates. |
-| `synthetic/key_value_recall` | random in-context key-value table, delayed query, variable distractor density. | binding and retrieval under context noise. |
-| `synthetic/carry_arithmetic` | 3-6 digit arithmetic with carries, signs, and irrelevant nearby numbers. | sharp algorithmic boundaries. |
-| `synthetic/stack_brackets` | typed brackets, deeper nesting, decoy brackets, ask for stack state/core token. | state tracking and nonlinear transitions. |
-| `synthetic/noisy_copy_transform` | copy/reverse/map a random span with noise and variable span length. | sequence transform robustness. |
-
-Acceptance rule: if the baseline control reaches loss `<0.1` by 1250 steps, the task is too easy for optimizer claims. Keep it only as a smoke test.
-
-## Step-1 Curves
-
-Fresh runs log validation at step 1, then at the eval interval, then at the final step. Plots should start at step 1.
-
-## Active Run
+Fresh optimizer-discrimination runs should log:
 
 ```text
-937608: completed Code and Symbolic, preempted during Reasoning mix
-951127: reran Reasoning mix from scratch with Requeue=1 and completed
-952433: dense synthetic curve rerun, 4x A6000, LOG_INTERVAL=10, EVAL_INTERVAL=25, EVAL_BATCHES=10
+training:   step 1, then at least every 10 steps
+validation: step 1, then at least every 25 steps
+final:      always include final step
 ```
 
-```bash
-sbatch experiments/scripts/run_synthetic_dense_curves_20260529.sh
-```
+Plots should start at step 1. Starting at step 1000 hides the part of the curve where the rational optimizer advantage is most likely to appear.
 
-Sparse completed artifact: `experiments/results/synthetic_fair_full_2026_05_29/`. Regenerate the combined sparse artifact with:
+## Benchmark Design
 
-```bash
-.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
-```
+Good short tasks should leave headroom. A task is not a meaningful optimizer benchmark if the strongest controls reach loss `<0.1` by the target budget. In that regime, PPL differences are too compressed and final-loss rankings can become noise.
 
-The default summary combines Code/Symbolic from `experiments/runs/synthetic_fair_full_20260529/` with the clean Reasoning mix rerun from `experiments/runs/synthetic_fair_reasoning_mix_20260529/`.
+Preferred next task families:
 
-## A6000 Rule
+| task | target behavior |
+| --- | --- |
+| `synthetic/rule_chain_hard` | Multi-hop symbolic composition with distractors and held-out symbols. |
+| `synthetic/key_value_recall` | In-context binding and delayed retrieval under noise. |
+| `synthetic/carry_arithmetic` | Multi-digit arithmetic where carries create sharp decision boundaries. |
+| `synthetic/stack_brackets` | Deeper typed-stack state tracking. |
+| `synthetic/noisy_copy_transform` | Span copy/reverse/map with variable noise and length. |
+
+These tasks should be used after the gauge-stress result clarifies whether MatrixPolicy is exploiting RLB geometry or merely winning on a narrow curve regime.
+
+## Runtime Rule
 
 Use A6000 GPUs only and do not exceed 8 active A6000s total.
 

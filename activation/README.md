@@ -1,10 +1,10 @@
 # Activation
 
-This folder contains the rational activation implementation. The optimizer policy does not live here, but RLB is designed to expose structure that an optimizer can use.
+This folder contains the rational activation implementation. The optimizer policy does not live here, but the activation is designed to expose structure that an optimizer can use.
 
-## Method Context
+## RLB Layer
 
-RLB computes:
+RLB is a no-GLU rational FFN:
 
 ```text
 v = x W_in
@@ -14,25 +14,25 @@ h_g = s_g R_g(u_g)
 y = h W_out
 ```
 
-RLB is not a GLU. There is no gate branch and no hidden SiLU path inside the RLB layer.
+There is no gate branch and no hidden SiLU path inside the RLB layer. The rational function `R_g` is evaluated on normalized group inputs, then scaled back by the group RMS.
 
-## Optimizer Handles
+## Optimizer-Visible Structure
 
-| part | optimizer meaning |
+| component | optimizer handle |
 | --- | --- |
-| `W_in` | chooses the input domain seen by each rational group. |
-| rational basis | supplies learnable nonlinear shape inside that domain. |
-| `W_out` | recombines rational features back into the residual stream. |
-| group scale | creates a positive gauge that can be balanced after updates. |
-| live stats | expose activity and derivative pressure for diagnostics or future policies. |
+| `W_in` | Sets the normalized domain seen by each rational group. |
+| rational coefficients | Shape local odd/bump rational features. |
+| `W_out` | Selects and mixes rational features into the residual stream. |
+| group RMS | Provides a scale signal for activity and saturation. |
+| positive gauge | Allows function-preserving rebalance between input and output matrices. |
 
-The current MatrixPolicy optimizer only uses part of this structure. It has a verified WikiText lead and sparse synthetic curves suggest faster early rational loss/PPL drops, but the completed synthetic tasks saturate before that advantage becomes a large final gap. Dense training and validation curves are needed before making a stronger synthetic claim. A better optimizer should use rational activity, derivative pressure, group health, and layer role without changing the shared global LR schedule.
+The positive gauge is central to the current research plan. If one group of `W_in` is multiplied by `a > 0`, the normalized input `u_g` is unchanged and the group output scales by `a`. Dividing the matching `W_out` columns by `a` preserves the layer function. This makes gauge stress a direct test of whether an optimizer understands rational structure or is sensitive to arbitrary matrix scaling.
 
-## Implementation
+## Implementation Boundaries
 
 ```text
-activation/rational_opt/  Python package
+activation/rational_opt/  Python package and PyTorch fallback paths
 activation/csrc/          CUDA/C++ extension sources
 ```
 
-A6000 launchers currently set `RATIONAL_OPT_TORCH_FALLBACK=1`, using the PyTorch implementation of the same RLB math when the local compiled extension does not provide a usable A6000 image.
+A6000 launchers currently set `RATIONAL_OPT_TORCH_FALLBACK=1` so runs can use the PyTorch implementation of the same RLB math when the local compiled extension is not the right path for the node. CPU forward tests can still hit CUDA-only rational extension paths; use GPU training runs for end-to-end activation validation.

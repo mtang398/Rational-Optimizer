@@ -1,12 +1,31 @@
 # RationalOPT
 
-RationalOPT asks a research question: can a rational FFN win because the optimizer understands rational structure, not because it got a different global LR schedule?
+RationalOPT studies whether rational feed-forward layers can gain a real training advantage when the optimizer uses the structure that those layers expose. The target is not a better global learning-rate schedule. The target is an on-policy optimizer for rational activations that beats strong `SiLU/SwiGLU` and generic RLB controls under the same model size, token budget, seed, base LR schedule, and evaluation cadence.
 
-The real controls are `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, and `RLB+Muon` under the same model, token budget, seed, eval cadence, and base LR schedule. Jacobian, quotient, transport, and coefficient variants are ablations, not baselines.
+## Research Claim
 
-## Method
+Current verified claim:
 
-RLB is not a GLU. It creates grouped rational features:
+```text
+RLB MatrixPolicy-Muon gives a modest same-LR WikiText-103 win.
+The desired 0.2-0.3 loss gap is not reached yet.
+```
+
+The serious controls are:
+
+```text
+SiLU/SwiGLU+AdamW
+RLB+AdamW
+SiLU/SwiGLU+Muon
+RLB+Muon
+RLB MatrixPolicy variants
+```
+
+Jacobian, quotient, transport, and coefficient-only variants are ablations. They are not the baseline we are trying to beat. The benchmark target is the strongest generic optimizer on the strongest non-rational and rational models.
+
+## RLB Geometry
+
+RLB is a no-GLU rational FFN. For each rational group:
 
 ```text
 v = x W_in
@@ -16,34 +35,35 @@ h_g = s_g R_g(u_g)
 y = h W_out
 ```
 
-MatrixPolicy is an RLB-matrix optimizer, not a global LR scheduler. It leaves the base warmup/cosine schedule shared with the controls. The optimizer-specific move is local: treat `W_in` and `W_out` differently because they have different rational jobs.
+This creates optimizer-visible roles:
 
-`W_in` chooses the input domain seen by each rational group. `W_out` recombines the resulting rational features. The positive scale gauge means the same represented function can have bad or good matrix conditioning. MatrixPolicy tries to spend optimizer effort on useful function change instead of useless scale drift.
+| object | role |
+| --- | --- |
+| `W_in` | chooses the input domain seen by each rational group. |
+| rational basis | learns the nonlinear shape inside that normalized domain. |
+| `W_out` | recombines rational features into the residual stream. |
+| group scale | creates a positive gauge symmetry between `W_in` and `W_out`. |
 
-```text
-for each optimizer step:
-  update ordinary Transformer weights with AdamW
-  update rational coefficients with AdamW
-  for each RLB layer:
-    read the matrix role: W_in or W_out
-    read normalized layer depth
-    assign a role/depth-specific MatrixPolicy AdamW scale
-    during the early window, blend in Muon only for W_in/W_out
-    after the early window, return those matrices to MatrixPolicy AdamW
-  apply exact positive-gauge rebalance to each rational group
-```
+The positive gauge is the key symmetry. Scaling one group's `W_in` rows by `a > 0` scales that group's RLB features by `a`; scaling the matching `W_out` columns by `1/a` preserves the represented function. Generic AdamW and Muon can still behave differently after this reparameterization because the matrices have different conditioning. A rational optimizer should be less sensitive to this gauge.
 
-Current method in one line:
+## Current Optimizer
+
+`RLB MatrixPolicy-Muon` is the best verified optimizer family in this repo. It is not a global LR change.
 
 ```text
-RLB MatrixPolicy-Muon = AdamW backbone + AdamW rational coefficients + role/depth-aware RLB matrix AdamW + early RLB-matrix-only Muon + gauge rebalance
+ordinary Transformer weights: AdamW
+rational coefficients:        AdamW
+RLB W_in / W_out matrices:    role- and depth-aware MatrixPolicy AdamW
+early RLB matrix phase:       Muon blended only for W_in / W_out
+after early phase:            return RLB matrices to MatrixPolicy AdamW
+RLB groups:                   exact positive-gauge rebalance
 ```
 
-Exact scalar flags live in the Slurm launchers and JSONL `config` records. They are not the research story.
+The method uses the fact that `W_in`, rational coefficients, and `W_out` do different jobs. It also treats layer depth as a policy input because early and late layers do not use rational features in the same way. Exact scalar settings live in the Slurm launchers and JSONL `config` records; they are implementation details, not the research claim.
 
-## Main Result
+## Verified Evidence
 
-The verified WikiText-103 result is a real but modest same-LR win. It is not yet the desired `0.2-0.3` loss gap.
+The verified WikiText-103 result is a real same-LR lead, but it is still smaller than the final target.
 
 | row | final loss | final PPL | readout |
 | --- | ---: | ---: | --- |
@@ -56,29 +76,37 @@ The verified WikiText-103 result is a real but modest same-LR win. It is not yet
 | SiLU/SwiGLU+Muon | 3.644921 | 38.28 | generic Muon control |
 | RLB+Muon | 3.657877 | 38.78 | generic Muon on RLB |
 
-Best verified gap versus `SiLU/SwiGLU+AdamW beta2=0.999`: `0.0731` loss and `2.45` PPL.
+Best verified gap versus the strongest `SiLU/SwiGLU+AdamW` row is `0.0731` loss and `2.45` PPL. That is promising but not enough for the intended paper claim.
 
-## Graphs
+## Figures
+
+WikiText-103 validation loss:
 
 ![WikiText validation loss](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_loss.png)
 
+WikiText-103 validation PPL:
+
 ![WikiText validation PPL](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_ppl.png)
+
+WikiText-103 training loss from step 1:
 
 ![WikiText training loss from step 1](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
 
-![Synthetic arithmetic validation loss](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/synthetic_arithmetic_validation_loss.png)
+The sparse synthetic run is useful mainly as a curve-speed signal. Final bars are secondary because these tasks approach the loss floor.
 
-![Synthetic arithmetic validation PPL](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/synthetic_arithmetic_validation_ppl.png)
-
-The completed synthetic fair curves are the important synthetic plots. Final-loss bars are secondary because these tasks end near the loss floor.
+Synthetic Code validation:
 
 ![Synthetic Code validation loss](experiments/results/synthetic_fair_full_2026_05_29/synthetic_code_validation_loss.png)
 
 ![Synthetic Code validation PPL](experiments/results/synthetic_fair_full_2026_05_29/synthetic_code_validation_ppl.png)
 
+Synthetic Symbolic validation:
+
 ![Synthetic Symbolic validation loss](experiments/results/synthetic_fair_full_2026_05_29/synthetic_symbolic_validation_loss.png)
 
 ![Synthetic Symbolic validation PPL](experiments/results/synthetic_fair_full_2026_05_29/synthetic_symbolic_validation_ppl.png)
+
+Reasoning mix validation:
 
 ![Reasoning mix validation loss](experiments/results/synthetic_fair_full_2026_05_29/synthetic_reasoning_mix_validation_loss.png)
 
@@ -90,77 +118,45 @@ Secondary final-state plots:
 
 ![Synthetic fair final PPL](experiments/results/synthetic_fair_full_2026_05_29/final_ppl_by_task.png)
 
-## Synthetic Curve Status
+## Synthetic Readout
 
-The synthetic evidence should be curve speed, not the final row. The current committed synthetic run is too sparsely sampled for a final curve claim, especially for the early drop. Treat it as a provisional smoke result until the dense rerun finishes.
+The completed sparse synthetic tasks show faster rational drops at sampled checkpoints, but they are sampled too sparsely and saturate too quickly for a final optimizer claim.
 
-| task | curve signal | strongest early gap vs `SiLU/SwiGLU+AdamW` | final readout |
-| --- | --- | --- | --- |
-| Code | RLB drops much faster, then the task saturates. | step 250: MatrixPolicy group-stat `0.1661` loss / `1.1807` PPL vs `0.4895` / `1.6314`; gap `-0.3234` loss and `-0.4507` PPL. | final winner is SiLU+AdamW by a tiny floor-level margin. |
-| Symbolic | MatrixPolicy is the fastest early row, but the task is almost solved by every method. | step 250: MatrixPolicy `0.0487` / `1.0499` vs `0.0609` / `1.0628`; gap `-0.0122` loss and `-0.0129` PPL. | final differences are too small to claim broad superiority. |
-| Reasoning mix | MatrixPolicy and group-stat lead the early/mid curve. | step 250: MatrixPolicy `0.3450` / `1.4120` vs `0.4127` / `1.5109`; gap `-0.0677` loss and `-0.0989` PPL. | final generic RLB+Muon is slightly best, but the curve win is the cleaner signal. |
-
-The sparse run still shows rational rows dropping faster at the sampled checkpoints, but the sampling is not dense enough to locate the actual crossover or early slope. Full provisional diagnostics are in `experiments/results/synthetic_fair_full_2026_05_29/curve_diagnostics.md`; they now include both validation and training curves.
-
-## Next Short Tests
-
-The next tests should be short enough to run on 4x A6000, but hard enough that final loss is not already near zero. A useful screening target is final control loss around `0.25-1.0`; below `0.1`, PPL differences are usually too compressed to support an optimizer claim.
-
-| proposed task | what it tests | why it is better than current saturated tasks |
+| task | curve signal | provisional early comparison |
 | --- | --- | --- |
-| `synthetic/rule_chain_hard` | 3-6 step symbolic rule composition with distractor rules and held-out symbols. | Tests rational piecewise composition while keeping loss away from the floor. |
-| `synthetic/key_value_recall` | Random key-value tables followed by delayed queries inside the same context. | Tests whether RLB matrix policy helps binding/retrieval rather than template memorization. |
-| `synthetic/carry_arithmetic` | Multi-digit addition/subtraction with carries, signs, and distractor numbers. | Harder than current arithmetic; carries create sharp local decision boundaries. |
-| `synthetic/stack_brackets` | Pushdown-style bracket/type tracking with deeper nesting and decoy brackets. | Tests state-like nonlinear transitions instead of one-step bracket depth templates. |
-| `synthetic/noisy_copy_transform` | Copy/reverse/map spans with random noise tokens and variable span length. | Keeps sequence loss meaningful and exposes whether early matrix conditioning helps sequence transforms. |
+| Code | RLB drops faster, then the task saturates. | step 250 MatrixPolicy group-stat `0.1661` loss / `1.1807` PPL vs `SiLU/SwiGLU+AdamW` `0.4895` / `1.6314`. |
+| Symbolic | MatrixPolicy is fastest early, but all rows nearly solve the task. | step 250 MatrixPolicy `0.0487` / `1.0499` vs `0.0609` / `1.0628`. |
+| Reasoning mix | MatrixPolicy and group-stat lead the early/mid curve. | step 250 MatrixPolicy `0.3450` / `1.4120` vs `0.4127` / `1.5109`. |
 
-A proposed task should be rejected as a benchmark if `SiLU/SwiGLU+AdamW` reaches loss `<0.1` by 1250 steps. At that point it can still be a smoke test, but not a meaningful optimizer-discrimination task.
+The dense rerun exists to make this curve claim measurable: training every 10 steps, validation every 25 steps, starting at step 1. Until that run is summarized, the synthetic claim should be written as provisional.
 
-## Dense Curve Rerun
+## Validation Plan
 
-The sparse synthetic run logged validation every 250 steps and training every 100 steps. That is not enough for the curve claim. The dense rerun logs training every 10 steps and validation every 25 steps, with `eval_batches=10`, under the same optimizer/model/task comparison.
+The next research plan is mechanism-first:
 
-```text
-job:        952433
-name:       synth-dense
-status:     running on fang-compute-02 at doc update
-GPUs:       4x nvidia_rtx_a6000
-train log:  every 10 steps
-validation: every 25 steps
-run root:   experiments/runs/synthetic_dense_curves_20260529/
-suffix:     20260529_dense_curve
-```
+1. Dense train/validation curves on the existing synthetic tasks, because the current sparse sampling misses early slope and crossover behavior.
+2. Gauge-stress benchmark, because it directly tests whether the optimizer handles a real RLB symmetry better than generic AdamW and Muon.
+3. Function-space diagnostics, because loss curves alone cannot tell whether updates change useful functions or mostly move along gauge directions.
+4. Hard non-saturated synthetic tasks, because final loss below `0.1` compresses PPL and makes optimizer wins hard to interpret.
+5. Real LM transfer at small scale, because synthetic-only evidence is not enough for a paper-level claim.
 
-After completion, regenerate a dense artifact with:
-
-```bash
-.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py \
-  --run-root experiments/runs/synthetic_dense_curves_20260529 \
-  --suffix 20260529_dense_curve \
-  --result-dir experiments/results/synthetic_dense_curves_2026_05_29
-```
-
-## Completed Sparse Synthetic Run
+Falsification criteria:
 
 ```text
-937608: Code and Symbolic complete, preempted during Reasoning mix
-951127: Reasoning mix rerun complete, 02:40:56 elapsed, Requeue=1
-artifact: experiments/results/synthetic_fair_full_2026_05_29/
+If MatrixPolicy is not more gauge-stable than generic RLB optimizers, the current optimizer is not exploiting the most obvious RLB geometry.
+If dense curves remove the early rational speed signal, the synthetic result was a sampling artifact.
+If hard non-saturated tasks do not preserve the early advantage into final loss, the optimizer is incomplete.
 ```
 
-The sparse synthetic artifact contains CSV summaries, training/validation curve diagnostics, and loss/PPL plots for Code, Symbolic, and Reasoning mix. Regenerate it with:
+The current harsh self-review and task queue are in [TODO.md](TODO.md).
 
-```bash
-.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
-```
-
-Raw JSONL and Slurm logs stay local under `experiments/runs/`.
-
-## Layout
+## Artifacts
 
 ```text
 activation/         RLB activation implementation
-training/           LLM benchmark harness and synthetic task generators
+training/           LLM harness, synthetic generators, gauge flags
 optimizer_design/   RLB-specific optimizer implementation
-experiments/        Slurm launchers and compact result artifacts
+experiments/        Slurm launchers and committed result figures
 ```
+
+Raw JSONL runs and Slurm logs stay local under `experiments/runs/`. Committed figures and summaries live under `experiments/results/`.
