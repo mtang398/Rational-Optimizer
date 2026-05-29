@@ -36,6 +36,8 @@ class RationalMatrixPolicyOptimizer:
         adam_decay_end: float = 1.1,
         adam_decay_depth_shift: float = 0.0,
         adam_beta2_final: float | None = None,
+        adam_beta2_input_final: float | None = None,
+        adam_beta2_output_final: float | None = None,
         adam_beta2_decay_start: float = 1.1,
         adam_beta2_decay_end: float = 1.1,
         adam_beta2_decay_depth_shift: float = 0.0,
@@ -90,6 +92,8 @@ class RationalMatrixPolicyOptimizer:
         self.adam_beta1 = float(betas[0])
         self.adam_beta2 = float(betas[1])
         self.adam_beta2_final = None if adam_beta2_final is None else float(adam_beta2_final)
+        self.adam_beta2_input_final = None if adam_beta2_input_final is None else float(adam_beta2_input_final)
+        self.adam_beta2_output_final = None if adam_beta2_output_final is None else float(adam_beta2_output_final)
         self.adam_beta2_decay_start = float(adam_beta2_decay_start)
         self.adam_beta2_decay_end = float(adam_beta2_decay_end)
         self.adam_beta2_decay_depth_shift = float(adam_beta2_decay_depth_shift)
@@ -135,8 +139,13 @@ class RationalMatrixPolicyOptimizer:
             and self.max_muon > 0.0
             and (self.muon_strength != 0.0 or self.final_muon != 0.0 or self.min_muon > 0.0)
         )
-        if self.adam_beta2_final is not None and not (0.0 <= self.adam_beta2_final < 1.0):
-            raise ValueError("adam_beta2_final must be in [0, 1)")
+        for name, value in (
+            ("adam_beta2_final", self.adam_beta2_final),
+            ("adam_beta2_input_final", self.adam_beta2_input_final),
+            ("adam_beta2_output_final", self.adam_beta2_output_final),
+        ):
+            if value is not None and not (0.0 <= value < 1.0):
+                raise ValueError(f"{name} must be in [0, 1)")
         if self.adam_min_lr_scale < 0.0:
             raise ValueError("adam_min_lr_scale must be non-negative")
         if self.adam_max_lr_scale < self.adam_min_lr_scale:
@@ -269,8 +278,16 @@ class RationalMatrixPolicyOptimizer:
         scale = scheduled * factor
         return min(self.adam_max_lr_scale, max(self.adam_min_lr_scale, scale))
 
+    def _adam_beta2_final_for(self, group: dict) -> float | None:
+        role = str(group.get("matrix_role", "matrix"))
+        if role == "in" and self.adam_beta2_input_final is not None:
+            return self.adam_beta2_input_final
+        if role == "out" and self.adam_beta2_output_final is not None:
+            return self.adam_beta2_output_final
+        return self.adam_beta2_final
+
     def _adam_beta2_phase(self, group: dict) -> float:
-        if self.adam_beta2_final is None:
+        if self._adam_beta2_final_for(group) is None:
             return 0.0
         progress = self._progress()
         offset = self.adam_beta2_decay_depth_shift * (self._depth(group) - 0.5)
@@ -279,10 +296,11 @@ class RationalMatrixPolicyOptimizer:
         return _smoothstep(start, end, progress)
 
     def _adam_betas(self, group: dict) -> tuple[float, float]:
-        if self.adam_beta2_final is None:
+        beta2_final = self._adam_beta2_final_for(group)
+        if beta2_final is None:
             return group["betas"]
         phase = self._adam_beta2_phase(group)
-        beta2 = self.adam_beta2 * (1.0 - phase) + self.adam_beta2_final * phase
+        beta2 = self.adam_beta2 * (1.0 - phase) + beta2_final * phase
         return (self.adam_beta1, min(0.9999, max(0.0, beta2)))
 
     def _adam_role_factor(self, group: dict) -> float:

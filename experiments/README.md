@@ -1,8 +1,52 @@
 # Experiments
 
-Generated experiment artifacts live here. Raw Slurm JSONL runs are local artifacts. The committed result story is the compact current artifact below.
+This folder contains Slurm launchers and compact result artifacts. Raw run folders and Slurm logs under `experiments/runs/` are local artifacts and should not be committed.
 
-## Current Result Artifact
+## Active Fair Rerun
+
+```text
+job:          937608
+script:       experiments/scripts/run_synthetic_fair_full_20260529.sh
+job name:     synth-fair
+GPUs:         4x nvidia_rtx_a6000
+walltime:     24h
+run root:     experiments/runs/synthetic_fair_full_20260529/
+result root:  experiments/results/synthetic_fair_full_2026_05_29/
+```
+
+| task | compared rows |
+| --- | --- |
+| `synthetic/code` | SiLU/SwiGLU+AdamW, RLB+AdamW, SiLU/SwiGLU+Muon, RLB+Muon, RLB MatrixPolicy, RLB MatrixPolicy group-stat |
+| `synthetic/symbolic` | same rows |
+| `synthetic/reasoning_mix` | same rows |
+
+The run is same-LR across all rows. It is the replacement for partial synthetic outputs from earlier attempts.
+
+After completion:
+
+```bash
+.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
+```
+
+Expected compact outputs:
+
+```text
+summary.md
+summary.csv
+eval_curves.csv
+train_curves.csv
+synthetic_code_validation_loss.png
+synthetic_code_validation_ppl.png
+synthetic_code_training_loss.png
+synthetic_symbolic_validation_loss.png
+synthetic_symbolic_validation_ppl.png
+synthetic_symbolic_training_loss.png
+synthetic_reasoning_mix_validation_loss.png
+synthetic_reasoning_mix_validation_ppl.png
+synthetic_reasoning_mix_training_loss.png
+```
+
+## Verified WikiText Artifact
 
 ```text
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
@@ -26,51 +70,23 @@ synthetic_arithmetic_validation_ppl.png
 synthetic_arithmetic_training_loss_from_step1.png
 ```
 
-## Main Same-LR Result
+## Verified WikiText Result
 
 | row | final loss | final PPL |
 | --- | ---: | ---: |
 | RLB MatrixPolicy-Muon | 3.476232 | 32.34 |
 | RLB Smooth-MatrixPolicy | 3.493210 | 32.89 |
-| SiLU+AdamW beta2=0.999 | 3.549346 | 34.79 |
+| SiLU/SwiGLU+AdamW beta2=0.999 | 3.549346 | 34.79 |
 | RLB+AdamW beta2=0.999 | 3.550018 | 34.81 |
 | RLB+AdamW | 3.617501 | 37.24 |
-| SiLU+AdamW | 3.621982 | 37.41 |
-| SiLU+Muon | 3.644921 | 38.28 |
+| SiLU/SwiGLU+AdamW | 3.621982 | 37.41 |
+| SiLU/SwiGLU+Muon | 3.644921 | 38.28 |
 | RLB+Muon | 3.657877 | 38.78 |
-
-## Additional Tests
-
-Muon controls:
-
-```text
-SiLU+Muon  final loss 3.644921, PPL 38.28
-RLB+Muon   final loss 3.657877, PPL 38.78
-```
-
-Synthetic arithmetic final rows:
-
-| row | final loss | final PPL |
-| --- | ---: | ---: |
-| SiLU+AdamW | 0.048182 | 1.04936 |
-| RLB+AdamW | 0.048326 | 1.04951 |
-| RLB MatrixPolicy-Muon | 0.048382 | 1.04957 |
-
-A6000 optimizer probes:
-
-| probe | last step | loss | readout |
-| --- | ---: | ---: | --- |
-| A6000 matched default | 1250 | 4.052293 | matched fallback screen |
-| beta2 tail 0.995 | 1250 | 4.049556 | tiny +0.002738 vs matched default, not close to old best short curve |
-| group policy 0.30 | 1000 | 4.141706 | neutral/worse vs matched default at 1000 |
-| late Muon 0.05 | 500 | 4.673611 | worse than matched default at 500 |
-| layer statgate | 250 | 5.369072 | tied with matched default |
-| statgate+group 0.18 | 750 | 4.331103 | tiny +0.000628 vs matched default, noise-level |
 
 ## Interpretation
 
-The current best is still `RLB MatrixPolicy-Muon`. Plain Muon is weaker than AdamW controls, and the new beta2-tail, group-policy, late-Muon, and stat-gated probes did not create a material gap. The synthetic task confirms early optimization transfer but not a final-loss win.
+The current verified best is still `RLB MatrixPolicy-Muon`. Plain Muon is weaker than AdamW controls on the verified WikiText run, and the recent beta2-tail, coefficient, role-depth, and late-Muon probes did not create a material gap. The fair synthetic job is running to check transfer cleanly across multiple small LLM tasks.
 
 ## Artifact Policy
 
-Keep compact summaries and plots under `experiments/results/`. Do not commit raw probe directories or Slurm logs under `experiments/runs/`.
+Commit compact summaries, plots, and scripts. Do not commit raw JSONL run directories or Slurm logs under `experiments/runs/`.

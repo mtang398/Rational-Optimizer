@@ -1,6 +1,6 @@
 # Activation
 
-This folder contains the rational activation implementation and CUDA extension. Optimizer policy does not live here; RLB modules expose the structure and statistics that optimizers use.
+This folder contains the rational activation implementation and CUDA extension. Optimizer policy does not live here; RLB modules expose the structure and statistics that the optimizer can use.
 
 ## Package
 
@@ -21,19 +21,9 @@ Import check:
 PYTHONPATH=activation .venv-cu128/bin/python -c "import rational_opt; print(rational_opt.__all__)"
 ```
 
-## A6000 Fallback
-
-The local compiled extension did not provide a usable A6000 kernel image during these runs. Training launchers therefore set:
-
-```text
-RATIONAL_OPT_TORCH_FALLBACK=1
-```
-
-That fallback keeps the same RLB math in PyTorch and is slower, so A6000 runs use `--batch-size 16 --grad-accum 2` to preserve the same global tokens per step without OOM.
-
 ## RLB FFN Target
 
-The current optimizer work targets the fused no-GLU Rational Local Basis FFN:
+The optimizer work targets the fused no-GLU Rational Local Basis FFN:
 
 ```text
 rlb_fused_fixed_strong_ffn        h = 3072
@@ -50,16 +40,16 @@ h_g = s_g R_g(u_g)
 y = h W_out
 ```
 
-This is not a GLU. There is no gate projection, no up branch, and no SiLU path inside the RLB layer.
+This is not a GLU. There is no gate projection, no up branch, and no SiLU path inside the RLB layer. The SiLU/SwiGLU baseline is a separate activation in the training harness.
 
-## Interface Used By The Optimizer
+## Interface Used By Optimizers
 
 | RLB item | optimizer use |
 | --- | --- |
 | `W_in` | matrix group for rational input-domain formation |
 | `W_out` | matrix group for rational feature composition |
 | group/layer metadata | layer-depth and matrix-role policy |
-| live stats | optional on-policy damping and diagnostics |
+| live stats | diagnostics and optional group-stat policy |
 | exact gauge | function-preserving post-step matrix rebalance |
 
 The exact positive group gauge is:
@@ -69,4 +59,14 @@ W_in,g  <- c W_in,g
 W_out,g <- W_out,g / c
 ```
 
-The current best optimizer uses MatrixPolicy AdamW plus short early Muon on RLB `W_in/W_out` matrices. Non-RLB weights and rational coefficients remain on AdamW.
+The current best optimizer uses MatrixPolicy AdamW plus short early Muon on RLB `W_in/W_out` matrices. Non-RLB weights and rational coefficients stay on AdamW by default.
+
+## A6000 Fallback
+
+Current A6000 launchers set:
+
+```text
+RATIONAL_OPT_TORCH_FALLBACK=1
+```
+
+That fallback uses the same RLB math in PyTorch and avoids relying on a CUDA image that may not be built for A6000.

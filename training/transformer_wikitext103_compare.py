@@ -4040,15 +4040,85 @@ def synthetic_arithmetic_text(index: int) -> str:
     return f"Task multiply-small: {a % 100} times {b % 100} equals {product}. Inputs came from {a} and {b}."
 
 
-def tokenize_synthetic_arithmetic(args, split, max_tokens, tokenizer, eos_id):
+def synthetic_code_text(index: int) -> str:
+    base = (index * 1103515245 + 12345) & 0x7FFFFFFF
+    x = base % 97
+    y = (base // 97) % 89
+    z = (3 * x + 2 * y + index) % 211
+    name = f"v{index % 17}"
+    mode = index % 5
+    if mode == 0:
+        return f"def f({name}, y):\n    total = {name} + {x}\n    total = total * {y % 7 + 2}\n    return total\n# f({y}, {z % 11}) -> {(y + x) * (y % 7 + 2)}"
+    if mode == 1:
+        values = [(x + k * (y % 5 + 1)) % 100 for k in range(5)]
+        return f"items = {values}\nacc = 0\nfor item in items:\n    acc += item\nprint(acc)  # {sum(values)}"
+    if mode == 2:
+        flag = (x + y) % 2 == 0
+        chosen = x if flag else y
+        return f"left = {x}\nright = {y}\nanswer = left if (left + right) % 2 == 0 else right\nanswer == {chosen}"
+    if mode == 3:
+        keys = [f"k{(index + j) % 9}" for j in range(3)]
+        vals = [(x + y + j * 13) % 50 for j in range(3)]
+        return f"data = {{{keys[0]!r}: {vals[0]}, {keys[1]!r}: {vals[1]}, {keys[2]!r}: {vals[2]}}}\nlookup = {keys[1]!r}\nvalue = data[lookup]  # {vals[1]}"
+    final = x + 6 if x % 2 == (x + 6) % 2 else x + 7
+    return f"while {name} < {x + 6}:\n    {name} += 2\n# start {x}, stop {x + 6}, final {final}"
+
+
+def synthetic_symbolic_text(index: int) -> str:
+    a = chr(ord("A") + index % 8)
+    b = chr(ord("A") + (index * 3 + 1) % 8)
+    c = chr(ord("A") + (index * 5 + 2) % 8)
+    n = index % 7 + 3
+    mode = index % 5
+    if mode == 0:
+        return f"Rewrite rule: ({a} -> {b}) and ({b} -> {c}). Query {a}. Result {c}."
+    if mode == 1:
+        seq = [((index + 2) * (k + 1) + n) % 19 for k in range(6)]
+        return f"Map every token by +{n}: input {seq[:4]} output {[value + n for value in seq[:4]]}."
+    if mode == 2:
+        bits = [(index >> k) & 1 for k in range(6)]
+        parity = sum(bits) % 2
+        return f"Boolean trace: bits {bits}; xor parity is {parity}; not parity is {1 - parity}."
+    if mode == 3:
+        opens = index % 4 + 1
+        token = "(" * opens + a + ")" * opens
+        return f"Bracket task: source {token}; depth {opens}; core token {a}."
+    left = [a, b, c, a]
+    right = list(reversed(left))
+    return f"Reverse-copy task: source {' '.join(left)}; target {' '.join(right)}."
+
+
+def synthetic_reasoning_text(index: int) -> str:
+    mode = index % 3
+    if mode == 0:
+        return synthetic_arithmetic_text(index)
+    if mode == 1:
+        return synthetic_code_text(index)
+    return synthetic_symbolic_text(index)
+
+
+def synthetic_text_for_dataset(dataset_name: str, index: int) -> str:
+    if dataset_name == "synthetic/arithmetic":
+        return synthetic_arithmetic_text(index)
+    if dataset_name == "synthetic/code":
+        return synthetic_code_text(index)
+    if dataset_name == "synthetic/symbolic":
+        return synthetic_symbolic_text(index)
+    if dataset_name == "synthetic/reasoning_mix":
+        return synthetic_reasoning_text(index)
+    allowed = "synthetic/arithmetic, synthetic/code, synthetic/symbolic, synthetic/reasoning_mix"
+    raise ValueError(f"unknown synthetic dataset {dataset_name!r}; expected one of: {allowed}")
+
+
+def tokenize_synthetic_text(args, split, max_tokens, tokenizer, eos_id):
     if max_tokens is None:
-        raise ValueError("synthetic/arithmetic requires max_tokens")
+        raise ValueError(f"{args.dataset_name} requires max_tokens")
     tokens = array("I")
     split_offset = {"train": 0, "validation": 50_000_000, "test": 75_000_000}.get(split, 90_000_000)
     index = 0
     while len(tokens) < max_tokens:
         texts = [
-            synthetic_arithmetic_text(split_offset + index + item)
+            synthetic_text_for_dataset(args.dataset_name, split_offset + index + item)
             for item in range(args.tokenize_batch_size)
         ]
         index += args.tokenize_batch_size
@@ -4075,8 +4145,8 @@ def load_or_tokenize(args, split, max_tokens):
     if eos_id is None:
         raise ValueError("tokenizer must define eos_token_id or pad_token_id")
 
-    if args.dataset_name == "synthetic/arithmetic":
-        tokens = tokenize_synthetic_arithmetic(args, split, max_tokens, tokenizer, eos_id)
+    if args.dataset_name.startswith("synthetic/"):
+        tokens = tokenize_synthetic_text(args, split, max_tokens, tokenizer, eos_id)
     else:
         dataset_config = args.dataset_config if args.dataset_config else None
         dataset = load_dataset(args.dataset_name, dataset_config, split=split, cache_dir=args.hf_cache)
@@ -5338,6 +5408,8 @@ def configure_optimizer(model, args):
                 adam_decay_end=args.rational_matrix_policy_adam_decay_end,
                 adam_decay_depth_shift=args.rational_matrix_policy_adam_decay_depth_shift,
                 adam_beta2_final=args.rational_matrix_policy_adam_beta2_final,
+                adam_beta2_input_final=args.rational_matrix_policy_adam_beta2_input_final,
+                adam_beta2_output_final=args.rational_matrix_policy_adam_beta2_output_final,
                 adam_beta2_decay_start=args.rational_matrix_policy_adam_beta2_decay_start,
                 adam_beta2_decay_end=args.rational_matrix_policy_adam_beta2_decay_end,
                 adam_beta2_decay_depth_shift=args.rational_matrix_policy_adam_beta2_decay_depth_shift,
@@ -5983,6 +6055,8 @@ def parse_args():
     parser.add_argument("--rational-matrix-policy-adam-decay-end", type=float, default=1.1)
     parser.add_argument("--rational-matrix-policy-adam-decay-depth-shift", type=float, default=0.0)
     parser.add_argument("--rational-matrix-policy-adam-beta2-final", type=float, default=None)
+    parser.add_argument("--rational-matrix-policy-adam-beta2-input-final", type=float, default=None)
+    parser.add_argument("--rational-matrix-policy-adam-beta2-output-final", type=float, default=None)
     parser.add_argument("--rational-matrix-policy-adam-beta2-decay-start", type=float, default=1.1)
     parser.add_argument("--rational-matrix-policy-adam-beta2-decay-end", type=float, default=1.1)
     parser.add_argument("--rational-matrix-policy-adam-beta2-decay-depth-shift", type=float, default=0.0)
@@ -6323,6 +6397,8 @@ def main():
         "rational_matrix_policy_adam_decay_end": args.rational_matrix_policy_adam_decay_end if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_decay_depth_shift": args.rational_matrix_policy_adam_decay_depth_shift if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_beta2_final": args.rational_matrix_policy_adam_beta2_final if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_adam_beta2_input_final": args.rational_matrix_policy_adam_beta2_input_final if args.optimizer == "rational_matrix_policy_onpolicy" else None,
+        "rational_matrix_policy_adam_beta2_output_final": args.rational_matrix_policy_adam_beta2_output_final if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_beta2_decay_start": args.rational_matrix_policy_adam_beta2_decay_start if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_beta2_decay_end": args.rational_matrix_policy_adam_beta2_decay_end if args.optimizer == "rational_matrix_policy_onpolicy" else None,
         "rational_matrix_policy_adam_beta2_decay_depth_shift": args.rational_matrix_policy_adam_beta2_decay_depth_shift if args.optimizer == "rational_matrix_policy_onpolicy" else None,
@@ -6628,7 +6704,9 @@ def main():
             if rank == 0:
                 write_jsonl(out_path, record)
 
-        should_eval = args.eval_interval > 0 and ((step + 1) % args.eval_interval == 0 or step + 1 == args.steps)
+        should_eval = args.eval_interval > 0 and (
+            step == 0 or (step + 1) % args.eval_interval == 0 or step + 1 == args.steps
+        )
         if should_eval:
             val_loss = evaluate(model, val_tokens, args, offsets, rank, world_size, device, is_distributed)
             record = {
