@@ -21,15 +21,15 @@ The global LR schedule, token budget, seed, batch shape, eval cadence, and model
 | task | purpose | current meaning |
 | --- | --- | --- |
 | WikiText-103 | main language-modeling benchmark | MatrixPolicy-Muon has the verified lead. |
-| synthetic/code | structured program-like patterns | current MatrixPolicy loses final loss. |
-| synthetic/symbolic | rewrite/parity/bracket/copy patterns | tiny deltas; not strong evidence. |
-| synthetic/reasoning_mix | mixed arithmetic/code/symbolic transfer | complete; tiny generic-RLB deltas, no MatrixPolicy win. |
+| synthetic/code | structured program-like patterns | RLB drops much faster early; final loss is saturated. |
+| synthetic/symbolic | rewrite/parity/bracket/copy patterns | MatrixPolicy is fastest early; final deltas are tiny. |
+| synthetic/reasoning_mix | mixed arithmetic/code/symbolic transfer | MatrixPolicy/group-stat lead early and mid curve; final deltas are tiny. |
 
 ## Low-Loss Warning
 
-The completed synthetic tasks are near saturation, so tiny final-loss/PPL differences are not strong evidence. At loss `0.04-0.15`, a `0.001` loss difference barely moves PPL and can be seed/order noise. Treat Symbolic as diagnostic, not a win. Code is more useful as a negative diagnostic because MatrixPolicy is consistently behind there, but even that should not be overclaimed from one seed. The meaningful target remains a much larger same-LR gap, or a harder task where final loss is not already near zero.
+The completed synthetic tasks are near saturation, so final-loss/PPL differences are not the main readout. The important signal is the curve: Code step 250 has MatrixPolicy group-stat at `0.1661` loss / `1.1807` PPL versus `SiLU/SwiGLU+AdamW` at `0.4895` / `1.6314`; Reasoning mix step 250 has MatrixPolicy at `0.3450` / `1.4120` versus `0.4127` / `1.5109`.
 
-For these saturated synthetic tasks, graphs and early curves matter more than tiny final PPL differences. A future task should be harder if we want a decisive final-loss gap.
+For these saturated synthetic tasks, graphs and early curves matter more than tiny final PPL differences. A future task should be harder if we want to test whether the early rational speed can become a decisive final-loss gap.
 
 ## Proposed Short Tasks
 

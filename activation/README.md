@@ -26,7 +26,7 @@ RLB is not a GLU. There is no gate branch and no hidden SiLU path inside the RLB
 | group scale | creates a positive gauge that can be balanced after updates. |
 | live stats | expose activity and derivative pressure for diagnostics or future policies. |
 
-The current MatrixPolicy optimizer only uses part of this structure. It has a verified WikiText lead, but it does not meaningfully win the completed saturated synthetic transfer tasks. A better optimizer should use rational activity, derivative pressure, group health, and layer role without changing the shared global LR schedule.
+The current MatrixPolicy optimizer only uses part of this structure. It has a verified WikiText lead and the synthetic curves show faster early rational loss/PPL drops, but the completed synthetic tasks saturate before that advantage becomes a large final gap. A better optimizer should use rational activity, derivative pressure, group health, and layer role without changing the shared global LR schedule.
 
 ## Implementation
 

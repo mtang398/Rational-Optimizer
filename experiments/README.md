@@ -18,6 +18,20 @@ Key figures:
 
 ![WikiText training loss from step 1](results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
 
+![Synthetic Code validation loss](results/synthetic_fair_full_2026_05_29/synthetic_code_validation_loss.png)
+
+![Synthetic Code validation PPL](results/synthetic_fair_full_2026_05_29/synthetic_code_validation_ppl.png)
+
+![Synthetic Symbolic validation loss](results/synthetic_fair_full_2026_05_29/synthetic_symbolic_validation_loss.png)
+
+![Synthetic Symbolic validation PPL](results/synthetic_fair_full_2026_05_29/synthetic_symbolic_validation_ppl.png)
+
+![Reasoning mix validation loss](results/synthetic_fair_full_2026_05_29/synthetic_reasoning_mix_validation_loss.png)
+
+![Reasoning mix validation PPL](results/synthetic_fair_full_2026_05_29/synthetic_reasoning_mix_validation_ppl.png)
+
+Secondary final-state plots:
+
 ![Synthetic fair final loss](results/synthetic_fair_full_2026_05_29/final_loss_by_task.png)
 
 ![Synthetic fair final PPL](results/synthetic_fair_full_2026_05_29/final_ppl_by_task.png)
@@ -37,17 +51,15 @@ Synthetic Code/Symbolic/Reasoning mix plots are committed under `experiments/res
 | SiLU/SwiGLU+Muon | 3.644921 | 38.28 | generic Muon control |
 | RLB+Muon | 3.657877 | 38.78 | generic Muon on RLB |
 
-## Synthetic Fair Result
+## Synthetic Fair Curve Result
 
-| task | best row | result | interpretation |
+| task | curve signal | strongest early gap vs `SiLU/SwiGLU+AdamW` | final readout |
 | --- | --- | --- | --- |
-| Code | SiLU/SwiGLU+AdamW | 0.088975 loss, 1.0931 PPL | saturated task; MatrixPolicy is worse at final loss. |
-| Symbolic | SiLU/SwiGLU+Muon | 0.038782 loss, 1.0395 PPL | tiny diagnostic delta. |
-| Reasoning mix | RLB+Muon | 0.144238 loss, 1.1552 PPL | tiny generic-RLB delta; no meaningful MatrixPolicy win. |
+| Code | RLB drops much faster, then the task saturates. | step 250 MatrixPolicy group-stat: `0.1661` loss / `1.1807` PPL vs `0.4895` / `1.6314`. | final SiLU+AdamW wins by a tiny floor-level margin. |
+| Symbolic | MatrixPolicy is fastest early, but all rows are near solved. | step 250 MatrixPolicy: `0.0487` / `1.0499` vs `0.0609` / `1.0628`. | final differences are too small to claim broad superiority. |
+| Reasoning mix | MatrixPolicy/group-stat lead the early and mid curve. | step 250 MatrixPolicy: `0.3450` / `1.4120` vs `0.4127` / `1.5109`. | final generic RLB+Muon is slightly best, but the curve signal is cleaner. |
 
-The completed synthetic tasks are near saturation, so tiny final-loss/PPL differences are not strong evidence. At loss `0.04-0.15`, a `0.001` loss difference barely moves PPL and can be seed/order noise. Treat Symbolic as diagnostic, not a win. Code is more useful as a negative diagnostic because MatrixPolicy is consistently behind there, but even that should not be overclaimed from one seed. The meaningful target remains a much larger same-LR gap, or a harder task where final loss is not already near zero.
-
-All synthetic rows are complete. The result is diagnostic, not a final research claim: the tasks are still low-loss and the deltas are too small.
+The completed synthetic tasks are near saturation, so final-loss/PPL differences are not the main readout. The main synthetic evidence is that rational rows reach the low-loss regime faster. Full curve diagnostics are in `results/synthetic_fair_full_2026_05_29/curve_diagnostics.md`.
 
 ## Proposed Short Task Queue
 
@@ -69,4 +81,4 @@ Do not treat a task as a meaningful optimizer benchmark if the best controls rea
 .venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
 ```
 
-The default summary combines Code/Symbolic from `experiments/runs/synthetic_fair_full_20260529/` with the clean Reasoning mix rerun from `experiments/runs/synthetic_fair_reasoning_mix_20260529/`. The committed artifact includes `summary.md`, `summary.csv`, `eval_curves.csv`, `train_curves.csv`, and loss/PPL PNGs for each task.
+The default summary combines Code/Symbolic from `experiments/runs/synthetic_fair_full_20260529/` with the clean Reasoning mix rerun from `experiments/runs/synthetic_fair_reasoning_mix_20260529/`. The committed artifact includes `summary.md`, `curve_diagnostics.md`, CSV curve diagnostics, raw curve CSVs, and loss/PPL PNGs for each task.

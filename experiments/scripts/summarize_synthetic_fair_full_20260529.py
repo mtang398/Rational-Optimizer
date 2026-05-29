@@ -171,6 +171,92 @@ def markdown_table(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def build_curve_diagnostics(eval_rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    by_key = {
+        (row["task"], row["method"], int(row["step"])): row
+        for row in eval_rows
+        if row["val_loss"] != "" and row["val_ppl"] != ""
+    }
+    curve_rows: list[dict] = []
+    for _, _, task_label in TASKS:
+        for step in (250, 500, 750):
+            baseline = by_key.get((task_label, "SiLU/SwiGLU+AdamW", step))
+            candidates = [
+                by_key[(task_label, method, step)]
+                for method, _, _ in METHODS
+                if (task_label, method, step) in by_key
+            ]
+            if baseline is None or not candidates:
+                continue
+            best = min(candidates, key=lambda row: float(row["val_loss"]))
+            curve_rows.append({
+                "task": task_label,
+                "step": step,
+                "best_method": best["method"],
+                "best_loss": best["val_loss"],
+                "best_ppl": best["val_ppl"],
+                "silu_adamw_loss": baseline["val_loss"],
+                "silu_adamw_ppl": baseline["val_ppl"],
+                "delta_loss_vs_silu_adamw": float(best["val_loss"]) - float(baseline["val_loss"]),
+                "delta_ppl_vs_silu_adamw": float(best["val_ppl"]) - float(baseline["val_ppl"]),
+            })
+
+    auc_rows: list[dict] = []
+    auc_steps = (250, 500, 750, 1000, 1250)
+    for _, _, task_label in TASKS:
+        for method, _, _ in METHODS:
+            points = []
+            for step in auc_steps:
+                row = by_key.get((task_label, method, step))
+                if row is not None:
+                    points.append((step, float(row["val_loss"])))
+            if len(points) != len(auc_steps):
+                continue
+            auc = sum(
+                (points[i + 1][0] - points[i][0]) * (points[i][1] + points[i + 1][1]) / 2
+                for i in range(len(points) - 1)
+            )
+            auc_rows.append({
+                "task": task_label,
+                "method": method,
+                "auc_loss_250_1250": auc,
+            })
+    auc_rows.sort(key=lambda row: (row["task"], float(row["auc_loss_250_1250"])))
+    return curve_rows, auc_rows
+
+
+def markdown_curve_table(rows: list[dict]) -> str:
+    headers = ["task", "step", "best curve row", "loss", "PPL", "delta loss vs SiLU+AdamW", "delta PPL"]
+    lines = ["| " + " | ".join(headers) + " |", "| --- | ---: | --- | ---: | ---: | ---: | ---: |"]
+    for row in rows:
+        lines.append(
+            "| "
+            + " | ".join([
+                row["task"],
+                str(row["step"]),
+                row["best_method"],
+                f"{float(row['best_loss']):.6f}",
+                f"{float(row['best_ppl']):.4f}",
+                f"{float(row['delta_loss_vs_silu_adamw']):+.6f}",
+                f"{float(row['delta_ppl_vs_silu_adamw']):+.4f}",
+            ])
+            + " |"
+        )
+    return "\n".join(lines)
+
+
+def markdown_auc_table(rows: list[dict]) -> str:
+    headers = ["task", "best AUC250 row", "AUC loss 250-1250"]
+    lines = ["| " + " | ".join(headers) + " |", "| --- | --- | ---: |"]
+    for _, _, task_label in TASKS:
+        task_rows = [row for row in rows if row["task"] == task_label]
+        if not task_rows:
+            continue
+        best = min(task_rows, key=lambda row: float(row["auc_loss_250_1250"]))
+        lines.append(f"| {task_label} | {best['method']} | {float(best['auc_loss_250_1250']):.2f} |")
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -296,6 +382,30 @@ def main() -> None:
     plot_final_bars(result_dir, summary_rows, "val_loss", "final validation loss", "final_loss_by_task.png")
     plot_final_bars(result_dir, summary_rows, "val_ppl", "final validation PPL", "final_ppl_by_task.png")
 
+    curve_diagnostic_rows, auc_rows = build_curve_diagnostics(eval_rows)
+    write_csv(
+        result_dir / "curve_diagnostics.csv",
+        curve_diagnostic_rows,
+        [
+            "task", "step", "best_method", "best_loss", "best_ppl", "silu_adamw_loss", "silu_adamw_ppl",
+            "delta_loss_vs_silu_adamw", "delta_ppl_vs_silu_adamw",
+        ],
+    )
+    write_csv(result_dir / "auc250_loss.csv", auc_rows, ["task", "method", "auc_loss_250_1250"])
+    curve_md = [
+        "# Synthetic Curve Diagnostics",
+        "",
+        "Final synthetic loss is close to the floor, so the main synthetic signal is curve speed.",
+        "The table below reports the best validation-loss row at early eval checkpoints against `SiLU/SwiGLU+AdamW`.",
+        "",
+        markdown_curve_table(curve_diagnostic_rows),
+        "",
+        "The AUC metric integrates validation loss from step 250 through 1250, excluding the random-init step 1 point.",
+        "",
+        markdown_auc_table(auc_rows),
+    ]
+    (result_dir / "curve_diagnostics.md").write_text("\n".join(curve_md) + "\n")
+
     complete_count = sum(1 for row in summary_rows if row["complete"])
     total_count = len(summary_rows)
     source_lines = [
@@ -306,6 +416,18 @@ def main() -> None:
         "# Synthetic Fair Full Rerun",
         "",
         f"Completed rows: {complete_count}/{total_count}",
+        "",
+        "## Curve Signal",
+        "",
+        "Final synthetic loss is close to the floor, so curve speed is the main synthetic readout.",
+        "",
+        markdown_curve_table(curve_diagnostic_rows),
+        "",
+        markdown_auc_table(auc_rows),
+        "",
+        "## Final Rows",
+        "",
+        "These final rows are secondary for the synthetic tasks because the losses are near the floor.",
         "",
         markdown_table(summary_rows),
         "",

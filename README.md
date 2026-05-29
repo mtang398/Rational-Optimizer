@@ -70,25 +70,37 @@ Best verified gap versus `SiLU/SwiGLU+AdamW beta2=0.999`: `0.0731` loss and `2.4
 
 ![Synthetic arithmetic validation PPL](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/synthetic_arithmetic_validation_ppl.png)
 
-The completed synthetic fair plots are now committed:
+The completed synthetic fair curves are the important synthetic plots. Final-loss bars are secondary because these tasks end near the loss floor.
 
-![Synthetic fair final loss](experiments/results/synthetic_fair_full_2026_05_29/final_loss_by_task.png)
+![Synthetic Code validation loss](experiments/results/synthetic_fair_full_2026_05_29/synthetic_code_validation_loss.png)
 
-![Synthetic fair final PPL](experiments/results/synthetic_fair_full_2026_05_29/final_ppl_by_task.png)
+![Synthetic Code validation PPL](experiments/results/synthetic_fair_full_2026_05_29/synthetic_code_validation_ppl.png)
+
+![Synthetic Symbolic validation loss](experiments/results/synthetic_fair_full_2026_05_29/synthetic_symbolic_validation_loss.png)
+
+![Synthetic Symbolic validation PPL](experiments/results/synthetic_fair_full_2026_05_29/synthetic_symbolic_validation_ppl.png)
 
 ![Reasoning mix validation loss](experiments/results/synthetic_fair_full_2026_05_29/synthetic_reasoning_mix_validation_loss.png)
 
 ![Reasoning mix validation PPL](experiments/results/synthetic_fair_full_2026_05_29/synthetic_reasoning_mix_validation_ppl.png)
 
-## Synthetic Transfer Status
+Secondary final-state plots:
 
-| task | best row | result | interpretation |
+![Synthetic fair final loss](experiments/results/synthetic_fair_full_2026_05_29/final_loss_by_task.png)
+
+![Synthetic fair final PPL](experiments/results/synthetic_fair_full_2026_05_29/final_ppl_by_task.png)
+
+## Synthetic Curve Status
+
+The synthetic evidence is curve speed, not the final row. The final losses are too close to the floor, so a tiny final PPL edge is less meaningful than how fast each optimizer gets into the low-loss regime.
+
+| task | curve signal | strongest early gap vs `SiLU/SwiGLU+AdamW` | final readout |
 | --- | --- | --- | --- |
-| Code | SiLU/SwiGLU+AdamW | 0.088975 loss, 1.0931 PPL | saturated task; MatrixPolicy is worse at final loss. |
-| Symbolic | SiLU/SwiGLU+Muon | 0.038782 loss, 1.0395 PPL | deltas are too small to claim a real win from one seed. |
-| Reasoning mix | RLB+Muon | 0.144238 loss, 1.1552 PPL | tiny generic-RLB win; MatrixPolicy does not win meaningfully. |
+| Code | RLB drops much faster, then the task saturates. | step 250: MatrixPolicy group-stat `0.1661` loss / `1.1807` PPL vs `0.4895` / `1.6314`; gap `-0.3234` loss and `-0.4507` PPL. | final winner is SiLU+AdamW by a tiny floor-level margin. |
+| Symbolic | MatrixPolicy is the fastest early row, but the task is almost solved by every method. | step 250: MatrixPolicy `0.0487` / `1.0499` vs `0.0609` / `1.0628`; gap `-0.0122` loss and `-0.0129` PPL. | final differences are too small to claim broad superiority. |
+| Reasoning mix | MatrixPolicy and group-stat lead the early/mid curve. | step 250: MatrixPolicy `0.3450` / `1.4120` vs `0.4127` / `1.5109`; gap `-0.0677` loss and `-0.0989` PPL. | final generic RLB+Muon is slightly best, but the curve win is the cleaner signal. |
 
-The completed synthetic tasks are near saturation, so tiny final-loss/PPL differences are not strong evidence. At loss `0.04-0.15`, a `0.001-0.002` loss difference barely moves PPL and can be seed/order noise. Treat Symbolic and Reasoning mix as diagnostics, not wins. Code is more useful as a negative diagnostic because MatrixPolicy is consistently behind there, but even that should not be overclaimed from one seed. The meaningful target remains a much larger same-LR gap, or a harder task where final loss is not already near zero.
+AUC from step 250 to 1250 also favors rational rows: Code best is `RLB+AdamW`, Symbolic best is `RLB MatrixPolicy`, and Reasoning mix best is `RLB MatrixPolicy group-stat`. Full curve diagnostics are in `experiments/results/synthetic_fair_full_2026_05_29/curve_diagnostics.md`.
 
 ## Next Short Tests
 
@@ -112,7 +124,7 @@ A proposed task should be rejected as a benchmark if `SiLU/SwiGLU+AdamW` reaches
 artifact: experiments/results/synthetic_fair_full_2026_05_29/
 ```
 
-The synthetic artifact contains CSV summaries and loss/PPL plots for Code, Symbolic, and Reasoning mix. Regenerate it with:
+The synthetic artifact contains CSV summaries, curve diagnostics, and loss/PPL plots for Code, Symbolic, and Reasoning mix. Regenerate it with:
 
 ```bash
 .venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
