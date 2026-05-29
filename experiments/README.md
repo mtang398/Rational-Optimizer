@@ -1,93 +1,77 @@
 # Experiments
 
-This folder contains Slurm launchers and compact result artifacts. Raw run folders and Slurm logs under `experiments/runs/` are local artifacts and should not be committed.
+This folder should tell the result story cleanly. Raw Slurm logs and JSONL runs stay under `experiments/runs/` and are not committed. Commit compact summaries, plots, scripts, and README updates.
 
-## Active Fair Rerun
+## Current Status
 
 ```text
-completed job: 937608, preempted after Code and Symbolic finished
-active job:    951127, Reasoning mix rerun with Requeue=1
-script:        experiments/scripts/run_synthetic_fair_full_20260529.sh
-job name:      synth-reason
-GPUs:          4x nvidia_rtx_a6000
-walltime:      24h
-run root:      experiments/runs/synthetic_fair_reasoning_mix_20260529/
-result root:   experiments/results/synthetic_fair_full_2026_05_29/
+WikiText-103:      MatrixPolicy-Muon verified as best current row
+synthetic/code:    complete, negative for MatrixPolicy final loss
+synthetic/symbolic: complete, tiny favorable signals for some RLB rows
+reasoning_mix:     rerunning from scratch as job 951127, Requeue=1
 ```
 
-| task | compared rows |
-| --- | --- |
-| `synthetic/code` | SiLU/SwiGLU+AdamW, RLB+AdamW, SiLU/SwiGLU+Muon, RLB+Muon, RLB MatrixPolicy, RLB MatrixPolicy group-stat |
-| `synthetic/symbolic` | same rows |
-| `synthetic/reasoning_mix` | same rows |
+The original fair synthetic job `937608` completed Code and Symbolic, then was preempted during Reasoning mix. The continuation job `951127` reruns Reasoning mix under fresh run names and archives partial row directories before rerun.
 
-The run is same-LR across all rows. The launcher now has `--requeue`, a `USR1` time-signal requeue trap, and restart-safe skip/archive handling for completed versus partial rows.
+## Main Result
 
-After completion:
+| row | final loss | final PPL | readout |
+| --- | ---: | ---: | --- |
+| RLB MatrixPolicy-Muon | 3.476232 | 32.34 | best verified row |
+| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 | older smooth policy |
+| SiLU/SwiGLU+AdamW beta2=0.999 | 3.549346 | 34.79 | strongest AdamW control |
+| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 | generic AdamW on RLB |
+| RLB+AdamW | 3.617501 | 37.24 | untuned generic AdamW |
+| SiLU/SwiGLU+AdamW | 3.621982 | 37.41 | original AdamW control |
+| SiLU/SwiGLU+Muon | 3.644921 | 38.28 | generic Muon control |
+| RLB+Muon | 3.657877 | 38.78 | generic Muon on RLB |
+
+The current verified result is a modest same-LR win, not a final large-gap win.
+
+## Synthetic Fair Readout So Far
+
+| task | best finished row so far | result | interpretation |
+| --- | --- | --- | --- |
+| Code | SiLU/SwiGLU+AdamW | 0.088975 loss, 1.0931 PPL | RLB and MatrixPolicy lose final loss on this task. |
+| Symbolic | SiLU/SwiGLU+Muon | 0.038782 loss, 1.0395 PPL | RLB generic optimizers and group-stat are close, but gains are tiny. |
+| Reasoning mix | pending rerun | job 951127 | No claim until all six rows finish from scratch. |
+
+Completed rows from the fair synthetic run:
+
+| task | method | loss | PPL | delta loss vs SiLU/SwiGLU+AdamW |
+| --- | --- | ---: | ---: | ---: |
+| Code | SiLU/SwiGLU+AdamW | 0.088975 | 1.0931 | +0.000000 |
+| Code | RLB+AdamW | 0.089657 | 1.0938 | +0.000682 |
+| Code | SiLU/SwiGLU+Muon | 0.092114 | 1.0965 | +0.003139 |
+| Code | RLB+Muon | 0.092613 | 1.0970 | +0.003638 |
+| Code | RLB MatrixPolicy | 0.097335 | 1.1022 | +0.008359 |
+| Code | RLB MatrixPolicy group-stat | 0.098191 | 1.1032 | +0.009216 |
+| Symbolic | SiLU/SwiGLU+AdamW | 0.040289 | 1.0411 | +0.000000 |
+| Symbolic | RLB+AdamW | 0.039067 | 1.0398 | -0.001222 |
+| Symbolic | SiLU/SwiGLU+Muon | 0.038782 | 1.0395 | -0.001507 |
+| Symbolic | RLB+Muon | 0.038812 | 1.0396 | -0.001477 |
+| Symbolic | RLB MatrixPolicy | 0.040503 | 1.0413 | +0.000214 |
+| Symbolic | RLB MatrixPolicy group-stat | 0.039030 | 1.0398 | -0.001259 |
+
+Interpretation: the current MatrixPolicy is not broadly winning on the finished synthetic tasks. That matters. The next design should explain why Code loses while Symbolic gets small gains.
+
+## Active Job
+
+```text
+job:       951127
+name:      synth-reason
+script:    experiments/scripts/run_synthetic_fair_full_20260529.sh
+run root:  experiments/runs/synthetic_fair_reasoning_mix_20260529/
+requeue:   enabled
+```
+
+Summarize after completion:
 
 ```bash
-.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
+.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py \
+  --run-root experiments/runs/synthetic_fair_reasoning_mix_20260529
 ```
-
-Expected compact outputs:
-
-```text
-summary.md
-summary.csv
-eval_curves.csv
-train_curves.csv
-synthetic_code_validation_loss.png
-synthetic_code_validation_ppl.png
-synthetic_code_training_loss.png
-synthetic_symbolic_validation_loss.png
-synthetic_symbolic_validation_ppl.png
-synthetic_symbolic_training_loss.png
-synthetic_reasoning_mix_validation_loss.png
-synthetic_reasoning_mix_validation_ppl.png
-synthetic_reasoning_mix_training_loss.png
-```
-
-## Verified WikiText Artifact
-
-```text
-experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
-```
-
-Important files:
-
-```text
-summary.md
-summary.csv
-summary.json
-probe_summary.csv
-synthetic_arithmetic_summary.csv
-same_lr_validation_loss.png
-same_lr_validation_ppl.png
-same_lr_training_loss_from_step1.png
-optimizer_probe_validation_loss.png
-optimizer_probe_validation_ppl.png
-synthetic_arithmetic_validation_loss.png
-synthetic_arithmetic_validation_ppl.png
-synthetic_arithmetic_training_loss_from_step1.png
-```
-
-## Verified WikiText Result
-
-| row | final loss | final PPL |
-| --- | ---: | ---: |
-| RLB MatrixPolicy-Muon | 3.476232 | 32.34 |
-| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 |
-| SiLU/SwiGLU+AdamW beta2=0.999 | 3.549346 | 34.79 |
-| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 |
-| RLB+AdamW | 3.617501 | 37.24 |
-| SiLU/SwiGLU+AdamW | 3.621982 | 37.41 |
-| SiLU/SwiGLU+Muon | 3.644921 | 38.28 |
-| RLB+Muon | 3.657877 | 38.78 |
-
-## Interpretation
-
-The current verified best is still `RLB MatrixPolicy-Muon`. Plain Muon is weaker than AdamW controls on the verified WikiText run, and the recent beta2-tail, coefficient, role-depth, and late-Muon probes did not create a material gap. The fair synthetic job is running to check transfer cleanly across multiple small LLM tasks.
 
 ## Artifact Policy
 
-Commit compact summaries, plots, and scripts. Do not commit raw JSONL run directories or Slurm logs under `experiments/runs/`.
+Do not stack new results on stale text. Rewrite the result story around the current best evidence, and keep exact configs in scripts or JSONL `config` records rather than large README dumps.

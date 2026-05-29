@@ -1,36 +1,8 @@
 # Activation
 
-This folder contains the rational activation implementation and CUDA extension. Optimizer policy does not live here; RLB modules expose the structure and statistics that the optimizer can use.
+This folder contains the rational activation implementation. The optimizer policy does not live here, but RLB is designed to expose structure that an optimizer can use.
 
-## Package
-
-```text
-activation/rational_opt/  Python package
-activation/csrc/          CUDA/C++ extension sources
-```
-
-Build from the repo root:
-
-```bash
-.venv-cu128/bin/python setup.py build_ext --inplace
-```
-
-Import check:
-
-```bash
-PYTHONPATH=activation .venv-cu128/bin/python -c "import rational_opt; print(rational_opt.__all__)"
-```
-
-## RLB FFN Target
-
-The optimizer work targets the fused no-GLU Rational Local Basis FFN:
-
-```text
-rlb_fused_fixed_strong_ffn        h = 3072
-rlb_fused_fixed_strong_h2880_ffn  h = 2880
-```
-
-RLB computes grouped rational features:
+## RLB In One Picture
 
 ```text
 v = x W_in
@@ -40,33 +12,36 @@ h_g = s_g R_g(u_g)
 y = h W_out
 ```
 
-This is not a GLU. There is no gate projection, no up branch, and no SiLU path inside the RLB layer. The SiLU/SwiGLU baseline is a separate activation in the training harness.
+RLB is not a GLU. There is no gate branch and no hidden SiLU path inside the RLB layer. The baseline SiLU/SwiGLU FFN is separate in the training harness.
 
-## Interface Used By Optimizers
+## Why The Activation Matters For Optimization
 
-| RLB item | optimizer use |
+| part | optimizer meaning |
 | --- | --- |
-| `W_in` | matrix group for rational input-domain formation |
-| `W_out` | matrix group for rational feature composition |
-| group/layer metadata | layer-depth and matrix-role policy |
-| live stats | diagnostics and optional group-stat policy |
-| exact gauge | function-preserving post-step matrix rebalance |
+| `W_in` | chooses the input domain seen by each rational group. |
+| rational basis | supplies learnable nonlinear shape inside that domain. |
+| `W_out` | recombines rational features back into the residual stream. |
+| group scale | creates a positive gauge that can be balanced after updates. |
+| live stats | expose activity and derivative pressure for diagnostics or future policies. |
 
-The exact positive group gauge is:
+The current MatrixPolicy optimizer only uses part of this structure. The larger research direction is to make the optimizer choose updates based on rational activity, derivative pressure, group health, and layer role.
+
+## Gauge Intuition
+
+For each group, RLB has an approximate function-preserving scale symmetry:
 
 ```text
 W_in,g  <- c W_in,g
 W_out,g <- W_out,g / c
 ```
 
-The current best optimizer uses MatrixPolicy AdamW plus short early Muon on RLB `W_in/W_out` matrices. Non-RLB weights and rational coefficients stay on AdamW by default.
+If this scale drifts freely, optimizer effort can go into changing parameterization instead of improving the represented function. Gauge balance is a post-step correction that keeps those scales controlled.
 
-## A6000 Fallback
-
-Current A6000 launchers set:
+## Implementation Notes
 
 ```text
-RATIONAL_OPT_TORCH_FALLBACK=1
+activation/rational_opt/  Python package
+activation/csrc/          CUDA/C++ extension sources
 ```
 
-That fallback uses the same RLB math in PyTorch and avoids relying on a CUDA image that may not be built for A6000.
+A6000 launchers currently set `RATIONAL_OPT_TORCH_FALLBACK=1`, using the PyTorch implementation of the same RLB math when the local compiled extension does not provide a usable A6000 image.

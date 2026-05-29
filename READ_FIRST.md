@@ -1,102 +1,71 @@
 # Read First
 
-This repo is about designing an RLB-specific optimizer. Do not claim wins from a different global LR schedule, and do not treat Jacobian or quotient optimizers as baselines.
+This repo is not trying to prove that a different LR schedule wins. It is trying to design an optimizer that uses the special structure of RLB and beats the real controls under the same base schedule.
 
-## Non-Negotiables
+## Claim Boundary
 
 ```text
-main controls:       SiLU/SwiGLU+AdamW, RLB+AdamW, SiLU/SwiGLU+Muon, RLB+Muon
-current optimizer:   rational_matrix_policy_onpolicy on rlb_fused_fixed_strong_ffn
-GPU type:            A6000 only
-normal allocation:   --gres=gpu:nvidia_rtx_a6000:4
-concurrency cap:     8 A6000s total
-raw run policy:      do not commit experiments/runs/ JSONL folders or Slurm logs
+verified current best: RLB MatrixPolicy-Muon on WikiText-103
+verified gap:         +0.0731 loss / +2.45 PPL over SiLU/SwiGLU+AdamW beta2=0.999
+requested target:     0.2-0.3 loss gap, not reached yet
+synthetic status:     Code and Symbolic complete, Reasoning mix rerunning as job 951127
 ```
 
-Check jobs before launching:
+Do not present Jacobian, quotient, or transport optimizers as baselines. They are ablations. The baseline is `SiLU/SwiGLU+AdamW`, plus generic optimizer controls on both SiLU/SwiGLU and RLB.
+
+## Method In One Paragraph
+
+MatrixPolicy treats RLB as a structured layer, not just another dense FFN. RLB has an input matrix that chooses rational domains, an output matrix that recombines rational features, and a positive scale gauge between them. The optimizer uses an early matrix-only Muon window for fast conditioning, then returns to role/depth-aware AdamW while gauge balance controls scale drift.
+
+## Results To Remember
+
+| row | final loss | final PPL | readout |
+| --- | ---: | ---: | --- |
+| RLB MatrixPolicy-Muon | 3.476232 | 32.34 | best verified row |
+| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 | older smooth policy |
+| SiLU/SwiGLU+AdamW beta2=0.999 | 3.549346 | 34.79 | strongest AdamW control |
+| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 | generic AdamW on RLB |
+| RLB+AdamW | 3.617501 | 37.24 | untuned generic AdamW |
+| SiLU/SwiGLU+AdamW | 3.621982 | 37.41 | original AdamW control |
+| SiLU/SwiGLU+Muon | 3.644921 | 38.28 | generic Muon control |
+| RLB+Muon | 3.657877 | 38.78 | generic Muon on RLB |
+
+Synthetic fair rerun so far:
+
+| task | best finished row so far | result | interpretation |
+| --- | --- | --- | --- |
+| Code | SiLU/SwiGLU+AdamW | 0.088975 loss, 1.0931 PPL | RLB and MatrixPolicy lose final loss on this task. |
+| Symbolic | SiLU/SwiGLU+Muon | 0.038782 loss, 1.0395 PPL | RLB generic optimizers and group-stat are close, but gains are tiny. |
+| Reasoning mix | pending rerun | job 951127 | No claim until all six rows finish from scratch. |
+
+The Code result is a warning: the current optimizer can learn fast early but still lose final loss. The Symbolic result is encouraging but tiny. Reasoning mix decides whether the pattern transfers across a more varied task.
+
+## Running Jobs
+
+Use A6000 only and keep total active allocation at or below 8 A6000s.
 
 ```bash
 squeue -u mt872
 ```
 
-## Active Fair Rerun
-
-The clean synthetic rerun started as Slurm job `937608` on May 29, 2026. That job was preempted after Code and Symbolic finished. The Reasoning mix continuation is job `951127` with `Requeue=1`.
+Current continuation:
 
 ```text
-script:       experiments/scripts/run_synthetic_fair_full_20260529.sh
-job name:     synth-reason
-walltime:     24h
-GPUs:         4x nvidia_rtx_a6000
-requeue:      enabled
-output root:  experiments/runs/synthetic_fair_reasoning_mix_20260529/
+job:      951127
+name:     synth-reason
+GPUs:     4x nvidia_rtx_a6000
+requeue:  enabled
 ```
 
-It reruns every synthetic task from scratch with the same LR settings across all rows. Old partial synthetic outputs are superseded.
+The launcher is restart-safe at row granularity: completed rows are skipped, incomplete run directories are archived before rerun, and the job asks Slurm to requeue on the pre-timeout signal.
 
-## Current Optimizer Defaults
+## After Reasoning Mix Finishes
 
-```text
-optimizer                                           rational_matrix_policy_onpolicy
-activation                                          rlb_fused_fixed_strong_ffn
-base_lr                                             3e-4
-min_lr                                              3e-5
-warmup_steps                                        200
-global_schedule                                     shared warmup/cosine for every compared row
-backbone_optimizer                                  AdamW
-backbone_beta2                                      0.999
-matrix_policy_beta2                                 0.999
-matrix_policy_adam_lr_scale                         3.00
-matrix_policy_adam_lr_scale_final                   null
-matrix_policy_adam_role_strength                    1.20
-matrix_policy_adam_min_lr_scale                     0.40
-matrix_policy_adam_max_lr_scale                     4.00
-matrix_policy_input_depth_gain                     -0.50
-matrix_policy_output_depth_gain                     1.00
-matrix_policy_muon_strength                         0.75
-matrix_policy_muon_lr_scale                         1.00
-matrix_policy_start                                 0.02
-matrix_policy_end                                   0.12
-matrix_policy_decay_start                           0.20
-matrix_policy_decay_end                             0.36
-matrix_policy_final_muon                            0.00
-matrix_policy_muon_reset_adam_state                 false
-matrix_policy_function_coeff                        false
-matrix_policy_group_gain_strength                   0.00
-matrix_policy_group_pressure_strength               0.00
-matrix_policy_group_activity_damping                0.00
-role_specific_beta2_finals                          null by default
-transport_strength                                  0.00
-adaptive_coeff_strength                             0.00
-rlb_gauge_strength                                  0.50
-rlb_gauge_start                                     0.03
-rlb_gauge_end                                       0.35
-rlb_gauge_every                                     5
-```
-
-The global warmup/cosine schedule is shared across rows. MatrixPolicy is not a global LR scheduler; it changes the per-role update rule on RLB matrices.
-
-## Verified WikiText Result
-
-| row | final loss | final PPL |
-| --- | ---: | ---: |
-| RLB MatrixPolicy-Muon | 3.476232 | 32.34 |
-| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 |
-| SiLU/SwiGLU+AdamW beta2=0.999 | 3.549346 | 34.79 |
-| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 |
-| RLB+AdamW | 3.617501 | 37.24 |
-| SiLU/SwiGLU+AdamW | 3.621982 | 37.41 |
-| SiLU/SwiGLU+Muon | 3.644921 | 38.28 |
-| RLB+Muon | 3.657877 | 38.78 |
-
-The current verified gap versus `SiLU/SwiGLU+AdamW beta2=0.999` is `0.0731` loss and `2.45` PPL. That is a real result, but it is not the final target.
-
-## After The Fair Job Finishes
-
-Run:
+Run the summarizer, inspect the compact table and plots, then rewrite the docs around the actual result. Do not stack a new section on top of stale claims.
 
 ```bash
-.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
+.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py \
+  --run-root experiments/runs/synthetic_fair_reasoning_mix_20260529
 ```
 
-Then update all README files and the compact result artifact. Keep raw JSONL and Slurm logs uncommitted.
+Keep raw `experiments/runs/` logs out of git.

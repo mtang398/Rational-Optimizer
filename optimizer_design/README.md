@@ -1,132 +1,89 @@
 # Optimizer Design
 
-This folder contains optimizer components for the no-GLU RLB FFN. The active research question is whether an optimizer that uses RLB structure can beat SiLU/SwiGLU+AdamW and RLB+AdamW under the same global LR schedule.
+This folder contains optimizer components for rational activations. The important file right now is `matrix_policy_optimizer.py`, which implements `RationalMatrixPolicyOptimizer` for RLB `W_in` and `W_out` matrices.
 
-## Active Optimizer
+## Why RLB Needs A Different Optimizer
 
-```text
-training name:  rational_matrix_policy_onpolicy
-implementation: RationalMatrixPolicyOptimizer
-activation:     rlb_fused_fixed_strong_ffn
-```
-
-The optimizer separates RLB matrices from the ordinary backbone. Non-RLB weights use AdamW. RLB `W_in` and `W_out` matrices use MatrixPolicy AdamW plus a short early Muon phase on those same matrices. The outer wrapper then applies exact RLB gauge balance.
-
-## Exact Defaults
+A normal SiLU/SwiGLU FFN hides most of its useful structure inside a smooth pointwise nonlinearity and dense matrices. RLB exposes more structure:
 
 ```text
-optimizer                                           rational_matrix_policy_onpolicy
-activation                                          rlb_fused_fixed_strong_ffn
-base_lr                                             3e-4
-min_lr                                              3e-5
-warmup_steps                                        200
-global_schedule                                     shared warmup/cosine for every compared row
-backbone_optimizer                                  AdamW
-backbone_beta2                                      0.999
-matrix_policy_beta2                                 0.999
-matrix_policy_adam_lr_scale                         3.00
-matrix_policy_adam_lr_scale_final                   null
-matrix_policy_adam_role_strength                    1.20
-matrix_policy_adam_min_lr_scale                     0.40
-matrix_policy_adam_max_lr_scale                     4.00
-matrix_policy_input_depth_gain                     -0.50
-matrix_policy_output_depth_gain                     1.00
-matrix_policy_muon_strength                         0.75
-matrix_policy_muon_lr_scale                         1.00
-matrix_policy_start                                 0.02
-matrix_policy_end                                   0.12
-matrix_policy_decay_start                           0.20
-matrix_policy_decay_end                             0.36
-matrix_policy_final_muon                            0.00
-matrix_policy_muon_reset_adam_state                 false
-matrix_policy_function_coeff                        false
-matrix_policy_group_gain_strength                   0.00
-matrix_policy_group_pressure_strength               0.00
-matrix_policy_group_activity_damping                0.00
-role_specific_beta2_finals                          null by default
-transport_strength                                  0.00
-adaptive_coeff_strength                             0.00
-rlb_gauge_strength                                  0.50
-rlb_gauge_start                                     0.03
-rlb_gauge_end                                       0.35
-rlb_gauge_every                                     5
+v = x W_in
+s_g = sqrt(mean(v_g^2) + eps)
+u_g = v_g / s_g
+h_g = s_g R_g(u_g)
+y = h W_out
 ```
 
-Role-specific beta2 finals are implemented for experiments, but default to `null`; the last role-beta2 probe was not an improvement.
+That gives the optimizer three handles:
 
-## Why It Is RLB-Specific
-
-RLB has a positive gauge:
-
-```text
-W_in,g  <- c W_in,g
-W_out,g <- W_out,g / c
-```
-
-The function can stay almost unchanged while the matrix conditioning changes. The optimizer uses that structure in three places:
-
-| RLB structure | optimizer use |
+| handle | meaning |
 | --- | --- |
-| `W_in` | controls rational input domains and derivative exposure |
-| `W_out` | controls rational feature composition back into the stream |
-| layer depth | later `W_out` receives more matrix-policy pressure, later `W_in` receives less |
-| group stats | optional on-policy diagnostics and exploratory gradient scaling |
-| gauge balance | exact post-step rebalance to keep basis scales controlled |
+| rational domain | `W_in` decides where each group samples the rational basis. |
+| feature recombination | `W_out` decides how rational features return to the model stream. |
+| positive gauge | `W_in,g <- c W_in,g`, `W_out,g <- W_out,g / c` mostly preserves function while changing conditioning. |
 
-For an RLB matrix at normalized depth `d`:
+MatrixPolicy exists because these handles are not present in the same way for SiLU/SwiGLU.
 
-```text
-role_factor = clamp(1 + gain(role) * (d - 0.5), 0.55, 1.40)
-gain(in)    = -0.50
-gain(out)   =  1.00
-adam_lr     = global_lr * clamp(3.00 * (1 + 1.20 * (role_factor - 1)), 0.40, 4.00)
-```
+## Current MatrixPolicy
 
-Muon is only an early matrix-local switch:
+1. RLB creates explicit rational feature groups instead of a GLU gate.
+2. `W_in` controls which input range each rational basis sees; `W_out` controls how those basis features are recombined.
+3. Those two matrices have different jobs, so the optimizer should not treat them like ordinary dense FFN matrices.
+4. MatrixPolicy uses a short early Muon phase only on RLB matrices, then returns those matrices to role/depth-aware AdamW.
+5. Exact gauge balance keeps per-group basis scale from drifting while preserving the represented function as much as possible.
 
 ```text
-on_phase      = smoothstep(0.02, 0.12, progress)
-off_phase     = smoothstep(0.20, 0.36, progress)
-muon_fraction = clamp(0.75 * on_phase * (1 - off_phase) * role_factor * stat_factor, 0.0, 0.75)
+activation:      rlb_fused_fixed_strong_ffn
+optimizer:       rational_matrix_policy_onpolicy
+base schedule:   same 3e-4 -> 3e-5 warmup/cosine schedule as controls
+backbone:        AdamW
+RLB matrices:    MatrixPolicy AdamW plus early matrix-only Muon
+coefficients:    AdamW by default
+gauge balance:   enabled
 ```
 
-For a 3051-step run, that means Muon ramps in around steps 61-366 and fades out around steps 610-1098. It is not left on late.
+Exact flags live in `experiments/scripts/run_synthetic_fair_full_20260529.sh` and each run's JSONL `config` event.
 
-## Verified Result
+The important point is not the exact scalar values. The important point is the structure of the update: matrix-local, role-aware, depth-aware, early-switching, and gauge-balanced.
 
-| row | final loss | final PPL |
-| --- | ---: | ---: |
-| RLB MatrixPolicy-Muon | 3.476232 | 32.34 |
-| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 |
-| SiLU/SwiGLU+AdamW beta2=0.999 | 3.549346 | 34.79 |
-| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 |
-| RLB+AdamW | 3.617501 | 37.24 |
-| SiLU/SwiGLU+AdamW | 3.621982 | 37.41 |
-| SiLU/SwiGLU+Muon | 3.644921 | 38.28 |
-| RLB+Muon | 3.657877 | 38.78 |
+## Why The Early Switch Exists
 
-## Recent Design Lessons
+Early training benefits from a more geometry-aware matrix step. Muon helps there. Late training needs stable adaptive moments and should not keep the Muon pressure on. The current policy therefore uses Muon only as an early RLB-matrix component and then lets MatrixPolicy AdamW dominate.
 
-What is still useful:
+This is different from testing `RLB+Muon`, which applies generic Muon as the optimizer. That generic control was worse on WikiText.
 
-```text
-short early Muon only on RLB matrices
-role/depth asymmetry between W_in and W_out
-MatrixPolicy AdamW after the early switch
-beta2=0.999 on MatrixPolicy and backbone AdamW
-keeping Adam state through the Muon switch
-exact post-step RLB gauge balance
-```
+## Results That Matter
 
-What did not widen the gap in probes:
+| row | final loss | final PPL | readout |
+| --- | ---: | ---: | --- |
+| RLB MatrixPolicy-Muon | 3.476232 | 32.34 | best verified row |
+| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 | older smooth policy |
+| SiLU/SwiGLU+AdamW beta2=0.999 | 3.549346 | 34.79 | strongest AdamW control |
+| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 | generic AdamW on RLB |
+| RLB+AdamW | 3.617501 | 37.24 | untuned generic AdamW |
+| SiLU/SwiGLU+AdamW | 3.621982 | 37.41 | original AdamW control |
+| SiLU/SwiGLU+Muon | 3.644921 | 38.28 | generic Muon control |
+| RLB+Muon | 3.657877 | 38.78 | generic Muon on RLB |
 
-```text
-plain full-model Muon as the main optimizer
-late Muon tails
-lowering beta2 late from 0.999 to 0.995
-function-space coefficient optimizer variants
-role-beta2 asymmetry
-stronger or weaker role/depth scaling than the current default
-```
+The verified gain is real but modest. A method that only improves by `0.0731` loss is not enough for the final research goal, but it shows that structure-aware optimization is not a dead end.
 
-The fair rerun adds one exploratory `group-stat` MatrixPolicy row. That row is rational-specific, but it is not a claimed improvement until the complete same-budget run finishes.
+## Design Lessons
+
+| helped | reason |
+| --- | --- |
+| short early Muon on RLB matrices | improves early matrix conditioning without harming late stability as much as full Muon. |
+| different treatment for `W_in` and `W_out` | matches their different roles in rational domain selection and feature composition. |
+| depth-dependent matrix pressure | later layers appear to prefer different matrix update pressure than early layers. |
+| gauge balance | keeps group scales from absorbing optimizer effort. |
+
+| did not help enough | readout |
+| --- | --- |
+| late Muon tails | worse probes. |
+| role beta2 asymmetry | no material gain. |
+| coefficient function-space updates | worse early signal. |
+| larger or smaller role-depth strength | worse than current default. |
+| global LR schedule tweaks | outside the claim unless the same change is applied to controls. |
+
+## Open Direction
+
+The next optimizer improvement should use live RLB information more selectively: group activity, derivative pressure, numerator/denominator risk, and layer role. It should first beat the same-LR controls on final loss, then be tested across LR only after the same-LR gap is large enough.
