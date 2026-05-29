@@ -46,6 +46,12 @@ for each optimizer step:
 
 The current method is promising because it wins on WikiText under the same LR schedule, but the margin is still too small for the final goal.
 
+## Benchmark Targets
+
+The next short benchmarks should test rational optimizer behavior without saturating. Good candidates are `synthetic/rule_chain_hard`, `synthetic/key_value_recall`, `synthetic/carry_arithmetic`, `synthetic/stack_brackets`, and `synthetic/noisy_copy_transform`.
+
+The acceptance rule is simple: if a generic control reaches loss `<0.1` at the target budget, the task is too easy to support an optimizer claim. MatrixPolicy needs tests where the final loss scale leaves room for a real `0.2-0.3` gap, or at least enough headroom that PPL differences are not compressed to noise.
+
 ## Current Research Problem
 
-The finished synthetic rows show a real problem: the current method is not broadly robust. It loses final loss on Code and only has tiny diagnostic advantages on Symbolic. The next optimizer should explain and fix that, likely by using live rational group information more selectively rather than adding another global schedule.
+The finished synthetic rows show a real problem: the current method is not broadly robust. It loses final loss on Code, does not meaningfully win Reasoning mix, and only has tiny diagnostic advantages on Symbolic. The next optimizer should explain and fix that, likely by using live rational group information more selectively rather than adding another global schedule.

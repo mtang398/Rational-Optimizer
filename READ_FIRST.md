@@ -8,7 +8,7 @@ This repo is an optimizer research repo. The README should read like a compact r
 verified current best: RLB MatrixPolicy-Muon on WikiText-103
 verified gap:         +0.0731 loss / +2.45 PPL over SiLU/SwiGLU+AdamW beta2=0.999
 requested target:     0.2-0.3 loss gap, not reached yet
-synthetic status:     Code and Symbolic complete, Reasoning mix running as job 951127
+synthetic status:     Code, Symbolic, and Reasoning mix complete
 ```
 
 Do not present Jacobian or quotient optimizers as baselines. The important controls are generic AdamW and Muon on both SiLU/SwiGLU and RLB.
@@ -47,13 +47,13 @@ for each optimizer step:
 
 Synthetic status:
 
-| task | best finished row so far | result | interpretation |
+| task | best row | result | interpretation |
 | --- | --- | --- | --- |
 | Code | SiLU/SwiGLU+AdamW | 0.088975 loss, 1.0931 PPL | saturated task; MatrixPolicy is worse at final loss. |
-| Symbolic | SiLU/SwiGLU+Muon | 0.038782 loss, 1.0395 PPL | deltas are too small to claim a real win from one seed. |
-| Reasoning mix | pending rerun | job 951127 | SiLU+AdamW complete, remaining rows still running. |
+| Symbolic | SiLU/SwiGLU+Muon | 0.038782 loss, 1.0395 PPL | tiny diagnostic delta; not strong evidence. |
+| Reasoning mix | RLB+Muon | 0.144238 loss, 1.1552 PPL | tiny generic-RLB delta; MatrixPolicy has no meaningful win. |
 
-The completed synthetic tasks are near saturation, so tiny final-loss/PPL differences are not strong evidence. At loss `0.04-0.09`, a `0.001` loss difference barely moves PPL and can be seed/order noise. Treat Symbolic as diagnostic, not a win. Code is more useful as a negative diagnostic because MatrixPolicy is consistently behind there, but even that should not be overclaimed from one seed. The meaningful target remains a much larger same-LR gap, or a harder task where final loss is not already near zero.
+The completed synthetic tasks are near saturation, so tiny final-loss/PPL differences are not strong evidence. At loss `0.04-0.15`, a `0.001-0.002` loss difference barely moves PPL and can be seed/order noise. Treat Symbolic and Reasoning mix as diagnostics, not wins. Code is more useful as a negative diagnostic because MatrixPolicy is consistently behind there, but even that should not be overclaimed from one seed. The meaningful target remains a much larger same-LR gap, or a harder task where final loss is not already near zero.
 
 ## Plots
 
@@ -63,7 +63,23 @@ The top-level README links the verified WikiText and arithmetic plots under:
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
 ```
 
-Synthetic Code/Symbolic/Reasoning mix plots should be generated only after Reasoning mix finishes, so the graph set is not mixing complete and partial rows.
+Synthetic Code/Symbolic/Reasoning mix plots are in:
+
+```text
+experiments/results/synthetic_fair_full_2026_05_29/
+```
+
+That artifact includes final loss/PPL bar charts, validation loss/PPL curves, training loss curves, and CSV/Markdown summaries. Regenerate it with:
+
+```bash
+.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
+```
+
+## Next Task Standard
+
+Use short tasks only if they are not saturated. The target control loss should stay around `0.25-1.0` at 1250 steps. If a task falls below loss `0.1`, it is a smoke test, not evidence of optimizer superiority.
+
+Next candidates: `synthetic/rule_chain_hard`, `synthetic/key_value_recall`, `synthetic/carry_arithmetic`, `synthetic/stack_brackets`, and `synthetic/noisy_copy_transform`.
 
 ## Running Jobs
 
@@ -73,13 +89,6 @@ Use A6000 only and keep total active allocation at or below 8 A6000s.
 squeue -u mt872
 ```
 
-Current continuation:
-
-```text
-job:      951127
-name:     synth-reason
-GPUs:     4x nvidia_rtx_a6000
-requeue:  enabled
-```
+Latest continuation `951127` completed successfully with `Requeue=1`.
 
 The launcher is restart-safe at row granularity: completed rows are skipped, incomplete run directories are archived before rerun, and the job asks Slurm to requeue on the pre-timeout signal.

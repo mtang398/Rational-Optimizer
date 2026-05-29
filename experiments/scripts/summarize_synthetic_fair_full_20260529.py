@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Summarize the May 29 synthetic fair rerun.
 
-This parser expects the layout produced by
-experiments/scripts/run_synthetic_fair_full_20260529.sh and writes compact
+The final artifact combines two clean Slurm runs:
+
+* Code and Symbolic from experiments/runs/synthetic_fair_full_20260529
+* Reasoning mix from experiments/runs/synthetic_fair_reasoning_mix_20260529
+
+Raw JSONL files stay under experiments/runs/. This script writes compact
 CSV/Markdown/PNG artifacts under experiments/results/.
 """
 
@@ -29,6 +33,15 @@ METHODS = [
     ("RLB MatrixPolicy group-stat", "matrix_policy_groupstat", "rlb_fused_fixed_strong_ffn"),
 ]
 
+DEFAULT_TASK_LAYOUT = {
+    "synthetic_code": ("experiments/runs/synthetic_fair_full_20260529", "20260529_fair_full"),
+    "synthetic_symbolic": ("experiments/runs/synthetic_fair_full_20260529", "20260529_fair_full"),
+    "synthetic_reasoning_mix": (
+        "experiments/runs/synthetic_fair_reasoning_mix_20260529",
+        "20260529_reasoning_rerun",
+    ),
+}
+
 
 def read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
@@ -50,7 +63,7 @@ def last_event(rows: list[dict], event: str) -> dict | None:
 def write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -104,6 +117,49 @@ def plot_curves(result_dir: Path, curve_rows: list[dict], y_key: str, ylabel: st
         plt.close(fig)
 
 
+def plot_final_bars(result_dir: Path, summary_rows: list[dict], y_key: str, ylabel: str, filename: str) -> None:
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except Exception as exc:  # pragma: no cover - plotting is optional on headless nodes.
+        print(f"Skipping final bar plot because matplotlib/numpy is unavailable: {exc}")
+        return
+
+    task_labels = [task_label for _, _, task_label in TASKS]
+    method_labels = [method for method, _, _ in METHODS]
+    values_by_method = []
+    for method in method_labels:
+        values = []
+        for task_label in task_labels:
+            row = next(
+                (
+                    item for item in summary_rows
+                    if item["task"] == task_label and item["method"] == method and item[y_key] != ""
+                ),
+                None,
+            )
+            values.append(float(row[y_key]) if row else np.nan)
+        values_by_method.append(values)
+
+    x = np.arange(len(task_labels))
+    width = 0.12
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    colors = ["#2b6cb0", "#2f855a", "#805ad5", "#b7791f", "#c53030", "#1a202c"]
+    offsets = (np.arange(len(method_labels)) - (len(method_labels) - 1) / 2) * width
+    for method, values, offset, color in zip(method_labels, values_by_method, offsets, colors):
+        ax.bar(x + offset, values, width, label=method, color=color)
+
+    ax.set_title("Synthetic fair rerun final validation metrics")
+    ax.set_ylabel(ylabel)
+    ax.set_xticks(x)
+    ax.set_xticklabels(task_labels)
+    ax.grid(axis="y", alpha=0.25)
+    ax.legend(fontsize=8, ncols=2)
+    fig.tight_layout()
+    fig.savefig(result_dir / filename, dpi=160)
+    plt.close(fig)
+
+
 def markdown_table(rows: list[dict]) -> str:
     headers = ["task", "method", "step", "loss", "PPL", "delta loss vs SiLU+AdamW"]
     lines = ["| " + " | ".join(headers) + " |", "| --- | --- | ---: | ---: | ---: | ---: |"]
@@ -117,12 +173,46 @@ def markdown_table(rows: list[dict]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--run-root", default="experiments/runs/synthetic_fair_full_20260529")
-    parser.add_argument("--suffix", default="20260529_fair_full")
+    parser.add_argument(
+        "--run-root",
+        default=None,
+        help="Use one run root for every task. Must be supplied together with --suffix.",
+    )
+    parser.add_argument(
+        "--suffix",
+        default=None,
+        help="Use one run suffix for every task. Must be supplied together with --run-root.",
+    )
+    parser.add_argument(
+        "--task-source",
+        action="append",
+        default=[],
+        metavar="TASK_SAFE,RUN_ROOT,SUFFIX",
+        help=(
+            "Override one task source. TASK_SAFE is synthetic_code, synthetic_symbolic, "
+            "or synthetic_reasoning_mix. Can be repeated."
+        ),
+    )
     parser.add_argument("--result-dir", default="experiments/results/synthetic_fair_full_2026_05_29")
     args = parser.parse_args()
 
-    run_root = Path(args.run_root)
+    if (args.run_root is None) != (args.suffix is None):
+        parser.error("--run-root and --suffix must be supplied together")
+
+    if args.run_root is not None:
+        task_layout = {safe_name: (args.run_root, args.suffix) for _, safe_name, _ in TASKS}
+    else:
+        task_layout = dict(DEFAULT_TASK_LAYOUT)
+
+    for item in args.task_source:
+        try:
+            safe_name, run_root, suffix = item.split(",", 2)
+        except ValueError as exc:
+            raise SystemExit("--task-source must have the form TASK_SAFE,RUN_ROOT,SUFFIX") from exc
+        if safe_name not in task_layout:
+            raise SystemExit(f"unknown task safe name for --task-source: {safe_name}")
+        task_layout[safe_name] = (run_root, suffix)
+
     result_dir = Path(args.result_dir)
     result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -131,10 +221,12 @@ def main() -> None:
     train_rows: list[dict] = []
 
     for dataset_name, safe_name, task_label in TASKS:
+        task_run_root, task_suffix = task_layout[safe_name]
+        run_root = Path(task_run_root)
         baselines: dict[str, float] = {}
         task_rows: list[dict] = []
         for method, run_tag, activation in METHODS:
-            run_name = f"{safe_name}_{run_tag}_{args.suffix}"
+            run_name = f"{safe_name}_{run_tag}_{task_suffix}"
             path = run_root / safe_name / run_name / f"{activation}.jsonl"
             records = read_jsonl(path)
             config = last_event(records, "config") or {}
@@ -201,9 +293,15 @@ def main() -> None:
     plot_curves(result_dir, eval_rows, "val_loss", "validation loss", "validation_loss")
     plot_curves(result_dir, eval_rows, "val_ppl", "validation PPL", "validation_ppl")
     plot_curves(result_dir, train_rows, "loss", "training loss", "training_loss")
+    plot_final_bars(result_dir, summary_rows, "val_loss", "final validation loss", "final_loss_by_task.png")
+    plot_final_bars(result_dir, summary_rows, "val_ppl", "final validation PPL", "final_ppl_by_task.png")
 
     complete_count = sum(1 for row in summary_rows if row["complete"])
     total_count = len(summary_rows)
+    source_lines = [
+        f"* `{safe_name}`: `{task_layout[safe_name][0]}`, suffix `{task_layout[safe_name][1]}`"
+        for _, safe_name, _ in TASKS
+    ]
     summary_md = [
         "# Synthetic Fair Full Rerun",
         "",
@@ -211,7 +309,11 @@ def main() -> None:
         "",
         markdown_table(summary_rows),
         "",
-        "Generated from `experiments/scripts/run_synthetic_fair_full_20260529.sh`.",
+        "Sources:",
+        "",
+        *source_lines,
+        "",
+        "Generated by `experiments/scripts/summarize_synthetic_fair_full_20260529.py`.",
         "Raw JSONL files stay under `experiments/runs/` and are not committed.",
     ]
     (result_dir / "summary.md").write_text("\n".join(summary_md) + "\n")

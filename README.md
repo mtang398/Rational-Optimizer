@@ -70,37 +70,55 @@ Best verified gap versus `SiLU/SwiGLU+AdamW beta2=0.999`: `0.0731` loss and `2.4
 
 ![Synthetic arithmetic validation PPL](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/synthetic_arithmetic_validation_ppl.png)
 
-The synthetic code/symbolic/reasoning_mix graphs are not committed yet because Reasoning mix is still running. Once all six Reasoning mix rows finish, the next update should regenerate and commit the compact synthetic plots rather than mixing complete rows with partial rows.
+The completed synthetic fair plots are now committed:
+
+![Synthetic fair final loss](experiments/results/synthetic_fair_full_2026_05_29/final_loss_by_task.png)
+
+![Synthetic fair final PPL](experiments/results/synthetic_fair_full_2026_05_29/final_ppl_by_task.png)
+
+![Reasoning mix validation loss](experiments/results/synthetic_fair_full_2026_05_29/synthetic_reasoning_mix_validation_loss.png)
+
+![Reasoning mix validation PPL](experiments/results/synthetic_fair_full_2026_05_29/synthetic_reasoning_mix_validation_ppl.png)
 
 ## Synthetic Transfer Status
 
-| task | best finished row so far | result | interpretation |
+| task | best row | result | interpretation |
 | --- | --- | --- | --- |
 | Code | SiLU/SwiGLU+AdamW | 0.088975 loss, 1.0931 PPL | saturated task; MatrixPolicy is worse at final loss. |
 | Symbolic | SiLU/SwiGLU+Muon | 0.038782 loss, 1.0395 PPL | deltas are too small to claim a real win from one seed. |
-| Reasoning mix | pending rerun | job 951127 | SiLU+AdamW complete, remaining rows still running. |
+| Reasoning mix | RLB+Muon | 0.144238 loss, 1.1552 PPL | tiny generic-RLB win; MatrixPolicy does not win meaningfully. |
 
-The completed synthetic tasks are near saturation, so tiny final-loss/PPL differences are not strong evidence. At loss `0.04-0.09`, a `0.001` loss difference barely moves PPL and can be seed/order noise. Treat Symbolic as diagnostic, not a win. Code is more useful as a negative diagnostic because MatrixPolicy is consistently behind there, but even that should not be overclaimed from one seed. The meaningful target remains a much larger same-LR gap, or a harder task where final loss is not already near zero.
+The completed synthetic tasks are near saturation, so tiny final-loss/PPL differences are not strong evidence. At loss `0.04-0.15`, a `0.001-0.002` loss difference barely moves PPL and can be seed/order noise. Treat Symbolic and Reasoning mix as diagnostics, not wins. Code is more useful as a negative diagnostic because MatrixPolicy is consistently behind there, but even that should not be overclaimed from one seed. The meaningful target remains a much larger same-LR gap, or a harder task where final loss is not already near zero.
 
-## Active Job
+## Next Short Tests
+
+The next tests should be short enough to run on 4x A6000, but hard enough that final loss is not already near zero. A useful screening target is final control loss around `0.25-1.0`; below `0.1`, PPL differences are usually too compressed to support an optimizer claim.
+
+| proposed task | what it tests | why it is better than current saturated tasks |
+| --- | --- | --- |
+| `synthetic/rule_chain_hard` | 3-6 step symbolic rule composition with distractor rules and held-out symbols. | Tests rational piecewise composition while keeping loss away from the floor. |
+| `synthetic/key_value_recall` | Random key-value tables followed by delayed queries inside the same context. | Tests whether RLB matrix policy helps binding/retrieval rather than template memorization. |
+| `synthetic/carry_arithmetic` | Multi-digit addition/subtraction with carries, signs, and distractor numbers. | Harder than current arithmetic; carries create sharp local decision boundaries. |
+| `synthetic/stack_brackets` | Pushdown-style bracket/type tracking with deeper nesting and decoy brackets. | Tests state-like nonlinear transitions instead of one-step bracket depth templates. |
+| `synthetic/noisy_copy_transform` | Copy/reverse/map spans with random noise tokens and variable span length. | Keeps sequence loss meaningful and exposes whether early matrix conditioning helps sequence transforms. |
+
+A proposed task should be rejected as a benchmark if `SiLU/SwiGLU+AdamW` reaches loss `<0.1` by 1250 steps. At that point it can still be a smoke test, but not a meaningful optimizer-discrimination task.
+
+## Completed Synthetic Run
 
 ```text
-job:        951127
-name:       synth-reason
-purpose:    rerun synthetic/reasoning_mix from scratch
-GPUs:       4x nvidia_rtx_a6000
-requeue:    enabled
-run root:   experiments/runs/synthetic_fair_reasoning_mix_20260529/
+937608: Code and Symbolic complete, preempted during Reasoning mix
+951127: Reasoning mix rerun complete, 02:40:56 elapsed, Requeue=1
+artifact: experiments/results/synthetic_fair_full_2026_05_29/
 ```
 
-After it finishes:
+The synthetic artifact contains CSV summaries and loss/PPL plots for Code, Symbolic, and Reasoning mix. Regenerate it with:
 
 ```bash
-.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py \
-  --run-root experiments/runs/synthetic_fair_reasoning_mix_20260529
+.venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py
 ```
 
-Raw JSONL and Slurm logs stay local under `experiments/runs/`. Commit compact summaries, plots, scripts, and README updates.
+Raw JSONL and Slurm logs stay local under `experiments/runs/`.
 
 ## Layout
 
