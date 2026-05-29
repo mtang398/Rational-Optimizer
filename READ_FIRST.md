@@ -1,49 +1,70 @@
 # Read First
 
-This repository should be read as an optimizer research report, not as a chronological experiment log. The central question is whether rational FFNs expose structure that an optimizer can use to beat strong generic controls under the same base learning-rate schedule.
+This repository is an optimizer research artifact. Read it as a method plus evidence boundary, not as a run diary.
 
-## What To Claim
+## Core Question
 
-Claim only this today:
+Can a no-GLU rational FFN outperform SiLU/SwiGLU because its optimizer uses rational structure?
+
+The comparison is valid only under the same base protocol: model size, token budget, seed, batch shape, sequence length, global LR schedule, weight decay, dataset, and evaluation cadence.
+
+## Claim Boundary
+
+Current supported claim:
 
 ```text
-RLB MatrixPolicy-Muon has the best verified WikiText-103 row.
-The verified lead is 0.0731 loss / 2.45 PPL over SiLU/SwiGLU+AdamW beta2=0.999.
-The target 0.2-0.3 loss gap has not been reached.
+RLB MatrixPolicy-Muon is the best verified WikiText-103 row in this repo.
+It improves over SiLU/SwiGLU+AdamW beta2=0.999 by 0.0731 loss / 2.45 PPL.
+This is not yet the desired 0.2-0.3 loss gap.
 ```
 
-Do not present Jacobian, quotient, or coefficient variants as baselines. The real controls are `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, and `RLB+Muon`.
+Do not use Jacobian, quotient, transport, or coefficient ablations as the baseline. The real control set is:
 
-## Method In One Paragraph
+```text
+SiLU/SwiGLU+AdamW
+RLB+AdamW
+SiLU/SwiGLU+Muon
+RLB+Muon
+```
 
-RLB separates the FFN into `W_in`, grouped rational functions, and `W_out`. `W_in` chooses the rational input domains, the coefficients shape the nonlinear functions, and `W_out` recombines the features. Because each group has a positive scale gauge between `W_in` and `W_out`, two parameterizations can represent the same function while giving generic optimizers different conditioning. MatrixPolicy uses role, depth, and group structure to update rational matrices differently from ordinary Transformer weights without changing the shared global LR schedule.
+## Method Summary
 
-## Evidence
+RLB maps each FFN hidden group through a normalized rational function:
 
-| row | final loss | final PPL | readout |
-| --- | ---: | ---: | --- |
-| RLB MatrixPolicy-Muon | 3.476232 | 32.34 | best verified row |
-| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 | older smooth policy |
-| SiLU/SwiGLU+AdamW beta2=0.999 | 3.549346 | 34.79 | strongest AdamW control |
-| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 | generic AdamW on RLB |
-| RLB+AdamW | 3.617501 | 37.24 | untuned generic AdamW |
-| SiLU/SwiGLU+AdamW | 3.621982 | 37.41 | original AdamW control |
-| SiLU/SwiGLU+Muon | 3.644921 | 38.28 | generic Muon control |
-| RLB+Muon | 3.657877 | 38.78 | generic Muon on RLB |
+```text
+z_g = group_g(W_in x)
+r_g = sqrt(mean(z_g^2) + eps)
+h_g = r_g R_g(z_g / r_g)
+y = W_out concat_g(h_g)
+```
 
-The sparse synthetic curves suggest faster rational loss/PPL drops, especially on Code and Reasoning mix, but those runs are too sparse and too close to the final loss floor for a final claim. Use them as motivation for dense curves and harder tasks, not as the paper result.
+This creates a positive group gauge:
 
-## Current Research Plan
+```text
+W_in[g]  <- a_g W_in[g]
+W_out[g] <- W_out[g] / a_g
+```
 
-The immediate plan is:
+for `a_g > 0`. The represented function is preserved, but the optimizer sees different matrix norms and conditioning. MatrixPolicy uses this structure by assigning separate update policies to `W_in`, rational coefficients, and `W_out`, and by applying a function-preserving gauge rebalance after optimizer steps.
 
-1. Summarize the dense synthetic rerun with training sampled every 10 steps and validation every 25 steps.
-2. Evaluate gauge stress at log-scale `2.0` against gauge `0.0` for generic RLB optimizers and MatrixPolicy variants.
-3. Add diagnostics for group activity, derivative pressure, denominator margin, gauge drift, and function-space movement.
-4. Move to harder non-saturated tasks only after the gauge result says whether the current optimizer is using RLB geometry.
+## What To Look At First
 
-Pass/fail rule: MatrixPolicy must degrade less than `RLB+AdamW` and `RLB+Muon` under equivalent-function gauge stress. If it does not, the optimizer needs redesign before more task chasing.
+1. [optimizer_design/README.md](optimizer_design/README.md) for the mathematical optimizer definition.
+2. [README.md](README.md) for the research claim, results table, figures, and falsification tests.
+3. [experiments/README.md](experiments/README.md) for the experimental protocol and plotted artifacts.
+4. [training/README.md](training/README.md) for the fair-comparison contract and logging standard.
+5. [activation/README.md](activation/README.md) for the RLB layer definition.
 
-## Operating Rule
+## Evidence Standard
 
-Use only A6000 GPUs and keep total active allocation at or below 8 A6000s. Raw runs under `experiments/runs/` are local artifacts; commit compact figures, summaries, and code only.
+A result should be treated as paper-relevant only if it satisfies all of these:
+
+```text
+same base LR schedule across controls
+step-1 training and validation curves
+strong AdamW and Muon controls for both SiLU/SwiGLU and RLB
+non-saturated task or real LM loss scale
+mechanism test, especially positive gauge stress
+```
+
+Synthetic tasks that reach loss `<0.1` are useful for debugging curve speed, but not for claiming a large optimizer advantage.

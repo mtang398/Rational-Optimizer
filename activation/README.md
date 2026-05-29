@@ -1,38 +1,69 @@
 # Activation
 
-This folder contains the rational activation implementation. The optimizer policy does not live here, but the activation is designed to expose structure that an optimizer can use.
+This folder implements rational activations used by the language-model experiments. The research activation is the Rational Local Basis FFN (RLB), a single-branch no-GLU FFN designed to expose optimizer-visible structure.
 
-## RLB Layer
+## RLB Definition
 
-RLB is a no-GLU rational FFN:
+For a hidden vector split into `G` groups of width `m`:
 
 ```text
-v = x W_in
-s_g = sqrt(mean(v_g^2) + eps)
-u_g = v_g / s_g
-h_g = s_g R_g(u_g)
-y = h W_out
+z = W_in x
+z_g = group_g(z)
+r_g = sqrt((1/m) ||z_g||_2^2 + eps)
+u_g = z_g / r_g
+h_g = r_g R_g(u_g)
+y = W_out concat_g(h_g)
 ```
 
-There is no gate branch and no hidden SiLU path inside the RLB layer. The rational function `R_g` is evaluated on normalized group inputs, then scaled back by the group RMS.
+`R_g` is a learned rational function. In the local-basis variants it is the sum of a base rational curve and trainable local odd/bump atoms around fixed centers.
 
-## Optimizer-Visible Structure
+This is not a GLU:
 
-| component | optimizer handle |
+```text
+no multiplicative gate branch
+no hidden SiLU path
+no SwiGLU-style value/gate split
+```
+
+## Homogeneity And Gauge
+
+The normalization makes RLB positively homogeneous at the group level. For any `a_g > 0`:
+
+```text
+z_g' = a_g z_g
+r_g' = a_g r_g
+u_g' = u_g
+h_g' = a_g h_g
+```
+
+Therefore the matrix transform
+
+```text
+W_in[g]  <- a_g W_in[g]
+W_out[g] <- W_out[g] / a_g
+```
+
+preserves the represented function. This is the mathematical reason an RLB-specific optimizer can do something unavailable to a generic FFN optimizer: it can choose a better gauge representative without changing the function.
+
+## Optimizer Handles
+
+RLB exposes these handles to the optimizer:
+
+| component | mathematical role |
 | --- | --- |
-| `W_in` | Sets the normalized domain seen by each rational group. |
-| rational coefficients | Shape local odd/bump rational features. |
-| `W_out` | Selects and mixes rational features into the residual stream. |
-| group RMS | Provides a scale signal for activity and saturation. |
-| positive gauge | Allows function-preserving rebalance between input and output matrices. |
+| `W_in` group rows | choose the distribution of normalized inputs `u_g`. |
+| rational numerator/denominator | set the base curve and derivative profile. |
+| local basis coefficients | add local odd/bump corrections to the curve. |
+| `W_out` group columns | select rational features for the residual stream. |
+| group RMS and derivative statistics | reveal active, saturated, or underused groups. |
 
-The positive gauge is central to the current research plan. If one group of `W_in` is multiplied by `a > 0`, the normalized input `u_g` is unchanged and the group output scales by `a`. Dividing the matching `W_out` columns by `a` preserves the layer function. This makes gauge stress a direct test of whether an optimizer understands rational structure or is sensitive to arbitrary matrix scaling.
+The activation code therefore supports not only forward computation, but also optimizer diagnostics such as output RMS, derivative RMS, coefficient activity, and group pressure.
 
-## Implementation Boundaries
+## Implementation Layout
 
 ```text
 activation/rational_opt/  Python package and PyTorch fallback paths
 activation/csrc/          CUDA/C++ extension sources
 ```
 
-A6000 launchers currently set `RATIONAL_OPT_TORCH_FALLBACK=1` so runs can use the PyTorch implementation of the same RLB math when the local compiled extension is not the right path for the node. CPU forward tests can still hit CUDA-only rational extension paths; use GPU training runs for end-to-end activation validation.
+A6000 launchers set `RATIONAL_OPT_TORCH_FALLBACK=1` when needed so the PyTorch implementation of the same RLB math is used on nodes where the compiled extension is not the desired path.

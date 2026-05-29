@@ -1,62 +1,78 @@
 # Training
 
-This folder contains the language-model harness, synthetic task generators, and comparison plumbing used by the optimizer experiments.
+This folder contains the LM benchmark harness, synthetic task generators, and optimizer wiring. Its purpose is to enforce fair comparisons between activation/optimizer pairs.
 
 ## Fair Comparison Contract
 
-Every serious comparison should keep these fixed across rows:
+Rows are comparable only when the following are fixed:
 
 ```text
-model size
+model width/depth/head count
+FFN parameter budget
 token budget
 seed
-batch shape
+batch size and gradient accumulation
 sequence length
-base LR schedule
-evaluation cadence
+base LR schedule and warmup
+weight decay
 dataset and dataset config
+evaluation cadence
 ```
 
-The required control set is:
+Changing the global LR schedule is an LR ablation, not evidence for an RLB-specific optimizer. LR sweeps are useful only after a large same-LR gap exists.
+
+## Required Rows
+
+Every serious run should include:
 
 ```text
-SiLU/SwiGLU+AdamW
-RLB+AdamW
-SiLU/SwiGLU+Muon
-RLB+Muon
-RLB MatrixPolicy variants
+SiLU/SwiGLU + AdamW
+RLB + AdamW
+SiLU/SwiGLU + Muon
+RLB + Muon
+RLB + rational_matrix_policy_onpolicy
 ```
 
-Learning-rate scheduler changes are not optimizer wins for this project. LR ablations only become useful after a rational-specific optimizer shows a large same-LR advantage.
+Additional rational optimizers are ablations. They should be interpreted by what mechanism they test, not treated as baselines.
 
-## RLB Training Hooks
+## MatrixPolicy Wiring
 
-The harness supports RLB-specific optimizer tests:
+For `--optimizer rational_matrix_policy_onpolicy`, the harness collects each RLB layer into optimizer groups:
 
-| hook | purpose |
-| --- | --- |
-| `rational_matrix_policy_onpolicy` | Role/depth-aware optimizer for RLB matrices. |
-| group-stat policy flags | Live activity and pressure signals for per-group scaling. |
-| `--rlb-init-gauge-log-scale` | Equivalent-function positive gauge stress at initialization. |
-| `--rlb-init-gauge-seed` | Reproducible gauge sampling. |
-| `log_interval` / `eval_interval` | Dense training and validation curves from step 1. |
+```text
+A_l = W_in,l  -> matrix_role = in
+B_l = W_out,l -> matrix_role = out
+R_l           -> rational coefficient parameters
+```
 
-The gauge flags apply only to RLB FFNs. A local parameter-level validation confirmed that the gauge transform preserves per-group `W_out @ W_in` products up to `1.4e-9`; full forward validation on CPU is blocked by the rational CUDA extension path, so the running GPU gauge stress is the relevant end-to-end test.
+The optimizer then applies:
 
-## Task Interpretation
+```text
+ordinary Transformer parameters -> AdamW or optional backbone Muon
+rational coefficients           -> coefficient optimizer when enabled
+RLB matrices                    -> RationalMatrixPolicyOptimizer
+RLB gauge class                 -> on-policy gauge rebalance wrapper
+```
 
-| task | current role | caveat |
-| --- | --- | --- |
-| WikiText-103 | Main small-LM benchmark. | Current best gap is real but modest. |
-| synthetic/code | Tests program-like local structure. | RLB drops faster early, but final loss saturates. |
-| synthetic/symbolic | Tests rewrite/parity/bracket/copy patterns. | Too easy for a final optimizer claim. |
-| synthetic/reasoning_mix | Tests mixed arithmetic/code/symbolic patterns. | Useful curve signal, but final PPL is compressed. |
+The initialization gauge-stress flags are:
 
-For saturated synthetic tasks, curve shape matters more than the final row. Training loss must be plotted too, because validation-only plots can hide optimizer phase behavior.
+```text
+--rlb-init-gauge-log-scale
+--rlb-init-gauge-seed
+```
+
+They sample positive scales `a_g` and apply the function-preserving transform
+
+```text
+W_in[g]  <- a_g W_in[g]
+W_out[g] <- W_out[g] / a_g
+```
+
+before training. This creates equivalent initial functions with different matrix conditioning.
 
 ## Logging Standard
 
-Fresh optimizer-discrimination runs should log:
+Optimizer-discrimination runs must log dense curves:
 
 ```text
 training:   step 1, then at least every 10 steps
@@ -64,27 +80,27 @@ validation: step 1, then at least every 25 steps
 final:      always include final step
 ```
 
-Plots should start at step 1. Starting at step 1000 hides the part of the curve where the rational optimizer advantage is most likely to appear.
+Plots should start at step 1. Late-only plots hide the early phase where the rational matrix policy is most likely to differ from generic AdamW or Muon.
 
-## Benchmark Design
+## Task Standard
 
-Good short tasks should leave headroom. A task is not a meaningful optimizer benchmark if the strongest controls reach loss `<0.1` by the target budget. In that regime, PPL differences are too compressed and final-loss rankings can become noise.
+Synthetic tasks are useful only if they leave headroom. If the strongest controls reach loss `<0.1`, final PPL is too compressed to support a large optimizer claim. Such tasks can still test curve speed or implementation stability.
 
-Preferred next task families:
+Preferred short-task families should stress mechanisms rather than text formatting:
 
-| task | target behavior |
+| task family | mechanism |
 | --- | --- |
-| `synthetic/rule_chain_hard` | Multi-hop symbolic composition with distractors and held-out symbols. |
-| `synthetic/key_value_recall` | In-context binding and delayed retrieval under noise. |
-| `synthetic/carry_arithmetic` | Multi-digit arithmetic where carries create sharp decision boundaries. |
-| `synthetic/stack_brackets` | Deeper typed-stack state tracking. |
-| `synthetic/noisy_copy_transform` | Span copy/reverse/map with variable noise and length. |
+| rule-chain composition | multi-step symbolic function composition. |
+| key-value recall | in-context binding and delayed retrieval. |
+| carry arithmetic | sharp local decision boundaries from carries. |
+| stack brackets | nonlinear state tracking. |
+| noisy copy/transform | robust sequence transformation under distractors. |
 
-These tasks should be used after the gauge-stress result clarifies whether MatrixPolicy is exploiting RLB geometry or merely winning on a narrow curve regime.
+The gauge-stress benchmark should be evaluated before adding many more tasks, because it tests the actual RLB symmetry directly.
 
 ## Runtime Rule
 
-Use A6000 GPUs only and do not exceed 8 active A6000s total.
+GPU jobs should request A6000s only and keep total active allocation at or below 8 A6000s.
 
 ```text
 --gres=gpu:nvidia_rtx_a6000:4
