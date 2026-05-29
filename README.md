@@ -1,42 +1,49 @@
 # RationalOPT
 
-RationalOPT is about one question: can a rational FFN win because the optimizer understands rational structure, not because the run got a different global LR schedule?
+RationalOPT asks a research question: can a rational FFN win because the optimizer understands rational structure, not because it got a different global LR schedule?
 
-The baseline is not a Jacobian optimizer. The baseline is the normal Transformer FFN stack: `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, and `RLB+Muon`, all under the same training budget and base LR schedule.
+The real controls are `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, and `RLB+Muon` under the same model, token budget, seed, eval cadence, and base LR schedule. Jacobian, quotient, transport, and coefficient variants are ablations, not baselines.
 
-## Current Claim
+## Method
 
-The best verified WikiText-103 result is `RLB MatrixPolicy-Muon`. It beats the strongest tuned AdamW control by `0.0731` validation loss and `2.45` PPL. That is a real same-LR win, but it is not yet the target-sized `0.2-0.3` loss gap.
-
-The synthetic transfer story is still incomplete. Code and Symbolic finished; Reasoning mix is rerunning from scratch as Slurm job `951127` with requeue enabled. Do not claim a final synthetic result until that job finishes and the compact summary is regenerated.
-
-## Core Intuition
-
-1. RLB creates explicit rational feature groups instead of a GLU gate.
-2. `W_in` controls which input range each rational basis sees; `W_out` controls how those basis features are recombined.
-3. Those two matrices have different jobs, so the optimizer should not treat them like ordinary dense FFN matrices.
-4. MatrixPolicy uses a short early Muon phase only on RLB matrices, then returns those matrices to role/depth-aware AdamW.
-5. Exact gauge balance keeps per-group basis scale from drifting while preserving the represented function as much as possible.
-
-The key idea is that RLB exposes optimizer handles that SiLU/SwiGLU does not have: rational input-domain formation, basis recombination, per-group scale gauge, and live group statistics. The current optimizer only partially uses those handles. The research direction is to use them more effectively without changing the global LR schedule.
-
-## Current Method
+RLB is not a GLU. It creates grouped rational features:
 
 ```text
-activation:      rlb_fused_fixed_strong_ffn
-optimizer:       rational_matrix_policy_onpolicy
-base schedule:   same 3e-4 -> 3e-5 warmup/cosine schedule as controls
-backbone:        AdamW
-RLB matrices:    MatrixPolicy AdamW plus early matrix-only Muon
-coefficients:    AdamW by default
-gauge balance:   enabled
+v = x W_in
+s_g = sqrt(mean(v_g^2) + eps)
+u_g = v_g / s_g
+h_g = s_g R_g(u_g)
+y = h W_out
 ```
 
-Exact flags live in `experiments/scripts/run_synthetic_fair_full_20260529.sh` and each run's JSONL `config` event.
+MatrixPolicy is an RLB-matrix optimizer, not a global LR scheduler. It leaves the base warmup/cosine schedule shared with the controls. The optimizer-specific move is local: treat `W_in` and `W_out` differently because they have different rational jobs.
 
-The method is deliberately narrower than a global optimizer replacement. Ordinary non-RLB weights still use AdamW. MatrixPolicy only intervenes on RLB `W_in` and `W_out`, where the rational structure makes role-specific updates meaningful.
+`W_in` chooses the input domain seen by each rational group. `W_out` recombines the resulting rational features. The positive scale gauge means the same represented function can have bad or good matrix conditioning. MatrixPolicy tries to spend optimizer effort on useful function change instead of useless scale drift.
 
-## Verified WikiText Result
+```text
+for each optimizer step:
+  update ordinary Transformer weights with AdamW
+  update rational coefficients with AdamW
+  for each RLB layer:
+    read the matrix role: W_in or W_out
+    read normalized layer depth
+    assign a role/depth-specific MatrixPolicy AdamW scale
+    during the early window, blend in Muon only for W_in/W_out
+    after the early window, return those matrices to MatrixPolicy AdamW
+  apply exact positive-gauge rebalance to each rational group
+```
+
+Current method in one line:
+
+```text
+RLB MatrixPolicy-Muon = AdamW backbone + AdamW rational coefficients + role/depth-aware RLB matrix AdamW + early RLB-matrix-only Muon + gauge rebalance
+```
+
+Exact scalar flags live in the Slurm launchers and JSONL `config` records. They are not the research story.
+
+## Main Result
+
+The verified WikiText-103 result is a real but modest same-LR win. It is not yet the desired `0.2-0.3` loss gap.
 
 | row | final loss | final PPL | readout |
 | --- | ---: | ---: | --- |
@@ -49,37 +56,31 @@ The method is deliberately narrower than a global optimizer replacement. Ordinar
 | SiLU/SwiGLU+Muon | 3.644921 | 38.28 | generic Muon control |
 | RLB+Muon | 3.657877 | 38.78 | generic Muon on RLB |
 
-Interpretation: MatrixPolicy-Muon is the only current method with a meaningful WikiText lead over the strongest controls. Plain Muon is not a stronger baseline here; both `SiLU/SwiGLU+Muon` and `RLB+Muon` are worse than AdamW controls.
+Best verified gap versus `SiLU/SwiGLU+AdamW beta2=0.999`: `0.0731` loss and `2.45` PPL.
 
-## Synthetic Fair Rerun
+## Graphs
+
+![WikiText validation loss](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_loss.png)
+
+![WikiText validation PPL](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_ppl.png)
+
+![WikiText training loss from step 1](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
+
+![Synthetic arithmetic validation loss](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/synthetic_arithmetic_validation_loss.png)
+
+![Synthetic arithmetic validation PPL](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/synthetic_arithmetic_validation_ppl.png)
+
+The synthetic code/symbolic/reasoning_mix graphs are not committed yet because Reasoning mix is still running. Once all six Reasoning mix rows finish, the next update should regenerate and commit the compact synthetic plots rather than mixing complete rows with partial rows.
+
+## Synthetic Transfer Status
 
 | task | best finished row so far | result | interpretation |
 | --- | --- | --- | --- |
-| Code | SiLU/SwiGLU+AdamW | 0.088975 loss, 1.0931 PPL | RLB and MatrixPolicy lose final loss on this task. |
-| Symbolic | SiLU/SwiGLU+Muon | 0.038782 loss, 1.0395 PPL | RLB generic optimizers and group-stat are close, but gains are tiny. |
-| Reasoning mix | pending rerun | job 951127 | No claim until all six rows finish from scratch. |
+| Code | SiLU/SwiGLU+AdamW | 0.088975 loss, 1.0931 PPL | saturated task; MatrixPolicy is worse at final loss. |
+| Symbolic | SiLU/SwiGLU+Muon | 0.038782 loss, 1.0395 PPL | deltas are too small to claim a real win from one seed. |
+| Reasoning mix | pending rerun | job 951127 | SiLU+AdamW complete, remaining rows still running. |
 
-The completed synthetic rows are useful mainly as diagnostics. Code says the current MatrixPolicy can over-specialize and lose final loss after early progress. Symbolic says rational structure can help, but the margin is tiny. Reasoning mix is the important transfer check because it mixes arithmetic, code, and symbolic patterns.
-
-## What Seems To Help
-
-| design choice | why it helps |
-| --- | --- |
-| Early matrix-only Muon | gives RLB matrices a fast orthogonalized start without leaving Muon on late. |
-| Role/depth asymmetry | `W_in` and `W_out` do different jobs, and late layers should not be updated identically to early layers. |
-| AdamW after the early switch | keeps late training stable after the useful Muon window. |
-| Gauge balance | prevents rational groups from wasting update budget on scale drift. |
-
-## What Has Not Helped Enough
-
-| design choice | readout |
-| --- | --- |
-| Full-model Muon | worse than AdamW controls on WikiText. |
-| Late Muon tails | worsened early probes. |
-| Beta2 tail schedules | only noise-level changes. |
-| Function-space coefficient variants | worse first signals. |
-| Stronger/weaker role-depth scaling | worse than current default in probes. |
-| Group-stat MatrixPolicy | pending as a fair transfer row; not yet a claimed improvement. |
+The completed synthetic tasks are near saturation, so tiny final-loss/PPL differences are not strong evidence. At loss `0.04-0.09`, a `0.001` loss difference barely moves PPL and can be seed/order noise. Treat Symbolic as diagnostic, not a win. Code is more useful as a negative diagnostic because MatrixPolicy is consistently behind there, but even that should not be overclaimed from one seed. The meaningful target remains a much larger same-LR gap, or a harder task where final loss is not already near zero.
 
 ## Active Job
 
@@ -99,13 +100,13 @@ After it finishes:
   --run-root experiments/runs/synthetic_fair_reasoning_mix_20260529
 ```
 
-Raw JSONL and Slurm logs stay local under `experiments/runs/`. Commit only compact summaries, plots, scripts, and README updates.
+Raw JSONL and Slurm logs stay local under `experiments/runs/`. Commit compact summaries, plots, scripts, and README updates.
 
-## Repo Layout
+## Layout
 
 ```text
-activation/         RLB activation implementation and CUDA fallback path
+activation/         RLB activation implementation
 training/           LLM benchmark harness and synthetic task generators
-optimizer_design/   RLB-specific optimizer implementations
+optimizer_design/   RLB-specific optimizer implementation
 experiments/        Slurm launchers and compact result artifacts
 ```

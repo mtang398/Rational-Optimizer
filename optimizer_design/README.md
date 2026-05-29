@@ -1,58 +1,37 @@
 # Optimizer Design
 
-This folder contains optimizer components for rational activations. The important file right now is `matrix_policy_optimizer.py`, which implements `RationalMatrixPolicyOptimizer` for RLB `W_in` and `W_out` matrices.
+This folder contains the RLB-specific optimizer implementation. The current research method is `RationalMatrixPolicyOptimizer`, wired through `rational_matrix_policy_onpolicy`.
 
-## Why RLB Needs A Different Optimizer
+## Method
 
-A normal SiLU/SwiGLU FFN hides most of its useful structure inside a smooth pointwise nonlinearity and dense matrices. RLB exposes more structure:
+RLB exposes optimizer structure that a normal SiLU/SwiGLU FFN does not:
 
-```text
-v = x W_in
-s_g = sqrt(mean(v_g^2) + eps)
-u_g = v_g / s_g
-h_g = s_g R_g(u_g)
-y = h W_out
-```
-
-That gives the optimizer three handles:
-
-| handle | meaning |
+| RLB object | optimizer handle |
 | --- | --- |
-| rational domain | `W_in` decides where each group samples the rational basis. |
-| feature recombination | `W_out` decides how rational features return to the model stream. |
-| positive gauge | `W_in,g <- c W_in,g`, `W_out,g <- W_out,g / c` mostly preserves function while changing conditioning. |
+| `W_in` | chooses rational input domains and derivative exposure. |
+| rational basis | supplies learnable nonlinear shape inside each domain. |
+| `W_out` | recombines rational features into the residual stream. |
+| positive gauge | permits scale rebalance between `W_in` and `W_out`. |
+| live stats | can reveal group activity, pressure, and saturation. |
 
-MatrixPolicy exists because these handles are not present in the same way for SiLU/SwiGLU.
+MatrixPolicy is an RLB-matrix optimizer, not a global LR scheduler. It leaves the base warmup/cosine schedule shared with the controls. The optimizer-specific move is local: treat `W_in` and `W_out` differently because they have different rational jobs.
 
-## Current MatrixPolicy
-
-1. RLB creates explicit rational feature groups instead of a GLU gate.
-2. `W_in` controls which input range each rational basis sees; `W_out` controls how those basis features are recombined.
-3. Those two matrices have different jobs, so the optimizer should not treat them like ordinary dense FFN matrices.
-4. MatrixPolicy uses a short early Muon phase only on RLB matrices, then returns those matrices to role/depth-aware AdamW.
-5. Exact gauge balance keeps per-group basis scale from drifting while preserving the represented function as much as possible.
+`W_in` chooses the input domain seen by each rational group. `W_out` recombines the resulting rational features. The positive scale gauge means the same represented function can have bad or good matrix conditioning. MatrixPolicy tries to spend optimizer effort on useful function change instead of useless scale drift.
 
 ```text
-activation:      rlb_fused_fixed_strong_ffn
-optimizer:       rational_matrix_policy_onpolicy
-base schedule:   same 3e-4 -> 3e-5 warmup/cosine schedule as controls
-backbone:        AdamW
-RLB matrices:    MatrixPolicy AdamW plus early matrix-only Muon
-coefficients:    AdamW by default
-gauge balance:   enabled
+for each optimizer step:
+  update ordinary Transformer weights with AdamW
+  update rational coefficients with AdamW
+  for each RLB layer:
+    read the matrix role: W_in or W_out
+    read normalized layer depth
+    assign a role/depth-specific MatrixPolicy AdamW scale
+    during the early window, blend in Muon only for W_in/W_out
+    after the early window, return those matrices to MatrixPolicy AdamW
+  apply exact positive-gauge rebalance to each rational group
 ```
 
-Exact flags live in `experiments/scripts/run_synthetic_fair_full_20260529.sh` and each run's JSONL `config` event.
-
-The important point is not the exact scalar values. The important point is the structure of the update: matrix-local, role-aware, depth-aware, early-switching, and gauge-balanced.
-
-## Why The Early Switch Exists
-
-Early training benefits from a more geometry-aware matrix step. Muon helps there. Late training needs stable adaptive moments and should not keep the Muon pressure on. The current policy therefore uses Muon only as an early RLB-matrix component and then lets MatrixPolicy AdamW dominate.
-
-This is different from testing `RLB+Muon`, which applies generic Muon as the optimizer. That generic control was worse on WikiText.
-
-## Results That Matter
+## Verified Result
 
 | row | final loss | final PPL | readout |
 | --- | ---: | ---: | --- |
@@ -65,25 +44,8 @@ This is different from testing `RLB+Muon`, which applies generic Muon as the opt
 | SiLU/SwiGLU+Muon | 3.644921 | 38.28 | generic Muon control |
 | RLB+Muon | 3.657877 | 38.78 | generic Muon on RLB |
 
-The verified gain is real but modest. A method that only improves by `0.0731` loss is not enough for the final research goal, but it shows that structure-aware optimization is not a dead end.
+The current method is promising because it wins on WikiText under the same LR schedule, but the margin is still too small for the final goal.
 
-## Design Lessons
+## Current Research Problem
 
-| helped | reason |
-| --- | --- |
-| short early Muon on RLB matrices | improves early matrix conditioning without harming late stability as much as full Muon. |
-| different treatment for `W_in` and `W_out` | matches their different roles in rational domain selection and feature composition. |
-| depth-dependent matrix pressure | later layers appear to prefer different matrix update pressure than early layers. |
-| gauge balance | keeps group scales from absorbing optimizer effort. |
-
-| did not help enough | readout |
-| --- | --- |
-| late Muon tails | worse probes. |
-| role beta2 asymmetry | no material gain. |
-| coefficient function-space updates | worse early signal. |
-| larger or smaller role-depth strength | worse than current default. |
-| global LR schedule tweaks | outside the claim unless the same change is applied to controls. |
-
-## Open Direction
-
-The next optimizer improvement should use live RLB information more selectively: group activity, derivative pressure, numerator/denominator risk, and layer role. It should first beat the same-LR controls on final loss, then be tested across LR only after the same-LR gap is large enough.
+The finished synthetic rows show a real problem: the current method is not broadly robust. It loses final loss on Code and only has tiny diagnostic advantages on Symbolic. The next optimizer should explain and fix that, likely by using live rational group information more selectively rather than adding another global schedule.
