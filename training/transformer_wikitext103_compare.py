@@ -2604,6 +2604,37 @@ class RationalLocalBasisFFN(nn.Module):
         return self.out_proj(self.rlb_activation(self.in_proj(x)))
 
 
+def apply_rlb_positive_gauge(model: nn.Module, log_scale: float, seed: int) -> int:
+    """Apply a function-preserving positive gauge to RLB FFN matrices.
+
+    Scaling one group of W_in by a > 0 and the matching W_out columns by 1/a
+    leaves the represented RLB block function unchanged at initialization, but it
+    changes matrix conditioning. This is useful for optimizer stress tests.
+    """
+
+    if log_scale <= 0.0:
+        return 0
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(int(seed))
+    group_count = 0
+    with torch.no_grad():
+        for module in model.modules():
+            if not isinstance(module, RationalLocalBasisFFN):
+                continue
+            groups = int(module.groups)
+            width = int(module.hidden_dim // module.groups)
+            logs = torch.empty(groups, dtype=torch.float32).uniform_(
+                -float(log_scale), float(log_scale), generator=generator
+            )
+            scales = torch.exp(logs).to(device=module.in_proj.weight.device, dtype=module.in_proj.weight.dtype)
+            module.in_proj.weight.view(groups, width, -1).mul_(scales.view(groups, 1, 1))
+            module.out_proj.weight.view(module.out_proj.weight.shape[0], groups, width).mul_(
+                scales.reciprocal().view(1, groups, 1)
+            )
+            group_count += groups
+    return group_count
+
+
 def rcq_settings(activation, ffn_dim, group_size, max_groups):
     if activation not in RCQ_ACTIVATIONS:
         return None
@@ -6146,6 +6177,8 @@ def parse_args():
     parser.add_argument("--log-interval", type=int, default=10)
     parser.add_argument("--eval-interval", type=int, default=250)
     parser.add_argument("--eval-batches", type=int, default=20)
+    parser.add_argument("--rlb-init-gauge-log-scale", type=float, default=0.0)
+    parser.add_argument("--rlb-init-gauge-seed", type=int, default=424242)
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--save-checkpoint", action="store_true")
     parser.add_argument("--checkpoint-dir", default=None)
@@ -6194,6 +6227,9 @@ def main():
         args.warmup_steps = max(1, args.steps // 10)
 
     model = CausalTransformer(args, vocab_size).to(device)
+    rlb_init_gauge_groups = apply_rlb_positive_gauge(
+        model, args.rlb_init_gauge_log_scale, args.rlb_init_gauge_seed
+    )
     param_count = sum(param.numel() for param in model.parameters())
     if is_distributed:
         model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
@@ -6325,6 +6361,9 @@ def main():
         "log_interval": args.log_interval,
         "eval_interval": args.eval_interval,
         "eval_batches": args.eval_batches,
+        "rlb_init_gauge_log_scale": args.rlb_init_gauge_log_scale,
+        "rlb_init_gauge_seed": args.rlb_init_gauge_seed,
+        "rlb_init_gauge_groups": rlb_init_gauge_groups,
         "optimizer": args.optimizer,
         "optimizer_lr": args.lr,
         "optimizer_min_lr": args.min_lr,
