@@ -34,7 +34,16 @@ preserves the represented RLB block function. This gives an optimizer-specific p
 
 ## Optimizer
 
-The current optimizer family is `rational_matrix_policy_onpolicy`. It partitions parameters into:
+The current optimizer family is `rational_matrix_policy_onpolicy`. In plain terms, MatrixPolicy is the optimizer for the RLB matrices `W_in` and `W_out`; it is not the optimizer for every parameter in the Transformer. The rest of the model stays on ordinary optimizers so the comparison remains focused on whether RLB-specific matrix geometry helps.
+
+For each RLB layer, write:
+
+```text
+A_l = W_in,l   input selector into rational groups
+B_l = W_out,l  output recombiner back to the residual stream
+```
+
+MatrixPolicy is a deterministic local rule for these matrices. It chooses the update for each matrix from its role, its layer depth, the current training phase, and optional live RLB group statistics. The full run partitions parameters into:
 
 ```text
 theta_backbone: ordinary Transformer parameters

@@ -2,6 +2,53 @@
 
 This folder contains rational-specific optimizer implementations. The current research optimizer is `RationalMatrixPolicyOptimizer`, used through the `rational_matrix_policy_onpolicy` training option.
 
+## MatrixPolicy In Plain Terms
+
+`RationalMatrixPolicyOptimizer` is the optimizer for the two matrices around each RLB activation. It is not a separate optimizer for the whole Transformer. For RLB layer `l`, the layer is
+
+```text
+x -> A_l x -> grouped rational functions -> B_l h
+```
+
+where `A_l = W_in,l` chooses what each rational group sees and `B_l = W_out,l` mixes the rational features back into the residual stream. MatrixPolicy updates these two roles differently because they have different mathematical jobs.
+
+In the default verified setup:
+
+```text
+ordinary Transformer weights -> AdamW
+rational coefficients        -> AdamW/function-space coefficient optimizer when enabled
+RLB A_l and B_l matrices     -> MatrixPolicy
+RLB group scales             -> exact gauge rebalance after the step
+```
+
+The word `policy` means a deterministic rule that selects the local matrix update from metadata and live measurements:
+
+```text
+matrix role:     input matrix A_l or output matrix B_l
+layer depth:     early, middle, or late Transformer layer
+training time:   early Muon component on/off/decay window
+RLB statistics:  group pressure, output activity, coefficient activity
+```
+
+The optimizer does not change the global LR schedule to win. It uses the same base LR `eta_t` as the controls, then applies RLB-local matrix multipliers and an RLB-local AdamW/Muon mixture:
+
+```text
+A_l <- AdamW-style step for an input selector
+     + short early Muon-style matrix step
+
+B_l <- AdamW-style step for an output recombiner
+     + short early Muon-style matrix step
+```
+
+After these child updates, the wrapper applies a function-preserving gauge rebalance:
+
+```text
+A_{l,g} <- s_g A_{l,g}
+B_{l,g} <- B_{l,g} / s_g
+```
+
+This last transform changes the parameterization but not the represented RLB function. That is the main reason MatrixPolicy is rational-specific: it can use the explicit `A_l -> rational groups -> B_l` factorization and its gauge symmetry, while a standard SiLU/SwiGLU FFN optimizer cannot use this exact structure.
+
 ## Notation
 
 For RLB layer `l`, let the hidden channels be split into `G` groups of width `m`. Write

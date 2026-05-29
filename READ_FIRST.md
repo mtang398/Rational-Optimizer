@@ -47,6 +47,8 @@ W_out[g] <- W_out[g] / a_g
 
 for `a_g > 0`. The represented function is preserved, but the optimizer sees different matrix norms and conditioning. MatrixPolicy uses this structure by assigning separate update policies to `W_in`, rational coefficients, and `W_out`, and by applying a function-preserving gauge rebalance after optimizer steps.
 
+The short definition is: MatrixPolicy is the RLB matrix optimizer. It updates only the RLB `W_in` and `W_out` matrices with role-aware, depth-aware, time-aware matrix rules. Ordinary Transformer weights remain on AdamW, rational coefficients use their coefficient optimizer, and the wrapper rebalances the positive gauge after the step without changing the represented function.
+
 ## What To Look At First
 
 1. [optimizer_design/README.md](optimizer_design/README.md) for the mathematical optimizer definition.
