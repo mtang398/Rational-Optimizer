@@ -11,12 +11,12 @@ State on May 29, 2026:
 ```text
 verified best on WikiText-103: RLB MatrixPolicy-Muon
 large requested target:       not reached yet
-fair synthetic rerun:         running as Slurm job 937608
+fair synthetic rerun:         Code/Symbolic complete; Reasoning mix rerun is Slurm job 951127
 fair rerun script:            experiments/scripts/run_synthetic_fair_full_20260529.sh
-GPU policy:                   one 4x A6000 job, 24h walltime
+GPU policy:                   one 4x A6000 job, 24h walltime, requeue enabled
 ```
 
-Old partial synthetic/code, symbolic, and reasoning_mix outputs are not claim-grade and should not be used as the final story. They were superseded by the clean full rerun above.
+The first clean job `937608` completed Code and Symbolic rows, then was preempted during Reasoning mix. Reasoning mix is being rerun from scratch under job `951127` with `Requeue=1`; partial Reasoning mix outputs remain non-claim-grade.
 
 ## Verified WikiText-103 Result
 
@@ -99,7 +99,7 @@ y = h W_out
 
 Every row uses the same seed, model shape, token budget, base LR, warmup/cosine schedule, batch size, gradient accumulation, eval cadence, and A6000 fallback. The exploratory `group-stat` row is a rational-specific variant that uses live RLB group statistics to reweight matrix gradients; it is not claimed as an improvement until the fair rerun finishes.
 
-After job `937608` finishes, summarize it with:
+After the rerun finishes, summarize it with:
 
 ```bash
 .venv-cu128/bin/python experiments/scripts/summarize_synthetic_fair_full_20260529.py

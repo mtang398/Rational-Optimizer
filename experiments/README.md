@@ -5,13 +5,14 @@ This folder contains Slurm launchers and compact result artifacts. Raw run folde
 ## Active Fair Rerun
 
 ```text
-job:          937608
-script:       experiments/scripts/run_synthetic_fair_full_20260529.sh
-job name:     synth-fair
-GPUs:         4x nvidia_rtx_a6000
-walltime:     24h
-run root:     experiments/runs/synthetic_fair_full_20260529/
-result root:  experiments/results/synthetic_fair_full_2026_05_29/
+completed job: 937608, preempted after Code and Symbolic finished
+active job:    951127, Reasoning mix rerun with Requeue=1
+script:        experiments/scripts/run_synthetic_fair_full_20260529.sh
+job name:      synth-reason
+GPUs:          4x nvidia_rtx_a6000
+walltime:      24h
+run root:      experiments/runs/synthetic_fair_reasoning_mix_20260529/
+result root:   experiments/results/synthetic_fair_full_2026_05_29/
 ```
 
 | task | compared rows |
@@ -20,7 +21,7 @@ result root:  experiments/results/synthetic_fair_full_2026_05_29/
 | `synthetic/symbolic` | same rows |
 | `synthetic/reasoning_mix` | same rows |
 
-The run is same-LR across all rows. It is the replacement for partial synthetic outputs from earlier attempts.
+The run is same-LR across all rows. The launcher now has `--requeue`, a `USR1` time-signal requeue trap, and restart-safe skip/archive handling for completed versus partial rows.
 
 After completion:
 

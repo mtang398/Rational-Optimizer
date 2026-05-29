@@ -21,14 +21,15 @@ squeue -u mt872
 
 ## Active Fair Rerun
 
-The clean synthetic rerun is Slurm job `937608`, launched on May 29, 2026:
+The clean synthetic rerun started as Slurm job `937608` on May 29, 2026. That job was preempted after Code and Symbolic finished. The Reasoning mix continuation is job `951127` with `Requeue=1`.
 
 ```text
 script:       experiments/scripts/run_synthetic_fair_full_20260529.sh
-job name:     synth-fair
+job name:     synth-reason
 walltime:     24h
 GPUs:         4x nvidia_rtx_a6000
-output root:  experiments/runs/synthetic_fair_full_20260529/
+requeue:      enabled
+output root:  experiments/runs/synthetic_fair_reasoning_mix_20260529/
 ```
 
 It reruns every synthetic task from scratch with the same LR settings across all rows. Old partial synthetic outputs are superseded.

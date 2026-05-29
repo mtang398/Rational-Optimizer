@@ -6,6 +6,8 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=96G
 #SBATCH --time=24:00:00
+#SBATCH --requeue
+#SBATCH --signal=B:USR1@300
 #SBATCH --output=/home/mt872/rationalOPT/experiments/runs/logs/%x-%j.out
 
 set -euo pipefail
@@ -16,6 +18,7 @@ export RATIONAL_OPT_TORCH_FALLBACK="${RATIONAL_OPT_TORCH_FALLBACK:-1}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-1}"
 
+PYTHON="${PYTHON:-${PWD}/.venv-cu128/bin/python}"
 STEPS="${STEPS:-1250}"
 SEEDS="${SEEDS:-1337}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-250}"
@@ -29,6 +32,71 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-experiments/runs/synthetic_fair_full_20260529}"
 TASKS="${SYNTHETIC_TASKS:-synthetic/code synthetic/symbolic synthetic/reasoning_mix}"
 RLB_ACTIVATION="${RLB_ACTIVATION:-rlb_fused_fixed_strong_ffn}"
 
+request_requeue() {
+  echo "=== received USR1 at $(date -Is); requesting requeue for job ${SLURM_JOB_ID:-manual} ==="
+  if [[ -n "${SLURM_JOB_ID:-}" ]] && command -v scontrol >/dev/null 2>&1; then
+    scontrol requeue "${SLURM_JOB_ID}" || true
+  fi
+  exit 0
+}
+trap request_requeue USR1
+
+echo "=== synth fair job ${SLURM_JOB_ID:-manual}; restart ${SLURM_RESTART_COUNT:-0}; tasks: ${TASKS} ==="
+
+jsonl_complete() {
+  local path="$1"
+  [[ -f "${path}" ]] || return 1
+  "${PYTHON}" - "${path}" "${STEPS}" <<'PYJSON'
+import json
+import sys
+
+path = sys.argv[1]
+steps = int(sys.argv[2])
+summary_complete = False
+last_eval_step = None
+try:
+    with open(path) as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("event") == "summary" and int(record.get("steps", -1)) == steps:
+                summary_complete = True
+            if record.get("event") == "eval":
+                last_eval_step = record.get("step")
+except FileNotFoundError:
+    sys.exit(1)
+
+sys.exit(0 if summary_complete and int(last_eval_step or -1) == steps else 1)
+PYJSON
+}
+
+run_complete() {
+  local run_dir="$1"
+  local activations="$2"
+  local activation
+  for activation in ${activations}; do
+    jsonl_complete "${run_dir}/${activation}.jsonl" || return 1
+  done
+  return 0
+}
+
+archive_incomplete_run() {
+  local run_dir="$1"
+  if [[ ! -d "${run_dir}" ]]; then
+    return 0
+  fi
+  local stamp
+  stamp="$(date +%Y%m%d%H%M%S)"
+  local archive_dir="${run_dir}.incomplete_${SLURM_JOB_ID:-manual}_${SLURM_RESTART_COUNT:-0}_${stamp}"
+  echo "=== archiving incomplete run ${run_dir} -> ${archive_dir} ==="
+  mv "${run_dir}" "${archive_dir}"
+}
+
 run_variant() {
   local dataset_name="$1"
   local safe_name="$2"
@@ -37,6 +105,13 @@ run_variant() {
   local activations="$5"
   local extra_args="${6:-}"
   local run_name="${safe_name}_${run_tag}_${RUN_SUFFIX}"
+  local run_dir="${OUTPUT_ROOT}/${safe_name}/${run_name}"
+
+  if run_complete "${run_dir}" "${activations}"; then
+    echo "=== ${run_name} already complete; skipping ==="
+    return 0
+  fi
+  archive_incomplete_run "${run_dir}"
 
   echo "=== ${run_name} (${dataset_name}) ==="
   RUN_NAME="${run_name}" \
