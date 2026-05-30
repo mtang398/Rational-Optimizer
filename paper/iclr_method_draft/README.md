@@ -1,6 +1,6 @@
 # ICLR Method Draft
 
-This folder is an Overleaf-ready ICLR paper draft. It now contains a full visible paper skeleton with blank abstract, introduction, related work, experiments, discussion, limitations, and conclusion sections. The only substantive section is the method.
+This folder is an Overleaf-ready ICLR paper draft. It contains a full visible paper skeleton with blank abstract, introduction, related work, experiments, discussion, limitations, and conclusion sections. The main paper contains a compact method section; lower-level update equations are placed in the appendix after the references, matching the ICLR author-guide placement for supplementary text.
 
 ## Format
 
@@ -25,10 +25,10 @@ Switch this folder to the official ICLR 2027 template as soon as `iclr2027_confe
 
 ## Writing Reference
 
-The method format follows the structure of an ICLR optimizer paper: formal setup, algorithmic update rule, component analysis, and an algorithm box. The concrete reference checked for structure was Kingma and Ba's ICLR 2015 Adam paper:
+The method format follows the structure of an ICLR optimizer paper: formal setup, concise main update rule, and an algorithm box, with implementation-level equations moved to the appendix. The concrete reference checked for structure and citation metadata was Kingma and Ba's ICLR 2015 Adam paper:
 
 ```text
-https://arxiv.org/pdf/1412.6980
+https://mlanthology.org/iclr/2015/kingma2015iclr-adam/
 ```
 
 ## Build
