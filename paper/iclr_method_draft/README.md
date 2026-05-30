@@ -1,6 +1,6 @@
 # ICLR Method Draft
 
-This folder is an Overleaf-ready ICLR paper draft. It currently contains only the method section. The abstract, introduction, experiments, related work, and conclusion are intentionally blank until the research story is ready.
+This folder is an Overleaf-ready ICLR paper draft. It now contains a full visible paper skeleton with blank abstract, introduction, related work, experiments, discussion, limitations, and conclusion sections. The only substantive section is the method.
 
 ## Format
 
@@ -22,6 +22,14 @@ natbib.sty
 ```
 
 Switch this folder to the official ICLR 2027 template as soon as `iclr2027_conference.sty` or an official `iclr2027.zip` becomes available.
+
+## Writing Reference
+
+The method format follows the structure of an ICLR optimizer paper: formal setup, algorithmic update rule, component analysis, and an algorithm box. The concrete reference checked for structure was Kingma and Ba's ICLR 2015 Adam paper:
+
+```text
+https://arxiv.org/pdf/1412.6980
+```
 
 ## Build
 
