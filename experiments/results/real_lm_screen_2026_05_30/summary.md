@@ -1,6 +1,7 @@
 # Real LM Screen, 2026-05-30
 
 All rows use the same 100M-token training budget, 4M-token heldout slice after a 110M-token stream offset, and the same base LR schedule.
+PPL plots omit divergent/nonfinite runs; zoomed validation plots start at step 1000.
 
 ## FineWeb
 

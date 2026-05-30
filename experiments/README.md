@@ -68,6 +68,8 @@ results/real_lm_screen_2026_05_30/eval_curves.csv
 results/real_lm_screen_2026_05_30/train_curves.csv
 ```
 
+PPL plots omit divergent/nonfinite rows. This keeps the FineWeb-Edu `RLB+AdamW` failure from setting the y-axis scale for completed optimizers. Zoomed validation plots start at step 1000.
+
 ## WikiText-103 Anchor
 
 | method | final loss | final PPL |
@@ -85,11 +87,19 @@ WikiText remains useful because it is a real LM comparison with strong controls,
 
 ## Figures
 
+Full validation and training figures start at step 1. Zoomed validation figures start at step 1000.
+
 FineWeb validation loss and PPL:
 
 ![FineWeb validation loss](results/real_lm_screen_2026_05_30/fineweb_validation_loss.png)
 
 ![FineWeb validation PPL](results/real_lm_screen_2026_05_30/fineweb_validation_ppl.png)
+
+FineWeb zoomed validation loss and PPL:
+
+![FineWeb validation loss zoom](results/real_lm_screen_2026_05_30/fineweb_validation_loss_zoom_step1000.png)
+
+![FineWeb validation PPL zoom](results/real_lm_screen_2026_05_30/fineweb_validation_ppl_zoom_step1000.png)
 
 FineWeb training loss:
 
@@ -100,6 +110,12 @@ FineWeb-Edu validation loss and PPL:
 ![FineWeb-Edu validation loss](results/real_lm_screen_2026_05_30/fineweb_edu_validation_loss.png)
 
 ![FineWeb-Edu validation PPL](results/real_lm_screen_2026_05_30/fineweb_edu_validation_ppl.png)
+
+FineWeb-Edu zoomed validation loss and PPL:
+
+![FineWeb-Edu validation loss zoom](results/real_lm_screen_2026_05_30/fineweb_edu_validation_loss_zoom_step1000.png)
+
+![FineWeb-Edu validation PPL zoom](results/real_lm_screen_2026_05_30/fineweb_edu_validation_ppl_zoom_step1000.png)
 
 FineWeb-Edu training loss:
 

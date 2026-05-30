@@ -20,7 +20,7 @@ WikiText-103 remains a useful anchor with a smaller 0.073114 loss / 2.45 PPL gap
 
 The FineWeb-Edu result is especially important because plain `RLB+AdamW` becomes nonfinite early, while MatrixPolicy completes and gives the best heldout loss. This means the current result should be read as an optimizer result, not as an RLB-only activation comparison.
 
-The earlier saturated synthetic result packages were removed from the tracked public evidence. They were useful while debugging curve speed, but they are not strong enough for the current research story because the tasks reach a compressed loss floor.
+The earlier saturated synthetic result packages were removed from the tracked public evidence. They were useful while debugging curve speed, but they are not strong enough for the current research story because the tasks reach a compressed loss floor. Real-corpus PPL plots omit divergent/nonfinite rows and include step-1000 zoomed versions so completed optimizers remain readable.
 
 ## Control Set
 
@@ -65,6 +65,7 @@ MatrixPolicy is the RLB matrix optimizer. It updates `W_in` and `W_out` with rol
 3. [experiments/README.md](experiments/README.md) for result packages and regeneration commands.
 4. [training/README.md](training/README.md) for the fair-comparison and logging contract.
 5. [activation/README.md](activation/README.md) for the RLB layer definition.
+6. [paper/iclr_method_draft/README.md](paper/iclr_method_draft/README.md) for the method-only ICLR draft and build command.
 
 ## Evidence Standard
 

@@ -141,13 +141,23 @@ This is why the optimizer is RLB-specific: it acts on the explicit `W_in -> rati
 
 ## Figures
 
+Full validation and training figures start at step 1. PPL figures omit divergent/nonfinite rows so a failed run cannot compress all completed curves. The zoomed validation figures start at step 1000.
+
 FineWeb validation loss:
 
 ![FineWeb validation loss](experiments/results/real_lm_screen_2026_05_30/fineweb_validation_loss.png)
 
+FineWeb validation loss, zoomed from step 1000:
+
+![FineWeb validation loss zoom](experiments/results/real_lm_screen_2026_05_30/fineweb_validation_loss_zoom_step1000.png)
+
 FineWeb validation PPL:
 
 ![FineWeb validation PPL](experiments/results/real_lm_screen_2026_05_30/fineweb_validation_ppl.png)
+
+FineWeb validation PPL, zoomed from step 1000:
+
+![FineWeb validation PPL zoom](experiments/results/real_lm_screen_2026_05_30/fineweb_validation_ppl_zoom_step1000.png)
 
 FineWeb training loss:
 
@@ -157,9 +167,17 @@ FineWeb-Edu validation loss:
 
 ![FineWeb-Edu validation loss](experiments/results/real_lm_screen_2026_05_30/fineweb_edu_validation_loss.png)
 
+FineWeb-Edu validation loss, zoomed from step 1000:
+
+![FineWeb-Edu validation loss zoom](experiments/results/real_lm_screen_2026_05_30/fineweb_edu_validation_loss_zoom_step1000.png)
+
 FineWeb-Edu validation PPL:
 
 ![FineWeb-Edu validation PPL](experiments/results/real_lm_screen_2026_05_30/fineweb_edu_validation_ppl.png)
+
+FineWeb-Edu validation PPL, zoomed from step 1000:
+
+![FineWeb-Edu validation PPL zoom](experiments/results/real_lm_screen_2026_05_30/fineweb_edu_validation_ppl_zoom_step1000.png)
 
 FineWeb-Edu training loss:
 
@@ -199,6 +217,7 @@ activation/         RLB activation implementation and math
 optimizer_design/   MatrixPolicy optimizer definition
 training/           LM harness, dataset streaming, optimizer wiring
 experiments/        launchers, summarizers, committed result artifacts
+paper/              Overleaf-ready ICLR method draft
 ```
 
 Current compact result packages:
@@ -206,6 +225,7 @@ Current compact result packages:
 ```text
 experiments/results/real_lm_screen_2026_05_30/
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
+paper/iclr_method_draft/main.pdf
 ```
 
 Raw run directories under `experiments/runs/` are local artifacts. The earlier saturated synthetic result bundles were removed from the tracked public evidence; WikiText and the real-corpus screen are kept.

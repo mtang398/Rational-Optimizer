@@ -99,12 +99,22 @@ def collect_runs(run_root: Path) -> dict[str, list[dict]]:
     return tasks
 
 
-def finite_series(records: list[dict], key: str) -> tuple[list[int], list[float]]:
+def finite_series(
+    records: list[dict],
+    key: str,
+    min_step: int = 1,
+    require_eval_loss_finite: bool = False,
+) -> tuple[list[int], list[float]]:
     xs, ys = [], []
     for record in records:
+        step = int(record["step"])
+        if step < min_step:
+            continue
+        if require_eval_loss_finite and not is_finite(record.get("val_loss")):
+            continue
         value = record.get(key)
         if is_finite(value):
-            xs.append(int(record["step"]))
+            xs.append(step)
             ys.append(float(value))
     return xs, ys
 
@@ -173,13 +183,31 @@ def write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
         writer.writerows(rows)
 
 
-def plot_metric(task: str, runs: list[dict], event: str, key: str, ylabel: str, out_path: Path) -> None:
+def run_diverged(run: dict) -> bool:
+    return bool(first_nonfinite_step(run["train"], "loss") or first_nonfinite_step(run["eval"], "val_loss"))
+
+
+def plot_metric(
+    task: str,
+    runs: list[dict],
+    event: str,
+    key: str,
+    ylabel: str,
+    out_path: Path,
+    min_step: int = 1,
+    require_eval_loss_finite: bool = False,
+    exclude_diverged_runs: bool = False,
+) -> None:
     plt.figure(figsize=(8.0, 4.8))
+    plotted = False
     for run in runs:
+        if exclude_diverged_runs and run_diverged(run):
+            continue
         records = run[event]
-        xs, ys = finite_series(records, key)
+        xs, ys = finite_series(records, key, min_step=min_step, require_eval_loss_finite=require_eval_loss_finite)
         if not xs:
             continue
+        plotted = True
         label = run["label"]
         plt.plot(
             xs,
@@ -190,14 +218,18 @@ def plot_metric(task: str, runs: list[dict], event: str, key: str, ylabel: str, 
             linewidth=2.0 if label == "RLB+MatrixPolicy (group-stat)" else 1.6,
         )
         bad_step = first_nonfinite_step(records, key)
-        if bad_step is not None:
+        if bad_step is not None and min_step <= bad_step and not exclude_diverged_runs:
             plt.scatter([xs[-1]], [ys[-1]], color=COLORS.get(label), marker="x", s=48, zorder=4)
             plt.text(xs[-1], ys[-1], f"  diverged @ {bad_step}", fontsize=8, va="center")
-    plt.title(f"{TASKS[task]} {ylabel}")
+    title = f"{TASKS[task]} {ylabel}"
+    if min_step > 1:
+        title += f" (step >= {min_step})"
+    plt.title(title)
     plt.xlabel("step")
     plt.ylabel(ylabel)
     plt.grid(True, alpha=0.25)
-    plt.legend(frameon=False, fontsize=8)
+    if plotted:
+        plt.legend(frameon=False, fontsize=8)
     plt.tight_layout()
     plt.savefig(out_path, dpi=180)
     plt.close()
@@ -207,6 +239,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-root", default="experiments/runs/real_lm_screen_20260530")
     parser.add_argument("--result-dir", default="experiments/results/real_lm_screen_2026_05_30")
+    parser.add_argument("--zoom-min-step", type=int, default=1000)
     args = parser.parse_args()
 
     run_root = Path(args.run_root)
@@ -269,7 +302,36 @@ def main() -> None:
                 )
 
         plot_metric(task, runs, "eval", "val_loss", "validation loss", result_dir / f"{task}_validation_loss.png")
-        plot_metric(task, runs, "eval", "val_ppl", "validation PPL", result_dir / f"{task}_validation_ppl.png")
+        plot_metric(
+            task,
+            runs,
+            "eval",
+            "val_ppl",
+            "validation PPL",
+            result_dir / f"{task}_validation_ppl.png",
+            require_eval_loss_finite=True,
+            exclude_diverged_runs=True,
+        )
+        plot_metric(
+            task,
+            runs,
+            "eval",
+            "val_loss",
+            "validation loss",
+            result_dir / f"{task}_validation_loss_zoom_step{args.zoom_min_step}.png",
+            min_step=args.zoom_min_step,
+        )
+        plot_metric(
+            task,
+            runs,
+            "eval",
+            "val_ppl",
+            "validation PPL",
+            result_dir / f"{task}_validation_ppl_zoom_step{args.zoom_min_step}.png",
+            min_step=args.zoom_min_step,
+            require_eval_loss_finite=True,
+            exclude_diverged_runs=True,
+        )
         plot_metric(task, runs, "train", "loss", "training loss", result_dir / f"{task}_training_loss.png")
 
     write_csv(
@@ -298,6 +360,7 @@ def main() -> None:
 
     lines = ["# Real LM Screen, 2026-05-30", ""]
     lines.append("All rows use the same 100M-token training budget, 4M-token heldout slice after a 110M-token stream offset, and the same base LR schedule.")
+    lines.append("PPL plots omit divergent/nonfinite runs; zoomed validation plots start at step 1000.")
     lines.append("")
     for task in TASKS:
         lines.append(f"## {TASKS[task]}")
