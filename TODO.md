@@ -8,26 +8,48 @@ The paper should not claim only that rational activations are useful. The claim 
 
 A result is not paper-level unless it beats the strongest `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, and `RLB+Muon` controls on dense curves and at least one real LM setting.
 
+## Current Evidence Read
+
+### Real LM
+
+WikiText-103 supports the direction but not the final target:
+
+```text
+RLB MatrixPolicy-Muon: 3.476232 loss / 32.34 PPL
+Best SiLU/SwiGLU+AdamW: 3.549346 loss / 34.79 PPL
+Gap: 0.0731 loss / 2.45 PPL
+Target: 0.2-0.3 loss, preferably larger
+```
+
+### Dense Synthetic Curves
+
+The completed dense run shows MatrixPolicy is a real curve-speed optimizer. Mean validation loss AUC through step 200:
+
+| task | MatrixPolicy best | RLB+AdamW | SiLU+AdamW | interpretation |
+| --- | ---: | ---: | ---: | --- |
+| Code | 2.1462 | 2.4336 | 2.7252 | strong early speed; final saturated |
+| Symbolic | 1.6594 | 2.0576 | 2.4332 | strongest early speed; final saturated |
+| Reasoning mix | 2.7143 | 3.1170 | 3.4677 | early speed plus group-stat best final |
+
+This is not enough for a final paper claim because the synthetic tasks compress near the loss floor. It is enough to justify focusing on late-retention and harder non-saturated tasks.
+
+### Gauge Stress
+
+The gauge-stress run is informative but not a pass/fail proof. MatrixPolicy is still the fastest early curve under gauge `0.0` and gauge `2.0`, but gauge `2.0` often improves early AUC for every optimizer. Therefore the benchmark currently shows gauge sensitivity, not invariant optimization.
+
+Next gauge version must use:
+
+```text
+multiple gauge seeds
+multiple log-scale values
+reported gauge drift over training
+function-probe delta per update
+norm-product diagnostics for W_in/W_out
+```
+
 ## What Is Actually ICLR-Level
 
-### 1. RLB Gauge-Stress Benchmark
-
-RLB has a positive scale gauge: scale a rational group's `W_in` rows by `a > 0` and the matching `W_out` columns by `1/a`, and the represented function is unchanged at initialization. Generic optimizers can still behave differently because the parameter conditioning changes.
-
-This is a direct optimizer-geometry test. It is more paper-worthy than another synthetic pattern because it asks whether the optimizer respects a real symmetry of the model class.
-
-Required experiment:
-
-| row family | gauge 0 | gauge stress | metric |
-| --- | --- | --- | --- |
-| `RLB+AdamW` | yes | yes, log-scale 2.0 | curve degradation under equivalent function reparameterization |
-| `RLB+Muon` | yes | yes, log-scale 2.0 | matrix optimizer sensitivity |
-| `RLB MatrixPolicy` | yes | yes, log-scale 2.0 | whether policy is more invariant |
-| `RLB MatrixPolicy group-stat` | yes | yes, log-scale 2.0 | whether live group stats improve invariance |
-
-Pass criterion: MatrixPolicy should have smaller train/validation AUC degradation under gauge stress than generic `RLB+AdamW` and `RLB+Muon`. If not, the current optimizer is not exploiting the most obvious RLB geometry.
-
-### 2. Function-Space Movement Audit
+### 1. Function-Space Movement Audit
 
 Dense curves show performance but not mechanism. Add diagnostics that measure whether each optimizer spends updates on useful function change rather than gauge drift.
 
@@ -45,19 +67,35 @@ Required metrics per RLB layer:
 
 Pass criterion: the best optimizer should show better loss/AUC with lower gauge drift or better function-delta-per-parameter-delta than generic optimizers.
 
-### 3. Preservation of Early Rational Speed
+### 2. Preservation Of Early Rational Speed
 
-The sparse synthetic run and dense rerun are about this: RLB rows appear to enter the low-loss regime faster, but the advantage can compress near the final floor. A paper-worthy optimizer should preserve that early advantage on harder, non-saturated tasks.
+The dense run says MatrixPolicy makes RLB learn fast early. The next optimizer work should preserve that speed late instead of spending it before convergence.
 
-Required tasks should be chosen for non-saturation, not novelty of text formatting:
+Likely useful directions:
+
+| direction | reason |
+| --- | --- |
+| late-phase trust on RLB matrices | prevent MatrixPolicy from over-moving after the rational groups are already useful |
+| group activity floor/ceiling | keep useful rational groups alive without over-amplifying saturated ones |
+| gauge-drift penalty or rebalance trigger | make the exact gauge symmetry measurable and controlled |
+| coefficient trust based on denominator margin | avoid rational-shape instability while allowing local basis learning |
+| layer-role policy with late decay by observed activity | preserve early matrix selection while reducing late churn |
+
+Hard rule: do not count a global LR schedule change as optimizer progress.
+
+### 3. Hard Non-Saturated Tasks
+
+A paper-worthy optimizer should turn early speed into final loss on tasks that do not hit the floor.
+
+Prioritized tasks:
 
 | benchmark | reason it is paper-relevant |
 | --- | --- |
-| gauge-stressed `synthetic/code` and `synthetic/reasoning_mix` | optimizer geometry, same represented function, different conditioning |
 | rational-teacher LM | generated by hidden rational state/functions; tests whether RLB optimizer fits the right inductive structure |
 | length/composition extrapolation | train short rule/program traces, validate longer traces; tests learned algorithmic structure |
 | phase-mix task | easy local pattern plus delayed hard subtask; tests whether early gains survive late training |
-| real LM transfer | WikiText-103, code-heavy slice, and one C4/OpenWebText-like slice if cached/available |
+| harder gauge-stressed reasoning/code | combines optimizer geometry with non-saturation |
+| real LM transfer | WikiText-103 plus code-heavy or C4/OpenWebText-like slice if cached/available |
 
 ### 4. RLB-Policy v2 Design Target
 
@@ -81,39 +119,14 @@ Actions:
 - gauge rebalance strength when `W_in`/`W_out` drift grows
 - group revive/damp decisions for dead or saturated groups
 
-Hard rule: do not count a global LR schedule change as optimizer progress.
-
-## Current Jobs
-
-```text
-952433 synth-dense
-purpose: dense synthetic train/validation curves
-GPUs:    4x A6000
-cadence: training every 10 steps, validation every 25 steps
-status:  running
-
-952584 rlb-gauge
-purpose: RLB positive-gauge optimizer stress test
-GPUs:    4x A6000
-steps:   750
-tasks:   synthetic/code synthetic/reasoning_mix
-gauge:   0.0 and 2.0 log-scale
-status:  running
-```
-
-These two jobs already use the full 8 A6000 cap. Do not submit another GPU job until one completes or is intentionally cancelled.
-
 ## Immediate Implementation TODO
 
-1. Finish dense synthetic run `952433` and summarize into `experiments/results/synthetic_dense_curves_2026_05_29/`.
-2. Summarize RLB gauge-stress job and compare gauge sensitivity by optimizer.
-3. Add a gauge-stress summarizer that reports:
-   - train AUC degradation: gauge 2.0 minus gauge 0.0
-   - validation AUC degradation
-   - time-to-threshold degradation
-   - final loss degradation
-4. If MatrixPolicy is not more gauge-stable than generic optimizers, redesign around gauge drift before adding more tasks.
-5. If MatrixPolicy is more gauge-stable, move to rational-teacher and extrapolation benchmarks.
+1. Add function-space and gauge-drift diagnostics to the training loop.
+2. Run gauge sweep with at least two gauge seeds and more than one log-scale value.
+3. Design MatrixPolicy v2 for late retention: preserve early curve speed while reducing late matrix churn.
+4. Add one hard non-saturated task before launching more easy synthetic runs.
+5. Repeat the best dense curve result with a second seed.
+6. Then run the best candidate on a second 100M-scale LM task.
 
 ## Harsh ICLR Self-Review
 
@@ -125,21 +138,22 @@ Reason: harder synthetic tasks can show a win but do not prove a new optimizer p
 
 ### Draft 2: dense curves plus hard tasks
 
-Score: 6.2 / 10
+Score: 6.5 / 10
 
-Reason: dense train/validation curves are necessary and useful, but still mostly empirical. It can support an engineering note, not a strong ICLR paper, unless the optimizer-specific geometry is tested.
+Reason: the dense curves are now real and positive: MatrixPolicy consistently improves early/mid AUC. Still not enough because final synthetic losses saturate and the mechanism is only partly tested.
 
 ### Draft 3: gauge stress + function-space diagnostics + dense transfer
 
-Score: 8.1 / 10
+Score: 7.2 / 10 right now; 8.1 / 10 if diagnostics confirm the mechanism.
 
-Reason: this tests a real symmetry of rational layers, gives a mechanism for why generic optimizers fail, and creates falsifiable predictions. It can become ICLR-worthy if the results show robust gains across dense synthetic curves and at least one real LM benchmark.
+Reason: gauge stress targets a real symmetry of rational layers, but the first run did not produce a clean degradation story because stressed gauges sometimes trained faster. It becomes ICLR-worthy only if the next sweep plus function-space diagnostics show that MatrixPolicy is using rational geometry more efficiently than generic optimizers.
 
 Remaining weaknesses:
 
 - One seed is not enough for the final claim.
-- Synthetic-only evidence is not enough.
-- The current MatrixPolicy may fail gauge stress; that would be useful but not a positive paper result.
+- Synthetic-only curve speed is not enough.
+- Current final real-LM gap is modest.
+- Gauge invariance is not yet demonstrated.
 - Function-space diagnostics are not implemented yet.
 
 ### Score Needed Before Paper Claim
@@ -151,7 +165,7 @@ Required evidence before claiming success:
 - Dense train and validation curves.
 - Same base LR across all serious comparisons.
 - Strong controls: `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, `RLB+Muon`.
-- Gauge-stress improvement over generic RLB optimizers.
+- Gauge-stress improvement across seeds/scales or a clear measured explanation of gauge sensitivity.
 - At least one hard non-saturated task with final gap, not only early curve gap.
 - At least one 100M LM transfer result.
 - At least two seeds for the final best claim.

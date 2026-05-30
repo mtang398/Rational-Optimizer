@@ -70,7 +70,7 @@ W_out[g] <- W_out[g] / a_g
 
 before training. This creates equivalent initial functions with different matrix conditioning.
 
-## Logging Standard
+## Logging And Analysis Standard
 
 Optimizer-discrimination runs must log dense curves:
 
@@ -80,7 +80,19 @@ validation: step 1, then at least every 25 steps
 final:      always include final step
 ```
 
-Plots should start at step 1. Late-only plots hide the early phase where the rational matrix policy is most likely to differ from generic AdamW or Muon.
+Plots must start at step 1. Late-only plots hide the early phase where the rational matrix policy differs most from generic AdamW or Muon.
+
+Use these metrics before final-loss tables:
+
+```text
+step-matched training loss and validation loss
+mean validation loss AUC through early horizons, especially step 200
+mean training loss AUC through early horizons
+time to fixed validation thresholds, for example loss <= 0.2
+final loss/PPL only after checking whether the task is saturated
+```
+
+The May 29 dense synthetic run shows why this matters: MatrixPolicy has much better early AUC than `RLB+AdamW`, `RLB+Muon`, and SiLU controls, even when the final saturated losses are close.
 
 ## Task Standard
 
@@ -95,8 +107,10 @@ Preferred short-task families should stress mechanisms rather than text formatti
 | carry arithmetic | sharp local decision boundaries from carries. |
 | stack brackets | nonlinear state tracking. |
 | noisy copy/transform | robust sequence transformation under distractors. |
+| rational-teacher LM | hidden rational transition/function matching. |
+| phase-mix task | early easy pattern plus delayed hard subtask. |
 
-The gauge-stress benchmark should be evaluated before adding many more tasks, because it tests the actual RLB symmetry directly.
+The gauge-stress benchmark is useful because it tests the actual RLB symmetry directly. The current single-seed gauge run is not enough: gauge log scale `2.0` often improved early curves for all optimizers, so future gauge tests need multiple seeds/scales and gauge-drift diagnostics.
 
 ## Runtime Rule
 

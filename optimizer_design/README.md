@@ -173,6 +173,25 @@ mu_max = 0.75
 
 The base LR `eta_t` is the same scheduler used by the controls. MatrixPolicy changes only local RLB matrix multipliers and the matrix update rule mixture.
 
+## Empirical Behavior So Far
+
+The May 29 dense synthetic and gauge-stress runs clarify what MatrixPolicy is currently doing. It is best understood as an early/mid training accelerator for RLB matrices, not yet as a solved final-loss optimizer.
+
+Observed pattern:
+
+```text
+RLB+AdamW                 faster than SiLU+AdamW early on synthetic tasks
+RLB MatrixPolicy          faster than RLB+AdamW early/mid
+RLB MatrixPolicy group-stat  similar early speed, sometimes better late retention
+RLB+Muon                  weak early curve on these RLB synthetic runs
+```
+
+The strongest signal is mean validation loss AUC through step 200. On the dense synthetic run, MatrixPolicy improves over generic `RLB+AdamW` on Code (`2.1462` vs `2.4336`), Symbolic (`1.6594` vs `2.0576`), and Reasoning mix (`2.7143` vs `3.1170`). On Reasoning mix, the group-stat variant also gives the best final row (`0.142429` loss / `1.1531` PPL), but Code and Symbolic are too saturated for final loss to carry much meaning.
+
+The gauge-stress run should be read carefully. Gauge log scale `2.0` often improves early AUC for every optimizer, so it is not a clean degradation proof. MatrixPolicy remains the fastest early curve under both gauge settings, but a stronger mechanism claim needs multiple gauge seeds/scales plus direct measurement of gauge drift and function-space movement.
+
+Design implication: the useful part of MatrixPolicy is the role-aware matrix update. The weak part is late retention. Future optimizer work should focus on preserving the early function-space gain rather than increasing global LR or adding another scheduler.
+
 ## On-Policy Statistics
 
 Before the child optimizers step, the wrapper records per-layer, per-group relative gradient pressures:

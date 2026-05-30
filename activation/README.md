@@ -59,6 +59,10 @@ RLB exposes these handles to the optimizer:
 
 The activation code therefore supports not only forward computation, but also optimizer diagnostics such as output RMS, derivative RMS, coefficient activity, and group pressure.
 
+## Evidence Boundary
+
+RLB is not treated as a standalone activation win. The current evidence says RLB plus MatrixPolicy trains faster on dense synthetic curves, while the real-LM final gap is still modest. Therefore activation changes should be evaluated with the optimizer controls in [README.md](../README.md), not by comparing RLB against SiLU in isolation.
+
 ## Implementation Layout
 
 ```text
