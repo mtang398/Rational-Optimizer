@@ -36,7 +36,7 @@ u_g' = u_g
 h_g' = a_g h_g
 ```
 
-Therefore the matrix transform
+Therefore the matrix transform:
 
 ```text
 W_in[g]  <- a_g W_in[g]
@@ -61,7 +61,14 @@ The activation code therefore supports not only forward computation, but also op
 
 ## Evidence Boundary
 
-RLB is not treated as a standalone activation win. The current evidence says RLB plus MatrixPolicy trains faster on dense synthetic curves, while the real-LM final gap is still modest. Therefore activation changes should be evaluated with the optimizer controls in [README.md](../README.md), not by comparing RLB against SiLU in isolation.
+RLB is not treated as a standalone activation win. The current real-corpus evidence says:
+
+```text
+FineWeb:     RLB+MatrixPolicy (group-stat) beats SiLU+AdamW by 0.160467 loss / 13.40 PPL.
+FineWeb-Edu: RLB+MatrixPolicy (group-stat) beats SiLU+AdamW by 0.152964 loss / 9.70 PPL.
+```
+
+Plain `RLB+AdamW` is close to `SiLU+AdamW` on FineWeb but diverges on FineWeb-Edu. Therefore activation changes should be evaluated with the optimizer controls in [README.md](../README.md), not by comparing RLB against SiLU in isolation.
 
 ## Implementation Layout
 

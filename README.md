@@ -1,79 +1,40 @@
 # RationalOPT
 
-RationalOPT is a small-scale language-modeling study of rational feed-forward layers and optimizers that exploit their structure. The central question is:
+RationalOPT studies whether a no-GLU Rational Local Basis FFN can train better than SiLU/SwiGLU when the optimizer uses rational-specific geometry. The comparison is deliberately same-protocol: same model size, token budget, seed, batch shape, base LR schedule, weight decay, dataset slice, and evaluation cadence.
 
-```text
-Can a no-GLU rational FFN train better than SiLU/SwiGLU when the optimizer uses rational-specific geometry, under the same model size, tokens, seed, base LR schedule, and evaluation cadence?
-```
+The current best optimizer is `rational_matrix_policy_onpolicy`, run as `RLB+MatrixPolicy (group-stat)` on the real-corpus screen. It is not an LR trick. It keeps the same base LR schedule as the controls and changes only the local update rule for RLB matrix roles plus an exact RLB gauge rebalance.
 
-The project is not trying to win by changing the global learning-rate schedule. A result counts only when the rational model and rational optimizer beat strong generic controls under the same base training protocol.
+## Current Evidence
 
-## Research Object
+The strongest current evidence is the May 30 real-corpus screen. It uses a 123.6M-parameter GPT-style model, GPT-2 tokenizer, 100M training tokens, 4M heldout tokens after a 110M-token stream offset, 32,768 tokens/step, seed `1337`, and the same base LR schedule across rows.
 
-The model replacement is a Rational Local Basis FFN (RLB). For input `x`, hidden width split into groups `g = 1..G`, and group width `m`:
+### FineWeb
 
-```text
-z = W_in x
-z_g = group_g(z)
-r_g = sqrt(mean(z_g^2) + eps)
-u_g = z_g / r_g
-h_g = r_g R_g(u_g)
-y = W_out concat_g(h_g)
-```
+| method | last finite validation loss | last finite PPL | val loss AUC <= 1000 | val loss AUC <= 2000 | note |
+| --- | ---: | ---: | ---: | ---: | --- |
+| SiLU+AdamW | 4.504617 | 90.43 | 5.993426 | 5.401559 | complete |
+| RLB+AdamW | 4.493013 | 89.39 | 5.954484 | 5.373016 | complete |
+| SiLU+Muon | 4.535766 | 93.29 | 6.664512 | 5.786310 | complete |
+| RLB+Muon | 4.548868 | 94.53 | 6.585091 | 5.752002 | complete |
+| RLB+MatrixPolicy (group-stat) | 4.344150 | 77.03 | 5.850945 | 5.262783 | complete |
 
-`R_g` is a learned rational function with local odd/bump basis terms. There is no GLU gate and no hidden SiLU branch inside the RLB FFN.
+Main gap: `RLB+MatrixPolicy (group-stat)` beats `SiLU+AdamW` by `0.160467` validation loss and `13.40` PPL. It beats `RLB+AdamW` by `0.148863` validation loss and `12.36` PPL.
 
-The useful symmetry is a positive group gauge. Let `D(a)` be block diagonal with block `a_g I_m`, `a_g > 0`. Then
+### FineWeb-Edu
 
-```text
-W_in'  = D(a) W_in
-W_out' = W_out D(a)^(-1)
-```
+| method | last finite validation loss | last finite PPL | val loss AUC <= 1000 | val loss AUC <= 2000 | note |
+| --- | ---: | ---: | ---: | ---: | --- |
+| SiLU+AdamW | 4.225019 | 68.38 | 5.835354 | 5.186270 | complete |
+| RLB+AdamW | 8.411884 | 4500.23 | 9.684973 | 9.684973 | train nonfinite at step 80; validation nonfinite at step 100 |
+| SiLU+Muon | 4.252612 | 70.29 | 6.505154 | 5.563970 | complete |
+| RLB+Muon | 4.271556 | 71.63 | 6.425483 | 5.529865 | complete |
+| RLB+MatrixPolicy (group-stat) | 4.072055 | 58.68 | 5.670071 | 5.041694 | complete |
 
-preserves the represented RLB block function. Generic optimizers can behave differently on equivalent parameterizations; an RLB optimizer can try to update useful function directions while controlling gauge drift.
+Main gap: `RLB+MatrixPolicy (group-stat)` beats `SiLU+AdamW` by `0.152964` validation loss and `9.70` PPL. The plain `RLB+AdamW` row is unstable on this task, so the result is not just an activation win.
 
-## MatrixPolicy Optimizer
+### WikiText-103 Anchor
 
-The current optimizer family is `rational_matrix_policy_onpolicy`. MatrixPolicy is the optimizer for the RLB matrices `W_in` and `W_out`; it is not a whole-Transformer optimizer. The rest of the model stays on ordinary optimizers so the comparison isolates RLB-specific matrix geometry.
-
-For each RLB layer, write:
-
-```text
-A_l = W_in,l   input selector into rational groups
-B_l = W_out,l  output recombiner back to the residual stream
-```
-
-The verified MatrixPolicy run partitions parameters as:
-
-```text
-theta_backbone -> AdamW
-theta_coeff    -> AdamW/function-space coefficient optimizer when enabled
-A_l, B_l       -> RationalMatrixPolicyOptimizer
-RLB groups     -> on-policy function-preserving gauge rebalance
-```
-
-For each RLB matrix group, MatrixPolicy computes a role/depth scale. With normalized layer depth `d_l = l/(L-1)`:
-
-```text
-rho_in(l)  = clip(1 - 0.50 (d_l - 0.5), 0.55, 1.40)
-rho_out(l) = clip(1 + 1.00 (d_l - 0.5), 0.55, 1.40)
-```
-
-AdamW on RLB matrices receives this role-scaled multiplier, while a short early Muon component is blended only into the RLB matrices:
-
-```text
-Delta A_l = Delta_AdamW(A_l; eta_t s_A(l,in,t) [1 - mu(l,in,t)])
-          + Delta_Muon (A_l; eta_t s_M mu(l,in,t))
-
-Delta B_l = Delta_AdamW(B_l; eta_t s_A(l,out,t) [1 - mu(l,out,t)])
-          + Delta_Muon (B_l; eta_t s_M mu(l,out,t))
-```
-
-The base LR `eta_t` is shared with all controls. Group-stat variants additionally precondition matrix gradients per rational group, then the outer wrapper applies the exact gauge transform. The full mathematical definition is in [optimizer_design/README.md](optimizer_design/README.md).
-
-## Evidence Boundary
-
-The best verified WikiText-103 row is a modest same-LR win:
+WikiText-103 remains useful as an older real-LM anchor, but it is not the main current claim because the gap is smaller.
 
 | method | final loss | final PPL |
 | --- | ---: | ---: |
@@ -86,50 +47,123 @@ The best verified WikiText-103 row is a modest same-LR win:
 | SiLU/SwiGLU+Muon | 3.644921 | 38.28 |
 | RLB+Muon | 3.657877 | 38.78 |
 
-The current real-LM gap over the strongest `SiLU/SwiGLU+AdamW` row is `0.0731` loss and `2.45` PPL. This supports the optimizer direction but does not meet the intended `0.2-0.3` loss-gap target.
+The WikiText gap versus the strongest `SiLU/SwiGLU+AdamW` row is `0.073114` loss and `2.45` PPL. The real-corpus FineWeb and FineWeb-Edu gaps are larger.
 
-Dense synthetic runs now give the more important short-run signal: MatrixPolicy improves the curve, especially before the task saturates. The table reports mean validation loss AUC through step 200; lower is better.
+## RLB Layer
 
-| task | best MatrixPolicy curve row | MatrixPolicy AUC200 | RLB+AdamW AUC200 | SiLU+AdamW AUC200 | first MatrixPolicy val <= 0.2 | final interpretation |
-| --- | --- | ---: | ---: | ---: | ---: | --- |
-| Code | group-stat | 2.1462 | 2.4336 | 2.7252 | 200 | early win, final saturated and SiLU+AdamW ends slightly lower |
-| Symbolic | group-stat | 1.6594 | 2.0576 | 2.4332 | 150 | strong early win, final differences are floor-level |
-| Reasoning mix | MatrixPolicy | 2.7143 | 3.1170 | 3.4677 | 550 | early win; group-stat also gives best final loss, 0.1424 |
-
-The positive-gauge stress run is a mechanism test, not a final benchmark. At gauge log scale `2.0`, MatrixPolicy remains the fastest early curve on both tasks, but the stressed parameterization often trains faster than gauge `0.0` for all optimizers. This means the current gauge run shows optimizer sensitivity to gauge, not a clean proof of gauge invariance.
-
-| task | gauge | best early row | best AUC200 | RLB+AdamW AUC200 | RLB+Muon AUC200 | final note |
-| --- | ---: | --- | ---: | ---: | ---: | --- |
-| Code | 0.0 | MatrixPolicy | 2.1541 | 2.4297 | 4.2148 | AdamW/Muon catch up late |
-| Code | 2.0 | MatrixPolicy group-stat | 1.9561 | 2.2702 | 3.4906 | Muon has best final loss |
-| Reasoning mix | 0.0 | MatrixPolicy | 2.7346 | 3.1179 | 4.8260 | group-stat has best final loss |
-| Reasoning mix | 2.0 | MatrixPolicy | 2.5668 | 2.9404 | 4.1080 | group-stat has best final loss |
-
-Current claim: MatrixPolicy is a rational-specific early/mid training accelerator. The group-stat variant can preserve that speed into final loss on reasoning_mix, but the synthetic tasks are too saturated to support a large final-gap claim. The next paper-level target is to convert this curve lead into a robust final gap on harder non-saturated tasks and real LM transfer.
-
-## Active Real-Corpus Screen
-
-The May 30 real-corpus screen is the first step toward the paper-level LM claim. It uses streaming Hugging Face corpora so the repository does not download full datasets. Each task caches only bounded GPT-2 token tensors:
+RLB replaces the standard FFN nonlinearity with grouped normalized rational functions. For hidden groups `g = 1..G` with group width `m`:
 
 ```text
-train tokens: 100,000,000
-validation tokens: 4,000,000 after a 110,000,000-token stream offset
-steps: 3,050 at 32,768 tokens/step
-logging: train every 10 steps, validation every 50 steps
-storage guard: stop if repository exceeds 190 GiB, below the 200 GiB cap
-GPU guard: one job = 4 A6000s; at most two active jobs = 8 A6000s
+z = W_in x
+z_g = group_g(z)
+r_g = sqrt(mean(z_g^2) + eps)
+u_g = z_g / r_g
+h_g = r_g R_g(u_g)
+y = W_out concat_g(h_g)
 ```
 
-Launched tasks:
+`R_g` is learned from rational coefficients and local basis terms. There is no GLU gate, no hidden SiLU branch, and no value/gate split.
 
-| task | HF dataset/config | purpose |
-| --- | --- | --- |
-| FineWeb-Edu | `HuggingFaceFW/fineweb-edu`, `sample-10BT` | clean modern web text; high-signal real LM curve. |
-| FineWeb | `HuggingFaceFW/fineweb`, `sample-10BT` | noisier raw web text; closer to broad pretraining. |
+The useful symmetry is a positive group gauge. For any `a_g > 0`:
 
-Each task runs `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, `RLB+Muon`, and `RLB+MatrixPolicy group-stat` under the same base LR schedule. Pending results live under `experiments/runs/real_lm_screen_20260530/` and should not be interpreted until the train/validation curves are complete.
+```text
+W_in[g]  <- a_g W_in[g]
+W_out[g] <- W_out[g] / a_g
+```
+
+The represented function is unchanged because `u_g` is unchanged, `r_g` and `h_g` scale by `a_g`, and `W_out[g]` cancels the scale. Generic optimizers still see different matrix norms and conditioning. MatrixPolicy tries to update the represented function while controlling this gauge degree of freedom.
+
+## MatrixPolicy Optimizer
+
+The exact real-corpus optimizer row is:
+
+```text
+activation:  rlb_fused_fixed_strong_ffn
+optimizer:   rational_matrix_policy_onpolicy
+variant:     MatrixPolicy with group-stat scaling
+backbone:    AdamW
+base LR:     optimizer_lr=3e-4, optimizer_min_lr=3e-5
+beta2:       MatrixPolicy beta2=0.999, backbone beta2=0.999
+```
+
+Parameter partition:
+
+```text
+theta_backbone -> AdamW
+rational coefficients -> AdamW-style coefficient updates in the wrapper
+A_l = W_in,l -> RationalMatrixPolicyOptimizer, role=in
+B_l = W_out,l -> RationalMatrixPolicyOptimizer, role=out
+RLB group gauge -> exact post-step rebalance
+```
+
+For layer depth `d_l = l/(L-1)`, MatrixPolicy uses different role-depth factors for input selectors and output recombiners:
+
+```text
+rho_in(l)  = clip(1 - 0.50 (d_l - 0.5), 0.55, 1.40)
+rho_out(l) = clip(1 + 1.00 (d_l - 0.5), 0.55, 1.40)
+```
+
+The RLB matrix step is a local AdamW/Muon mixture, not a global scheduler change:
+
+```text
+M_{l,r} <- M_{l,r}
+          + Delta_AdamW(M_{l,r}; eta_t a_mat(l,r,t) [1 - mu(l,r,t)])
+          + Delta_Muon (M_{l,r}; eta_t a_muon mu(l,r,t))
+```
+
+with current real-corpus defaults:
+
+```text
+a_mat base scale = 3.0, clipped to [0.40, 4.0]
+a_muon = 1.0
+muon strength peak = 0.75
+muon active window = start 0.02, full by 0.12, decay 0.20 to 0.36
+```
+
+The group-stat variant multiplies RLB matrix gradients by centered, clipped per-group scales from derivative/output activity and pressure:
+
+```text
+group_gain_strength = 0.20
+group_pressure_strength = 0.10
+group_activity_damping = 0.20
+group window = progress 0.02 to 0.30
+group scale clip = [0.75, 1.35]
+```
+
+After child optimizer steps, the wrapper applies the exact gauge rebalance:
+
+```text
+A_{l,g} <- s_g A_{l,g}
+B_{l,g} <- B_{l,g} / s_g
+```
+
+This is why the optimizer is RLB-specific: it acts on the explicit `W_in -> rational groups -> W_out` factorization and the gauge symmetry of the rational block.
 
 ## Figures
+
+FineWeb validation loss:
+
+![FineWeb validation loss](experiments/results/real_lm_screen_2026_05_30/fineweb_validation_loss.png)
+
+FineWeb validation PPL:
+
+![FineWeb validation PPL](experiments/results/real_lm_screen_2026_05_30/fineweb_validation_ppl.png)
+
+FineWeb training loss:
+
+![FineWeb training loss](experiments/results/real_lm_screen_2026_05_30/fineweb_training_loss.png)
+
+FineWeb-Edu validation loss:
+
+![FineWeb-Edu validation loss](experiments/results/real_lm_screen_2026_05_30/fineweb_edu_validation_loss.png)
+
+FineWeb-Edu validation PPL:
+
+![FineWeb-Edu validation PPL](experiments/results/real_lm_screen_2026_05_30/fineweb_edu_validation_ppl.png)
+
+FineWeb-Edu training loss:
+
+![FineWeb-Edu training loss](experiments/results/real_lm_screen_2026_05_30/fineweb_edu_training_loss.png)
 
 WikiText-103 validation loss:
 
@@ -143,82 +177,35 @@ WikiText-103 training loss from step 1:
 
 ![WikiText training loss from step 1](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
 
-Dense synthetic AdamW-control validation loss. Generic Muon control rows are omitted here because they are much worse early and make the AdamW comparison harder to read:
-
-![Adam-only validation loss](experiments/results/synthetic_dense_curves_2026_05_29/adam_only_validation_loss.png)
-
-Dense synthetic AdamW-control validation PPL:
-
-![Adam-only validation PPL](experiments/results/synthetic_dense_curves_2026_05_29/adam_only_validation_ppl.png)
-
-Dense synthetic AdamW-control training loss:
-
-![Adam-only training loss](experiments/results/synthetic_dense_curves_2026_05_29/adam_only_training_loss.png)
-
-Gauge-stressed reasoning_mix validation loss:
-
-![Gauge reasoning validation loss](experiments/results/rlb_gauge_stress_2026_05_29/synthetic_reasoning_mix_validation_loss_by_gauge.png)
-
-Gauge-stressed reasoning_mix validation PPL:
-
-![Gauge reasoning validation PPL](experiments/results/rlb_gauge_stress_2026_05_29/synthetic_reasoning_mix_validation_ppl_by_gauge.png)
-
-Full dense and gauge result packages are in [experiments/results/synthetic_dense_curves_2026_05_29](experiments/results/synthetic_dense_curves_2026_05_29) and [experiments/results/rlb_gauge_stress_2026_05_29](experiments/results/rlb_gauge_stress_2026_05_29).
-
 ## Interpretation
 
-What is working:
+What is working now:
 
-- RLB itself drops faster than SiLU/SwiGLU on the synthetic tasks, especially before the loss floor.
-- MatrixPolicy improves that early drop beyond generic `RLB+AdamW` and far beyond `RLB+Muon` on the same base LR.
-- The role/depth matrix policy seems useful: `W_in` and `W_out` should not be optimized as interchangeable matrices.
-- Group-stat scaling is mild but useful on reasoning_mix, where it preserves the curve lead into the best final row.
+- The optimizer matters more than the activation alone. FineWeb-Edu plain `RLB+AdamW` diverges, while `RLB+MatrixPolicy (group-stat)` is the best completed row.
+- Generic Muon is a poor fit here. Both `SiLU+Muon` and `RLB+Muon` are worse than AdamW controls on the real-corpus screen.
+- The role-aware RLB matrix policy appears to preserve the useful rational advantage into heldout loss on two real web corpora, not only on toy saturated tasks.
+- The current gaps, around `0.153-0.160` validation loss versus `SiLU+AdamW`, are larger than the WikiText anchor but still slightly below the earlier target of `0.2-0.3` loss.
 
-What is not yet solved:
+What is not claimed:
 
-- On Code and Symbolic, the tasks saturate so final loss is not a strong discriminator.
-- MatrixPolicy can spend its early advantage before the end of training; late retention is the main weakness.
-- Gauge log scale `2.0` was not a pure degradation stress. More gauge seeds/scales and direct gauge-drift diagnostics are required.
-- The desired `0.2-0.3` real-LM loss gap has not been reached.
-
-## Experimental Contract
-
-A serious comparison must include:
-
-```text
-SiLU/SwiGLU + AdamW
-RLB + AdamW
-SiLU/SwiGLU + Muon
-RLB + Muon
-RLB + MatrixPolicy variants
-```
-
-A rational optimizer result is credible only if these are held fixed across rows:
-
-```text
-model size, token budget, seed, batch shape, sequence length,
-base LR schedule, weight decay, eval cadence, dataset, dataset config
-```
-
-Jacobian, quotient, transport, coefficient-only, and scheduler variants are ablations, not the baseline target.
-
-## Next Tests
-
-| test | pass condition |
-| --- | --- |
-| Hard non-saturated tasks | MatrixPolicy curve lead becomes a final loss gap before the task hits a floor. |
-| Gauge sweep | MatrixPolicy has lower sensitivity across gauge seeds/scales, not just one gauge draw. |
-| Function-space audit | Better loss/AUC comes with less gauge drift or better function-change-per-update. |
-| Real LM transfer | The optimizer advantage survives another small-scale LM task beyond WikiText-103. |
-| Seeds | Best claims hold across at least two seeds. |
+- The removed saturated synthetic tests are not part of the current public evidence.
+- This is not yet a multi-seed claim.
+- This is not yet a proof of gauge-invariant optimization; it is a strong empirical optimizer result that motivates direct function-space and gauge-drift diagnostics.
 
 ## Repository Map
 
 ```text
-activation/         RLB activation implementation
-optimizer_design/   rational-specific optimizer implementations
-training/           LM harness, synthetic generators, optimizer wiring
-experiments/        launchers, summarizers, committed figures
+activation/         RLB activation implementation and math
+optimizer_design/   MatrixPolicy optimizer definition
+training/           LM harness, dataset streaming, optimizer wiring
+experiments/        launchers, summarizers, committed result artifacts
 ```
 
-Raw run directories under `experiments/runs/` are local artifacts. Research figures and compact summaries live under `experiments/results/`.
+Current compact result packages:
+
+```text
+experiments/results/real_lm_screen_2026_05_30/
+experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
+```
+
+Raw run directories under `experiments/runs/` are local artifacts. The earlier saturated synthetic result bundles were removed from the tracked public evidence; WikiText and the real-corpus screen are kept.

@@ -1,0 +1,11 @@
+task,method,activation,optimizer,complete,status,train_diverged_step,eval_diverged_step,final_finite_step,final_val_loss,final_val_ppl,val_loss_auc_1000,val_loss_auc_2000,val_loss_auc_full,mean_seconds_per_step
+fineweb,SiLU+AdamW,silu,adamw,True,complete,,,3050,4.504617,90.433678,5.993426,5.401559,5.109763,0.621498
+fineweb,RLB+AdamW,rlb_fused_fixed_strong_ffn,adamw,True,complete,,,3050,4.493013,89.390408,5.954484,5.373016,5.086560,1.503611
+fineweb,SiLU+Muon,silu,muon,True,complete,,,3050,4.535766,93.294964,6.664512,5.786310,5.375600,0.412830
+fineweb,RLB+Muon,rlb_fused_fixed_strong_ffn,muon,True,complete,,,3050,4.548868,94.525362,6.585091,5.752002,5.358452,1.372968
+fineweb,RLB+MatrixPolicy (group-stat),rlb_fused_fixed_strong_ffn,rational_matrix_policy_onpolicy,True,complete,,,3050,4.344150,77.026505,5.850945,5.262783,4.966117,1.419003
+fineweb_edu,SiLU+AdamW,silu,adamw,True,complete,,,3050,4.225019,68.375769,5.835354,5.186270,4.871902,0.624398
+fineweb_edu,RLB+AdamW,rlb_fused_fixed_strong_ffn,adamw,True,diverged,80,100,50,8.411884,4500.232350,9.684973,9.684973,9.684973,1.502045
+fineweb_edu,SiLU+Muon,silu,muon,True,complete,,,3050,4.252612,70.288775,6.505154,5.563970,5.131896,0.660396
+fineweb_edu,RLB+Muon,rlb_fused_fixed_strong_ffn,muon,True,complete,,,3050,4.271556,71.633003,6.425483,5.529865,5.116422,1.536167
+fineweb_edu,RLB+MatrixPolicy (group-stat),rlb_fused_fixed_strong_ffn,rational_matrix_policy_onpolicy,True,complete,,,3050,4.072055,58.677441,5.670071,5.041694,4.728113,1.580946

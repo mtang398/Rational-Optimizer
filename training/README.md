@@ -1,21 +1,20 @@
 # Training
 
-This folder contains the LM benchmark harness, synthetic task generators, and optimizer wiring. Its purpose is to enforce fair comparisons between activation/optimizer pairs.
+This folder contains the LM benchmark harness, dataset streaming support, synthetic generators, and optimizer wiring. Its purpose is to enforce fair comparisons between activation/optimizer pairs.
 
 ## Fair Comparison Contract
 
 Rows are comparable only when the following are fixed:
 
 ```text
-model width/depth/head count
-FFN parameter budget
+model width, depth, head count, and FFN parameter budget
 token budget
 seed
 batch size and gradient accumulation
 sequence length
 base LR schedule and warmup
 weight decay
-dataset and dataset config
+dataset, dataset config, and dataset slice
 evaluation cadence
 ```
 
@@ -33,7 +32,7 @@ RLB + Muon
 RLB + rational_matrix_policy_onpolicy
 ```
 
-Additional rational optimizers are ablations. They should be interpreted by what mechanism they test, not treated as baselines.
+Additional rational optimizers are ablations. They should be interpreted by the mechanism they test, not treated as baselines.
 
 ## MatrixPolicy Wiring
 
@@ -45,30 +44,27 @@ B_l = W_out,l -> matrix_role = out
 R_l           -> rational coefficient parameters
 ```
 
-The optimizer then applies:
+The current real-corpus best row applies:
 
 ```text
-ordinary Transformer parameters -> AdamW or optional backbone Muon
-rational coefficients           -> coefficient optimizer when enabled
+ordinary Transformer parameters -> AdamW
+rational coefficients           -> coefficient updates in the on-policy wrapper
 RLB matrices                    -> RationalMatrixPolicyOptimizer
-RLB gauge class                 -> on-policy gauge rebalance wrapper
+RLB gauge class                 -> exact post-step gauge rebalance
 ```
 
-The initialization gauge-stress flags are:
+The exact real-corpus group-stat flags are:
 
 ```text
---rlb-init-gauge-log-scale
---rlb-init-gauge-seed
+--rational-matrix-policy-backbone-optimizer adamw
+--rational-matrix-policy-group-gain-strength 0.20
+--rational-matrix-policy-group-pressure-strength 0.10
+--rational-matrix-policy-group-activity-damping 0.20
+--rational-matrix-policy-group-start 0.02
+--rational-matrix-policy-group-end 0.30
+--rational-matrix-policy-group-min-scale 0.75
+--rational-matrix-policy-group-max-scale 1.35
 ```
-
-They sample positive scales `a_g` and apply the function-preserving transform
-
-```text
-W_in[g]  <- a_g W_in[g]
-W_out[g] <- W_out[g] / a_g
-```
-
-before training. This creates equivalent initial functions with different matrix conditioning.
 
 ## Logging And Analysis Standard
 
@@ -76,7 +72,7 @@ Optimizer-discrimination runs must log dense curves:
 
 ```text
 training:   step 1, then at least every 10 steps
-validation: step 1, then at least every 25 steps
+validation: step 1, then at least every 50 steps for real LM screens
 final:      always include final step
 ```
 
@@ -86,35 +82,15 @@ Use these metrics before final-loss tables:
 
 ```text
 step-matched training loss and validation loss
-mean validation loss AUC through early horizons, especially step 200
-mean training loss AUC through early horizons
-time to fixed validation thresholds, for example loss <= 0.2
-final loss/PPL only after checking whether the task is saturated
+mean validation loss AUC through early and mid horizons
+mean training loss AUC through early and mid horizons
+time to fixed validation thresholds when thresholds are meaningful
+final loss/PPL after checking whether the task is saturated
 ```
-
-The May 29 dense synthetic run shows why this matters: MatrixPolicy has much better early AUC than `RLB+AdamW`, `RLB+Muon`, and SiLU controls, even when the final saturated losses are close.
-
-## Task Standard
-
-Synthetic tasks are useful only if they leave headroom. If the strongest controls reach loss `<0.1`, final PPL is too compressed to support a large optimizer claim. Such tasks can still test curve speed or implementation stability.
-
-Preferred short-task families should stress mechanisms rather than text formatting:
-
-| task family | mechanism |
-| --- | --- |
-| rule-chain composition | multi-step symbolic function composition. |
-| key-value recall | in-context binding and delayed retrieval. |
-| carry arithmetic | sharp local decision boundaries from carries. |
-| stack brackets | nonlinear state tracking. |
-| noisy copy/transform | robust sequence transformation under distractors. |
-| rational-teacher LM | hidden rational transition/function matching. |
-| phase-mix task | early easy pattern plus delayed hard subtask. |
-
-The gauge-stress benchmark is useful because it tests the actual RLB symmetry directly. The current single-seed gauge run is not enough: gauge log scale `2.0` often improved early curves for all optimizers, so future gauge tests need multiple seeds/scales and gauge-drift diagnostics.
 
 ## Real-Corpus Streaming
 
-The harness supports large HF corpora without downloading full datasets. Use these flags for pretraining-like screens:
+The harness supports large Hugging Face corpora without downloading full datasets. Use these flags for pretraining-like screens:
 
 ```text
 --dataset-streaming
@@ -127,9 +103,31 @@ The harness supports large HF corpora without downloading full datasets. Use the
 --max-val-tokens 4000000
 ```
 
-`validation-skip-tokens` is the preferred way to make a disjoint validation token cache when the dataset has only a `train` split. Cache filenames include the actual split, stream/map mode, text column, document skip, token skip, tokenizer, and token budget so different corpus slices do not collide.
+`validation-skip-tokens` is the preferred way to make a disjoint validation token cache when the dataset has only a `train` split. Cache filenames include the split, stream/map mode, text column, document skip, token skip, tokenizer, and token budget so different corpus slices do not collide.
 
-The launcher `experiments/scripts/run_real_lm_screen_20260530.sh` currently defines FineWeb-Edu and FineWeb tasks that smoke-test cleanly in this environment. DCLM should be added after installing zstd support in the active Python environment; Dolma needs either an updated compatible loader path or a local converted text/parquet slice.
+The May 30 launcher currently supports these task keys:
+
+```text
+fineweb_edu -> HuggingFaceFW/fineweb-edu, sample-10BT
+fineweb     -> HuggingFaceFW/fineweb, sample-10BT
+dclm        -> mlfoundations/dclm-baseline-1.0
+dolma_sample -> allenai/dolma, v1_6-sample
+```
+
+FineWeb and FineWeb-Edu are completed and summarized. DCLM and Dolma remain useful next targets, but they need environment work in this setup: DCLM needs zstd support and Dolma needs a compatible loader or converted local slice.
+
+## Synthetic Tasks
+
+Synthetic tasks are debugging tools unless they leave real headroom. If all strong rows reach a compressed loss floor, final PPL is not a meaningful optimizer claim. The earlier saturated synthetic result packages were removed from the tracked public evidence for this reason.
+
+Future synthetic tasks should be harder and mechanism-targeted:
+
+| task family | mechanism |
+| --- | --- |
+| rational-teacher LM | tests whether RLB optimizer fits a hidden rational transition. |
+| length/composition extrapolation | tests learned algorithmic structure beyond training lengths. |
+| phase-mix task | tests whether early speed survives a delayed hard subtask. |
+| gauge-stressed task with diagnostics | tests the exact RLB symmetry with measured gauge drift. |
 
 ## Runtime Rule
 
@@ -140,4 +138,11 @@ GPU jobs should request A6000s only and keep total active allocation at or below
 RATIONAL_OPT_TORCH_FALLBACK=1
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 NCCL_P2P_DISABLE=1
+```
+
+For long Slurm runs, use requeue support:
+
+```text
+#SBATCH --requeue
+#SBATCH --signal=B:USR1@300
 ```

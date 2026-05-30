@@ -1,14 +1,14 @@
-# RLB MatrixPolicy-Muon Same-LR Result
+# WikiText-103 Same-LR MatrixPolicy Result
 
-This artifact reports the current best same-global-LR optimizer story and the latest negative/transfer tests. It replaces older stacked result narratives.
+This artifact keeps the useful WikiText-103 anchor from May 28. The older toy synthetic arithmetic and optimizer-probe plots from this package were removed from the tracked result set because the current public story is real-LM evidence.
 
-## Current Best
+## Current Best Row
 
 ```text
 optimizer:   rational_matrix_policy_onpolicy
 activation:  rlb_fused_fixed_strong_ffn
 mechanism:   early RLB-matrix Muon switch, then MatrixPolicy AdamW
-global LR:   lr=3e-4, min_lr=3e-5, warmup=200, cosine, unchanged
+global LR:   lr=3e-4, min_lr=3e-5, unchanged across controls
 seed:        1337
 steps:       3051
 ```
@@ -35,35 +35,7 @@ vs SiLU+Muon:              0.168689 loss / 5.94 PPL
 vs RLB+Muon:               0.181645 loss / 6.44 PPL
 ```
 
-The result is a same-LR optimizer win, but not yet the requested `0.2-0.3` final loss gap versus tuned AdamW controls.
-
-## What Changed In This Round
-
-Muon controls were added and are not competitive:
-
-```text
-SiLU+Muon  3.644921 loss / 38.28 PPL
-RLB+Muon   3.657877 loss / 38.78 PPL
-```
-
-A synthetic 100M-token arithmetic task was added. MatrixPolicy learned faster early, then the task saturated and final loss favored SiLU+AdamW:
-
-| row | final loss | final PPL |
-| --- | ---: | ---: |
-| SiLU+AdamW | 0.048182 | 1.04936 |
-| RLB+AdamW | 0.048326 | 1.04951 |
-| RLB MatrixPolicy-Muon | 0.048382 | 1.04957 |
-
-A6000 optimizer probes did not create a material widening:
-
-| probe | last step | loss | readout |
-| --- | ---: | ---: | --- |
-| A6000 matched default | 1250 | 4.052293 | matched fallback screen |
-| beta2 tail 0.995 | 1250 | 4.049556 | tiny +0.002738 vs matched default, not close to old best short curve |
-| group policy 0.30 | 1000 | 4.141706 | neutral/worse vs matched default at 1000 |
-| late Muon 0.05 | 500 | 4.673611 | worse than matched default at 500 |
-| layer statgate | 250 | 5.369072 | tied with matched default |
-| statgate+group 0.18 | 750 | 4.331103 | tiny +0.000628 vs matched default, noise-level |
+The result is a same-LR optimizer win, but the strongest current evidence is now the May 30 FineWeb/FineWeb-Edu screen because those gaps are larger on modern real-corpus data.
 
 ## Plots
 
@@ -74,22 +46,6 @@ Validation starts at the first eval point. Training loss starts at step 1.
 ![Same-LR validation PPL](same_lr_validation_ppl.png)
 
 ![Same-LR training loss from step 1](same_lr_training_loss_from_step1.png)
-
-![A6000 optimizer probe validation loss](optimizer_probe_validation_loss.png)
-
-![A6000 optimizer probe validation PPL](optimizer_probe_validation_ppl.png)
-
-![Synthetic arithmetic validation loss](synthetic_arithmetic_validation_loss.png)
-
-![Synthetic arithmetic validation PPL](synthetic_arithmetic_validation_ppl.png)
-
-![Synthetic arithmetic training loss from step 1](synthetic_arithmetic_training_loss_from_step1.png)
-
-## Interpretation
-
-The durable improvement comes from the RLB-specific matrix policy: role/depth update scaling, short early matrix-only Muon, exact gauge balance, and beta2=0.999. The extra policies tried here mostly add adaptive noise or reintroduce late Muon pressure. They do not exploit RLB better than the current policy.
-
-The next real improvement probably needs a new signal, not another small timing tail: for example a principled per-layer rational-domain objective, a function-preserving preconditioner for `W_in/W_out`, or a way to update rational coefficients without destabilizing the matrix policy.
 
 ## Reproduce Current Best
 

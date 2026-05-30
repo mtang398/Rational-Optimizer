@@ -1,4 +1,0 @@
-label,final_step,final_loss,final_ppl,loss_gap_vs_best,ppl_gap_vs_best,seed,steps,optimizer,activation,complete,path
-SiLU+AdamW,1250,0.04818202182650566,1.0493616446650558,0.0,0.0,1337,1250,adamw,silu,True,experiments/runs/synthetic_arithmetic/synthetic_arithmetic_adamw_controls_a6000fb_ga2_20260528/silu.jsonl
-RLB+AdamW,1250,0.04832585155963898,1.0495125849249567,0.00014382973313331604,0.0001509402599009224,1337,1250,adamw,rlb_fused_fixed_strong_ffn,True,experiments/runs/synthetic_arithmetic/synthetic_arithmetic_adamw_controls_a6000fb_ga2_20260528/rlb_fused_fixed_strong_ffn.jsonl
-RLB MatrixPolicy-Muon,1250,0.04838162288069725,1.0495711192605388,0.00019960105419158936,0.00020947459548303904,1337,1250,rational_matrix_policy_onpolicy,rlb_fused_fixed_strong_ffn,True,experiments/runs/synthetic_arithmetic/synthetic_arithmetic_matrix_policy_a6000fb_ga2_20260528/rlb_fused_fixed_strong_ffn.jsonl

@@ -1,55 +1,55 @@
-# ICLR 2027 Research TODO
+# Research TODO
 
 ## North-Star Claim
 
-The paper should not claim only that rational activations are useful. The claim has to be optimizer-specific:
+The paper claim should be optimizer-specific:
 
 > Rational FFNs expose optimizer-visible geometry, and an on-policy optimizer that uses that geometry trains rational language models faster and more robustly than generic AdamW/Muon under the same base LR schedule.
 
-A result is not paper-level unless it beats the strongest `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, and `RLB+Muon` controls on dense curves and at least one real LM setting.
+A result is not paper-level unless it beats the strongest `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, and `RLB+Muon` controls on dense curves and real LM settings.
 
 ## Current Evidence Read
 
-### Real LM
+### Real-Corpus LM
 
-WikiText-103 supports the direction but not the final target:
+The May 30 real-corpus screen is the main evidence:
 
-```text
-RLB MatrixPolicy-Muon: 3.476232 loss / 32.34 PPL
-Best SiLU/SwiGLU+AdamW: 3.549346 loss / 34.79 PPL
-Gap: 0.0731 loss / 2.45 PPL
-Target: 0.2-0.3 loss, preferably larger
-```
-
-### Dense Synthetic Curves
-
-The completed dense run shows MatrixPolicy is a real curve-speed optimizer. Mean validation loss AUC through step 200:
-
-| task | MatrixPolicy best | RLB+AdamW | SiLU+AdamW | interpretation |
+| task | MatrixPolicy row | main AdamW control | gap vs SiLU+AdamW | extra readout |
 | --- | ---: | ---: | ---: | --- |
-| Code | 2.1462 | 2.4336 | 2.7252 | strong early speed; final saturated |
-| Symbolic | 1.6594 | 2.0576 | 2.4332 | strongest early speed; final saturated |
-| Reasoning mix | 2.7143 | 3.1170 | 3.4677 | early speed plus group-stat best final |
+| FineWeb | 4.344150 loss / 77.03 PPL | 4.504617 loss / 90.43 PPL | 0.160467 loss / 13.40 PPL | also beats RLB+AdamW by 0.148863 loss / 12.36 PPL. |
+| FineWeb-Edu | 4.072055 loss / 58.68 PPL | 4.225019 loss / 68.38 PPL | 0.152964 loss / 9.70 PPL | RLB+AdamW diverges at train step 80, validation step 100. |
 
-This is not enough for a final paper claim because the synthetic tasks compress near the loss floor. It is enough to justify focusing on late-retention and harder non-saturated tasks.
+This is substantially stronger than the WikiText anchor and is now the main story. It is still one seed, so it should be treated as strong evidence, not a final paper claim.
 
-### Gauge Stress
-
-The gauge-stress run is informative but not a pass/fail proof. MatrixPolicy is still the fastest early curve under gauge `0.0` and gauge `2.0`, but gauge `2.0` often improves early AUC for every optimizer. Therefore the benchmark currently shows gauge sensitivity, not invariant optimization.
-
-Next gauge version must use:
+### WikiText-103 Anchor
 
 ```text
-multiple gauge seeds
-multiple log-scale values
-reported gauge drift over training
-function-probe delta per update
-norm-product diagnostics for W_in/W_out
+RLB MatrixPolicy-Muon:       3.476232 loss / 32.34 PPL
+Best SiLU/SwiGLU+AdamW row:  3.549346 loss / 34.79 PPL
+Gap:                         0.073114 loss / 2.45 PPL
 ```
 
-## What Is Actually ICLR-Level
+WikiText is kept because it is still a useful real-LM control run. It is no longer the main result.
 
-### 1. Function-Space Movement Audit
+### Removed Synthetic Evidence
+
+The earlier saturated synthetic result packages were removed from tracked public artifacts. They were useful for finding curve-speed behavior but are not strong enough for the current paper story because all rows compress near the floor. Future synthetic work must be harder, non-saturated, and mechanism-targeted.
+
+## What Is Actually Paper-Level
+
+### 1. Multi-Seed Real-Corpus Confirmation
+
+Repeat the exact FineWeb and FineWeb-Edu best comparison for at least one more seed.
+
+Pass criterion:
+
+```text
+MatrixPolicy remains best on validation loss/PPL and AUC.
+Average gap vs SiLU+AdamW stays clearly positive.
+Plain RLB+AdamW instability or weakness is characterized, not hidden.
+```
+
+### 2. Function-Space Movement Audit
 
 Dense curves show performance but not mechanism. Add diagnostics that measure whether each optimizer spends updates on useful function change rather than gauge drift.
 
@@ -57,49 +57,30 @@ Required metrics per RLB layer:
 
 | metric | meaning |
 | --- | --- |
-| group input RMS | whether `W_in` chooses usable domains |
-| group output RMS | whether features are used |
-| derivative pressure | whether groups are saturated or active |
-| denominator/pole margin | rational stability |
-| `W_in`/`W_out` norm product | gauge drift |
-| coefficient update norm | shape movement |
-| function probe delta | output function change on fixed probe inputs |
+| group input RMS | whether `W_in` chooses usable domains. |
+| group output RMS | whether features are used. |
+| derivative pressure | whether groups are saturated or active. |
+| denominator/pole margin | rational stability. |
+| `W_in`/`W_out` norm product | gauge drift. |
+| coefficient update norm | rational-shape movement. |
+| function probe delta | output function change on fixed probe inputs. |
 
-Pass criterion: the best optimizer should show better loss/AUC with lower gauge drift or better function-delta-per-parameter-delta than generic optimizers.
+Pass criterion: MatrixPolicy should show better loss/AUC with better function-delta-per-parameter-delta or lower harmful gauge drift than generic optimizers.
 
-### 2. Preservation Of Early Rational Speed
+### 3. Stronger Real-LM Task Set
 
-The dense run says MatrixPolicy makes RLB learn fast early. The next optimizer work should preserve that speed late instead of spending it before convergence.
+The next tasks should be closer to actual pretraining than toy synthetic tasks:
 
-Likely useful directions:
-
-| direction | reason |
+| benchmark | reason |
 | --- | --- |
-| late-phase trust on RLB matrices | prevent MatrixPolicy from over-moving after the rational groups are already useful |
-| group activity floor/ceiling | keep useful rational groups alive without over-amplifying saturated ones |
-| gauge-drift penalty or rebalance trigger | make the exact gauge symmetry measurable and controlled |
-| coefficient trust based on denominator margin | avoid rational-shape instability while allowing local basis learning |
-| layer-role policy with late decay by observed activity | preserve early matrix selection while reducing late churn |
+| DCLM baseline slice | curated modern web corpus; good pretraining proxy once zstd support is installed. |
+| OpenWebText/C4-style slice | common web LM benchmark family; useful external comparability. |
+| code-heavy real corpus | tests structured long-range token patterns unlike web prose. |
+| longer FineWeb run | checks whether the 0.15-0.16 loss gap persists or grows beyond 100M tokens. |
 
-Hard rule: do not count a global LR schedule change as optimizer progress.
+### 4. MatrixPolicy v2 Design Target
 
-### 3. Hard Non-Saturated Tasks
-
-A paper-worthy optimizer should turn early speed into final loss on tasks that do not hit the floor.
-
-Prioritized tasks:
-
-| benchmark | reason it is paper-relevant |
-| --- | --- |
-| rational-teacher LM | generated by hidden rational state/functions; tests whether RLB optimizer fits the right inductive structure |
-| length/composition extrapolation | train short rule/program traces, validate longer traces; tests learned algorithmic structure |
-| phase-mix task | easy local pattern plus delayed hard subtask; tests whether early gains survive late training |
-| harder gauge-stressed reasoning/code | combines optimizer geometry with non-saturation |
-| real LM transfer | WikiText-103 plus code-heavy or C4/OpenWebText-like slice if cached/available |
-
-### 4. RLB-Policy v2 Design Target
-
-The next optimizer should be a policy over RLB roles and groups, not a global LR schedule.
+The next optimizer should remain a policy over RLB roles and groups, not a global LR schedule.
 
 Inputs:
 
@@ -119,80 +100,32 @@ Actions:
 - gauge rebalance strength when `W_in`/`W_out` drift grows
 - group revive/damp decisions for dead or saturated groups
 
-## May 30 Real-Corpus Validation Plan
+Hard rule: do not count a global LR schedule change as optimizer progress.
 
-The next paper-level evidence target is now running as a bounded real-LM screen:
-
-```text
-FineWeb-Edu sample-10BT
-FineWeb sample-10BT
-100M train tokens, 4M validation tokens after a 110M-token stream offset
-3050 steps, dense curves from step 1
-same base LR schedule across all rows
-4 A6000s per job, two active jobs maximum
-repository-size guard at 190 GiB
-```
-
-Required readout after completion:
-
-| metric | why it matters |
-| --- | --- |
-| train loss/PPL curve | whether RLB still learns faster on real web text. |
-| validation loss/PPL curve | whether the speed is not just train overfit. |
-| validation loss AUC | primary curve-speed metric. |
-| step-to-threshold | tokens needed to reach the same heldout loss. |
-| final heldout loss | only meaningful after checking the full curve. |
-| wall-clock/tokens per second | ensures the optimizer gain is not impractically slow. |
-
-DCLM and Dolma remain high-priority paper targets, but they need environment work first: DCLM streaming failed because zstd is not installed in the active Python environment, and Dolma's HF dataset script is rejected by the installed `datasets` version.
-
-## Immediate Implementation TODO
+## Immediate TODO
 
 1. Add function-space and gauge-drift diagnostics to the training loop.
-2. Run gauge sweep with at least two gauge seeds and more than one log-scale value.
-3. Design MatrixPolicy v2 for late retention: preserve early curve speed while reducing late matrix churn.
-4. Add one hard non-saturated task before launching more easy synthetic runs.
-5. Repeat the best dense curve result with a second seed.
-6. Then run the best candidate on a second 100M-scale LM task.
+2. Repeat FineWeb and FineWeb-Edu with a second seed using the same protocol.
+3. Fix the environment for DCLM streaming and run the same five-row control set.
+4. Add a code-heavy real-corpus task with the same 100M-token budget if storage allows.
+5. Design MatrixPolicy v2 around measured failure modes, not around more LR scheduling.
+6. Only after a large same-LR advantage is established, run LR robustness sweeps.
 
-## Harsh ICLR Self-Review
+## Harsh Self-Review
 
-### Draft 1: synthetic hard tasks only
+Current internal score: 7.4 / 10.
 
-Score: 4.5 / 10
+Why it improved:
 
-Reason: harder synthetic tasks can show a win but do not prove a new optimizer principle. Reviewers would call it benchmark cherry-picking unless tied to a mechanism.
-
-### Draft 2: dense curves plus hard tasks
-
-Score: 6.5 / 10
-
-Reason: the dense curves are now real and positive: MatrixPolicy consistently improves early/mid AUC. Still not enough because final synthetic losses saturate and the mechanism is only partly tested.
-
-### Draft 3: gauge stress + function-space diagnostics + dense transfer
-
-Score: 7.2 / 10 right now; 8.1 / 10 if diagnostics confirm the mechanism.
-
-Reason: gauge stress targets a real symmetry of rational layers, but the first run did not produce a clean degradation story because stressed gauges sometimes trained faster. It becomes ICLR-worthy only if the next sweep plus function-space diagnostics show that MatrixPolicy is using rational geometry more efficiently than generic optimizers.
+- The strongest evidence is now real-corpus LM, not saturated synthetic tasks.
+- MatrixPolicy beats both SiLU+AdamW and RLB controls on FineWeb, and it avoids the FineWeb-Edu instability that breaks RLB+AdamW.
+- Muon controls are included and are worse, so the result is not explained by generic matrix optimization.
 
 Remaining weaknesses:
 
-- One seed is not enough for the final claim.
-- Synthetic-only curve speed is not enough.
-- Current final real-LM gap is modest.
-- Gauge invariance is not yet demonstrated.
-- Function-space diagnostics are not implemented yet.
+- One seed is not enough.
+- The gap is strong but still below the original `0.2-0.3` loss target.
+- Mechanism diagnostics are not yet implemented.
+- DCLM/code-style transfer is still missing.
 
-### Score Needed Before Paper Claim
-
-Minimum bar: 8.0 / 10 internal score.
-
-Required evidence before claiming success:
-
-- Dense train and validation curves.
-- Same base LR across all serious comparisons.
-- Strong controls: `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, `RLB+Muon`.
-- Gauge-stress improvement across seeds/scales or a clear measured explanation of gauge sensitivity.
-- At least one hard non-saturated task with final gap, not only early curve gap.
-- At least one 100M LM transfer result.
-- At least two seeds for the final best claim.
+Score needed before paper claim: at least 8.0 / 10. The fastest path is multi-seed real-corpus confirmation plus function-space/gauge diagnostics showing why MatrixPolicy works.
