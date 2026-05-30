@@ -121,17 +121,17 @@ WikiText-103 training loss from step 1:
 
 ![WikiText training loss from step 1](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
 
-Dense synthetic reasoning_mix validation loss:
+Dense synthetic AdamW-control validation loss. Generic Muon control rows are omitted here because they are much worse early and make the AdamW comparison harder to read:
 
-![Dense reasoning validation loss](experiments/results/synthetic_dense_curves_2026_05_29/synthetic_reasoning_mix_validation_loss.png)
+![Adam-only validation loss](experiments/results/synthetic_dense_curves_2026_05_29/adam_only_validation_loss.png)
 
-Dense synthetic reasoning_mix validation PPL:
+Dense synthetic AdamW-control validation PPL:
 
-![Dense reasoning validation PPL](experiments/results/synthetic_dense_curves_2026_05_29/synthetic_reasoning_mix_validation_ppl.png)
+![Adam-only validation PPL](experiments/results/synthetic_dense_curves_2026_05_29/adam_only_validation_ppl.png)
 
-Dense synthetic reasoning_mix training loss:
+Dense synthetic AdamW-control training loss:
 
-![Dense reasoning training loss](experiments/results/synthetic_dense_curves_2026_05_29/synthetic_reasoning_mix_training_loss.png)
+![Adam-only training loss](experiments/results/synthetic_dense_curves_2026_05_29/adam_only_training_loss.png)
 
 Gauge-stressed reasoning_mix validation loss:
 

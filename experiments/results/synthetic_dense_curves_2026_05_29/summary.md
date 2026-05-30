@@ -83,6 +83,18 @@ Sparse runs are provisional; dense runs should use frequent `LOG_INTERVAL` and `
 | Symbolic | RLB MatrixPolicy group-stat | 10-1250 | 335.54 |
 | Reasoning mix | RLB MatrixPolicy group-stat | 10-1250 | 698.13 |
 
+## AdamW-Control Figures
+
+The generic Muon controls are omitted from these plots because they are much worse early and obscure the AdamW comparison. The curves shown are `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `RLB MatrixPolicy`, and `RLB MatrixPolicy group-stat`.
+
+![Adam-only validation loss](adam_only_validation_loss.png)
+
+![Adam-only validation PPL](adam_only_validation_ppl.png)
+
+![Adam-only training loss](adam_only_training_loss.png)
+
+![Adam-only training PPL](adam_only_training_ppl.png)
+
 ## Final Rows
 
 These final rows are secondary for the synthetic tasks because the losses are near the floor.

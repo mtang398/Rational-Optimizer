@@ -92,19 +92,17 @@ WikiText-103 validation PPL:
 
 ![WikiText validation PPL](results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_ppl.png)
 
-Dense synthetic validation loss and PPL:
+Dense synthetic AdamW-control plots. Generic Muon rows are intentionally omitted from this figure set so the comparison is focused on `SiLU+AdamW`, `RLB+AdamW`, and MatrixPolicy:
 
-![Dense Code validation loss](results/synthetic_dense_curves_2026_05_29/synthetic_code_validation_loss.png)
+![Adam-only validation loss](results/synthetic_dense_curves_2026_05_29/adam_only_validation_loss.png)
 
-![Dense Code validation PPL](results/synthetic_dense_curves_2026_05_29/synthetic_code_validation_ppl.png)
+![Adam-only validation PPL](results/synthetic_dense_curves_2026_05_29/adam_only_validation_ppl.png)
 
-![Dense Symbolic validation loss](results/synthetic_dense_curves_2026_05_29/synthetic_symbolic_validation_loss.png)
+![Adam-only training loss](results/synthetic_dense_curves_2026_05_29/adam_only_training_loss.png)
 
-![Dense Symbolic validation PPL](results/synthetic_dense_curves_2026_05_29/synthetic_symbolic_validation_ppl.png)
+![Adam-only training PPL](results/synthetic_dense_curves_2026_05_29/adam_only_training_ppl.png)
 
-![Dense Reasoning mix validation loss](results/synthetic_dense_curves_2026_05_29/synthetic_reasoning_mix_validation_loss.png)
-
-![Dense Reasoning mix validation PPL](results/synthetic_dense_curves_2026_05_29/synthetic_reasoning_mix_validation_ppl.png)
+Muon-inclusive per-task plots are still committed in `results/synthetic_dense_curves_2026_05_29/` for completeness.
 
 Gauge-stress validation loss and PPL:
 
@@ -126,6 +124,7 @@ Dense synthetic plots and tables:
   --suffix 20260529_dense_curve \
   --result-dir experiments/results/synthetic_dense_curves_2026_05_29
 .venv-cu128/bin/python experiments/scripts/summarize_dense_curve_speed_20260529.py
+.venv-cu128/bin/python experiments/scripts/plot_adam_only_comparisons_20260530.py
 ```
 
 Gauge-stress plots and tables:
