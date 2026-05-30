@@ -4042,13 +4042,128 @@ def sanitize_name(name):
     return "".join(ch if ch.isalnum() else "_" for ch in name)
 
 
+def normalize_dataset_config(config):
+    if config is None:
+        return None
+    if str(config).lower() in {"", "none", "null"}:
+        return None
+    return config
+
+
+def actual_dataset_split(args, split):
+    if split == "train":
+        return args.train_split
+    if split == "validation":
+        return args.validation_split
+    return split
+
+
+def dataset_skip_documents(args, split):
+    if split == "train":
+        return max(0, int(args.train_skip_documents))
+    if split == "validation":
+        return max(0, int(args.validation_skip_documents))
+    return 0
+
+
+def dataset_skip_tokens(args, split):
+    if split == "train":
+        return max(0, int(args.train_skip_tokens))
+    if split == "validation":
+        return max(0, int(args.validation_skip_tokens))
+    return 0
+
+
+def append_tokenized_ids(tokens, ids, eos_id, max_tokens, skip_tokens):
+    if not ids:
+        return skip_tokens, False
+    doc = list(ids)
+    doc.append(eos_id)
+    if skip_tokens > 0:
+        if skip_tokens >= len(doc):
+            return skip_tokens - len(doc), False
+        doc = doc[skip_tokens:]
+        skip_tokens = 0
+    tokens.extend(doc)
+    return skip_tokens, max_tokens is not None and len(tokens) >= max_tokens
+
+
 def token_cache_path(args, split, max_tokens):
     cache_dir = Path(args.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     max_part = "all" if max_tokens is None else str(max_tokens)
     config_name = args.dataset_config if args.dataset_config else "none"
-    name = f"{sanitize_name(args.dataset_name)}_{sanitize_name(config_name)}_{sanitize_name(args.tokenizer)}_{split}_{max_part}.pt"
+    actual_split = actual_dataset_split(args, split)
+    skip_docs = dataset_skip_documents(args, split)
+    skip_tokens = dataset_skip_tokens(args, split)
+    legacy_cache_name = (
+        not args.dataset_streaming
+        and args.dataset_text_column == "text"
+        and actual_split == split
+        and skip_docs == 0
+        and skip_tokens == 0
+        and args.train_split == "train"
+        and args.validation_split == "validation"
+    )
+    if legacy_cache_name:
+        name = (
+            f"{sanitize_name(args.dataset_name)}_{sanitize_name(config_name)}_"
+            f"{sanitize_name(args.tokenizer)}_{split}_{max_part}.pt"
+        )
+    else:
+        stream_part = "stream" if args.dataset_streaming else "map"
+        name = (
+            f"{sanitize_name(args.dataset_name)}_{sanitize_name(config_name)}_"
+            f"{sanitize_name(args.tokenizer)}_{sanitize_name(actual_split)}_{split}_"
+            f"{stream_part}_{sanitize_name(args.dataset_text_column)}_skipdocs{skip_docs}_"
+            f"skiptoks{skip_tokens}_{max_part}.pt"
+        )
     return cache_dir / name
+
+
+def extract_text_from_record(record, text_column):
+    if text_column == "auto":
+        for candidate in ("text", "content", "document", "raw_content"):
+            value = record.get(candidate)
+            if value:
+                return value
+        return None
+    value = record
+    for part in text_column.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
+def extract_texts_from_batch(batch, text_column):
+    if text_column != "auto" and text_column in batch:
+        values = batch[text_column]
+    else:
+        values = None
+        for candidate in ("text", "content", "document", "raw_content"):
+            if candidate in batch:
+                values = batch[candidate]
+                break
+    if values is None:
+        available = ", ".join(sorted(batch.keys()))
+        raise KeyError(f"could not find text column {text_column!r}; available columns: {available}")
+    return [text for text in values if isinstance(text, str) and text.strip()]
+
+
+def load_hf_dataset(args, split):
+    dataset_config = normalize_dataset_config(args.dataset_config)
+    actual_split = actual_dataset_split(args, split)
+    kwargs = {
+        "split": actual_split,
+        "cache_dir": args.hf_cache,
+        "streaming": args.dataset_streaming,
+    }
+    if args.trust_remote_code:
+        kwargs["trust_remote_code"] = True
+    if dataset_config is None:
+        return load_dataset(args.dataset_name, **kwargs)
+    return load_dataset(args.dataset_name, dataset_config, **kwargs)
 
 
 def synthetic_arithmetic_text(index: int) -> str:
@@ -4179,23 +4294,53 @@ def load_or_tokenize(args, split, max_tokens):
     if args.dataset_name.startswith("synthetic/"):
         tokens = tokenize_synthetic_text(args, split, max_tokens, tokenizer, eos_id)
     else:
-        dataset_config = args.dataset_config if args.dataset_config else None
-        dataset = load_dataset(args.dataset_name, dataset_config, split=split, cache_dir=args.hf_cache)
+        dataset = load_hf_dataset(args, split)
+        skip_docs = dataset_skip_documents(args, split)
+        skip_tokens = dataset_skip_tokens(args, split)
         tokens = array("I")
-        for start in range(0, len(dataset), args.tokenize_batch_size):
-            end = min(start + args.tokenize_batch_size, len(dataset))
-            texts = [text for text in dataset[start:end]["text"] if text and text.strip()]
-            if not texts:
-                continue
-            batch = tokenizer(texts, add_special_tokens=False)
-            for ids in batch["input_ids"]:
-                if ids:
-                    tokens.extend(ids)
-                    tokens.append(eos_id)
+        if args.dataset_streaming:
+            if skip_docs > 0 and hasattr(dataset, "skip"):
+                dataset = dataset.skip(skip_docs)
+                skipped = skip_docs
+            else:
+                skipped = 0
+            texts = []
+            for record in dataset:
+                if skipped < skip_docs:
+                    skipped += 1
+                    continue
+                text = extract_text_from_record(record, args.dataset_text_column)
+                if isinstance(text, str) and text.strip():
+                    texts.append(text)
+                if len(texts) < args.tokenize_batch_size:
+                    continue
+                batch = tokenizer(texts, add_special_tokens=False)
+                texts.clear()
+                for ids in batch["input_ids"]:
+                    skip_tokens, done = append_tokenized_ids(tokens, ids, eos_id, max_tokens, skip_tokens)
+                    if done:
+                        break
                 if max_tokens is not None and len(tokens) >= max_tokens:
                     break
-            if max_tokens is not None and len(tokens) >= max_tokens:
-                break
+            if texts and (max_tokens is None or len(tokens) < max_tokens):
+                batch = tokenizer(texts, add_special_tokens=False)
+                for ids in batch["input_ids"]:
+                    skip_tokens, done = append_tokenized_ids(tokens, ids, eos_id, max_tokens, skip_tokens)
+                    if done:
+                        break
+        else:
+            for start in range(skip_docs, len(dataset), args.tokenize_batch_size):
+                end = min(start + args.tokenize_batch_size, len(dataset))
+                texts = extract_texts_from_batch(dataset[start:end], args.dataset_text_column)
+                if not texts:
+                    continue
+                batch = tokenizer(texts, add_special_tokens=False)
+                for ids in batch["input_ids"]:
+                    skip_tokens, done = append_tokenized_ids(tokens, ids, eos_id, max_tokens, skip_tokens)
+                    if done:
+                        break
+                if max_tokens is not None and len(tokens) >= max_tokens:
+                    break
 
     np_tokens = np.frombuffer(tokens, dtype=np.uint32)
     if max_tokens is not None:
@@ -4211,6 +4356,11 @@ def load_or_tokenize(args, split, max_tokens):
             "dataset": args.dataset_name,
             "dataset_config": args.dataset_config,
             "split": split,
+            "actual_split": actual_dataset_split(args, split),
+            "dataset_streaming": args.dataset_streaming,
+            "dataset_text_column": args.dataset_text_column,
+            "skip_documents": dataset_skip_documents(args, split),
+            "skip_tokens": dataset_skip_tokens(args, split),
             "tokenizer": args.tokenizer,
         },
         cache_file,
@@ -5941,6 +6091,15 @@ def parse_args():
     parser.add_argument("--run-name", default="wikitext103")
     parser.add_argument("--dataset-name", default="Salesforce/wikitext")
     parser.add_argument("--dataset-config", default="wikitext-103-raw-v1")
+    parser.add_argument("--dataset-streaming", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--dataset-text-column", default="text")
+    parser.add_argument("--train-split", default="train")
+    parser.add_argument("--validation-split", default="validation")
+    parser.add_argument("--train-skip-documents", type=int, default=0)
+    parser.add_argument("--validation-skip-documents", type=int, default=0)
+    parser.add_argument("--train-skip-tokens", type=int, default=0)
+    parser.add_argument("--validation-skip-tokens", type=int, default=0)
+    parser.add_argument("--trust-remote-code", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--tokenizer", default="gpt2")
     parser.add_argument("--hf-cache", default="experiments/cache/huggingface")
     parser.add_argument("--cache-dir", default="experiments/cache/tokens")
@@ -6204,8 +6363,11 @@ def main():
     if args.prepare_only:
         train_tokens = load_or_tokenize(args, "train", args.max_train_tokens)
         val_tokens = load_or_tokenize(args, "validation", args.max_val_tokens)
-        print(json.dumps({"event": "prepared", "train_tokens": train_tokens.numel(), "val_tokens": val_tokens.numel()}))
-        return
+        print(
+            json.dumps({"event": "prepared", "train_tokens": train_tokens.numel(), "val_tokens": val_tokens.numel()}),
+            flush=True,
+        )
+        os._exit(0)
 
     is_distributed, rank, local_rank, world_size, device = setup_distributed()
     if device.type != "cuda":
@@ -6355,6 +6517,14 @@ def main():
         "d_model": args.d_model,
         "dataset": args.dataset_name,
         "dataset_config": args.dataset_config,
+        "dataset_streaming": args.dataset_streaming,
+        "dataset_text_column": args.dataset_text_column,
+        "train_split": args.train_split,
+        "validation_split": args.validation_split,
+        "train_skip_documents": args.train_skip_documents,
+        "validation_skip_documents": args.validation_skip_documents,
+        "train_skip_tokens": args.train_skip_tokens,
+        "validation_skip_tokens": args.validation_skip_tokens,
         "ffn_dim": args.ffn_dim,
         "global_tokens_per_step": global_tokens,
         "grad_accum": args.grad_accum,

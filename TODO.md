@@ -119,6 +119,33 @@ Actions:
 - gauge rebalance strength when `W_in`/`W_out` drift grows
 - group revive/damp decisions for dead or saturated groups
 
+## May 30 Real-Corpus Validation Plan
+
+The next paper-level evidence target is now running as a bounded real-LM screen:
+
+```text
+FineWeb-Edu sample-10BT
+FineWeb sample-10BT
+100M train tokens, 4M validation tokens after a 110M-token stream offset
+3050 steps, dense curves from step 1
+same base LR schedule across all rows
+4 A6000s per job, two active jobs maximum
+repository-size guard at 190 GiB
+```
+
+Required readout after completion:
+
+| metric | why it matters |
+| --- | --- |
+| train loss/PPL curve | whether RLB still learns faster on real web text. |
+| validation loss/PPL curve | whether the speed is not just train overfit. |
+| validation loss AUC | primary curve-speed metric. |
+| step-to-threshold | tokens needed to reach the same heldout loss. |
+| final heldout loss | only meaningful after checking the full curve. |
+| wall-clock/tokens per second | ensures the optimizer gain is not impractically slow. |
+
+DCLM and Dolma remain high-priority paper targets, but they need environment work first: DCLM streaming failed because zstd is not installed in the active Python environment, and Dolma's HF dataset script is rejected by the installed `datasets` version.
+
 ## Immediate Implementation TODO
 
 1. Add function-space and gauge-drift diagnostics to the training loop.

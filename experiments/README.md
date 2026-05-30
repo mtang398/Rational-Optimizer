@@ -12,6 +12,20 @@ Raw JSONL files and Slurm logs stay under `experiments/runs/` and are not commit
 | Dense synthetic curves | Is the early rational speed visible from step 1 in train and validation curves? | yes, clear curve-speed advantage |
 | Positive gauge stress | Does MatrixPolicy handle equivalent-function RLB reparameterizations better than generic optimizers? | incomplete: MatrixPolicy stays fast, but gauge stress is not monotone degradation |
 | Hard non-saturated tasks | Does early speed become a real final-loss gap when the task is not near the floor? | still needed |
+| Real-corpus transfer screen | Does the MatrixPolicy curve lead survive modern web LM pretraining beyond WikiText-103? | running: FineWeb-Edu and FineWeb |
+
+## Active Runs
+
+The May 30 real-LM screen uses `experiments/scripts/run_real_lm_screen_20260530.sh`. It streams HF datasets and caches only bounded token tensors, with validation taken after a 110M-token stream offset and a repository-size guard at 190 GiB. Each Slurm job requests exactly 4 A6000s; the intended cap is two active jobs, or 8 A6000s total.
+
+Current launched tasks:
+
+| job family | dataset/config | rows |
+| --- | --- | --- |
+| `fineweb_edu` | `HuggingFaceFW/fineweb-edu`, `sample-10BT` | AdamW controls, Muon controls, MatrixPolicy group-stat |
+| `fineweb` | `HuggingFaceFW/fineweb`, `sample-10BT` | AdamW controls, Muon controls, MatrixPolicy group-stat |
+
+DCLM and Dolma remain important paper targets, but they were not launched in this environment: DCLM needs zstd support in the active Python environment, and the current installed `datasets` rejects Dolma's dataset-script format. Those are environment issues, not optimizer results.
 
 ## Result Packages
 

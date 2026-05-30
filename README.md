@@ -107,6 +107,28 @@ The positive-gauge stress run is a mechanism test, not a final benchmark. At gau
 
 Current claim: MatrixPolicy is a rational-specific early/mid training accelerator. The group-stat variant can preserve that speed into final loss on reasoning_mix, but the synthetic tasks are too saturated to support a large final-gap claim. The next paper-level target is to convert this curve lead into a robust final gap on harder non-saturated tasks and real LM transfer.
 
+## Active Real-Corpus Screen
+
+The May 30 real-corpus screen is the first step toward the paper-level LM claim. It uses streaming Hugging Face corpora so the repository does not download full datasets. Each task caches only bounded GPT-2 token tensors:
+
+```text
+train tokens: 100,000,000
+validation tokens: 4,000,000 after a 110,000,000-token stream offset
+steps: 3,050 at 32,768 tokens/step
+logging: train every 10 steps, validation every 50 steps
+storage guard: stop if repository exceeds 190 GiB, below the 200 GiB cap
+GPU guard: one job = 4 A6000s; at most two active jobs = 8 A6000s
+```
+
+Launched tasks:
+
+| task | HF dataset/config | purpose |
+| --- | --- | --- |
+| FineWeb-Edu | `HuggingFaceFW/fineweb-edu`, `sample-10BT` | clean modern web text; high-signal real LM curve. |
+| FineWeb | `HuggingFaceFW/fineweb`, `sample-10BT` | noisier raw web text; closer to broad pretraining. |
+
+Each task runs `SiLU/SwiGLU+AdamW`, `RLB+AdamW`, `SiLU/SwiGLU+Muon`, `RLB+Muon`, and `RLB+MatrixPolicy group-stat` under the same base LR schedule. Pending results live under `experiments/runs/real_lm_screen_20260530/` and should not be interpreted until the train/validation curves are complete.
+
 ## Figures
 
 WikiText-103 validation loss:

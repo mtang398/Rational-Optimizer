@@ -112,6 +112,25 @@ Preferred short-task families should stress mechanisms rather than text formatti
 
 The gauge-stress benchmark is useful because it tests the actual RLB symmetry directly. The current single-seed gauge run is not enough: gauge log scale `2.0` often improved early curves for all optimizers, so future gauge tests need multiple seeds/scales and gauge-drift diagnostics.
 
+## Real-Corpus Streaming
+
+The harness supports large HF corpora without downloading full datasets. Use these flags for pretraining-like screens:
+
+```text
+--dataset-streaming
+--dataset-text-column text
+--train-split train
+--validation-split train
+--validation-skip-documents N
+--validation-skip-tokens 110000000
+--max-train-tokens 100000000
+--max-val-tokens 4000000
+```
+
+`validation-skip-tokens` is the preferred way to make a disjoint validation token cache when the dataset has only a `train` split. Cache filenames include the actual split, stream/map mode, text column, document skip, token skip, tokenizer, and token budget so different corpus slices do not collide.
+
+The launcher `experiments/scripts/run_real_lm_screen_20260530.sh` currently defines FineWeb-Edu and FineWeb tasks that smoke-test cleanly in this environment. DCLM should be added after installing zstd support in the active Python environment; Dolma needs either an updated compatible loader path or a local converted text/parquet slice.
+
 ## Runtime Rule
 
 GPU jobs should request A6000s only and keep total active allocation at or below 8 A6000s.
