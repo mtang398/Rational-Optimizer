@@ -67,11 +67,72 @@ Generated multi-seed mean plots:
 ```text
 fineweb_validation_loss_mean.png
 fineweb_validation_loss_mean_zoom_step1000.png
+fineweb_validation_ppl_mean.png
+fineweb_validation_ppl_mean_zoom_step1000.png
 fineweb_training_loss_mean.png
 fineweb_edu_validation_loss_mean.png
 fineweb_edu_validation_loss_mean_zoom_step1000.png
+fineweb_edu_validation_ppl_mean.png
+fineweb_edu_validation_ppl_mean_zoom_step1000.png
 fineweb_edu_training_loss_mean.png
 ```
+
+
+## Figures
+
+The 3-seed tables are the primary result. These plots are kept in the README because curve shape matters for optimizer claims, especially early training and divergent controls.
+
+### Multi-Seed Mean +/- Std Curves
+
+Each line is the seed mean; shaded bands are +/- 1 std. PPL plots omit divergent/nonfinite seed-method rows.
+
+![FineWeb mean validation loss](results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean.png)
+
+![FineWeb mean validation loss zoom](results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean_zoom_step1000.png)
+
+![FineWeb mean validation PPL](results/real_lm_multiseed_2026_05_31/fineweb_validation_ppl_mean.png)
+
+![FineWeb mean validation PPL zoom](results/real_lm_multiseed_2026_05_31/fineweb_validation_ppl_mean_zoom_step1000.png)
+
+![FineWeb mean training loss](results/real_lm_multiseed_2026_05_31/fineweb_training_loss_mean.png)
+
+![FineWeb-Edu mean validation loss](results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean.png)
+
+![FineWeb-Edu mean validation loss zoom](results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean_zoom_step1000.png)
+
+![FineWeb-Edu mean validation PPL](results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_ppl_mean.png)
+
+![FineWeb-Edu mean validation PPL zoom](results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_ppl_mean_zoom_step1000.png)
+
+![FineWeb-Edu mean training loss](results/real_lm_multiseed_2026_05_31/fineweb_edu_training_loss_mean.png)
+
+### Seed-1337 Detailed Curves
+
+![FineWeb validation loss](results/real_lm_screen_2026_05_30/fineweb_validation_loss.png)
+
+![FineWeb validation loss zoom](results/real_lm_screen_2026_05_30/fineweb_validation_loss_zoom_step1000.png)
+
+![FineWeb validation PPL](results/real_lm_screen_2026_05_30/fineweb_validation_ppl.png)
+
+![FineWeb validation PPL zoom](results/real_lm_screen_2026_05_30/fineweb_validation_ppl_zoom_step1000.png)
+
+![FineWeb training loss](results/real_lm_screen_2026_05_30/fineweb_training_loss.png)
+
+![FineWeb-Edu validation loss](results/real_lm_screen_2026_05_30/fineweb_edu_validation_loss.png)
+
+![FineWeb-Edu validation loss zoom](results/real_lm_screen_2026_05_30/fineweb_edu_validation_loss_zoom_step1000.png)
+
+![FineWeb-Edu validation PPL](results/real_lm_screen_2026_05_30/fineweb_edu_validation_ppl.png)
+
+![FineWeb-Edu validation PPL zoom](results/real_lm_screen_2026_05_30/fineweb_edu_validation_ppl_zoom_step1000.png)
+
+![FineWeb-Edu training loss](results/real_lm_screen_2026_05_30/fineweb_edu_training_loss.png)
+
+![WikiText validation loss](results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_loss.png)
+
+![WikiText validation PPL](results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_ppl.png)
+
+![WikiText training loss from step 1](results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
 
 ## One-Seed Curve Package
 

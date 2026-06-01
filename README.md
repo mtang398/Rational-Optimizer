@@ -124,6 +124,55 @@ The older one-seed result package still contains plot images and curve CSVs:
 experiments/results/real_lm_screen_2026_05_30/
 ```
 
+
+## Curves
+
+These are the primary visual diagnostics. Each line is the mean across seeds `1337`, `2027`, and `3407`; the shaded band is +/- 1 standard deviation. PPL plots follow the earlier plotting rule and omit divergent/nonfinite seed-method rows so one failed `RLB+AdamW` run does not destroy the axis.
+
+### FineWeb
+
+Mean validation loss:
+
+![FineWeb mean validation loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean.png)
+
+Mean validation loss, zoomed from step 1000:
+
+![FineWeb mean validation loss zoom](experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean_zoom_step1000.png)
+
+Mean validation PPL:
+
+![FineWeb mean validation PPL](experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_ppl_mean.png)
+
+Mean validation PPL, zoomed from step 1000:
+
+![FineWeb mean validation PPL zoom](experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_ppl_mean_zoom_step1000.png)
+
+Mean training loss:
+
+![FineWeb mean training loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_training_loss_mean.png)
+
+### FineWeb-Edu
+
+Mean validation loss:
+
+![FineWeb-Edu mean validation loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean.png)
+
+Mean validation loss, zoomed from step 1000:
+
+![FineWeb-Edu mean validation loss zoom](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean_zoom_step1000.png)
+
+Mean validation PPL:
+
+![FineWeb-Edu mean validation PPL](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_ppl_mean.png)
+
+Mean validation PPL, zoomed from step 1000:
+
+![FineWeb-Edu mean validation PPL zoom](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_ppl_mean_zoom_step1000.png)
+
+Mean training loss:
+
+![FineWeb-Edu mean training loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_training_loss_mean.png)
+
 ## Resource Rules
 
 These are hard operational constraints for this repo:

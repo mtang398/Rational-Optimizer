@@ -418,17 +418,19 @@ def matrix_policy_gap_cis(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def curve_mean_std(rows: list[dict[str, Any]], key: str) -> dict[tuple[str, str], list[tuple[int, float, float, int]]]:
-    grouped: dict[tuple[str, str, int], list[float]] = defaultdict(list)
+    grouped: dict[tuple[str, str, int], dict[int, float]] = defaultdict(dict)
     for row in rows:
         task = row.get("task")
         method = row.get("method")
+        seed = finite_int(row.get("seed"))
         step = finite_int(row.get("step"))
         value = finite_float(row.get(key))
-        if task is None or method is None or step is None or value is None:
+        if task is None or method is None or seed is None or step is None or value is None:
             continue
-        grouped[(str(task), str(method), step)].append(value)
+        grouped[(str(task), str(method), step)][seed] = value
     out: dict[tuple[str, str], list[tuple[int, float, float, int]]] = defaultdict(list)
-    for (task, method, step), values in grouped.items():
+    for (task, method, step), by_seed in grouped.items():
+        values = list(by_seed.values())
         mean, std = mean_std(values)
         if mean is None or std is None:
             continue
@@ -436,6 +438,22 @@ def curve_mean_std(rows: list[dict[str, Any]], key: str) -> dict[tuple[str, str]
     for key_pair in out:
         out[key_pair].sort(key=lambda item: item[0])
     return out
+
+
+def without_diverged_seed_rows(
+    rows: list[dict[str, Any]],
+    per_seed: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    diverged = {
+        (str(row.get("task")), int(row.get("seed")), str(row.get("method")))
+        for row in per_seed
+        if row.get("seed") is not None and row.get("status") == "diverged"
+    }
+    return [
+        row
+        for row in rows
+        if (str(row.get("task")), int(row.get("seed") or -1), str(row.get("method"))) not in diverged
+    ]
 
 
 def plot_curve_means(
@@ -469,8 +487,8 @@ def plot_curve_means(
             linewidth=2.2 if method == "RLB+MatrixPolicy (group-stat)" else 1.6,
         )
         if max(stds or [0.0]) > 0:
-            plt.fill_between(xs, lo, hi, color=COLORS.get(method), alpha=0.12, linewidth=0)
-    title = f"{TASK_NAMES.get(task, task)} mean {ylabel} across seeds"
+            plt.fill_between(xs, lo, hi, color=COLORS.get(method), alpha=0.14, linewidth=0)
+    title = f"{TASK_NAMES.get(task, task)} {ylabel}, mean +/- 1 std over seeds"
     if min_step > 1:
         title += f" (step >= {min_step})"
     plt.title(title)
@@ -484,7 +502,12 @@ def plot_curve_means(
     plt.close()
 
 
-def write_curve_outputs(result_dir: Path, train_rows: list[dict[str, Any]], eval_rows: list[dict[str, Any]]) -> None:
+def write_curve_outputs(
+    result_dir: Path,
+    train_rows: list[dict[str, Any]],
+    eval_rows: list[dict[str, Any]],
+    per_seed: list[dict[str, Any]],
+) -> None:
     write_csv(
         result_dir / "train_curves.csv",
         sort_curve_rows(train_rows),
@@ -495,6 +518,7 @@ def write_curve_outputs(result_dir: Path, train_rows: list[dict[str, Any]], eval
         sort_curve_rows(eval_rows),
         ["task", "seed", "method", "step", "val_loss", "val_ppl"],
     )
+    eval_rows_without_diverged = without_diverged_seed_rows(eval_rows, per_seed)
     tasks = sorted({str(row.get("task")) for row in eval_rows if row.get("task")})
     for task in tasks:
         plot_curve_means(eval_rows, task, "val_loss", "validation loss", result_dir / f"{task}_validation_loss_mean.png")
@@ -504,6 +528,21 @@ def write_curve_outputs(result_dir: Path, train_rows: list[dict[str, Any]], eval
             "val_loss",
             "validation loss",
             result_dir / f"{task}_validation_loss_mean_zoom_step1000.png",
+            min_step=1000,
+        )
+        plot_curve_means(
+            eval_rows_without_diverged,
+            task,
+            "val_ppl",
+            "validation PPL",
+            result_dir / f"{task}_validation_ppl_mean.png",
+        )
+        plot_curve_means(
+            eval_rows_without_diverged,
+            task,
+            "val_ppl",
+            "validation PPL",
+            result_dir / f"{task}_validation_ppl_mean_zoom_step1000.png",
             min_step=1000,
         )
         plot_curve_means(train_rows, task, "loss", "training loss", result_dir / f"{task}_training_loss_mean.png")
@@ -767,7 +806,7 @@ def main() -> None:
     write_csv(args.result_dir / "per_seed_summary.csv", per_seed, per_seed_fields)
     write_csv(args.result_dir / "aggregate_summary.csv", aggregate_rows, aggregate_fields)
     write_csv(args.result_dir / "matrix_policy_gap_bootstrap_ci.csv", gap_ci_rows, gap_ci_fields)
-    write_curve_outputs(args.result_dir, train_curve_rows, eval_curve_rows)
+    write_curve_outputs(args.result_dir, train_curve_rows, eval_curve_rows, per_seed)
     write_markdown(args.result_dir / "summary.md", per_seed, aggregate_rows)
 
 
