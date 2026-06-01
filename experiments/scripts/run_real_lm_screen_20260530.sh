@@ -104,16 +104,16 @@ run_complete() {
   return 0
 }
 
-archive_incomplete_run() {
-  local run_dir="$1"
-  if [[ ! -d "${run_dir}" ]]; then
+archive_incomplete_jsonl() {
+  local path="$1"
+  if [[ ! -f "${path}" ]]; then
     return 0
   fi
   local stamp
   stamp="$(date +%Y%m%d%H%M%S)"
-  local archive_dir="${run_dir}.incomplete_${SLURM_JOB_ID:-manual}_${SLURM_RESTART_COUNT:-0}_${stamp}"
-  echo "=== archiving incomplete run ${run_dir} -> ${archive_dir} ==="
-  mv "${run_dir}" "${archive_dir}"
+  local archive_path="${path}.incomplete_${SLURM_JOB_ID:-manual}_${SLURM_RESTART_COUNT:-0}_${stamp}"
+  echo "=== archiving incomplete activation ${path} -> ${archive_path} ==="
+  mv "${path}" "${archive_path}"
 }
 
 task_spec() {
@@ -166,16 +166,26 @@ run_variant() {
   local extra_args="${5:-}"
   local run_name="${task}_${run_tag}_${RUN_SUFFIX}"
   local run_dir="${OUTPUT_ROOT}/${task}/${run_name}"
+  local pending_activations=""
+  local activation
 
   check_repo_size
-  if run_complete "${run_dir}" "${activations}"; then
+  for activation in ${activations}; do
+    if jsonl_complete "${run_dir}/${activation}.jsonl"; then
+      echo "=== ${run_name}/${activation} already complete; skipping activation ==="
+    else
+      archive_incomplete_jsonl "${run_dir}/${activation}.jsonl"
+      pending_activations="${pending_activations} ${activation}"
+    fi
+  done
+  pending_activations="${pending_activations# }"
+  if [[ -z "${pending_activations}" ]]; then
     echo "=== ${run_name} already complete; skipping ==="
     return 0
   fi
-  archive_incomplete_run "${run_dir}"
 
   echo "=== ${run_name}: ${DATASET_NAME}/${DATASET_CONFIG}; steps=${STEPS}; train_tokens=${MAX_TRAIN_TOKENS}; val_tokens=${MAX_VAL_TOKENS}; val_skip_tokens=${VAL_SKIP_TOKENS} ==="
-  RUN_NAME="${run_name}"   STEPS="${STEPS}"   SEEDS="${SEEDS}"   OPTIMIZERS="${optimizers}"   ACTIVATIONS="${activations}"   EVAL_INTERVAL="${EVAL_INTERVAL}"   EVAL_BATCHES="${EVAL_BATCHES}"   LOG_INTERVAL="${LOG_INTERVAL}"   NPROC_PER_NODE="${NPROC_PER_NODE}"   EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-documents ${VAL_SKIP_DOCS} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${TOKEN_CACHE_DIR} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} ${extra_args}"   bash training/run_wikitext103_optimizer_sweep.sbatch
+  RUN_NAME="${run_name}"   STEPS="${STEPS}"   SEEDS="${SEEDS}"   OPTIMIZERS="${optimizers}"   ACTIVATIONS="${pending_activations}"   EVAL_INTERVAL="${EVAL_INTERVAL}"   EVAL_BATCHES="${EVAL_BATCHES}"   LOG_INTERVAL="${LOG_INTERVAL}"   NPROC_PER_NODE="${NPROC_PER_NODE}"   EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-documents ${VAL_SKIP_DOCS} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${TOKEN_CACHE_DIR} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} ${extra_args}"   bash training/run_wikitext103_optimizer_sweep.sbatch
 }
 
 echo "=== real LM screen job ${SLURM_JOB_ID:-manual}; tasks=${REAL_LM_TASKS}; one job uses 4 A6000s; keep at most two active for 8-GPU cap ==="

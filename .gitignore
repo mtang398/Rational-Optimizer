@@ -23,6 +23,7 @@ experiments/cache/
 *.swp
 
 # Generated experiment logs and raw transport probes
+experiments/runs/logs/*.out
 experiments/runs/logs/ract-wt103-opt-*.out
 experiments/runs/wikitext103/rational_transport_*/
 experiments/runs/wikitext103/adamw_lr5e4_controls_*/
