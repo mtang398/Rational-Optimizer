@@ -4385,6 +4385,320 @@ def reduce_mean(value, device, is_distributed):
     return float(tensor.item())
 
 
+def unwrap_model(model):
+    return model.module if isinstance(model, nn.parallel.DistributedDataParallel) else model
+
+
+def _finite_float(value):
+    if value is None:
+        return None
+    value = float(value)
+    return value if math.isfinite(value) else None
+
+
+def _tensor_mean_std(tensor):
+    if tensor is None or not torch.is_tensor(tensor) or tensor.numel() == 0:
+        return None, None
+    values = tensor.detach().float().reshape(-1)
+    return _finite_float(values.mean().item()), _finite_float(values.std(unbiased=False).item() if values.numel() > 1 else 0.0)
+
+
+def _tensor_quantiles(tensor):
+    if tensor is None or not torch.is_tensor(tensor) or tensor.numel() == 0:
+        return None, None, None
+    values = tensor.detach().float().reshape(-1).cpu()
+    return (
+        _finite_float(values.min().item()),
+        _finite_float(torch.quantile(values, 0.01).item()),
+        _finite_float(values.median().item()),
+    )
+
+
+def grad_global_norm(model):
+    total = None
+    for param in model.parameters():
+        if param.grad is None:
+            continue
+        value = param.grad.detach().float().square().sum()
+        total = value if total is None else total + value
+    if total is None:
+        return 0.0
+    return float(torch.sqrt(total).item())
+
+
+def clip_or_measure_gradients(model, grad_clip, capture_norm):
+    if grad_clip > 0:
+        norm = nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+        norm_value = float(norm.item() if torch.is_tensor(norm) else norm)
+        return norm_value, bool(norm_value > float(grad_clip))
+    if capture_norm:
+        return grad_global_norm(model), False
+    return None, False
+
+
+def iter_optimizer_tree(optimizer):
+    yield optimizer
+    for child in getattr(optimizer, "optimizers", []):
+        yield from iter_optimizer_tree(child)
+    for attr in ("adam", "muon"):
+        child = getattr(optimizer, attr, None)
+        if child is not None:
+            yield child
+
+
+def set_optimizer_telemetry_capture(optimizer, enabled):
+    for item in iter_optimizer_tree(optimizer):
+        setter = getattr(item, "set_telemetry_capture", None)
+        if setter is not None:
+            setter(enabled)
+
+
+def collect_optimizer_telemetry(optimizer):
+    record = {}
+    for item in iter_optimizer_tree(optimizer):
+        getter = getattr(item, "telemetry", None)
+        if getter is None:
+            continue
+        telemetry = getter()
+        if telemetry:
+            record.update(telemetry)
+    return record
+
+
+def enable_rlb_training_telemetry(model, args):
+    if args.activation not in RLB_ACTIVATIONS:
+        return
+    for module in model.modules():
+        if not all(hasattr(module, attr) for attr in ("groups", "hidden_dim", "numerator", "denominator", "coeff_logits")):
+            continue
+        setattr(module, "_rlb_optimizer_track_stats", True)
+        setattr(module, "_rlb_optimizer_stat_every", max(1, int(args.telemetry_rlb_stat_every)))
+        setattr(module, "_rlb_optimizer_stat_samples", max(1, int(args.telemetry_rlb_stat_samples)))
+
+
+def _rlb_denominator_probe(group, points=129, probe_range=5.0):
+    module = group.get("module")
+    if module is None:
+        return None
+    denominator = getattr(module, "denominator", None)
+    centers = getattr(module, "centers", None)
+    beta = getattr(module, "beta", None)
+    if denominator is None:
+        return None
+    device = denominator.device
+    dtype = torch.float32
+    t = torch.linspace(-float(probe_range), float(probe_range), int(points), device=device, dtype=dtype)
+    abs_t = t.abs()
+    t2 = t.square()
+    t3_abs = abs_t * t2
+    t4 = t2.square()
+    den = denominator.detach().float().abs()
+    if den.dim() != 2 or den.size(-1) < 4:
+        return None
+    base_q = 1.0 + den[:, 0:1] * abs_t + den[:, 1:2] * t2 + den[:, 2:3] * t3_abs + den[:, 3:4] * t4
+    values = [base_q.reshape(-1)]
+    if centers is not None and beta is not None:
+        center = centers.detach().float().unsqueeze(-1)
+        beta_v = beta.detach().float().unsqueeze(-1).clamp_min(0.0)
+        local_q = 1.0 + beta_v * (t.view(1, 1, -1) - center).square()
+        values.append(local_q.reshape(-1))
+    return torch.cat(values)
+
+
+def collect_rlb_telemetry(model, args):
+    if args.activation not in RLB_ACTIVATIONS:
+        return {}
+    groups = collect_rlb_optimizer_groups(unwrap_model(model), args)
+    if not groups:
+        return {}
+
+    result = {}
+    output_means, output_stds = [], []
+    derivative_means, derivative_stds = [], []
+    atom_means, atom_stds = [], []
+    abs_moment_means, abs_moment_stds = [], []
+    denom_mins, denom_p01s, denom_medians = [], [], []
+    w_in_means, w_in_stds = [], []
+    w_out_means, w_out_stds = [], []
+    log_ratio_means, log_product_means = [], []
+
+    for group in groups:
+        module = group.get("module")
+        stats = getattr(module, "_rlb_optimizer_stats", None) if module is not None else None
+        for key, means, stds in (
+            ("output_rms", output_means, output_stds),
+            ("derivative_rms", derivative_means, derivative_stds),
+            ("atom_rms", atom_means, atom_stds),
+            ("abs_moments", abs_moment_means, abs_moment_stds),
+        ):
+            mean, std = _tensor_mean_std(None if not stats else stats.get(key))
+            means.append(mean)
+            stds.append(std)
+
+        den_values = _rlb_denominator_probe(group, args.telemetry_denominator_probe_points)
+        den_min, den_p01, den_median = _tensor_quantiles(den_values)
+        denom_mins.append(den_min)
+        denom_p01s.append(den_p01)
+        denom_medians.append(den_median)
+
+        in_weight = group["in_weight"].detach().float()
+        out_weight = group["out_weight"].detach().float()
+        groups_count = int(group["groups"])
+        hidden_dim = int(group["hidden_dim"])
+        width = hidden_dim // groups_count
+        in_view = in_weight.view(groups_count, width, -1)
+        out_view = out_weight.view(out_weight.shape[0], groups_count, width).permute(1, 2, 0)
+        in_rms = torch.sqrt(in_view.square().mean(dim=(1, 2)) + 1e-12)
+        out_rms = torch.sqrt(out_view.square().mean(dim=(1, 2)) + 1e-12)
+        in_mean, in_std = _tensor_mean_std(in_rms)
+        out_mean, out_std = _tensor_mean_std(out_rms)
+        w_in_means.append(in_mean)
+        w_in_stds.append(in_std)
+        w_out_means.append(out_mean)
+        w_out_stds.append(out_std)
+        log_ratio_means.append(_finite_float((torch.log(in_rms) - torch.log(out_rms)).mean().item()))
+        log_product_means.append(_finite_float((torch.log(in_rms) + torch.log(out_rms)).mean().item()))
+
+    result.update(
+        {
+            "rlb_output_rms_mean_by_layer": output_means,
+            "rlb_output_rms_std_by_layer": output_stds,
+            "rlb_derivative_rms_mean_by_layer": derivative_means,
+            "rlb_derivative_rms_std_by_layer": derivative_stds,
+            "rlb_atom_rms_mean_by_layer": atom_means,
+            "rlb_atom_rms_std_by_layer": atom_stds,
+            "rlb_abs_moment_mean_by_layer": abs_moment_means,
+            "rlb_abs_moment_std_by_layer": abs_moment_stds,
+            "denominator_abs_min_by_layer": denom_mins,
+            "denominator_abs_p01_by_layer": denom_p01s,
+            "denominator_abs_median_by_layer": denom_medians,
+            "w_in_rms_mean_by_layer": w_in_means,
+            "w_in_rms_std_by_layer": w_in_stds,
+            "w_out_rms_mean_by_layer": w_out_means,
+            "w_out_rms_std_by_layer": w_out_stds,
+            "log_w_in_over_w_out_by_layer": log_ratio_means,
+            "log_norm_product_by_layer": log_product_means,
+        }
+    )
+    return result
+
+
+def svd_entropy(matrix, max_dim):
+    weight = matrix.detach().float()
+    if weight.dim() != 2 or min(weight.shape) <= 1:
+        return None
+    rows, cols = weight.shape
+    if max_dim > 0 and rows > max_dim:
+        row_index = torch.linspace(0, rows - 1, max_dim, device=weight.device).long()
+        weight = weight.index_select(0, row_index)
+    if max_dim > 0 and cols > max_dim:
+        col_index = torch.linspace(0, cols - 1, max_dim, device=weight.device).long()
+        weight = weight.index_select(1, col_index)
+    try:
+        singular = torch.linalg.svdvals(weight)
+    except RuntimeError:
+        return None
+    singular = singular.clamp_min(0.0)
+    total = singular.sum()
+    if not torch.isfinite(total) or total <= 0:
+        return None
+    probs = singular / total
+    entropy = -(probs * torch.log(probs.clamp_min(1e-12))).sum()
+    norm = math.log(max(2, probs.numel()))
+    return _finite_float((entropy / norm).item())
+
+
+def collect_matrix_spectrum_telemetry(model, args):
+    if args.matrix_spectrum_interval <= 0:
+        return {}
+    raw_model = unwrap_model(model)
+    values = {
+        "svd_entropy_attn_q": [],
+        "svd_entropy_attn_k": [],
+        "svd_entropy_attn_v": [],
+        "svd_entropy_attn_o": [],
+        "svd_entropy_rlb_in": [],
+        "svd_entropy_rlb_out": [],
+    }
+    for layer in getattr(raw_model, "layers", []):
+        attn = getattr(layer, "attn", None)
+        if attn is not None and hasattr(attn, "qkv"):
+            q_weight, k_weight, v_weight = attn.qkv.weight.chunk(3, dim=0)
+            for key, weight in (("svd_entropy_attn_q", q_weight), ("svd_entropy_attn_k", k_weight), ("svd_entropy_attn_v", v_weight)):
+                value = svd_entropy(weight, args.matrix_spectrum_max_dim)
+                if value is not None:
+                    values[key].append(value)
+        if attn is not None and hasattr(attn, "out"):
+            value = svd_entropy(attn.out.weight, args.matrix_spectrum_max_dim)
+            if value is not None:
+                values["svd_entropy_attn_o"].append(value)
+        mlp = getattr(layer, "mlp", None)
+        if isinstance(mlp, RationalLocalBasisFFN):
+            value = svd_entropy(mlp.in_proj.weight, args.matrix_spectrum_max_dim)
+            if value is not None:
+                values["svd_entropy_rlb_in"].append(value)
+            value = svd_entropy(mlp.out_proj.weight, args.matrix_spectrum_max_dim)
+            if value is not None:
+                values["svd_entropy_rlb_out"].append(value)
+    return {key: _finite_float(sum(items) / len(items)) for key, items in values.items() if items}
+
+
+def prepare_probe_batch(tokens, args, offsets, rank, device, out_path):
+    if args.probe_batch_size <= 0:
+        return None
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(args.seed + 2_000_003 + rank)
+    batch_size = min(int(args.probe_batch_size), int(args.batch_size))
+    x, y = sample_batch(tokens, batch_size, args.seq_len, offsets, generator, device)
+    probe_path = out_path.parent / f"{sanitize_name(args.activation)}_probe_rank{rank}.pt"
+    if rank == 0:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+    if dist.is_available() and dist.is_initialized():
+        dist.barrier()
+    torch.save(
+        {
+            "probe_x": x.detach().cpu(),
+            "probe_y": y.detach().cpu(),
+            "dataset": args.dataset_name,
+            "dataset_config": args.dataset_config,
+            "validation_skip_tokens": args.validation_skip_tokens,
+            "seed": args.seed,
+            "rank": rank,
+        },
+        probe_path,
+    )
+    return {"x": x, "prev_logits": None, "first_logits": None}
+
+
+@torch.no_grad()
+def evaluate_probe(model, probe_state, device, is_distributed):
+    if probe_state is None:
+        return {}
+    model.eval()
+    logits = model(probe_state["x"]).detach().float()
+    logit_rms_local = torch.sqrt(logits.square().mean() + 1e-12)
+    metrics = {"probe_logit_rms": reduce_mean(float(logit_rms_local.item()), device, is_distributed)}
+
+    for label, reference in (("since_prev_eval", probe_state.get("prev_logits")), ("since_step1", probe_state.get("first_logits"))):
+        if reference is None:
+            metrics[f"probe_logit_delta_rms_{label}"] = 0.0
+            metrics[f"probe_kl_{label}"] = 0.0
+            continue
+        ref = reference.to(device=device, dtype=torch.float32)
+        delta_rms = torch.sqrt((logits - ref).square().mean() + 1e-12)
+        log_probs = F.log_softmax(logits, dim=-1)
+        ref_log_probs = F.log_softmax(ref, dim=-1)
+        kl = (ref_log_probs.exp() * (ref_log_probs - log_probs)).sum(dim=-1).mean()
+        metrics[f"probe_logit_delta_rms_{label}"] = reduce_mean(float(delta_rms.item()), device, is_distributed)
+        metrics[f"probe_kl_{label}"] = reduce_mean(float(kl.item()), device, is_distributed)
+
+    stored = logits.detach().to(device="cpu", dtype=torch.float16)
+    if probe_state.get("first_logits") is None:
+        probe_state["first_logits"] = stored.clone()
+    probe_state["prev_logits"] = stored
+    return metrics
+
+
 @torch.no_grad()
 def evaluate(model, tokens, args, offsets, rank, world_size, device, is_distributed):
     model.eval()
@@ -6336,6 +6650,12 @@ def parse_args():
     parser.add_argument("--log-interval", type=int, default=10)
     parser.add_argument("--eval-interval", type=int, default=250)
     parser.add_argument("--eval-batches", type=int, default=20)
+    parser.add_argument("--probe-batch-size", type=int, default=2)
+    parser.add_argument("--telemetry-rlb-stat-every", type=int, default=4)
+    parser.add_argument("--telemetry-rlb-stat-samples", type=int, default=512)
+    parser.add_argument("--telemetry-denominator-probe-points", type=int, default=129)
+    parser.add_argument("--matrix-spectrum-interval", type=int, default=500)
+    parser.add_argument("--matrix-spectrum-max-dim", type=int, default=512)
     parser.add_argument("--rlb-init-gauge-log-scale", type=float, default=0.0)
     parser.add_argument("--rlb-init-gauge-seed", type=int, default=424242)
     parser.add_argument("--seed", type=int, default=1337)
@@ -6392,6 +6712,7 @@ def main():
     rlb_init_gauge_groups = apply_rlb_positive_gauge(
         model, args.rlb_init_gauge_log_scale, args.rlb_init_gauge_seed
     )
+    enable_rlb_training_telemetry(model, args)
     param_count = sum(param.numel() for param in model.parameters())
     if is_distributed:
         model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
@@ -6401,6 +6722,7 @@ def main():
     train_generator = torch.Generator(device="cpu")
     train_generator.manual_seed(args.seed + 997 * rank)
     out_path = Path(args.output_dir) / args.run_name / f"{args.activation}.jsonl"
+    probe_state = prepare_probe_batch(val_tokens, args, offsets, rank, device, out_path)
     rb_settings = rational_basis_settings(
         args.activation,
         args.ffn_dim,
@@ -6531,6 +6853,12 @@ def main():
         "log_interval": args.log_interval,
         "eval_interval": args.eval_interval,
         "eval_batches": args.eval_batches,
+        "probe_batch_size": args.probe_batch_size,
+        "telemetry_rlb_stat_every": args.telemetry_rlb_stat_every,
+        "telemetry_rlb_stat_samples": args.telemetry_rlb_stat_samples,
+        "telemetry_denominator_probe_points": args.telemetry_denominator_probe_points,
+        "matrix_spectrum_interval": args.matrix_spectrum_interval,
+        "matrix_spectrum_max_dim": args.matrix_spectrum_max_dim,
         "rlb_init_gauge_log_scale": args.rlb_init_gauge_log_scale,
         "rlb_init_gauge_seed": args.rlb_init_gauge_seed,
         "rlb_init_gauge_groups": rlb_init_gauge_groups,
@@ -6848,6 +7176,23 @@ def main():
     for step in range(args.steps):
         model.train()
         step_start = time.perf_counter()
+        will_log = (step + 1) % args.log_interval == 0 or step == 0 or step + 1 == args.steps
+        will_eval = args.eval_interval > 0 and (
+            step == 0 or (step + 1) % args.eval_interval == 0 or step + 1 == args.steps
+        )
+        capture_step_telemetry = will_log and rank == 0
+        if capture_step_telemetry and device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
+            torch.cuda.synchronize(device)
+        set_optimizer_telemetry_capture(optimizer, capture_step_telemetry)
+        forward_backward_start = time.perf_counter()
+        forward_backward_seconds = None
+        optimizer_step_seconds = None
+        grad_global_norm_before_clip = None
+        grad_clip_triggered = False
+        sam_first_grad_global_norm_before_clip = None
+        sam_first_grad_clip_triggered = False
+
         lr = learning_rate(step, args)
         for group in optimizer.param_groups:
             group["lr"] = lr * float(group.get("lr_scale", 1.0))
@@ -6864,8 +7209,11 @@ def main():
                 loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
                 (loss / args.grad_accum).backward()
                 local_loss += float(loss.item())
-            if args.grad_clip > 0:
-                nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            sam_first_grad_global_norm_before_clip, sam_first_grad_clip_triggered = clip_or_measure_gradients(
+                model,
+                args.grad_clip,
+                capture_step_telemetry,
+            )
             perturbations = sam_first_step(model, rho, args, device, is_distributed)
             if perturbations:
                 optimizer.zero_grad(set_to_none=True)
@@ -6874,8 +7222,21 @@ def main():
                     loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
                     (loss / args.grad_accum).backward()
                 sam_restore(perturbations)
-                if args.grad_clip > 0:
-                    nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+                if capture_step_telemetry and device.type == "cuda":
+                    torch.cuda.synchronize(device)
+                forward_backward_seconds = time.perf_counter() - forward_backward_start
+                grad_global_norm_before_clip, grad_clip_triggered = clip_or_measure_gradients(
+                    model,
+                    args.grad_clip,
+                    capture_step_telemetry,
+                )
+            else:
+                if capture_step_telemetry and device.type == "cuda":
+                    torch.cuda.synchronize(device)
+                forward_backward_seconds = time.perf_counter() - forward_backward_start
+                grad_global_norm_before_clip = sam_first_grad_global_norm_before_clip
+                grad_clip_triggered = sam_first_grad_clip_triggered
+            optimizer_step_start = time.perf_counter()
             optimizer.step()
         else:
             for _ in range(args.grad_accum):
@@ -6884,9 +7245,19 @@ def main():
                 loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
                 (loss / args.grad_accum).backward()
                 local_loss += float(loss.item())
-            if args.grad_clip > 0:
-                nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            if capture_step_telemetry and device.type == "cuda":
+                torch.cuda.synchronize(device)
+            forward_backward_seconds = time.perf_counter() - forward_backward_start
+            grad_global_norm_before_clip, grad_clip_triggered = clip_or_measure_gradients(
+                model,
+                args.grad_clip,
+                capture_step_telemetry,
+            )
+            optimizer_step_start = time.perf_counter()
             optimizer.step()
+        if capture_step_telemetry and device.type == "cuda":
+            torch.cuda.synchronize(device)
+        optimizer_step_seconds = time.perf_counter() - optimizer_step_start
         if device.type == "cuda":
             torch.cuda.synchronize(device)
 
@@ -6896,10 +7267,10 @@ def main():
         loss_since_log += mean_loss
         steps_since_log += 1
 
-        should_log = (step + 1) % args.log_interval == 0 or step == 0 or step + 1 == args.steps
-        if should_log:
+        if will_log:
             recent = step_times[-args.log_interval :]
-            tokens_per_second = global_tokens / (sum(recent) / len(recent))
+            mean_recent_step = sum(recent) / len(recent)
+            tokens_per_second = global_tokens / mean_recent_step
             record = {
                 "event": "train",
                 "activation": args.activation,
@@ -6908,18 +7279,29 @@ def main():
                 "lr": lr,
                 "sam_rho": rho,
                 "tokens_per_second": tokens_per_second,
-                "seconds_per_step": sum(recent) / len(recent),
+                "seconds_per_step": mean_recent_step,
+                "grad_global_norm_before_clip": _finite_float(grad_global_norm_before_clip),
+                "grad_clip_triggered": bool(grad_clip_triggered),
+                "grad_clip_threshold": args.grad_clip,
+                "forward_backward_seconds": _finite_float(forward_backward_seconds),
+                "optimizer_step_seconds": _finite_float(optimizer_step_seconds),
             }
+            if sam_first_grad_global_norm_before_clip is not None:
+                record["sam_first_grad_global_norm_before_clip"] = _finite_float(sam_first_grad_global_norm_before_clip)
+                record["sam_first_grad_clip_triggered"] = bool(sam_first_grad_clip_triggered)
+            if device.type == "cuda":
+                record["cuda_max_memory_allocated"] = int(torch.cuda.max_memory_allocated(device))
+                record["cuda_max_memory_reserved"] = int(torch.cuda.max_memory_reserved(device))
+            if rank == 0:
+                record.update(collect_optimizer_telemetry(optimizer))
+                record.update(collect_rlb_telemetry(model, args))
             loss_since_log = 0.0
             steps_since_log = 0
             rank0_print(rank, json.dumps(record, sort_keys=True))
             if rank == 0:
                 write_jsonl(out_path, record)
 
-        should_eval = args.eval_interval > 0 and (
-            step == 0 or (step + 1) % args.eval_interval == 0 or step + 1 == args.steps
-        )
-        if should_eval:
+        if will_eval:
             val_loss = evaluate(model, val_tokens, args, offsets, rank, world_size, device, is_distributed)
             record = {
                 "event": "eval",
@@ -6928,6 +7310,11 @@ def main():
                 "val_loss": val_loss,
                 "val_ppl": math.exp(min(20.0, val_loss)),
             }
+            record.update(evaluate_probe(model, probe_state, device, is_distributed))
+            if rank == 0 and args.matrix_spectrum_interval > 0 and (
+                step == 0 or (step + 1) % args.matrix_spectrum_interval == 0 or step + 1 == args.steps
+            ):
+                record.update(collect_matrix_spectrum_telemetry(model, args))
             rank0_print(rank, json.dumps(record, sort_keys=True))
             if rank == 0:
                 write_jsonl(out_path, record)

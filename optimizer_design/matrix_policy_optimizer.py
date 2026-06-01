@@ -188,6 +188,14 @@ class RationalMatrixPolicyOptimizer:
                 adjust_lr_fn=muon_adjust_lr_fn,
             )
         self.param_groups = self.adam.param_groups if self.muon is None else self.adam.param_groups + self.muon.param_groups
+        self._capture_telemetry_next_step = False
+        self._last_telemetry = {}
+
+    def set_telemetry_capture(self, enabled: bool = True):
+        self._capture_telemetry_next_step = bool(enabled)
+
+    def telemetry(self):
+        return dict(self._last_telemetry)
 
     def zero_grad(self, set_to_none=True):
         seen = set()
@@ -490,11 +498,127 @@ class RationalMatrixPolicyOptimizer:
             self.adam.state.pop(param, None)
         group["_muon_adam_reset_done"] = True
 
+    @staticmethod
+    def _mean(values):
+        if not values:
+            return None
+        return float(sum(values) / len(values))
+
+    @staticmethod
+    def _mean_std_min_max(values):
+        if not values:
+            return None, None, None, None
+        tensor = torch.tensor(values, dtype=torch.float32)
+        return (
+            float(tensor.mean().item()),
+            float(tensor.std(unbiased=False).item()) if tensor.numel() > 1 else 0.0,
+            float(tensor.min().item()),
+            float(tensor.max().item()),
+        )
+
+    @staticmethod
+    def _append_role(mapping: dict, role: str, value):
+        if value is None:
+            return
+        mapping.setdefault(str(role), []).append(float(value))
+
+    @staticmethod
+    def _role_means(mapping: dict) -> dict:
+        return {role: RationalMatrixPolicyOptimizer._mean(values) for role, values in sorted(mapping.items())}
+
+    def _policy_telemetry_before_step(self):
+        muon_by_role = {}
+        adam_lr_by_role = {}
+        group_scales = []
+        pressures = []
+        activities = []
+        for group in self.adam.param_groups:
+            role = str(group.get("matrix_role", "matrix"))
+            fraction = self._muon_fraction(group) if self.muon is not None else 0.0
+            self._append_role(muon_by_role, role, fraction)
+            self._append_role(adam_lr_by_role, role, self._adam_lr_scale(group))
+
+            param = next((p for p in group.get("params", []) if p is not None), None)
+            if param is not None:
+                scale = self._group_policy_scale(group, param.device, torch.float32)
+                if scale is not None:
+                    group_scales.extend(float(x) for x in scale.detach().float().reshape(-1).cpu())
+
+            selector_index = int(group.get("selector_index", -1))
+            if 0 <= selector_index < len(self.selector_groups):
+                state = self.selector_groups[selector_index].get("_onpolicy")
+                if state is not None:
+                    in_rel = state["in_rel_ema"].detach().float().clamp_min(self.eps)
+                    out_rel = state["out_rel_ema"].detach().float().clamp_min(self.eps)
+                    rat_rel = state["rat_rel_ema"].detach().float().clamp_min(self.eps)
+                    pressure = torch.log(in_rel) - torch.log(out_rel)
+                    matrix_log = 0.5 * (torch.log(in_rel) + torch.log(out_rel))
+                    activity = torch.log(rat_rel) - matrix_log
+                    pressures.extend(float(x) for x in pressure.reshape(-1).cpu())
+                    activities.extend(float(x) for x in activity.reshape(-1).cpu())
+
+        group_mean, group_std, group_min, group_max = self._mean_std_min_max(group_scales)
+        pressure_mean, pressure_std, _, _ = self._mean_std_min_max(pressures)
+        activity_mean, activity_std, _, _ = self._mean_std_min_max(activities)
+        return {
+            "matrix_policy_muon_mix_mean_by_role": self._role_means(muon_by_role),
+            "matrix_policy_adam_lr_scale_mean_by_role": self._role_means(adam_lr_by_role),
+            "matrix_policy_group_scale_mean": group_mean,
+            "matrix_policy_group_scale_std": group_std,
+            "matrix_policy_group_scale_min": group_min,
+            "matrix_policy_group_scale_max": group_max,
+            "matrix_policy_pressure_mean": pressure_mean,
+            "matrix_policy_pressure_std": pressure_std,
+            "matrix_policy_activity_mean": activity_mean,
+            "matrix_policy_activity_std": activity_std,
+        }
+
+    def _capture_pre_step_weights(self):
+        snapshots = {}
+        for group in self.adam.param_groups:
+            for param in group.get("params", []):
+                if param is None:
+                    continue
+                ident = id(param)
+                if ident not in snapshots:
+                    snapshots[ident] = param.detach().clone()
+        return snapshots
+
+    def _update_telemetry_after_step(self, telemetry: dict, snapshots: dict):
+        update_by_role = {}
+        weight_by_role = {}
+        ratio_by_role = {}
+        for group in self.adam.param_groups:
+            role = str(group.get("matrix_role", "matrix"))
+            for param in group.get("params", []):
+                before = snapshots.get(id(param))
+                if before is None:
+                    continue
+                delta = param.detach() - before.to(device=param.device, dtype=param.dtype)
+                update_rms = torch.sqrt(delta.float().square().mean() + self.eps)
+                weight_rms = torch.sqrt(param.detach().float().square().mean() + self.eps)
+                ratio = update_rms / weight_rms.clamp_min(self.eps)
+                self._append_role(update_by_role, role, float(update_rms.item()))
+                self._append_role(weight_by_role, role, float(weight_rms.item()))
+                self._append_role(ratio_by_role, role, float(ratio.item()))
+        telemetry.update(
+            {
+                "matrix_policy_update_rms_by_role": self._role_means(update_by_role),
+                "matrix_policy_weight_rms_by_role": self._role_means(weight_by_role),
+                "matrix_policy_update_to_weight_rms_by_role": self._role_means(ratio_by_role),
+            }
+        )
+        self._last_telemetry = telemetry
+
     @torch.no_grad()
     def step(self, closure=None):
         if closure is not None:
             raise RuntimeError("RationalMatrixPolicyOptimizer does not support closures")
         self.step_index += 1
+        capture_telemetry = self._capture_telemetry_next_step
+        self._capture_telemetry_next_step = False
+        telemetry = self._policy_telemetry_before_step() if capture_telemetry else {}
+        snapshots = self._capture_pre_step_weights() if capture_telemetry else {}
 
         self._apply_group_policy_to_gradients()
 
@@ -528,4 +652,6 @@ class RationalMatrixPolicyOptimizer:
         if self.muon is not None:
             for group, lr in zip(self.muon.param_groups, saved_muon_lrs):
                 group["lr"] = lr
+        if capture_telemetry:
+            self._update_telemetry_after_step(telemetry, snapshots)
         return None
