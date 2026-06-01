@@ -8,7 +8,8 @@ The current public evidence is centered on the 3-seed FineWeb/FineWeb-Edu replic
 
 | package | role |
 | --- | --- |
-| `results/real_lm_multiseed_2026_05_31/` | Primary 3-seed tables, bootstrap gap CIs, curve CSVs, and multi-seed mean plots. |
+| `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md` | Full paper experiment program: broad optimizer baselines, two-corpus HPO, scaling, speed-to-target, mechanism tests, and launch discipline. |
+| `results/real_lm_multiseed_2026_05_31/` | Primary current preliminary 3-seed tables, bootstrap gap CIs, curve CSVs, and multi-seed mean plots. |
 | `runs/real_lm_multiseed_20260531/` | Compact raw JSONL traces for seed 2027 and seed 3407 runs. |
 | `results/real_lm_screen_2026_05_30/` | Seed-1337 baseline summary, curves, and one-seed plot images. |
 | `results/rlb_matrix_policy_muon_switch_2026_05_28/` | Older WikiText-103 same-LR anchor. |
@@ -178,13 +179,7 @@ Main Slurm launcher:
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
-FineWeb-Edu MatrixPolicy ablation launcher:
-
-```bash
-sbatch experiments/scripts/run_real_lm_matrix_policy_ablation_20260601.sh
-```
-
-The ablation launcher runs 1000-step probes for plain MatrixPolicy, group-stat MatrixPolicy, no early Muon, no gauge rebalance, gain-only, pressure-only, and activity-only variants. It uses one 4-A6000 job by default.
+The next launches should follow `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`: implement telemetry, integrate the required baseline families, then run Phase A HPO on FineWeb-Edu and FineWeb. Do not run MatrixPolicy component ablations before tuned configs exist from that HPO phase.
 
 Example dependent 3-seed pattern used for the completed batch:
 

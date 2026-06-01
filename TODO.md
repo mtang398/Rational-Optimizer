@@ -47,13 +47,16 @@ requeue-safe launcher behavior for activation-level reruns
 
 ## Immediate TODO
 
-1. Finish the provenance bundle around the multi-seed table: commit hash, commands, job IDs, seed list, dataset slices, and environment metadata.
-2. Add function-space and gauge-drift diagnostics to the training loop.
-3. Run and summarize the prepared 1000-step ablation probes: no group stats, no early Muon phase, no exact gauge rebalance, gain-only, pressure-only, activity-only.
-4. Tune AdamW, RLB+AdamW, and MatrixPolicy on a small grid under the same token budget.
-5. Add at least one stronger modern optimizer baseline if feasible.
-6. Run one larger-model or longer-budget test while respecting the 4-GPU/job and 8-GPU-active cap.
-7. Fix DCLM/Dolma environment issues and add a third corpus.
+The next phase is the full paper program in `experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`, not an ablation-first path. Keep the hard limits: max 4 A6000 GPUs per job, max 8 A6000 GPUs active total, repo below 200G.
+
+1. Implement optimizer telemetry and fixed-probe function movement in `training/transformer_wikitext103_compare.py`.
+2. Implement RLB gauge/rational metrics, denominator probes, MatrixPolicy role telemetry, and matrix-spectrum logging.
+3. Implement or integrate the required optimizer families: AdamW, Muon, SOAP/Shampoo-style, Lion, AdEMAMix, Schedule-Free AdamW, Adafactor/CAME, and MatrixPolicy.
+4. Add HPO launchers and summarizers that emit resolved configs, LR/WD heatmaps, family-specific sensitivity strips, rank-over-horizon plots, tokens-to-target tables, optimizer overhead, memory, and mechanism summaries.
+5. Run Phase A HPO on FineWeb-Edu and FineWeb at 123M with no more than two 4-GPU jobs active; use dependent chains for the second corpus.
+6. Select tuned configs from Phase A, then run the final benchmark across FineWeb-Edu, FineWeb, and DCLM/Dolma with 5 seeds at 123M and 3 seeds at larger scale if cost forces it.
+7. Only after tuned configs exist, run mechanism experiments: gauge-equivalent initialization, mid-training gauge intervention, optimizer-state gauge covariance, rational function movement, and role-specific update geometry.
+8. Keep the current 3-seed FineWeb/FineWeb-Edu results as preliminary evidence, not the final paper benchmark.
 
 ## Mechanism Diagnostics Needed
 
