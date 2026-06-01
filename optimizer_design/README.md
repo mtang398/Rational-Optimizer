@@ -1,6 +1,6 @@
 # Optimizer Design
 
-This folder contains rational-specific optimizer implementations. The current research optimizer is `RationalMatrixPolicyOptimizer`, used through the training option `rational_matrix_policy_onpolicy`.
+This directory contains the rational-specific optimizer implementations. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
 ## Problem Setup
 
@@ -10,7 +10,7 @@ For RLB layer `l`, write the FFN block as:
 x -> A_l x -> grouped rational functions -> B_l h
 ```
 
-with:
+where:
 
 ```text
 A_l = W_in,l
@@ -23,19 +23,19 @@ h_g = r_g R_{l,g}(u_g)
 y = B_l concat_g(h_g)
 ```
 
-The three optimizer roles are different:
+The roles are not interchangeable:
 
 ```text
-A_l       selects the input domain seen by rational groups
+A_l       selects the input domains for rational groups
 R_{l,g}  changes the nonlinear rational curve
 B_l       recombines rational features into the residual stream
 ```
 
-MatrixPolicy exists because treating `A_l`, rational coefficients, and `B_l` as ordinary interchangeable parameters wastes structure.
+MatrixPolicy exists because a generic optimizer treats these roles too uniformly.
 
-## Exact Gauge Symmetry
+## Gauge Symmetry
 
-For any positive group scale `a_g > 0`, define block diagonal `D_l(a)` with block `a_g I_m`. Then:
+For any positive group scale `a_g > 0`, define a block diagonal matrix `D_l(a)` with block `a_g I_m`. Then:
 
 ```text
 A_l' = D_l(a) A_l
@@ -44,26 +44,26 @@ B_l' = B_l D_l(a)^(-1)
 
 The represented RLB function is unchanged. The normalized coordinate `u_g` is unchanged, `r_g` and `h_g` scale by `a_g`, and `B_l` cancels that scale.
 
-The optimizer should therefore avoid spending updates on arbitrary gauge drift. It should move the represented function and choose a well-conditioned representative of the same gauge class.
+The optimizer goal is therefore not merely to move parameters. It should move the represented function while avoiding arbitrary gauge drift.
 
 ## Parameter Partition
 
 `rational_matrix_policy_onpolicy` partitions parameters as:
 
 ```text
-theta_backbone = embeddings, attention, norms, ordinary Transformer weights
+theta_backbone = embeddings, attention, norms, and ordinary Transformer weights
 theta_coeff    = rational numerator, denominator, and local-basis coefficients
 M_l,in         = A_l
 M_l,out        = B_l
 ```
 
-The current real-corpus run uses:
+Current real-corpus wiring:
 
 ```text
 theta_backbone -> AdamW
 theta_coeff    -> AdamW-style coefficient updates inside the wrapper
 M_l,in/out     -> RationalMatrixPolicyOptimizer
-RLB gauge      -> exact post-step gauge rebalance
+RLB gauge      -> exact post-step rebalance
 ```
 
 ## Role And Depth Policy
@@ -124,9 +124,9 @@ a_muon = 1.0
 eta_t = same base LR schedule used by controls
 ```
 
-The design reason is mathematical: early orthogonalized matrix movement can quickly choose useful rational domains/features, but the mixture decays so late training is not dominated by generic Muon pressure.
+The Muon component is deliberately early. The method is not "use Muon everywhere"; generic Muon underperforms in the current control set.
 
-## On-Policy Statistics
+## On-Policy Statistics And Group Scaling
 
 Before stepping, the wrapper records per-layer, per-group pressures:
 
@@ -136,18 +136,7 @@ p_out,g = rms(grad B_{l,g}) / rms(B_{l,g})
 p_rat,g = rms(rational coefficient gradients for group g)
 ```
 
-The EMAs are `q_in,g`, `q_out,g`, and `q_rat,g`. MatrixPolicy derives:
-
-```text
-pressure_g = log q_in,g - log q_out,g
-activity_g = log q_rat,g - 0.5 (log q_in,g + log q_out,g)
-```
-
-`pressure_g` measures which side of a rational group is under more update pressure. `activity_g` measures whether the rational curve itself is moving more than the surrounding matrices.
-
-## Group-Stat Matrix Scaling
-
-The real-corpus best row uses the group-stat variant. It applies a centered, clipped per-group multiplier before AdamW/Muon updates:
+The group-stat variant applies a centered, clipped per-group multiplier before matrix updates:
 
 ```text
 c_g = c_gain,g c_pressure,g c_activity,g
@@ -155,24 +144,19 @@ c_g <- c_g / geomean(c)
 c_g <- clip(c_g, 0.75, 1.35)
 ```
 
-The terms are:
+Current best real-corpus settings:
 
 ```text
-c_gain,g = (geomean(k) / k_g)^0.20
-k_g = derivative_rms_g for W_in
-k_g = output_rms_g     for W_out
-
-c_pressure,g = exp(0.10 pressure_direction_g)
-pressure_direction_g = -pressure_g for W_in, +pressure_g for W_out
-
-c_activity,g = exp(-0.20 relu((activity_g - 0.05) / 0.45))
+group_gain_strength = 0.20
+group_pressure_strength = 0.10
+group_activity_damping = 0.20
+group window = progress 0.02 to 0.30
+group scale clip = [0.75, 1.35]
 ```
-
-The group-stat window is active from training progress `0.02` to `0.30`. `W_in` gradients are scaled group-row-wise; `W_out` gradients are scaled group-column-wise.
 
 ## Gauge Rebalance
 
-After child optimizer steps, the wrapper applies a function-preserving gauge correction every `k` steps. Let:
+After child optimizer steps, the wrapper applies a function-preserving gauge correction. Let:
 
 ```text
 n_in,g  = rms(A_{l,g})
@@ -180,14 +164,7 @@ n_out,g = rms(B_{l,g})
 current_g = log n_in,g - log n_out,g
 ```
 
-The target combines rational curve statistics and gradient pressure:
-
-```text
-target_g = 0.5 (log derivative_gain_g - log output_gain_g)
-           + beta_pressure (log q_in,g - log q_out,g)
-```
-
-The applied step is:
+The applied correction has the form:
 
 ```text
 ell_g = 0.5 (target_g - current_g)
@@ -198,11 +175,9 @@ A_{l,g} <- s_g A_{l,g}
 B_{l,g} <- B_{l,g} / s_g
 ```
 
-This changes the parameterization but preserves the represented RLB function up to floating-point error.
+This changes the parameterization but preserves the represented function up to floating-point error.
 
 ## Full Step Order
-
-One `rational_matrix_policy_onpolicy` step is:
 
 ```text
 1. record live RLB pressure/activity statistics
@@ -213,31 +188,30 @@ One `rational_matrix_policy_onpolicy` step is:
 6. apply exact W_in/W_out gauge rebalance
 ```
 
-Jacobian, quotient, coefficient-only, transport, and LR-scheduler variants are ablations. They are not the baseline optimizer claim.
+Jacobian, quotient, coefficient-only, transport, and global scheduler variants are ablations. They are not the baseline optimizer claim.
 
 ## Empirical Readout
 
-Current real-corpus results:
+Current 3-seed aggregate:
 
-| task | SiLU+AdamW loss/PPL | RLB+AdamW loss/PPL | RLB+MatrixPolicy group-stat loss/PPL | MatrixPolicy gap vs SiLU+AdamW |
+| task | SiLU+AdamW mean loss/PPL | best non-MatrixPolicy mean loss/PPL | MatrixPolicy mean loss/PPL | MatrixPolicy gap vs best control |
 | --- | ---: | ---: | ---: | ---: |
-| FineWeb | 4.504617 / 90.43 | 4.493013 / 89.39 | 4.344150 / 77.03 | 0.160467 loss / 13.40 PPL |
-| FineWeb-Edu | 4.225019 / 68.38 | diverged | 4.072055 / 58.68 | 0.152964 loss / 9.70 PPL |
+| FineWeb | 4.528963 / 92.69 | 4.522311 / 92.08 | 4.369701 / 79.04 | 0.152302 loss |
+| FineWeb-Edu | 4.223572 / 68.28 | 4.223572 / 68.28 | 4.069422 / 58.52 | 0.153402 loss |
 
-This says the useful part is not generic Muon and not RLB alone. Generic Muon is worse on both real-corpus tasks, and plain `RLB+AdamW` is unstable on FineWeb-Edu. The positive result comes from the RLB-specific matrix policy plus group-stat scaling and gauge rebalance.
+The paper story should be: RLB creates optimizer-visible geometry, and MatrixPolicy uses it. It should not be sold as an activation-only result or a generic Muon result.
 
 ## Evaluation Standard
 
-A new optimizer design should be judged by:
+A new optimizer variant should be judged by:
 
 ```text
-training and validation curves from step 1
-validation loss AUC at early and mid horizons
 final heldout loss and PPL
+validation loss AUC at early, mid, and full horizons
+step-matched train and validation curves from step 1
 comparison to SiLU+AdamW, RLB+AdamW, SiLU+Muon, and RLB+Muon
+wall-clock/tokens-to-target, because MatrixPolicy has per-step overhead
 function movement per parameter movement
 gauge drift and W_in/W_out norm-product diagnostics
 denominator margin and rational coefficient activity
 ```
-
-The next mechanism step is direct function-space auditing: show that MatrixPolicy gets more useful function change per update and less harmful gauge drift than generic optimizers.

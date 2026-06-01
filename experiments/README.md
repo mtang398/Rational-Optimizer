@@ -1,65 +1,64 @@
 # Experiments
 
-This folder contains launchers, summarizers, and committed result artifacts. The current public evidence is intentionally compact: the May 30 real-corpus screen and the older WikiText-103 anchor.
+This directory contains launchers, summarizers, compact result artifacts, and raw JSONL traces for the current real-LM evidence.
 
-Raw JSONL files and Slurm logs stay under `experiments/runs/` and are not committed. Research-facing tables and figures live under `experiments/results/`.
+The current public evidence is centered on the 3-seed FineWeb/FineWeb-Edu replication. Older one-seed plots and the WikiText anchor are retained as supporting artifacts, not as the main claim.
 
 ## Result Packages
 
-| package | contents |
+| package | role |
 | --- | --- |
-| `results/real_lm_screen_2026_05_30/` | FineWeb and FineWeb-Edu real-corpus screen, summary tables, train/eval curves, PPL/loss plots. |
-| `results/rlb_matrix_policy_muon_switch_2026_05_28/` | WikiText-103 same-LR comparison and plots. |
+| `results/real_lm_multiseed_2026_05_31/` | Primary 3-seed aggregate/per-seed tables for FineWeb and FineWeb-Edu. |
+| `runs/real_lm_multiseed_20260531/` | Compact raw JSONL traces for seed 2027 and seed 3407 runs. |
+| `results/real_lm_screen_2026_05_30/` | Seed-1337 baseline summary, curves, and one-seed plot images. |
+| `results/rlb_matrix_policy_muon_switch_2026_05_28/` | Older WikiText-103 same-LR anchor. |
 
-The older saturated synthetic and single-seed synthetic gauge-stress bundles were removed from the tracked result set. They are not part of the current research claim.
+Slurm `.out` files are local logs and are ignored. Compact JSONL traces are small enough to commit and are used by the multi-seed summarizer.
 
-## Real-Corpus Screen
+## Primary 3-Seed Summary
 
-Launcher: `experiments/scripts/run_real_lm_screen_20260530.sh`
+Regenerate the primary summary:
 
-Protocol:
-
-```text
-model: 12 layers, d_model 768, 12 heads, 123.6M parameters
-train tokens: 100,000,000
-validation tokens: 4,000,000
-validation offset: 110,000,000 stream tokens
-sequence length: 256
-global tokens per step: 32,768
-steps: 3,050
-seed: 1337
-logging: train every 10 steps, validation every 50 steps
-base LR: optimizer_lr=3e-4, optimizer_min_lr=3e-5
+```bash
+.venv-cu128/bin/python experiments/scripts/summarize_real_lm_multiseed.py \
+  --run-root experiments/runs/real_lm_multiseed_20260531 \
+  --baseline-summary-csv experiments/results/real_lm_screen_2026_05_30/summary.csv \
+  --baseline-seed 1337
 ```
 
-Completed tasks:
+Outputs:
 
-| task | HF dataset/config | purpose |
-| --- | --- | --- |
-| FineWeb | `HuggingFaceFW/fineweb`, `sample-10BT` | noisier broad web pretraining slice. |
-| FineWeb-Edu | `HuggingFaceFW/fineweb-edu`, `sample-10BT` | cleaner educational web pretraining slice. |
+```text
+results/real_lm_multiseed_2026_05_31/summary.md
+results/real_lm_multiseed_2026_05_31/per_seed_summary.csv
+results/real_lm_multiseed_2026_05_31/aggregate_summary.csv
+```
 
-### FineWeb Results
+### FineWeb
 
-| method | last finite validation loss | last finite PPL | val loss AUC <= 1000 | val loss AUC <= 2000 | note |
-| --- | ---: | ---: | ---: | ---: | --- |
-| SiLU+AdamW | 4.504617 | 90.43 | 5.993426 | 5.401559 | complete |
-| RLB+AdamW | 4.493013 | 89.39 | 5.954484 | 5.373016 | complete |
-| SiLU+Muon | 4.535766 | 93.29 | 6.664512 | 5.786310 | complete |
-| RLB+Muon | 4.548868 | 94.53 | 6.585091 | 5.752002 | complete |
-| RLB+MatrixPolicy (group-stat) | 4.344150 | 77.03 | 5.850945 | 5.262783 | complete |
+| method | n | mean val loss | mean PPL | gap vs SiLU+AdamW | gap vs best control |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| SiLU+AdamW | 3 | 4.528963 | 92.69 | 0.000000 | -0.006960 |
+| RLB+AdamW | 3 | 4.522311 | 92.08 | 0.006653 | -0.000308 |
+| SiLU+Muon | 3 | 4.566661 | 96.28 | -0.037698 | -0.044658 |
+| RLB+Muon | 3 | 4.571341 | 96.70 | -0.042377 | -0.049337 |
+| RLB+MatrixPolicy (group-stat) | 3 | 4.369701 | 79.04 | 0.159263 | 0.152302 |
 
-### FineWeb-Edu Results
+### FineWeb-Edu
 
-| method | last finite validation loss | last finite PPL | val loss AUC <= 1000 | val loss AUC <= 2000 | note |
-| --- | ---: | ---: | ---: | ---: | --- |
-| SiLU+AdamW | 4.225019 | 68.38 | 5.835354 | 5.186270 | complete |
-| RLB+AdamW | 8.411884 | 4500.23 | 9.684973 | 9.684973 | train nonfinite at step 80; validation nonfinite at step 100 |
-| SiLU+Muon | 4.252612 | 70.29 | 6.505154 | 5.563970 | complete |
-| RLB+Muon | 4.271556 | 71.63 | 6.425483 | 5.529865 | complete |
-| RLB+MatrixPolicy (group-stat) | 4.072055 | 58.68 | 5.670071 | 5.041694 | complete |
+| method | n | div | mean val loss | mean PPL | gap vs SiLU+AdamW | gap vs best control |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| SiLU+AdamW | 3 | 0 | 4.223572 | 68.28 | 0.000000 | -0.000748 |
+| RLB+AdamW | 3 | 1 | 5.618928 | 1545.54 | -1.395356 | -1.396103 |
+| SiLU+Muon | 3 | 0 | 4.258871 | 70.74 | -0.035300 | -0.036047 |
+| RLB+Muon | 3 | 0 | 4.263744 | 71.08 | -0.040173 | -0.040920 |
+| RLB+MatrixPolicy (group-stat) | 3 | 0 | 4.069422 | 58.52 | 0.154149 | 0.153402 |
 
-Summary files:
+Positive gaps mean lower validation loss than the comparison row.
+
+## One-Seed Curve Package
+
+The May 30 package contains the seed-1337 curves and plot images:
 
 ```text
 results/real_lm_screen_2026_05_30/summary.md
@@ -68,9 +67,17 @@ results/real_lm_screen_2026_05_30/eval_curves.csv
 results/real_lm_screen_2026_05_30/train_curves.csv
 ```
 
-PPL plots omit divergent/nonfinite rows. This keeps the FineWeb-Edu `RLB+AdamW` failure from setting the y-axis scale for completed optimizers. Zoomed validation plots start at step 1000.
+Regenerate it:
+
+```bash
+.venv-cu128/bin/python experiments/scripts/summarize_real_lm_screen_20260530.py
+```
+
+The plotted figures in this package are illustrative single-seed curves. The current aggregate claim should cite the multi-seed package above.
 
 ## WikiText-103 Anchor
+
+WikiText-103 remains useful as an older same-LR LM anchor:
 
 | method | final loss | final PPL |
 | --- | ---: | ---: |
@@ -83,67 +90,45 @@ PPL plots omit divergent/nonfinite rows. This keeps the FineWeb-Edu `RLB+AdamW` 
 | SiLU/SwiGLU+Muon | 3.644921 | 38.28 |
 | RLB+Muon | 3.657877 | 38.78 |
 
-WikiText remains useful because it is a real LM comparison with strong controls, but the current real-corpus FineWeb/FineWeb-Edu gaps are larger and more important.
+It is not the main result because the current real-corpus gaps are larger and more directly relevant to pretraining.
 
-## Figures
+## Launching More Runs
 
-Full validation and training figures start at step 1. Zoomed validation figures start at step 1000.
-
-FineWeb validation loss and PPL:
-
-![FineWeb validation loss](results/real_lm_screen_2026_05_30/fineweb_validation_loss.png)
-
-![FineWeb validation PPL](results/real_lm_screen_2026_05_30/fineweb_validation_ppl.png)
-
-FineWeb zoomed validation loss and PPL:
-
-![FineWeb validation loss zoom](results/real_lm_screen_2026_05_30/fineweb_validation_loss_zoom_step1000.png)
-
-![FineWeb validation PPL zoom](results/real_lm_screen_2026_05_30/fineweb_validation_ppl_zoom_step1000.png)
-
-FineWeb training loss:
-
-![FineWeb training loss](results/real_lm_screen_2026_05_30/fineweb_training_loss.png)
-
-FineWeb-Edu validation loss and PPL:
-
-![FineWeb-Edu validation loss](results/real_lm_screen_2026_05_30/fineweb_edu_validation_loss.png)
-
-![FineWeb-Edu validation PPL](results/real_lm_screen_2026_05_30/fineweb_edu_validation_ppl.png)
-
-FineWeb-Edu zoomed validation loss and PPL:
-
-![FineWeb-Edu validation loss zoom](results/real_lm_screen_2026_05_30/fineweb_edu_validation_loss_zoom_step1000.png)
-
-![FineWeb-Edu validation PPL zoom](results/real_lm_screen_2026_05_30/fineweb_edu_validation_ppl_zoom_step1000.png)
-
-FineWeb-Edu training loss:
-
-![FineWeb-Edu training loss](results/real_lm_screen_2026_05_30/fineweb_edu_training_loss.png)
-
-WikiText-103 validation and training curves:
-
-![WikiText validation loss](results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_loss.png)
-
-![WikiText validation PPL](results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_ppl.png)
-
-![WikiText training loss from step 1](results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
-
-## Regeneration
-
-Real-corpus summary and plots:
+Main Slurm launcher:
 
 ```bash
-.venv-cu128/bin/python experiments/scripts/summarize_real_lm_screen_20260530.py
+sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
-The launcher supports bounded streaming caches and requeue:
+Example dependent 3-seed pattern used for the completed batch:
+
+```bash
+REAL_LM_TASKS="fineweb_edu" SEEDS="2027" RUN_SUFFIX="20260531_seed2027_100m" \
+  OUTPUT_ROOT="experiments/runs/real_lm_multiseed_20260531" \
+  sbatch experiments/scripts/run_real_lm_screen_20260530.sh
+
+REAL_LM_TASKS="fineweb" SEEDS="2027" RUN_SUFFIX="20260531_seed2027_100m" \
+  OUTPUT_ROOT="experiments/runs/real_lm_multiseed_20260531" \
+  sbatch experiments/scripts/run_real_lm_screen_20260530.sh
+```
+
+Use dependencies for later seeds so active usage never exceeds two 4-GPU jobs.
+
+## Resource And Artifact Policy
+
+Hard limits:
 
 ```text
-#SBATCH --gres=gpu:nvidia_rtx_a6000:4
-#SBATCH --time=72:00:00
-#SBATCH --requeue
-#SBATCH --signal=B:USR1@300
+max 4 A6000 GPUs per job
+max 8 A6000 GPUs active total
+repo size below 200G
 ```
 
-The runtime rule remains: use A6000 GPUs only and keep total active allocation at or below 8 A6000s.
+Artifact policy:
+
+```text
+commit compact summaries and JSONL traces needed for table reproduction
+do not commit Slurm .out logs
+do not commit cache directories, checkpoints, or model weights
+keep raw large datasets in cache paths ignored by git
+```

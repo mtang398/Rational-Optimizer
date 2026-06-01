@@ -148,7 +148,7 @@ Paper-level mechanism criterion:
 
 ## Ablations
 
-Run only after the seed-2027 replication is healthy:
+Now that the 3-seed replication is complete, prioritize these ablations:
 
 1. MatrixPolicy without group-stat scaling.
 2. MatrixPolicy without early Muon phase.
@@ -157,7 +157,7 @@ Run only after the seed-2027 replication is healthy:
 5. Group pressure only.
 6. Group activity damping only.
 
-Each ablation can start as a 1000-step FineWeb-Edu probe with the same seed and protocol. Promote only the strongest non-degenerate ablation to the full 100M-token run.
+Each ablation can start as a 1000-step FineWeb-Edu probe with the same protocol. Promote only non-degenerate ablations to full 100M-token runs, and then repeat the most informative ones on FineWeb.
 
 ## Optimizer Improvement Direction
 
@@ -168,4 +168,4 @@ Do not count global LR schedule changes as optimizer progress. Candidate v2 chan
 - Use derivative/output RMS to revive low-activity groups without amplifying already saturated groups.
 - Use gradient agreement to avoid switching groups based on noisy one-step pressure.
 
-Do not change the method while the seed-2027 or queued seed-3407 replication jobs can still launch rows from the working tree.
+Do not change core method code while any queued replication or ablation job can still launch rows from the working tree; isolate method-development jobs from exact-replication jobs.

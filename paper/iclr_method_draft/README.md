@@ -1,17 +1,31 @@
 # ICLR Method Draft
 
-This folder is an Overleaf-ready ICLR paper draft. It contains a full visible paper skeleton with blank abstract, introduction, related work, experiments, discussion, limitations, and conclusion sections. The main paper contains a compact method section; lower-level update equations are placed in the appendix after the references, matching the ICLR author-guide placement for supplementary text.
+This folder contains an Overleaf-ready ICLR-style method draft for RationalOPT. The draft should now be written around the 3-seed FineWeb/FineWeb-Edu result, not the older one-seed screen.
 
-## Format
+## Current Paper Position
 
-As of May 30, 2026, I could not find a public ICLR 2027 template/style file. This folder therefore uses the official ICLR 2026 LaTeX style files linked from the ICLR 2026 Author Guide:
+The paper should make one focused claim:
 
 ```text
-https://iclr.cc/Conferences/2026/AuthorGuide
-https://github.com/ICLR/Master-Template/raw/master/iclr2026.zip
+Rational FFNs expose optimizer-visible geometry, and an on-policy matrix optimizer that uses this geometry trains rational language models more robustly and to lower heldout loss than generic AdamW or Muon under the same base protocol.
 ```
 
-Included style files:
+The current evidence is promising but not yet complete for an ICLR submission. The draft needs:
+
+```text
+3-seed primary table: available
+same-protocol AdamW/Muon controls: available
+RLB+AdamW divergence reported: available
+mechanism diagnostics: missing
+ablation table: missing
+stronger/tuned baselines: missing
+scale or longer-budget test: missing
+reproducibility statement and exact protocol appendix: partially available
+```
+
+## Template Status
+
+As of 2026-06-01, I found the official ICLR master template repository listing `iclr2026` but not `iclr2027`. This folder therefore still uses the ICLR 2026 style files:
 
 ```text
 iclr2026_conference.sty
@@ -21,19 +35,42 @@ fancyhdr.sty
 natbib.sty
 ```
 
-Switch this folder to the official ICLR 2027 template as soon as `iclr2027_conference.sty` or an official `iclr2027.zip` becomes available.
-
-## Writing Reference
-
-The method format follows the structure of an ICLR optimizer paper: formal setup, concise main update rule, and an algorithm box, with implementation-level equations moved to the appendix. The concrete reference checked for structure and citation metadata was Kingma and Ba's ICLR 2015 Adam paper:
+Official references checked:
 
 ```text
-https://mlanthology.org/iclr/2015/kingma2015iclr-adam/
+https://iclr.cc/Conferences/2026/AuthorGuide
+https://github.com/ICLR/Master-Template
+```
+
+Switch to the official ICLR 2027 template as soon as it is published.
+
+## Paper Structure
+
+Recommended main-paper shape:
+
+```text
+1. Introduction: optimizer-specific rational FFN claim.
+2. RLB geometry: grouped rational block and positive gauge.
+3. MatrixPolicy: role/depth matrix update, group stats, exact rebalance.
+4. Experiments: 3-seed FineWeb/FineWeb-Edu table, ablations, diagnostics, compute.
+5. Limitations: baseline tuning, scale, overhead, and instability of plain RLB+AdamW.
+6. Reproducibility statement.
+```
+
+Appendix should contain:
+
+```text
+full optimizer pseudocode
+all hyperparameters and launch commands
+all per-seed tables
+all curves and AUC metrics
+nonfinite/divergent rows
+hardware and environment
 ```
 
 ## Build
 
-Local renderer used here:
+Local renderer used in this workspace:
 
 ```bash
 /home/mt872/autoresearch_attempt_1/.local/bin/tectonic main.tex

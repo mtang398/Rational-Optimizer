@@ -1,6 +1,8 @@
 # Activation
 
-This folder implements rational activations used by the language-model experiments. The research activation is the Rational Local Basis FFN (RLB), a single-branch no-GLU FFN designed to expose optimizer-visible structure.
+This directory implements the rational activation blocks used by RationalOPT. The research activation is the Rational Local Basis FFN, abbreviated RLB.
+
+RLB is not presented as a standalone activation improvement. Its purpose is to expose structure that an optimizer can use: group normalization, rational curve coefficients, per-group activity statistics, and an exact positive gauge between `W_in` and `W_out`.
 
 ## RLB Definition
 
@@ -15,19 +17,19 @@ h_g = r_g R_g(u_g)
 y = W_out concat_g(h_g)
 ```
 
-`R_g` is a learned rational function. In the local-basis variants it is the sum of a base rational curve and trainable local odd/bump atoms around fixed centers.
+`R_g` is a learned rational function. The local-basis variants use a base rational curve plus trainable local odd/bump atoms around fixed centers.
 
-This is not a GLU:
+RLB is a single-branch FFN:
 
 ```text
-no multiplicative gate branch
-no hidden SiLU path
+no GLU gate branch
+no hidden SiLU value path
 no SwiGLU-style value/gate split
 ```
 
-## Homogeneity And Gauge
+## Positive Homogeneity And Gauge
 
-The normalization makes RLB positively homogeneous at the group level. For any `a_g > 0`:
+The group normalization makes RLB positively homogeneous. If `a_g > 0`:
 
 ```text
 z_g' = a_g z_g
@@ -36,39 +38,48 @@ u_g' = u_g
 h_g' = a_g h_g
 ```
 
-Therefore the matrix transform:
+Therefore this matrix transform preserves the represented function:
 
 ```text
 W_in[g]  <- a_g W_in[g]
 W_out[g] <- W_out[g] / a_g
 ```
 
-preserves the represented function. This is the mathematical reason an RLB-specific optimizer can do something unavailable to a generic FFN optimizer: it can choose a better gauge representative without changing the function.
+Generic optimizers still see different parameter norms, update scales, and conditioning. MatrixPolicy uses this gauge explicitly; AdamW and Muon do not.
 
-## Optimizer Handles
+## Optimizer-Visible Handles
 
 RLB exposes these handles to the optimizer:
 
-| component | mathematical role |
+| component | role |
 | --- | --- |
-| `W_in` group rows | choose the distribution of normalized inputs `u_g`. |
-| rational numerator/denominator | set the base curve and derivative profile. |
-| local basis coefficients | add local odd/bump corrections to the curve. |
-| `W_out` group columns | select rational features for the residual stream. |
-| group RMS and derivative statistics | reveal active, saturated, or underused groups. |
+| `W_in` group rows | choose the normalized input domains seen by rational groups. |
+| rational numerator/denominator parameters | set the nonlinear curve and derivative profile. |
+| local basis coefficients | add local shape corrections. |
+| `W_out` group columns | recombine rational features into the residual stream. |
+| group RMS and derivative statistics | reveal active, saturated, and underused groups. |
+| `W_in`/`W_out` gauge | can be rebalanced without changing the represented function. |
 
-The activation code therefore supports not only forward computation, but also optimizer diagnostics such as output RMS, derivative RMS, coefficient activity, and group pressure.
+The activation code supports the forward path and the statistics needed by the optimizer wrapper.
 
 ## Evidence Boundary
 
-RLB is not treated as a standalone activation win. The current real-corpus evidence says:
+The current 3-seed evidence should be read as activation plus optimizer, not activation alone:
+
+| task | RLB+MatrixPolicy gap vs SiLU+AdamW | RLB+AdamW readout |
+| --- | ---: | --- |
+| FineWeb | 0.159263 mean validation loss | slight mean gain, not enough to explain MatrixPolicy. |
+| FineWeb-Edu | 0.154149 mean validation loss | one seed diverges; surviving seeds are near AdamW. |
+
+This is why RLB changes should be evaluated with the full control set:
 
 ```text
-FineWeb:     RLB+MatrixPolicy (group-stat) beats SiLU+AdamW by 0.160467 loss / 13.40 PPL.
-FineWeb-Edu: RLB+MatrixPolicy (group-stat) beats SiLU+AdamW by 0.152964 loss / 9.70 PPL.
+SiLU+AdamW
+RLB+AdamW
+SiLU+Muon
+RLB+Muon
+RLB+MatrixPolicy (group-stat)
 ```
-
-Plain `RLB+AdamW` is close to `SiLU+AdamW` on FineWeb but diverges on FineWeb-Edu. Therefore activation changes should be evaluated with the optimizer controls in [README.md](../README.md), not by comparing RLB against SiLU in isolation.
 
 ## Implementation Layout
 
@@ -77,4 +88,4 @@ activation/rational_opt/  Python package and PyTorch fallback paths
 activation/csrc/          CUDA/C++ extension sources
 ```
 
-A6000 launchers set `RATIONAL_OPT_TORCH_FALLBACK=1` when needed so the PyTorch implementation of the same RLB math is used on nodes where the compiled extension is not the desired path.
+A6000 launchers set `RATIONAL_OPT_TORCH_FALLBACK=1` when the PyTorch implementation is the desired path. That fallback uses the same RLB math and is the path used by the current real-LM jobs.
