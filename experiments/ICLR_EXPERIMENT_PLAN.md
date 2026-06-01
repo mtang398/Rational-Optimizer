@@ -92,9 +92,10 @@ Phase 1: lock the current claim and make it reproducible.
 
 - Add a one-command reproduction entry point for the 3-seed table.
 - Save exact commands, Slurm job IDs, dataset slices, token budgets, validation skip tokens, seed list, and commit hash in the result directory.
-- Add plots for validation loss, validation PPL, and train loss across all 30 completed rows.
+- Added multi-seed train/eval curve CSVs and mean validation/train plots to `experiments/results/real_lm_multiseed_2026_05_31/`.
 - Report final loss and AUC-to-1000/2000/full, because early curves alone are not enough.
-- Add bootstrap confidence intervals over seeds for MatrixPolicy gaps.
+- Added paired bootstrap confidence intervals over seeds for MatrixPolicy gaps; treat them as stability checks at n=3.
+- Still needed: exact command/job/provenance manifest and environment metadata.
 
 Phase 2: isolate the algorithm.
 

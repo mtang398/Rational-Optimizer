@@ -21,6 +21,7 @@ ablation table: missing
 stronger/tuned baselines: missing
 scale or longer-budget test: missing
 reproducibility statement and exact protocol appendix: partially available
+bootstrap gap CIs and multi-seed mean plots: available
 ```
 
 ## Template Status

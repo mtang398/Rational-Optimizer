@@ -8,7 +8,7 @@ The current public evidence is centered on the 3-seed FineWeb/FineWeb-Edu replic
 
 | package | role |
 | --- | --- |
-| `results/real_lm_multiseed_2026_05_31/` | Primary 3-seed aggregate/per-seed tables for FineWeb and FineWeb-Edu. |
+| `results/real_lm_multiseed_2026_05_31/` | Primary 3-seed tables, bootstrap gap CIs, curve CSVs, and multi-seed mean plots. |
 | `runs/real_lm_multiseed_20260531/` | Compact raw JSONL traces for seed 2027 and seed 3407 runs. |
 | `results/real_lm_screen_2026_05_30/` | Seed-1337 baseline summary, curves, and one-seed plot images. |
 | `results/rlb_matrix_policy_muon_switch_2026_05_28/` | Older WikiText-103 same-LR anchor. |
@@ -32,6 +32,10 @@ Outputs:
 results/real_lm_multiseed_2026_05_31/summary.md
 results/real_lm_multiseed_2026_05_31/per_seed_summary.csv
 results/real_lm_multiseed_2026_05_31/aggregate_summary.csv
+results/real_lm_multiseed_2026_05_31/matrix_policy_gap_bootstrap_ci.csv
+results/real_lm_multiseed_2026_05_31/eval_curves.csv
+results/real_lm_multiseed_2026_05_31/train_curves.csv
+results/real_lm_multiseed_2026_05_31/*_mean*.png
 ```
 
 ### FineWeb
@@ -55,6 +59,19 @@ results/real_lm_multiseed_2026_05_31/aggregate_summary.csv
 | RLB+MatrixPolicy (group-stat) | 3 | 0 | 4.069422 | 58.52 | 0.154149 | 0.153402 |
 
 Positive gaps mean lower validation loss than the comparison row.
+
+Bootstrap CIs in `matrix_policy_gap_bootstrap_ci.csv` are paired over seeds. With only 3 seeds, treat them as a stability check rather than a definitive uncertainty estimate.
+
+Generated multi-seed mean plots:
+
+```text
+fineweb_validation_loss_mean.png
+fineweb_validation_loss_mean_zoom_step1000.png
+fineweb_training_loss_mean.png
+fineweb_edu_validation_loss_mean.png
+fineweb_edu_validation_loss_mean_zoom_step1000.png
+fineweb_edu_training_loss_mean.png
+```
 
 ## One-Seed Curve Package
 

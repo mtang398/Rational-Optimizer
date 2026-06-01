@@ -11,10 +11,16 @@ import argparse
 import csv
 import json
 import math
+import random
 import statistics
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 TASK_NAMES = {
@@ -38,6 +44,24 @@ METHOD_ORDER = {
     "RLB+Muon": 3,
     "RLB+MatrixPolicy": 4,
     "RLB+MatrixPolicy (group-stat)": 5,
+}
+
+COLORS = {
+    "SiLU+AdamW": "#3b6fb6",
+    "RLB+AdamW": "#4b9b5f",
+    "SiLU+Muon": "#8f8f8f",
+    "RLB+Muon": "#c06f3c",
+    "RLB+MatrixPolicy": "#d17a22",
+    "RLB+MatrixPolicy (group-stat)": "#b9332f",
+}
+
+STYLES = {
+    "SiLU+AdamW": "-",
+    "RLB+AdamW": "-",
+    "SiLU+Muon": "--",
+    "RLB+Muon": "--",
+    "RLB+MatrixPolicy": "-.",
+    "RLB+MatrixPolicy (group-stat)": "-",
 }
 
 
@@ -247,6 +271,243 @@ def read_baseline_summary(path: Path, seed: int) -> list[dict[str, Any]]:
     return rows
 
 
+
+def read_raw_curves(source_paths: set[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    train_rows: list[dict[str, Any]] = []
+    eval_rows: list[dict[str, Any]] = []
+    for source in sorted(source_paths):
+        path = Path(source)
+        if not path.exists() or path.suffix.startswith(".csv"):
+            continue
+        config: dict[str, Any] = {}
+        records: list[dict[str, Any]] = []
+        with path.open() as handle:
+            for line in handle:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if record.get("event") == "config":
+                    config = record
+                records.append(record)
+        if not config:
+            continue
+        task = infer_task(path, config)
+        seed = finite_int(config.get("seed"))
+        method = label_run(config, path)
+        for record in records:
+            event = record.get("event")
+            if event == "train":
+                train_rows.append(
+                    {
+                        "task": task,
+                        "seed": seed,
+                        "method": method,
+                        "step": finite_int(record.get("step")),
+                        "loss": finite_float(record.get("loss")),
+                        "lr": finite_float(record.get("lr")),
+                        "seconds_per_step": finite_float(record.get("seconds_per_step")),
+                    }
+                )
+            elif event == "eval":
+                eval_rows.append(
+                    {
+                        "task": task,
+                        "seed": seed,
+                        "method": method,
+                        "step": finite_int(record.get("step")),
+                        "val_loss": finite_float(record.get("val_loss")),
+                        "val_ppl": finite_float(record.get("val_ppl")),
+                    }
+                )
+    return train_rows, eval_rows
+
+
+def read_baseline_curves(summary_csv: Path, seed: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    result_dir = summary_csv.parent
+    train_rows: list[dict[str, Any]] = []
+    eval_rows: list[dict[str, Any]] = []
+    train_path = result_dir / "train_curves.csv"
+    eval_path = result_dir / "eval_curves.csv"
+    if train_path.exists():
+        with train_path.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                train_rows.append(
+                    {
+                        "task": row.get("task"),
+                        "seed": seed,
+                        "method": row.get("method"),
+                        "step": finite_int(row.get("step")),
+                        "loss": finite_float(row.get("loss")),
+                        "lr": finite_float(row.get("lr")),
+                        "seconds_per_step": finite_float(row.get("seconds_per_step")),
+                    }
+                )
+    if eval_path.exists():
+        with eval_path.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                eval_rows.append(
+                    {
+                        "task": row.get("task"),
+                        "seed": seed,
+                        "method": row.get("method"),
+                        "step": finite_int(row.get("step")),
+                        "val_loss": finite_float(row.get("val_loss")),
+                        "val_ppl": finite_float(row.get("val_ppl")),
+                    }
+                )
+    return train_rows, eval_rows
+
+
+def sort_curve_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            str(row.get("task")),
+            int(row.get("seed") or -1),
+            METHOD_ORDER.get(str(row.get("method")), 99),
+            int(row.get("step") or -1),
+        ),
+    )
+
+
+def bootstrap_ci(values: list[float], resamples: int = 20000, seed: int = 12345) -> tuple[float | None, float | None, float | None]:
+    values = [value for value in values if math.isfinite(value)]
+    if not values:
+        return None, None, None
+    mean = statistics.fmean(values)
+    if len(values) == 1:
+        return mean, mean, mean
+    rng = random.Random(seed)
+    boot: list[float] = []
+    for _ in range(resamples):
+        sample = [values[rng.randrange(len(values))] for _ in values]
+        boot.append(statistics.fmean(sample))
+    boot.sort()
+    lo = boot[int(0.025 * (len(boot) - 1))]
+    hi = boot[int(0.975 * (len(boot) - 1))]
+    return mean, lo, hi
+
+
+def matrix_policy_gap_cis(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        if row.get("method") == "RLB+MatrixPolicy (group-stat)" and row.get("status") != "running":
+            grouped[str(row.get("task"))].append(row)
+    out: list[dict[str, Any]] = []
+    for task, task_rows in sorted(grouped.items()):
+        for key, label in (
+            ("gap_loss_vs_silu_adamw", "SiLU+AdamW"),
+            ("gap_loss_vs_best_control", "best non-MatrixPolicy control"),
+        ):
+            values = [value for value in (finite_float(row.get(key)) for row in task_rows) if value is not None]
+            mean, lo, hi = bootstrap_ci(values)
+            out.append(
+                {
+                    "task": task,
+                    "method": "RLB+MatrixPolicy (group-stat)",
+                    "comparison": label,
+                    "n": len(values),
+                    "mean_gap_loss": mean,
+                    "ci95_low": lo,
+                    "ci95_high": hi,
+                    "seed_gaps": ";".join(f"{value:.6f}" for value in values),
+                }
+            )
+    return out
+
+
+def curve_mean_std(rows: list[dict[str, Any]], key: str) -> dict[tuple[str, str], list[tuple[int, float, float, int]]]:
+    grouped: dict[tuple[str, str, int], list[float]] = defaultdict(list)
+    for row in rows:
+        task = row.get("task")
+        method = row.get("method")
+        step = finite_int(row.get("step"))
+        value = finite_float(row.get(key))
+        if task is None or method is None or step is None or value is None:
+            continue
+        grouped[(str(task), str(method), step)].append(value)
+    out: dict[tuple[str, str], list[tuple[int, float, float, int]]] = defaultdict(list)
+    for (task, method, step), values in grouped.items():
+        mean, std = mean_std(values)
+        if mean is None or std is None:
+            continue
+        out[(task, method)].append((step, mean, std, len(values)))
+    for key_pair in out:
+        out[key_pair].sort(key=lambda item: item[0])
+    return out
+
+
+def plot_curve_means(
+    rows: list[dict[str, Any]],
+    task: str,
+    value_key: str,
+    ylabel: str,
+    out_path: Path,
+    min_step: int = 1,
+) -> None:
+    series = curve_mean_std(rows, value_key)
+    plt.figure(figsize=(8.0, 4.8))
+    plotted = False
+    methods = sorted({method for task_name, method in series if task_name == task}, key=lambda method: METHOD_ORDER.get(method, 99))
+    for method in methods:
+        points = [point for point in series.get((task, method), []) if point[0] >= min_step]
+        if not points:
+            continue
+        xs = [point[0] for point in points]
+        means = [point[1] for point in points]
+        stds = [point[2] for point in points]
+        lo = [mean - std for mean, std in zip(means, stds)]
+        hi = [mean + std for mean, std in zip(means, stds)]
+        plotted = True
+        plt.plot(
+            xs,
+            means,
+            label=method,
+            color=COLORS.get(method),
+            linestyle=STYLES.get(method, "-"),
+            linewidth=2.2 if method == "RLB+MatrixPolicy (group-stat)" else 1.6,
+        )
+        if max(stds or [0.0]) > 0:
+            plt.fill_between(xs, lo, hi, color=COLORS.get(method), alpha=0.12, linewidth=0)
+    title = f"{TASK_NAMES.get(task, task)} mean {ylabel} across seeds"
+    if min_step > 1:
+        title += f" (step >= {min_step})"
+    plt.title(title)
+    plt.xlabel("step")
+    plt.ylabel(ylabel)
+    plt.grid(True, alpha=0.25)
+    if plotted:
+        plt.legend(frameon=False, fontsize=8)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=180)
+    plt.close()
+
+
+def write_curve_outputs(result_dir: Path, train_rows: list[dict[str, Any]], eval_rows: list[dict[str, Any]]) -> None:
+    write_csv(
+        result_dir / "train_curves.csv",
+        sort_curve_rows(train_rows),
+        ["task", "seed", "method", "step", "loss", "lr", "seconds_per_step"],
+    )
+    write_csv(
+        result_dir / "eval_curves.csv",
+        sort_curve_rows(eval_rows),
+        ["task", "seed", "method", "step", "val_loss", "val_ppl"],
+    )
+    tasks = sorted({str(row.get("task")) for row in eval_rows if row.get("task")})
+    for task in tasks:
+        plot_curve_means(eval_rows, task, "val_loss", "validation loss", result_dir / f"{task}_validation_loss_mean.png")
+        plot_curve_means(
+            eval_rows,
+            task,
+            "val_loss",
+            "validation loss",
+            result_dir / f"{task}_validation_loss_mean_zoom_step1000.png",
+            min_step=1000,
+        )
+        plot_curve_means(train_rows, task, "loss", "training loss", result_dir / f"{task}_training_loss_mean.png")
+
 def dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Keep the most informative row for each task/seed/method."""
     best: dict[tuple[str, int, str], dict[str, Any]] = {}
@@ -378,6 +639,20 @@ def write_markdown(path: Path, per_seed: list[dict[str, Any]], aggregate_rows: l
     lines = ["# Real-LM Multi-Seed Summary", ""]
     lines.append("Positive gaps mean the method has lower validation loss than the comparison row.")
     lines.append("")
+    gap_ci_rows = matrix_policy_gap_cis(per_seed)
+    if gap_ci_rows:
+        lines.append("## MatrixPolicy Gap Bootstrap CIs")
+        lines.append("")
+        lines.append("Bootstrap CIs are paired over the available seeds; with n=3 they should be read as a stability check, not a definitive uncertainty estimate.")
+        lines.append("")
+        lines.append("| task | comparison | n | mean gap | 95% low | 95% high | seed gaps |")
+        lines.append("| --- | --- | ---: | ---: | ---: | ---: | --- |")
+        for row in gap_ci_rows:
+            lines.append(
+                f"| {TASK_NAMES.get(str(row['task']), row['task'])} | {row['comparison']} | {row['n']} | "
+                f"{fmt(row['mean_gap_loss'])} | {fmt(row['ci95_low'])} | {fmt(row['ci95_high'])} | {row['seed_gaps']} |"
+            )
+        lines.append("")
     for task in sorted({str(row.get("task")) for row in aggregate_rows}):
         lines.append(f"## {TASK_NAMES.get(task, task)}")
         lines.append("")
@@ -426,6 +701,14 @@ def main() -> None:
     per_seed = dedupe_rows(rows)
     add_paired_gaps(per_seed)
     aggregate_rows = aggregate(per_seed)
+    gap_ci_rows = matrix_policy_gap_cis(per_seed)
+
+    selected_sources = {str(row.get("source")) for row in per_seed if row.get("source")}
+    train_curve_rows, eval_curve_rows = read_raw_curves(selected_sources)
+    for path, seed in zip(args.baseline_summary_csv, args.baseline_seed):
+        baseline_train, baseline_eval = read_baseline_curves(path, seed)
+        train_curve_rows.extend(baseline_train)
+        eval_curve_rows.extend(baseline_eval)
 
     per_seed_fields = [
         "task",
@@ -471,8 +754,20 @@ def main() -> None:
         "std_gap_loss_vs_best_control",
     ]
     args.result_dir.mkdir(parents=True, exist_ok=True)
+    gap_ci_fields = [
+        "task",
+        "method",
+        "comparison",
+        "n",
+        "mean_gap_loss",
+        "ci95_low",
+        "ci95_high",
+        "seed_gaps",
+    ]
     write_csv(args.result_dir / "per_seed_summary.csv", per_seed, per_seed_fields)
     write_csv(args.result_dir / "aggregate_summary.csv", aggregate_rows, aggregate_fields)
+    write_csv(args.result_dir / "matrix_policy_gap_bootstrap_ci.csv", gap_ci_rows, gap_ci_fields)
+    write_curve_outputs(args.result_dir, train_curve_rows, eval_curve_rows)
     write_markdown(args.result_dir / "summary.md", per_seed, aggregate_rows)
 
 

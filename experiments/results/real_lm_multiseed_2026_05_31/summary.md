@@ -2,6 +2,17 @@
 
 Positive gaps mean the method has lower validation loss than the comparison row.
 
+## MatrixPolicy Gap Bootstrap CIs
+
+Bootstrap CIs are paired over the available seeds; with n=3 they should be read as a stability check, not a definitive uncertainty estimate.
+
+| task | comparison | n | mean gap | 95% low | 95% high | seed gaps |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| FineWeb | SiLU+AdamW | 3 | 0.159263 | 0.152192 | 0.165129 | 0.160467;0.152192;0.165129 |
+| FineWeb | best non-MatrixPolicy control | 3 | 0.152302 | 0.148863 | 0.155851 | 0.148863;0.152192;0.155851 |
+| FineWeb-Edu | SiLU+AdamW | 3 | 0.154149 | 0.152964 | 0.155860 | 0.152964;0.155860;0.153624 |
+| FineWeb-Edu | best non-MatrixPolicy control | 3 | 0.153402 | 0.151381 | 0.155860 | 0.152964;0.155860;0.151381 |
+
 ## FineWeb
 
 | method | n | div | mean loss | std | mean PPL | gap vs SiLU+AdamW | gap vs best control |

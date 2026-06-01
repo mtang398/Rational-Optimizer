@@ -39,20 +39,20 @@ same-protocol FineWeb and FineWeb-Edu screen
 AdamW and Muon controls for SiLU and RLB
 committed compact JSONL traces for the new seeds
 multi-seed summarizer and result tables
+bootstrap gap CI table
+multi-seed train/eval curve CSVs and mean plots
 requeue-safe launcher behavior for activation-level reruns
 ```
 
 ## Immediate TODO
 
-1. Add one-command reproduction around the multi-seed table, including commit hash, commands, job IDs, seed list, and dataset slices.
-2. Add bootstrap confidence intervals for MatrixPolicy gaps.
-3. Generate multi-seed validation/train plots from the committed JSONL traces.
-4. Add function-space and gauge-drift diagnostics to the training loop.
-5. Run full ablations: no group stats, no early Muon phase, no exact gauge rebalance, gain-only, pressure-only, activity-only.
-6. Tune AdamW, RLB+AdamW, and MatrixPolicy on a small grid under the same token budget.
-7. Add at least one stronger modern optimizer baseline if feasible.
-8. Run one larger-model or longer-budget test while respecting the 4-GPU/job and 8-GPU-active cap.
-9. Fix DCLM/Dolma environment issues and add a third corpus.
+1. Finish the provenance bundle around the multi-seed table: commit hash, commands, job IDs, seed list, dataset slices, and environment metadata.
+2. Add function-space and gauge-drift diagnostics to the training loop.
+3. Run full ablations: no group stats, no early Muon phase, no exact gauge rebalance, gain-only, pressure-only, activity-only.
+4. Tune AdamW, RLB+AdamW, and MatrixPolicy on a small grid under the same token budget.
+5. Add at least one stronger modern optimizer baseline if feasible.
+6. Run one larger-model or longer-budget test while respecting the 4-GPU/job and 8-GPU-active cap.
+7. Fix DCLM/Dolma environment issues and add a third corpus.
 
 ## Mechanism Diagnostics Needed
 

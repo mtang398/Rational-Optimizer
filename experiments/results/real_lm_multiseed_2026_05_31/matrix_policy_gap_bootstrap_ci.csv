@@ -1,0 +1,5 @@
+task,method,comparison,n,mean_gap_loss,ci95_low,ci95_high,seed_gaps
+fineweb,RLB+MatrixPolicy (group-stat),SiLU+AdamW,3,0.159263,0.152192,0.165129,0.160467;0.152192;0.165129
+fineweb,RLB+MatrixPolicy (group-stat),best non-MatrixPolicy control,3,0.152302,0.148863,0.155851,0.148863;0.152192;0.155851
+fineweb_edu,RLB+MatrixPolicy (group-stat),SiLU+AdamW,3,0.154149,0.152964,0.155860,0.152964;0.155860;0.153624
+fineweb_edu,RLB+MatrixPolicy (group-stat),best non-MatrixPolicy control,3,0.153402,0.151381,0.155860,0.152964;0.155860;0.151381

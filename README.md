@@ -111,6 +111,10 @@ Primary result artifacts:
 experiments/results/real_lm_multiseed_2026_05_31/summary.md
 experiments/results/real_lm_multiseed_2026_05_31/per_seed_summary.csv
 experiments/results/real_lm_multiseed_2026_05_31/aggregate_summary.csv
+experiments/results/real_lm_multiseed_2026_05_31/matrix_policy_gap_bootstrap_ci.csv
+experiments/results/real_lm_multiseed_2026_05_31/eval_curves.csv
+experiments/results/real_lm_multiseed_2026_05_31/train_curves.csv
+experiments/results/real_lm_multiseed_2026_05_31/*_mean*.png
 experiments/runs/real_lm_multiseed_20260531/
 ```
 
@@ -148,7 +152,7 @@ TODO.md             research backlog and paper-readiness checklist
 
 The next phase is about making the result paper-grade, not just larger:
 
-1. Add one-command reproduction, curves, AUC summaries, and bootstrap confidence intervals.
+1. Finish the provenance bundle: exact commands, commit hash, Slurm job IDs, dataset slices, and environment metadata.
 2. Add diagnostics for gauge drift, group norm products, rational activity, denominator risk, and function-space movement.
 3. Run full ablations: no group stats, no early Muon phase, no exact gauge rebalance, gain-only, pressure-only, activity-only.
 4. Tune strong baselines fairly and add at least one serious modern optimizer baseline if practical.
