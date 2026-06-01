@@ -42,13 +42,14 @@ multi-seed summarizer and result tables
 bootstrap gap CI table
 multi-seed train/eval curve CSVs and mean plots
 requeue-safe launcher behavior for activation-level reruns
+1000-step MatrixPolicy ablation launcher prepared
 ```
 
 ## Immediate TODO
 
 1. Finish the provenance bundle around the multi-seed table: commit hash, commands, job IDs, seed list, dataset slices, and environment metadata.
 2. Add function-space and gauge-drift diagnostics to the training loop.
-3. Run full ablations: no group stats, no early Muon phase, no exact gauge rebalance, gain-only, pressure-only, activity-only.
+3. Run and summarize the prepared 1000-step ablation probes: no group stats, no early Muon phase, no exact gauge rebalance, gain-only, pressure-only, activity-only.
 4. Tune AdamW, RLB+AdamW, and MatrixPolicy on a small grid under the same token budget.
 5. Add at least one stronger modern optimizer baseline if feasible.
 6. Run one larger-model or longer-budget test while respecting the 4-GPU/job and 8-GPU-active cap.

@@ -149,7 +149,7 @@ Paper-level mechanism criterion:
 
 ## Ablations
 
-Now that the 3-seed replication is complete, prioritize these ablations:
+Now that the 3-seed replication is complete, the first ablation launcher is `experiments/scripts/run_real_lm_matrix_policy_ablation_20260601.sh`. It prioritizes these 1000-step FineWeb-Edu probes:
 
 1. MatrixPolicy without group-stat scaling.
 2. MatrixPolicy without early Muon phase.

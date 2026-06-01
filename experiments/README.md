@@ -117,6 +117,14 @@ Main Slurm launcher:
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
+FineWeb-Edu MatrixPolicy ablation launcher:
+
+```bash
+sbatch experiments/scripts/run_real_lm_matrix_policy_ablation_20260601.sh
+```
+
+The ablation launcher runs 1000-step probes for plain MatrixPolicy, group-stat MatrixPolicy, no early Muon, no gauge rebalance, gain-only, pressure-only, and activity-only variants. It uses one 4-A6000 job by default.
+
 Example dependent 3-seed pattern used for the completed batch:
 
 ```bash
