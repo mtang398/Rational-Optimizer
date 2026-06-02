@@ -69,18 +69,8 @@ satisfies
     L(\theta(q,s))=F(q).
     \label{eq:loss-quotient}
 \end{equation}
-For the exact statements, $\epsilon_{\rm rms}=0$.  Nonzero RMS stabilization is included
-only through the residual model of Assumption~\ref{ass:uniform-perturbation}.
-\end{assumption}
-
-\begin{assumption}[Local quadratic model]
-\label{ass:quadratic-objective}
-The quotient objective is
-\begin{equation}
-    F(q)=F_\star+\frac{1}{2}(q-q_\star)^\top H(q-q_\star),
-    \label{eq:quadratic-F}
-\end{equation}
-where $H\succ0$ and $0<\mu I\preceq H\preceq L I<\infty$.
+For the exact gauge statements, $\epsilon_{\rm rms}=0$.  Nonzero RMS stabilization is
+included only through the residual model of Assumption~\ref{ass:uniform-perturbation}.
 \end{assumption}
 
 \begin{lemma}[Gauge tangent orthogonality]
@@ -108,8 +98,8 @@ For group $g$, define
 The logarithms in this subsection are taken on true positive RMS quantities.
 Stabilized RMS floors preserve the lemma exactly only when inactive; otherwise the
 resulting discrepancy is part of the perturbation model in
-Assumption~\ref{ass:uniform-perturbation}.
-Given a target log-ratio $\tau_g$, the unclipped rebalance is
+Assumption~\ref{ass:uniform-perturbation}.  Given a target log-ratio $\tau_g$, the
+unclipped rebalance is
 \begin{equation}
     \ell_g=\frac{1}{2}(\tau_g-\gamma_g),
     \qquad
@@ -175,38 +165,150 @@ Here $P_{\MP}$ is the quotient preconditioner after gauge rebalance and $P_{\AW}
 quotient preconditioner induced by AdamW's raw-coordinate adaptive state.
 \end{assumption}
 
+\subsection{Contraction and Perturbation Bounds}
+\label{app:complete-opt-proof:contraction}
+
+For $P\succ0$, define the transformed quotient objective
+\begin{equation}
+    \widetilde F_P(x)=F(q_\star+P^{1/2}x).
+    \label{eq:transformed-objective}
+\end{equation}
+A preconditioned quotient step $q^+=q-\eta P\nabla F(q)$ is equivalent to ordinary
+gradient descent on $\widetilde F_P$ in the coordinate $x=P^{-1/2}(q-q_\star)$.
+
+
+\begin{lemma}[One-step transformed PL decrease]
+\label{lem:one-step-pl-decrease}
+Let $P\succ0$, define $\widetilde F_P$ by \eqref{eq:transformed-objective}, and set
+$x=P^{-1/2}(q-q_\star)$ and
+$x^+=x-L_P^{-1}\nabla\widetilde F_P(x)$.  Suppose the pathwise descent inequality
+\begin{equation}
+    \widetilde F_P(x^+)
+    \leq
+    \widetilde F_P(x)-\frac{1}{2L_P}\norm{\nabla\widetilde F_P(x)}_2^2
+    \label{eq:pathwise-descent}
+\end{equation}
+and the pointwise PL inequality
+\begin{equation}
+    \frac{1}{2}\norm{\nabla\widetilde F_P(x)}_2^2
+    \geq
+    \mu_P\bigl(\widetilde F_P(x)-F_\star\bigr),
+    \qquad 0<\mu_P\leq L_P,
+    \label{eq:local-pl-ineq}
+\end{equation}
+hold at the current iterate.  If
+\begin{equation}
+    q^+=q-L_P^{-1}P\nabla F(q),
+\end{equation}
+then
+\begin{equation}
+    F(q^+)-F_\star
+    \leq
+    \left(1-\frac{\mu_P}{L_P}\right)\bigl(F(q)-F_\star\bigr).
+    \label{eq:one-step-pl-decrease}
+\end{equation}
+The descent condition \eqref{eq:pathwise-descent} is implied by $L_P$-smoothness of
+$\widetilde F_P$ on the segment from $x$ to $x^+$, but global smoothness or convexity is
+not required.
+\end{lemma}
+
+\begin{proof}
+The update in $q$ is the gradient step
+$x^+=x-L_P^{-1}\nabla\widetilde F_P(x)$.  Combining
+\eqref{eq:pathwise-descent} and \eqref{eq:local-pl-ineq} gives
+\begin{equation}
+    \widetilde F_P(x^+)-F_\star
+    \leq
+    \left(1-\frac{\mu_P}{L_P}\right)
+    \bigl(\widetilde F_P(x)-F_\star\bigr).
+\end{equation}
+Since $\widetilde F_P(x)=F(q)$ and $\widetilde F_P(x^+)=F(q^+)$, this proves
+\eqref{eq:one-step-pl-decrease}.
+\end{proof}
+
+\begin{proposition}[Time-varying PL quotient bound]
+\label{prop:time-varying-pl-bound}
+For each optimizer $o\in\{\MP,\AW\}$, suppose both ideal quotient trajectories start
+from the same quotient point $q_0$ and have the form
+\begin{equation}
+    q_{t+1}^o=q_t^o-L_{o,t}^{-1}P_{o,t}\nabla F(q_t^o),
+    \qquad P_{o,t}\succ0,
+    \label{eq:time-varying-quotient-update}
+\end{equation}
+and that Lemma~\ref{lem:one-step-pl-decrease} applies at every step with constants
+$(L_{o,t},\mu_{o,t})$.  Define
+\begin{equation}
+    \kappa_{o,t}=\frac{L_{o,t}}{\mu_{o,t}},
+    \qquad
+    \Xi_o(T)=\prod_{t=0}^{T-1}\left(1-\kappa_{o,t}^{-1}\right).
+    \label{eq:time-varying-product}
+\end{equation}
+Then
+\begin{equation}
+    F(q_T^o)-F_\star
+    \leq
+    \Xi_o(T)\bigl(F(q_0)-F_\star\bigr).
+    \label{eq:time-varying-pl-bound}
+\end{equation}
+Consequently, if $\Xi_{\MP}(T)<\Xi_{\AW}(T)$, MatrixPolicy has the smaller certified
+finite-horizon PL contraction bound.
+\end{proposition}
+
+\begin{proof}
+Apply Lemma~\ref{lem:one-step-pl-decrease} at each step and multiply the resulting
+one-step factors.
+\end{proof}
+
+\begin{corollary}[Frozen PL quotient bound]
+\label{cor:frozen-pl-bound}
+Suppose Assumptions~\ref{ass:quotient-chart} and \ref{ass:frozen-preconditioner} hold.
+For $o\in\{\MP,\AW\}$, suppose Lemma~\ref{lem:one-step-pl-decrease} applies along
+the transformed ideal trajectory with $P=P_o$ and fixed constants $(L_o,\mu_o)$.  Let
+\begin{equation}
+    \kappa_o=\frac{L_o}{\mu_o},
+    \qquad
+    \chi_o=1-\kappa_o^{-1}.
+\end{equation}
+If $\kappa_{\MP}<\kappa_{\AW}$ and $\eta_o=1/L_o$, then
+\begin{equation}
+    \chi_{\MP}<\chi_{\AW}<1
+\end{equation}
+and, for every initial point whose two ideal trajectories remain in their local regions,
+\begin{align}
+    F(q_T^{\MP})-F_\star
+    &\leq \chi_{\MP}^T\bigl(F(q_0)-F_\star\bigr), \\
+    F(q_T^{\AW})-F_\star
+    &\leq \chi_{\AW}^T\bigl(F(q_0)-F_\star\bigr).
+\end{align}
+\end{corollary}
+
+\begin{proof}
+This is Proposition~\ref{prop:time-varying-pl-bound} with constant
+$P_{o,t}=P_o$, $L_{o,t}=L_o$, and $\mu_{o,t}=\mu_o$.  The map
+$\kappa\mapsto1-\kappa^{-1}$ is strictly increasing for $\kappa\geq1$.
+\end{proof}
+
+\begin{lemma}[Preconditioned quadratic contraction]
+\label{lem:preconditioned-contraction}
+Let
+\begin{equation}
+    F(q)=F_\star+\frac{1}{2}(q-q_\star)^\top H(q-q_\star),
+    \qquad H\succ0.
+\end{equation}
 For $P\succ0$, define
 \begin{equation}
     K(P)=P^{1/2}HP^{1/2},
     \qquad
-    \kappa(P;H)=\frac{\lammax(K(P))}{\lammin(K(P))}.
-    \label{eq:precond-condition-number}
-\end{equation}
-Let
-\begin{equation}
-    \eta^\star(P)=\frac{2}{\lammax(K(P))+\lammin(K(P))},
+    \kappa(P;H)=\frac{\lammax(K(P))}{\lammin(K(P))},
     \qquad
     \rho(P;H)=\frac{\kappa(P;H)-1}{\kappa(P;H)+1}.
-    \label{eq:rho-def}
+    \label{eq:quadratic-rho-def}
 \end{equation}
-
-\begin{assumption}[Strict quotient-conditioning advantage]
-\label{ass:conditioning-advantage}
+With
 \begin{equation}
-    \kappa_{\MP}:=\kappa(P_{\MP};H)
-    <
-    \kappa(P_{\AW};H)=:\kappa_{\AW} .
-    \label{eq:kappa-gap}
+    \eta^\star(P)=\frac{2}{\lammax(K(P))+\lammin(K(P))},
 \end{equation}
-\end{assumption}
-
-\subsection{Contraction and Perturbation Bounds}
-\label{app:complete-opt-proof:contraction}
-
-\begin{lemma}[Preconditioned quadratic contraction]
-\label{lem:preconditioned-contraction}
-Let $F$ satisfy Assumption~\ref{ass:quadratic-objective}.  For $P\succ0$, consider
-$q_{t+1}=q_t-\eta^\star(P)P\nabla F(q_t)$.  Then
+the update $q_{t+1}=q_t-\eta^\star(P)P\nabla F(q_t)$ satisfies
 \begin{equation}
     F(q_T)-F_\star
     \leq
@@ -247,43 +349,54 @@ associated with $\lammin(K(P))$ or $\lammax(K(P))$.
 
 \begin{theorem}[Conditional worst-case optimization separation]
 \label{thm:conditional-optimization-separation}
-Suppose Assumptions~\ref{ass:quotient-chart}--\ref{ass:conditioning-advantage} hold, and
-set $\eta_{\MP}=\eta^\star(P_{\MP})$ and $\eta_{\AW}=\eta^\star(P_{\AW})$.  Then the
-worst-case contraction factors satisfy, for every integer $T\geq1$,
+Suppose Assumptions~\ref{ass:quotient-chart} and \ref{ass:frozen-preconditioner} hold,
+and suppose $F$ is the quadratic objective in Lemma~\ref{lem:preconditioned-contraction}.
+Assume also that
 \begin{equation}
-    \sup_{q_0\neq q_\star}
+    \kappa(P_{\MP};H)<\kappa(P_{\AW};H),
+\end{equation}
+and set $\eta_{\MP}=\eta^\star(P_{\MP})$ and
+$\eta_{\AW}=\eta^\star(P_{\AW})$.  For every integer $T\geq1$, let $U_T$ be a
+sufficiently small quotient neighborhood of $q_\star$ on which both ideal trajectories
+remain in the local chart through time $T$.  Then
+\begin{equation}
+    \sup_{\substack{q_0\in U_T\\ q_0\neq q_\star}}
     \frac{F(q_T^{\MP})-F_\star}{F(q_0)-F_\star}
     =
-    \left(\frac{\kappa_{\MP}-1}{\kappa_{\MP}+1}\right)^{2T}
+    \rho(P_{\MP};H)^{2T}
     <
-    \left(\frac{\kappa_{\AW}-1}{\kappa_{\AW}+1}\right)^{2T}
+    \rho(P_{\AW};H)^{2T}
     =
-    \sup_{q_0\neq q_\star}
+    \sup_{\substack{q_0\in U_T\\ q_0\neq q_\star}}
     \frac{F(q_T^{\AW})-F_\star}{F(q_0)-F_\star}.
     \label{eq:main-separation}
 \end{equation}
 \end{theorem}
 
 \begin{proof}
-The map $\kappa\mapsto(\kappa-1)/(\kappa+1)$ is strictly increasing for
-$\kappa>0$.  Assumption~\ref{ass:conditioning-advantage} gives
-$\rho(P_{\MP};H)<\rho(P_{\AW};H)$.  Lemma~\ref{lem:preconditioned-contraction} applied to
-$P_{\MP}$ and $P_{\AW}$ gives the displayed factors, and sharpness gives both
-equalities.
+The map $\kappa\mapsto(\kappa-1)/(\kappa+1)$ is strictly increasing for $\kappa>0$.
+The strict condition-number inequality therefore gives
+$\rho(P_{\MP};H)<\rho(P_{\AW};H)$.  Lemma~\ref{lem:preconditioned-contraction} gives the
+sharp worst-case factors.  Since the quadratic ratios are invariant under scaling
+$q_0-q_\star$, the extremal transformed-eigenvector initializations can be chosen inside
+any sufficiently small neighborhood $U_T$.
 \end{proof}
 
 \begin{assumption}[Uniform local perturbation bound]
 \label{ass:uniform-perturbation}
-For a fixed horizon $T$, the implemented quotient iterates satisfy
-\begin{align}
-    q_{t+1}^{\MP,{\rm impl}}
-    &=q_t^{\MP,{\rm impl}}-\eta_{\MP}P_{\MP}\nabla F(q_t^{\MP,{\rm impl}})+r_t^{\MP}, \\
-    q_{t+1}^{\AW,{\rm impl}}
-    &=q_t^{\AW,{\rm impl}}-\eta_{\AW}P_{\AW}\nabla F(q_t^{\AW,{\rm impl}})+r_t^{\AW},
-\end{align}
-with $\norm{r_t^{\MP}}_2+\norm{r_t^{\AW}}_2\leq\delta$ for all $0\leq t<T$.
-The residuals include the RMS floor, denominator floors, clipping, moment lag, weight
-decay, and nonquadratic Taylor remainders.
+For a fixed horizon $T$, let the ideal quotient recursions be
+\begin{equation}
+    q_{t+1}^o=\Psi_{o,t}(q_t^o),
+    \qquad o\in\{\MP,\AW\}.
+\end{equation}
+The implemented quotient iterates satisfy
+\begin{equation}
+    q_{t+1}^{o,{\rm impl}}=\Psi_{o,t}(q_t^{o,{\rm impl}})+r_t^o,
+    \qquad
+    \norm{r_t^{\MP}}_2+\norm{r_t^{\AW}}_2\leq\delta
+\end{equation}
+for all $0\leq t<T$.  The residuals include the RMS floor, denominator floors, clipping,
+moment lag, weight decay, and nonquadratic Taylor remainders.
 \end{assumption}
 
 \begin{proposition}[Stability of a strict finite-time gap]
@@ -295,10 +408,10 @@ Fix $T\geq1$ and suppose the idealized dynamics satisfy
 \end{equation}
 Assume the implemented and ideal recursions use the same initial points, and assume the
 ideal trajectories lie in a compact set $K\subset\operatorname{int}(U)$, where $U$ is a
-compact neighborhood on which $F$ and the ideal one-step maps are Lipschitz.  Then
-there exists $\delta_0>0$ such
-that, whenever Assumption~\ref{ass:uniform-perturbation} holds with
-$\delta<\delta_0$, the implemented trajectories remain in $U$ through time $T$ and
+compact neighborhood on which $F$ and all $\Psi_{o,t}$ are Lipschitz.  Then
+there exists $\delta_0>0$ such that, whenever Assumption~\ref{ass:uniform-perturbation}
+holds with $\delta<\delta_0$, the implemented trajectories remain in $U$ through time
+$T$ and
 \begin{equation}
     F(q_T^{\AW,{\rm impl}})-F(q_T^{\MP,{\rm impl}})>\frac{m_T}{2}>0 .
     \label{eq:stable-gap}
@@ -306,10 +419,10 @@ $\delta<\delta_0$, the implemented trajectories remain in $U$ through time $T$ a
 \end{proposition}
 
 \begin{proof}
-Let $\Psi_{\MP}$ and $\Psi_{\AW}$ be the ideal one-step maps, and let $C_\Psi$ be a
-common Lipschitz constant on $U$.  Let $r_{\rm stay}=\operatorname{dist}(K,U^c)>0$.
-By induction, as long as the implemented
-trajectories remain in $U$,
+Let $C_\Psi$ be a common Lipschitz constant on $U$ for the finite family of ideal
+one-step maps $\{\Psi_{o,t}:o\in\{\MP,\AW\},0\leq t<T\}$.  Let
+$r_{\rm stay}=\operatorname{dist}(K,U^c)>0$.
+By induction, as long as the implemented trajectories remain in $U$,
 \begin{equation}
     \norm{q_t^{\MP,{\rm impl}}-q_t^{\MP}}
     +
