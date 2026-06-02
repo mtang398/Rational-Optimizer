@@ -43,26 +43,6 @@
 \section{Background and Related Work}
 \label{sec:related-work}
 
-Adam-style adaptive methods normalize coordinatewise gradient moments and remain
-the default optimizer family for many Transformer language-model runs
-\citep{kingma2015iclr-adam}.  Recent optimizer papers have raised the evidence
-standard for new optimizers: fair tuning over baseline families, throughput and
-memory accounting, speed-to-target curves, stability reporting, and transfer
-beyond the selection setting are now expected.  MatrixPolicy should be judged
-against that standard, not against a single default learning rate.
-
-Rational feed-forward layers are a different axis from generic optimizer design.
-They replace a fixed elementwise nonlinearity with learned rational maps applied
-to normalized groups.  This gives the optimizer access to quantities that do not
-exist in a SiLU FFN: group radii, rational-coefficient pressures, input/output
-matrix roles, and a positive gauge relating the adjacent matrices.  MatrixPolicy
-is therefore a structure-specific optimizer.  It is complementary to broad
-optimizer families such as AdamW, Muon-style matrix updates, schedule-free
-methods, factored adaptive methods, and matrix-preconditioned methods.  Our
-experiments use matched protocols and stability accounting so that the optimizer
-comparison is about the RLB-specific update rather than an unmatched training
-recipe.
-
 \section{Rational Matrix Policy Optimization}
 \label{sec:method}
 
@@ -155,9 +135,6 @@ Given gradients $\nabla\mathcal{L}(\theta^t)$ and base learning rate $\eta_t$:
 
 \section{Conclusion}
 \label{sec:conclusion}
-
-\bibliographystyle{iclr2026_conference}
-\bibliography{references}
 
 \appendix
 \section{MatrixPolicy Details}

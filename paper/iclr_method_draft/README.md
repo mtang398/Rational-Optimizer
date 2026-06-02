@@ -46,7 +46,7 @@ Current main-paper shape:
 
 ```text
 1. Introduction: placeholder.
-2. Background and Related Work: optimizer evidence standard and RLB-specific geometry.
+2. Background and Related Work: placeholder.
 3. Rational Matrix Policy Optimization: compact method section.
 4. Experiments: placeholder.
 5. Discussion: placeholder.
