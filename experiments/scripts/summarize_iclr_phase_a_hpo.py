@@ -24,6 +24,8 @@ HYPER_KEYS = (
     "optimizer_lr",
     "optimizer_min_lr",
     "optimizer_weight_decay",
+    "optimizer_beta1",
+    "optimizer_beta2",
     "factored_min_dim",
     "factored_clip_threshold",
     "ademamix_alpha",
@@ -127,6 +129,7 @@ def read_jsonl(path: Path) -> dict[str, Any] | None:
     train: list[dict[str, Any]] = []
     evals: list[dict[str, Any]] = []
     summary: dict[str, Any] | None = None
+    stopped_record: dict[str, Any] | None = None
     with path.open() as handle:
         for line in handle:
             try:
@@ -142,15 +145,20 @@ def read_jsonl(path: Path) -> dict[str, Any] | None:
                 evals.append(record)
             elif event == "summary":
                 summary = record
+            elif event == "stopped_early":
+                stopped_record = record
     if not config:
         return None
     final_step, final_loss, final_ppl = final_eval(evals)
     configured_steps = finite_int(config.get("steps"))
     summary_steps = finite_int(summary.get("steps")) if summary else None
-    complete = configured_steps is not None and summary_steps == configured_steps
+    completed_steps = finite_int(summary.get("completed_steps")) if summary else None
+    early_stopped = bool(stopped_record) or (bool(summary.get("stopped_early")) if summary else False)
+    stop_reason = (stopped_record or {}).get("reason") or ((summary or {}).get("stop_reason"))
+    complete = configured_steps is not None and summary_steps == configured_steps and completed_steps in (None, configured_steps)
     train_nan = first_nonfinite_step(train, "loss")
     eval_nan = first_nonfinite_step(evals, "val_loss")
-    status = "diverged" if train_nan or eval_nan else ("complete" if complete else "running")
+    status = "diverged" if train_nan or eval_nan else ("stopped_early" if early_stopped else ("complete" if complete else "running"))
     row: dict[str, Any] = {
         "task": infer_task(path, config),
         "source": str(path),
@@ -160,7 +168,10 @@ def read_jsonl(path: Path) -> dict[str, Any] | None:
         "seed": finite_int(config.get("seed")),
         "status": status,
         "complete": complete,
+        "stopped_early": early_stopped,
+        "stop_reason": stop_reason,
         "steps": configured_steps,
+        "completed_steps": completed_steps,
         "final_step": final_step,
         "final_val_loss": final_loss,
         "final_val_ppl": final_ppl,
@@ -199,6 +210,8 @@ def group_key(row: dict[str, Any]) -> tuple[Any, ...]:
         row["optimizer"],
         row.get("optimizer_lr"),
         row.get("optimizer_weight_decay"),
+        row.get("optimizer_beta1"),
+        row.get("optimizer_beta2"),
         row.get("muon_momentum"),
         row.get("ademamix_alpha"),
         row.get("ademamix_beta3"),
@@ -226,7 +239,8 @@ def aggregate(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 "n": len(items),
                 "complete_n": sum(1 for item in items if item.get("complete")),
-                "diverged_n": sum(1 for item in items if item.get("status") == "diverged"),
+                "stopped_n": sum(1 for item in items if item.get("status") == "stopped_early"),
+                "diverged_n": sum(1 for item in items if item.get("status") in {"diverged", "stopped_early"}),
                 "mean_final_val_loss": statistics.fmean(losses) if losses else None,
                 "std_final_val_loss": statistics.stdev(losses) if len(losses) > 1 else (0.0 if losses else None),
                 "mean_val_loss_auc_full": statistics.fmean(aucs) if aucs else None,
@@ -298,7 +312,10 @@ def main() -> int:
         "seed",
         "status",
         "complete",
+        "stopped_early",
+        "stop_reason",
         "steps",
+        "completed_steps",
         "final_step",
         "final_val_loss",
         "final_val_ppl",
@@ -318,7 +335,7 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     write_csv(args.output_dir / "phase_a_hpo_runs.csv", rows, fieldnames)
     agg = aggregate(rows)
-    aggregate_fields = ["task", "activation", "optimizer", *HYPER_KEYS, "n", "complete_n", "diverged_n", "mean_final_val_loss", "std_final_val_loss", "mean_val_loss_auc_full", "mean_seconds_per_step", "sources"]
+    aggregate_fields = ["task", "activation", "optimizer", *HYPER_KEYS, "n", "complete_n", "stopped_n", "diverged_n", "mean_final_val_loss", "std_final_val_loss", "mean_val_loss_auc_full", "mean_seconds_per_step", "sources"]
     write_csv(args.output_dir / "phase_a_hpo_rankings.csv", agg, aggregate_fields)
     write_markdown(args.output_dir / "phase_a_hpo_summary.md", agg)
     print(json.dumps({"runs": len(rows), "groups": len(agg), "output_dir": str(args.output_dir)}, sort_keys=True))

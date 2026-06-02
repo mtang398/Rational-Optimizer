@@ -9,7 +9,7 @@ CHUNK_TIME="${CHUNK_TIME:-12:00:00}"
 CORE_CHUNK="${CORE_CHUNK:-8}"
 ADAPTIVE_CHUNK="${ADAPTIVE_CHUNK:-6}"
 CORE_TOTAL="${CORE_TOTAL:-72}"
-ADAPTIVE_TOTAL="${ADAPTIVE_TOTAL:-120}"
+ADAPTIVE_TOTAL="${ADAPTIVE_TOTAL:-84}"
 CONFIRM_ICLR_PHASE_A="${CONFIRM_ICLR_PHASE_A:-0}"
 
 if [[ "${CONFIRM_ICLR_PHASE_A}" != "1" ]]; then
@@ -59,14 +59,16 @@ submit_adaptive_chunk() {
   output=$(CONFIRM_ICLR_PHASE_A=1 \
     TASKS="${task}" \
     RUN_SUFFIX="phase_a_surface_adaptive_ref_20260602" \
-    HPO_FAMILIES="ademamix schedule_free_adamw adafactor_came rational_matrix_policy_onpolicy" \
-    ADEMAMIX_LRS="0.0001 0.0002 0.0003 0.0005" \
+    HPO_FAMILIES="rational_matrix_policy_onpolicy schedule_free_adamw adafactor_came ademamix" \
+    ADEMAMIX_LRS="0.00003 0.00006" \
     SCHEDULE_FREE_LRS="0.0001 0.0002 0.0003 0.0005" \
     CAME_LRS="0.0001 0.0002 0.0003 0.0005" \
     MATRIX_POLICY_LRS="0.0001 0.0002 0.0003 0.0005" \
     WEIGHT_DECAYS="0.03 0.10 0.20" \
-    ADEMAMIX_ALPHAS="2.0 5.0" \
-    ADEMAMIX_BETA3S="0.999 0.9999" \
+    ADEMAMIX_WEIGHT_DECAYS="0.01 0.03 0.10" \
+    ADEMAMIX_BETA2="0.999" \
+    ADEMAMIX_ALPHAS="1.0 2.0" \
+    ADEMAMIX_BETA3S="0.9999" \
     SCHEDULE_FREE_BETA1S="0.90" \
     CAME_CONFIDENCE_SCALES="1.0" \
     MATRIX_ADAM_LR_SCALES="2.0 3.0" \

@@ -6746,6 +6746,9 @@ def parse_args():
     parser.add_argument("--log-interval", type=int, default=10)
     parser.add_argument("--eval-interval", type=int, default=250)
     parser.add_argument("--eval-batches", type=int, default=20)
+    parser.add_argument("--early-stop-min-step", type=int, default=0)
+    parser.add_argument("--early-stop-max-val-loss", type=float, default=0.0)
+    parser.add_argument("--early-stop-loss-increase", type=float, default=0.0)
     parser.add_argument("--probe-batch-size", type=int, default=2)
     parser.add_argument("--telemetry-rlb-stat-every", type=int, default=4)
     parser.add_argument("--telemetry-rlb-stat-samples", type=int, default=512)
@@ -6962,6 +6965,11 @@ def main():
         "optimizer_lr": args.lr,
         "optimizer_min_lr": args.min_lr,
         "optimizer_weight_decay": args.weight_decay,
+        "optimizer_beta1": args.beta1,
+        "optimizer_beta2": args.beta2,
+        "early_stop_min_step": args.early_stop_min_step,
+        "early_stop_max_val_loss": args.early_stop_max_val_loss,
+        "early_stop_loss_increase": args.early_stop_loss_increase,
         "factored_min_dim": args.factored_min_dim if args.optimizer in {"factored_adamw", "adafactor_came"} else None,
         "factored_clip_threshold": args.factored_clip_threshold if args.optimizer in {"factored_adamw", "adafactor_came"} else None,
         "ademamix_beta3": args.ademamix_beta3 if args.optimizer == "ademamix" else None,
@@ -7281,6 +7289,9 @@ def main():
     step_times = []
     loss_since_log = 0.0
     steps_since_log = 0
+    best_val_loss = math.inf
+    stop_reason = None
+    stop_step = None
     start_time = time.perf_counter()
     for step in range(args.steps):
         model.train()
@@ -7428,10 +7439,43 @@ def main():
             if rank == 0:
                 write_jsonl(out_path, record)
 
+            current_step = step + 1
+            previous_best = best_val_loss
+            if math.isfinite(val_loss):
+                best_val_loss = min(best_val_loss, val_loss)
+            min_step_met = current_step >= max(1, int(args.early_stop_min_step))
+            max_loss = float(args.early_stop_max_val_loss)
+            loss_increase = float(args.early_stop_loss_increase)
+            too_large = max_loss > 0.0 and (not math.isfinite(val_loss) or val_loss > max_loss)
+            worsened = (
+                loss_increase > 0.0
+                and math.isfinite(previous_best)
+                and math.isfinite(val_loss)
+                and val_loss > previous_best + loss_increase
+            )
+            if min_step_met and (too_large or worsened):
+                stop_reason = "val_loss_above_threshold" if too_large else "val_loss_regressed_from_best"
+                stop_step = current_step
+                stop_record = {
+                    "event": "stopped_early",
+                    "activation": args.activation,
+                    "step": stop_step,
+                    "reason": stop_reason,
+                    "val_loss": val_loss,
+                    "best_val_loss": None if not math.isfinite(best_val_loss) else best_val_loss,
+                    "early_stop_max_val_loss": max_loss,
+                    "early_stop_loss_increase": loss_increase,
+                }
+                rank0_print(rank, json.dumps(stop_record, sort_keys=True))
+                if rank == 0:
+                    write_jsonl(out_path, stop_record)
+                break
+
     total_time = time.perf_counter() - start_time
     warmup_drop = min(5, max(0, len(step_times) - 1))
     timed_steps = step_times[warmup_drop:]
     mean_step = sum(timed_steps) / max(1, len(timed_steps))
+    completed_steps = stop_step if stop_step is not None else args.steps
     summary = {
         "event": "summary",
         "activation": args.activation,
@@ -7439,6 +7483,9 @@ def main():
         "tokens_per_second": global_tokens / mean_step,
         "total_seconds": total_time,
         "steps": args.steps,
+        "completed_steps": completed_steps,
+        "stopped_early": stop_reason is not None,
+        "stop_reason": stop_reason,
     }
     rank0_print(rank, json.dumps(summary, sort_keys=True))
     if rank == 0:

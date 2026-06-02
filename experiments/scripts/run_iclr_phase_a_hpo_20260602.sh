@@ -75,6 +75,7 @@ MATRIX_POLICY_WEIGHT_DECAYS="${MATRIX_POLICY_WEIGHT_DECAYS:-${WEIGHT_DECAYS}}"
 MUON_MOMENTA="${MUON_MOMENTA:-0.90 0.95}"
 ADEMAMIX_ALPHAS="${ADEMAMIX_ALPHAS:-2.0 5.0 8.0}"
 ADEMAMIX_BETA3S="${ADEMAMIX_BETA3S:-0.999 0.9999}"
+ADEMAMIX_BETA2="${ADEMAMIX_BETA2:-0.999}"
 SCHEDULE_FREE_BETA1S="${SCHEDULE_FREE_BETA1S:-0.90 0.95}"
 CAME_CONFIDENCE_SCALES="${CAME_CONFIDENCE_SCALES:-0.5 1.0 2.0}"
 SOAP_FREQS="${SOAP_FREQS:-10 50 100}"
@@ -164,6 +165,7 @@ import sys
 path = sys.argv[1]
 steps = int(sys.argv[2])
 summary_complete = False
+early_stopped = False
 last_eval_step = None
 with open(path) as handle:
     for line in handle:
@@ -171,11 +173,16 @@ with open(path) as handle:
             record = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if record.get("event") == "summary" and int(record.get("steps", -1)) == steps:
-            summary_complete = True
+        if record.get("event") == "summary":
+            if bool(record.get("stopped_early")):
+                early_stopped = True
+            if int(record.get("steps", -1)) == steps and int(record.get("completed_steps", record.get("steps", -1))) == steps:
+                summary_complete = True
+        if record.get("event") == "stopped_early":
+            early_stopped = True
         if record.get("event") == "eval":
             last_eval_step = record.get("step")
-sys.exit(0 if summary_complete and int(last_eval_step or -1) == steps else 1)
+sys.exit(0 if early_stopped or (summary_complete and int(last_eval_step or -1) == steps) else 1)
 PYJSON
 }
 
@@ -230,7 +237,7 @@ run_config() {
   LOG_INTERVAL="${LOG_INTERVAL}" \
   NPROC_PER_NODE="${NPROC_PER_NODE}" \
   SKIP_BUILD_EXT="1" \
-  EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${task_cache_dir} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} --lr ${lr} --weight-decay ${wd} --probe-batch-size 1 --matrix-spectrum-interval 250 ${extra_args}" \
+  EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${task_cache_dir} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} --lr ${lr} --weight-decay ${wd} --probe-batch-size 1 --matrix-spectrum-interval 250 --early-stop-min-step ${EARLY_STOP_MIN_STEP:-50} --early-stop-max-val-loss ${EARLY_STOP_MAX_VAL_LOSS:-8.0} --early-stop-loss-increase ${EARLY_STOP_LOSS_INCREASE:-1.0} ${extra_args}" \
   bash training/run_wikitext103_optimizer_sweep.sbatch
 }
 
@@ -323,7 +330,7 @@ for task in ${TASKS}; do
             for alpha in ${ADEMAMIX_ALPHAS}; do
               for beta3 in ${ADEMAMIX_BETA3S}; do
                 should_run_config || continue
-                run_config "${task}" "ademamix_a${alpha}_b3${beta3}" "ademamix" "silu ${RLB_ACTIVATION}" "${lr}" "${wd}" "--ademamix-alpha ${alpha} --ademamix-beta3 ${beta3}"
+                run_config "${task}" "ademamix_b2${ADEMAMIX_BETA2}_a${alpha}_b3${beta3}" "ademamix" "silu ${RLB_ACTIVATION}" "${lr}" "${wd}" "--beta2 ${ADEMAMIX_BETA2} --ademamix-alpha ${alpha} --ademamix-beta3 ${beta3}"
               done
             done
             ;;
