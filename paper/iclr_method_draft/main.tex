@@ -5,7 +5,10 @@
 
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
 \usepackage{booktabs}
+\usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{url}
 
@@ -19,42 +22,99 @@
 \newcommand{\relu}{\operatorname{ReLU}}
 \newcommand{\RLB}{\mathrm{RLB}}
 
+\newtheorem{assumption}{Assumption}[section]
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[section]
+\newtheorem{remark}{Remark}[section]
+
 %\iclrfinalcopy
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
+Rational feed-forward blocks introduce useful nonlinear structure, but they also
+change the geometry seen by an optimizer.  We study Rational Local Basis (RLB)
+feed-forward layers in Transformer language models and introduce Rational Matrix
+Policy Optimization, an optimizer that treats the input and output matrices around
+each rational block as role-specific objects rather than generic dense weights.
+The method combines a standard base optimizer for the rest of the model with
+role-depth scaling, on-policy group statistics, and a bounded gauge rebalance for
+the RLB matrices.  A preliminary three-seed real-corpus screen on FineWeb and
+FineWeb-Edu shows about a 0.15 validation-loss improvement over same-protocol
+SiLU+AdamW and the strongest non-MatrixPolicy control in that screen.  These
+results motivate a full optimizer benchmark with tuned baselines, speed-to-target
+curves, stability accounting, and scale/transfer tests.
 \end{abstract}
 
 \section{Introduction}
 \label{sec:introduction}
 
-\section{Related Work}
+Most language-model optimizer studies treat the feed-forward block as a generic
+collection of matrices.  That is appropriate for standard elementwise activations,
+but it misses structure when the feed-forward layer is itself a learned rational
+map.  In an RLB block, one matrix chooses the normalized domains presented to
+rational groups, the rational coefficients shape each group response, and a second
+matrix recombines the resulting features into the residual stream.  These roles
+create optimizer-visible structure that is not captured by a single scalar
+learning-rate rule.
+
+This paper studies the following claim: rational feed-forward networks expose
+geometry that a block-aware optimizer can exploit, and an optimizer that uses that
+geometry can train rational language models more robustly than generic optimizers
+under the same base protocol.  The method is Rational Matrix Policy Optimization
+(MatrixPolicy).  It keeps the surrounding Transformer training recipe unchanged
+and modifies only the optimization of matrices adjacent to RLB groups.  The
+central mechanism is not that rational activations are intrinsically better than
+SiLU; it is that the rational parameterization gives the optimizer additional
+structure, including a positive scale gauge and group-level pressure signals.
+
+This work makes three contributions.  First, it defines the RLB matrix
+roles and the MatrixPolicy update used in our language-model experiments.  Second,
+it reports a preliminary but replicated real-corpus screen on FineWeb and
+FineWeb-Edu, including divergent plain-RLB controls rather than hiding them.
+Third, Appendix~\ref{app:gauge-conditioning} gives a narrow theoretical
+motivation: RLB blocks have a scale gauge, coordinatewise adaptive updates are not
+equivariant to this gauge, and MatrixPolicy's rebalance step acts as a bounded
+canonicalization of the representative.  The appendix is deliberately not a
+convergence theorem; the empirical benchmark remains the basis for claims about
+validation loss.
+
+\section{Background and Related Work}
 \label{sec:related-work}
 
-\section{Method}
+Adam-style adaptive methods normalize coordinatewise gradient moments and remain
+the default optimizer family for many Transformer language-model runs
+\citep{kingma2015iclr-adam}.  Recent optimizer papers have raised the evidence
+standard for new optimizers: fair tuning over baseline families, throughput and
+memory accounting, speed-to-target curves, stability reporting, and transfer
+beyond the selection setting are now expected.  MatrixPolicy should be judged
+against that standard, not against a single default learning rate.
+
+Rational feed-forward layers are a different axis from generic optimizer design.
+They replace a fixed elementwise nonlinearity with learned rational maps applied
+to normalized groups.  This gives the optimizer access to quantities that do not
+exist in a SiLU FFN: group radii, rational-coefficient pressures, input/output
+matrix roles, and a positive gauge relating the adjacent matrices.  MatrixPolicy
+is therefore a structure-specific optimizer.  It is complementary to broad
+optimizer families such as AdamW, Muon-style matrix updates, schedule-free
+methods, factored adaptive methods, and matrix-preconditioned methods; the final
+paper benchmark must tune and compare against those families directly.
+
+\section{Rational Matrix Policy Optimization}
 \label{sec:method}
 
-Let $\mathcal{L}(\theta)$ be the language-model training objective. We study
-optimizers for Transformer feed-forward layers whose hidden nonlinearity is a
-grouped rational map. The method, Rational Matrix Policy Optimization, keeps a
-standard base optimizer for non-rational parameters and replaces only the update
-rule for the matrices surrounding each rational block. Its design uses two facts:
-the input and output matrices of a rational block have different functional
-roles, and the block has an exact positive gauge symmetry.
-
-\subsection{Rational feed-forward parameterization}
-\label{subsec:rlb-main}
-
-For layer $l$, let $x_l\in\mathbb{R}^d$ be the residual-stream input. The RLB
-block projects $x_l$ into $G$ groups of width $m$,
+Let $\mathcal{L}(\theta)$ be the language-model training objective.  For layer
+$l$, the RLB block projects the residual-stream input $x_l\in\mathbb{R}^d$ into
+$G$ groups of width $m$,
 \begin{align}
     z_l=A_lx_l, \qquad z_{l,g}=\operatorname{group}_g(z_l),
 \end{align}
 normalizes each group by its RMS radius,
 \begin{align}
-    r_{l,g}=\sqrt{m^{-1}\lVert z_{l,g}\rVert_2^2+\epsilon},
+    r_{l,g}=\sqrt{m^{-1}\lVert z_{l,g}\rVert_2^2+\epsilon_{\rm rms}},
     \qquad u_{l,g}=z_{l,g}/r_{l,g},
 \end{align}
 and applies a learned rational map in normalized coordinates,
@@ -63,58 +123,53 @@ and applies a learned rational map in normalized coordinates,
     \qquad
     y_l=B_l\operatorname{concat}_{g=1}^G h_{l,g}.
 \end{align}
-The parameters around the rational map therefore have distinct meanings:
-$A_l$ selects the domains seen by rational groups, $R_{l,g}$ controls nonlinear
-shape, and $B_l$ recombines rational features into the residual stream.
-
-\subsection{Gauge symmetry}
-\label{subsec:gauge-main}
-
-The group normalization makes the block invariant to a positive reparameterization.
-For $a_g>0$, let $D_l(a)$ be block diagonal with $g$th block $a_gI_m$. Then
-\begin{align}
-    A_l' = D_l(a)A_l, \qquad B_l' = B_lD_l(a)^{-1}
-\end{align}
-represents the same function as $(A_l,B_l)$. Indeed, $z_{l,g}$ and $r_{l,g}$ both
-scale by $a_g$, while $u_{l,g}$ is unchanged and the inverse scale in $B_l'$ cancels
-the change in $h_{l,g}$. Consequently, parameter motion and function motion are
-not equivalent: an optimizer can change matrix norms and adaptive states while
-leaving the represented function fixed.
-
-\subsection{MatrixPolicy update}
-\label{subsec:matrixpolicy-main}
-
-We partition parameters as
+The input matrix $A_l$ selects rational domains, the coefficients of $R_{l,g}$
+shape the group response, and the output matrix $B_l$ recombines rational
+features.  MatrixPolicy uses this separation by partitioning parameters as
 \begin{align}
     \theta=\theta_{\mathrm{base}}\cup\theta_{\mathrm{coeff}}
     \cup\{A_l,B_l\}_{l=1}^L.
 \end{align}
-The base parameters are updated by a standard optimizer, and rational coefficients
-are updated by a coefficient rule. MatrixPolicy is applied only to $A_l$ and
-$B_l$. At step $t$, each matrix role $r\in\{\mathrm{in},\mathrm{out}\}$ receives a
-role-depth factor $\rho_r(l)$ and an on-policy statistic factor $s_{\mathrm{stat}}(l,t)$.
-The matrix update is
+The base parameters use the same optimizer as the non-rational baseline.  Rational
+coefficients use a coefficient rule.  MatrixPolicy is applied only to $A_l$ and
+$B_l$.
+
+In the homogeneous case $\epsilon_{\rm rms}=0$, each group has a positive scale
+gauge:
+\begin{align}
+    A_{l,g}\mapsto a_gA_{l,g},\qquad
+    B_{l,g}\mapsto a_g^{-1}B_{l,g},\qquad a_g>0.
+\end{align}
+The represented function is unchanged because $z_{l,g}$ and $r_{l,g}$ scale
+together, $u_{l,g}$ is unchanged, and the inverse scale in $B_l$ cancels the scale
+in $h_{l,g}$.  With a nonzero RMS floor, this symmetry is approximate but remains
+locally controlled under mild nondegeneracy assumptions
+(Appendix~\ref{app:gauge-conditioning}).  This matters because optimizer state is
+stored in coordinates, not in the quotient space of represented functions.
+
+At step $t$, each matrix role $r\in\{\mathrm{in},\mathrm{out}\}$ receives a
+role-depth factor $\rho_r(l)$ and an on-policy statistic factor
+$s_{\mathrm{stat}}(l,r,t)$.  The matrix update is
 \begin{align}
     M_{l,r}^{t+1}=M_{l,r}^{t}
-    +\Delta_{\mathrm{adapt}}\!\left(M_{l,r};\eta_t a_{\mathrm{mat}}(l,r,t)[1-\mu(l,r,t)]\right)
-    +\Delta_{\mathrm{mat}}\!\left(M_{l,r};\eta_t a_{\mathrm{matnorm}}\mu(l,r,t)\right),
+    &+\Delta_{\mathrm{adapt}}\!\left(M_{l,r};
+      \eta_t a_{\mathrm{mat}}(l,r,t)[1-\mu(l,r,t)]\right) \nonumber\\
+    &+\Delta_{\mathrm{mat}}\!\left(M_{l,r};
+      \eta_t a_{\mathrm{matnorm}}\mu(l,r,t)\right),
 \end{align}
 where $M_{l,\mathrm{in}}=A_l$, $M_{l,\mathrm{out}}=B_l$, $\eta_t$ is the shared
-base learning rate, $\Delta_{\mathrm{adapt}}$ is an Adam-style adaptive step
-\citep{kingma2015iclr-adam}, and $\Delta_{\mathrm{mat}}$ is a short early
-matrix-normalized step. The mixture coefficient $\mu(l,r,t)$ is nonzero only in
-the early phase of training. After the matrix update, the optimizer applies the
-exact gauge transform
+base learning rate, $\Delta_{\mathrm{adapt}}$ is an Adam-style adaptive step, and
+$\Delta_{\mathrm{mat}}$ is a short early matrix-normalized step.  The mixture
+coefficient $\mu(l,r,t)$ is active only early in training.  After the matrix
+update, MatrixPolicy computes a target log-ratio for each group and applies the
+bounded rebalance
 \begin{align}
     A_{l,g}\leftarrow e^{\ell_g}A_{l,g},\qquad
-    B_{l,g}\leftarrow B_{l,g}/e^{\ell_g},
+    B_{l,g}\leftarrow e^{-\ell_g}B_{l,g}.
 \end{align}
-which changes the parameterization but not the represented function. The detailed
-forms of $\rho_r$, $\mu$, group-stat scaling, and $\ell_g$ are given in
-Appendix~\ref{app:details}.
-
-\subsection{Algorithm}
-\label{subsec:algorithm-main}
+The update changes the representative used by the optimizer while preserving, or
+with $\epsilon_{\rm rms}>0$ approximately preserving, the represented block
+function.  Full hyperparameter definitions are in Appendix~\ref{app:details}.
 
 \begin{center}
 \fbox{%
@@ -127,23 +182,90 @@ Given gradients $\nabla\mathcal{L}(\theta^t)$ and base learning rate $\eta_t$:
     \item Update non-rational parameters with the base optimizer and update
     rational coefficients with the coefficient rule.
     \item Update each $A_l$ and $B_l$ with the MatrixPolicy mixture step.
-    \item Apply the exact positive-gauge rebalance to each rational group.
+    \item Apply the bounded positive-gauge rebalance to each rational group.
 \end{enumerate}
 \end{minipage}}
 \end{center}
 
-
 \section{Experiments}
 \label{sec:experiments}
 
-\section{Discussion}
+The current evidence is a same-protocol real-corpus screen rather than the final
+ICLR benchmark.  All rows use a 123M-parameter Transformer, GPT-2 tokenizer,
+100M-token training budget, the same validation slice, three seeds
+$(1337,2027,3407)$, equal global batch size, shared base schedule, and common
+evaluation cadence.  The screen compares standard SiLU+AdamW, plain RLB+AdamW,
+RLB+Muon, and RLB+MatrixPolicy with group-stat scaling.  Failed or nonfinite
+plain-RLB rows are counted in stability reporting.
+
+\begin{table}[t]
+\centering
+\caption{Preliminary three-seed real-corpus screen.  Gaps are validation-loss
+improvements for RLB+MatrixPolicy over the comparison row.}
+\label{tab:prelim-real-lm}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Task & MP loss & Std. & PPL & Gap vs. SiLU & Gap vs. ctrl \\
+\midrule
+FineWeb & 4.369701 & 0.026358 & 79.04 & 0.159263 & 0.152302 \\
+FineWeb-Edu & 4.069422 & 0.002281 & 58.52 & 0.154149 & 0.153402 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../../experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../../experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean.png}
+\end{minipage}
+\caption{Mean validation-loss curves across three seeds with $\pm1$ standard
+ deviation bands for FineWeb (left) and FineWeb-Edu (right).}
+\label{fig:prelim-curves}
+\end{figure}
+
+These results are promising because the gap replicates across two web corpora and
+because plain RLB+AdamW is not a sufficient explanation: it is marginal on
+FineWeb and has seed-sensitive instability on FineWeb-Edu.  They do not yet constitute a
+complete optimizer-paper result.  A submission-ready benchmark includes tuned
+optimizer-family surfaces, mean-plus-standard-deviation curves, bootstrap or
+paired confidence intervals, divergence accounting, speed-to-target and
+throughput tables, academic-scale model/token scaling, transfer beyond the HPO
+corpora, and mechanism diagnostics that measure whether MatrixPolicy improves
+function-changing movement relative to gauge drift.
+
+\section{Discussion and Limitations}
 \label{sec:discussion}
 
-\section{Limitations}
-\label{sec:limitations}
+MatrixPolicy is a structure-specific optimizer.  Its advantage, if it survives
+the full benchmark, should be interpreted as evidence that RLB geometry can be
+used productively by the optimizer, not as evidence that every rational activation
+or every matrix policy dominates standard feed-forward training.  The gauge
+analysis in Appendix~\ref{app:gauge-conditioning} explains why generic
+coordinatewise adaptive updates can depend on an arbitrary RLB scale
+representative, but it does not prove faster convergence or lower final loss.
+
+The main limitations are empirical.  The current screen is not yet tuned against
+the strongest optimizer families, does not include a larger model or longer-token
+run, and does not yet report speed-to-target under final tuned configurations.
+The current confidence intervals are based on only three seeds and should be
+treated as stability checks.  A submission-ready version needs the full optimizer
+benchmark described above before making final claims.
 
 \section{Conclusion}
 \label{sec:conclusion}
+
+Rational feed-forward layers expose optimizer-visible structure that generic
+coordinatewise updates do not explicitly use.  MatrixPolicy uses RLB matrix roles,
+group pressures, and gauge rebalancing to optimize rational FFNs with a small,
+localized change to the training recipe.  Preliminary three-seed real-corpus
+results support the direction; the remaining work is to turn that evidence into a
+fully tuned, speed-aware, and mechanism-grounded optimizer benchmark.
 
 \bibliographystyle{iclr2026_conference}
 \bibliography{references}
@@ -212,7 +334,10 @@ The applied correction is
     \ell_g\leftarrow\clip(s(t,l)a^{\mathrm{activity}}_g\ell_g,-\ell_{\max},\ell_{\max}).
 \end{align}
 The transform $A_{l,g}\leftarrow e^{\ell_g}A_{l,g}$ and
-$B_{l,g}\leftarrow B_{l,g}/e^{\ell_g}$ preserves the RLB function exactly up to
-floating-point error.
+$B_{l,g}\leftarrow e^{-\ell_g}B_{l,g}$ preserves the homogeneous RLB function
+exactly and the stabilized implementation up to the RMS-floor perturbation
+described in Appendix~\ref{app:gauge-conditioning}.
+
+\input{appendix_gauge_conditioning}
 
 \end{document}

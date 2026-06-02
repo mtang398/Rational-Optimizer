@@ -1,0 +1,380 @@
+% Appendix-only theoretical note for an ICLR-style paper.
+% Intended use: place after \appendix and include with \input{...}.
+%
+% Preamble requirements, if not already present:
+%   \usepackage{amsmath,amssymb,mathtools,amsthm}
+%   \newtheorem{assumption}{Assumption}[section]
+%   \newtheorem{lemma}{Lemma}[section]
+%   \newtheorem{proposition}{Proposition}[section]
+%   \newtheorem{theorem}{Theorem}[section]
+%   \newtheorem{corollary}{Corollary}[section]
+%   \newtheorem{remark}{Remark}[section]
+
+\providecommand{\rms}{\operatorname{rms}}
+\providecommand{\diag}{\operatorname{diag}}
+\providecommand{\MP}{\operatorname{MP}}
+\providecommand{\AW}{\operatorname{AdamW}}
+\providecommand{\sgn}{\operatorname{sgn}}
+
+\section{Gauge Conditioning of MatrixPolicy}
+\label{app:gauge-conditioning}
+
+This appendix isolates a narrow mathematical property of the RLB parameterization and the
+MatrixPolicy rebalance step.  The result should not be read as a dominance theorem for
+MatrixPolicy over AdamW.  Such a theorem would be false without restrictive assumptions on
+the objective, initialization, hyperparameters, stochastic gradients, and implementation
+state.  The claim established here is instead more limited: RLB blocks contain a positive
+scale gauge, and standard coordinatewise adaptive updates are not equivariant with respect
+to this gauge.  The MatrixPolicy rebalance step removes part of this representative
+dependence by moving the matrices to a controlled point on the same gauge orbit.
+
+\subsection{RLB gauge}
+\label{app:gauge-conditioning:rlb-gauge}
+
+For one rational feed-forward layer, write
+\begin{align}
+    z_l &= A_l x_l, & z_{l,g} &= \operatorname{group}_g(z_l), \\
+    r_{l,g} &= \sqrt{m^{-1}\|z_{l,g}\|_2^2+\epsilon_{\rm rms}},
+    & u_{l,g} &= z_{l,g}/r_{l,g}, \\
+    h_{l,g} &= r_{l,g}R_{l,g}(u_{l,g}),
+    & y_l &= B_l\operatorname{concat}_{g=1}^G h_{l,g}.
+\end{align}
+Here $A_l$ selects the domains presented to the rational maps, while $B_l$ recombines the
+resulting rational features.  Let $B_{l,g}$ denote the block of columns of $B_l$
+corresponding to group $g$.  For $a_g>0$, define the groupwise transformation
+\begin{equation}
+    A_{l,g}\mapsto a_g A_{l,g},
+    \qquad
+    B_{l,g}\mapsto a_g^{-1}B_{l,g}.
+    \label{eq:app-positive-gauge}
+\end{equation}
+Equivalently, with $s_g=\log a_g$,
+\begin{equation}
+    A_{l,g}\mapsto e^{s_g} A_{l,g},
+    \qquad
+    B_{l,g}\mapsto e^{-s_g} B_{l,g}.
+    \label{eq:app-log-gauge}
+\end{equation}
+We write this transformation as $T_s(A_l,B_l)$.
+
+\begin{lemma}[Exact gauge in the homogeneous block]
+\label{lem:app-exact-gauge}
+If $\epsilon_{\rm rms}=0$, then for any $s\in\mathbb{R}^G$,
+\begin{equation}
+    f_{T_s(A_l,B_l)}(x_l)=f_{(A_l,B_l)}(x_l).
+\end{equation}
+Consequently, any loss that depends on $(A_l,B_l)$ only through the represented network
+function is constant on the orbit $\{T_s(A_l,B_l):s\in\mathbb{R}^G\}$.
+\end{lemma}
+
+\begin{proof}
+It suffices to consider one group and write $a=a_g$.  If
+$A_{l,g}'=aA_{l,g}$, then $z_{l,g}'=az_{l,g}$.  When
+$\epsilon_{\rm rms}=0$, the group radius is homogeneous, so
+$r_{l,g}'=ar_{l,g}$.  Therefore $u_{l,g}'=z_{l,g}'/r_{l,g}'=u_{l,g}$ and
+$h_{l,g}'=r_{l,g}'R_{l,g}(u_{l,g}')=a h_{l,g}$.  The corresponding block of
+$B_l$ is scaled by $a^{-1}$, hence
+\begin{equation}
+    B_{l,g}'h_{l,g}'=(a^{-1}B_{l,g})(ah_{l,g})=B_{l,g}h_{l,g}.
+\end{equation}
+The equality holds groupwise and therefore for the full layer output.
+\end{proof}
+
+The implementation uses a nonzero additive stabilizer $\epsilon_{\rm rms}$.  The exact
+symmetry above is then replaced by a local approximate symmetry.  This distinction is
+minor numerically but important mathematically.
+
+\begin{assumption}[Local nondegeneracy]
+\label{ass:app-nondegenerate}
+On the set of activations considered, there exist constants $0<\sigma<M<\infty$ and
+$S<\infty$ such that, for all groups,
+\begin{equation}
+    \sigma^2 \leq m^{-1}\|z_{l,g}\|_2^2 \leq M^2,
+    \qquad
+    |s_g|\leq S.
+\end{equation}
+Assume also that the rational maps $R_{l,g}$ are bounded and Lipschitz on the corresponding
+compact set of normalized inputs, and that the relevant blocks of $B_l$ have bounded
+operator norm.
+\end{assumption}
+
+\begin{proposition}[Approximate gauge with an RMS floor]
+\label{prop:app-approx-gauge}
+Under Assumption~\ref{ass:app-nondegenerate}, there exists a constant $C$ independent of
+$\epsilon_{\rm rms}$ such that
+\begin{equation}
+    \|f_{T_s(A_l,B_l)}(x_l)-f_{(A_l,B_l)}(x_l)\|_2
+    \leq C\epsilon_{\rm rms}.
+    \label{eq:app-approx-gauge-bound}
+\end{equation}
+Equivalently, for every $\delta>0$ there exists
+$\epsilon_0>0$ such that $\epsilon_{\rm rms}<\epsilon_0$ implies
+\begin{equation}
+    \|f_{T_s(A_l,B_l)}(x_l)-f_{(A_l,B_l)}(x_l)\|_2<\delta.
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Let $S_z=m^{-1}\|z\|_2^2$ and $a=e^s$.  The radius satisfies
+\begin{align}
+&\left|\sqrt{a^2S_z+\epsilon_{\rm rms}}
+-a\sqrt{S_z+\epsilon_{\rm rms}}\right| \\
+&\qquad =
+\frac{|1-a^2|\epsilon_{\rm rms}}
+{\sqrt{a^2S_z+\epsilon_{\rm rms}}+a\sqrt{S_z+\epsilon_{\rm rms}}}
+\leq
+\frac{|1-a^2|}{2a\sigma}\epsilon_{\rm rms}.
+\end{align}
+The same bound, together with $S_z\in[\sigma^2,M^2]$, implies that the normalized inputs
+$u(z)$ and $u(az)$ differ by $O(\epsilon_{\rm rms})$ uniformly over the compact region.
+Since $R_{l,g}$ is Lipschitz and the relevant blocks of $B_l$ are bounded, the group output
+after applying $B_{l,g}$ differs from the original group output by
+$O(\epsilon_{\rm rms})$.  Summing over finitely many groups gives
+\eqref{eq:app-approx-gauge-bound}.  The $\delta$--$\epsilon$ statement follows by taking
+$\epsilon_0=\delta/C$.
+\end{proof}
+
+\subsection{Gauge directions are not function directions}
+\label{app:gauge-conditioning:tangent}
+
+Assume first the homogeneous case $\epsilon_{\rm rms}=0$.  Since the loss is constant along
+$T_s$, differentiating at $s_g=0$ gives
+\begin{equation}
+    \frac{d}{ds_g}L\bigl(e^{s_g}A_{l,g},e^{-s_g}B_{l,g}\bigr)\bigg|_{s_g=0}
+    =0.
+\end{equation}
+Therefore
+\begin{equation}
+    \left\langle \nabla_{A_{l,g}}L, A_{l,g}\right\rangle
+    -
+    \left\langle \nabla_{B_{l,g}}L, B_{l,g}\right\rangle
+    =0.
+    \label{eq:app-gauge-tangent-orthogonality}
+\end{equation}
+Thus $(A_{l,g},-B_{l,g})$ is tangent to a direction that changes the parameterization but
+not the represented function.  Equation~\eqref{eq:app-gauge-tangent-orthogonality} is the
+basic obstruction for a coordinatewise optimizer: the Euclidean coordinates contain a
+scale degree of freedom that is not a function-space degree of freedom.
+
+\subsection{The MatrixPolicy rebalance as a canonicalization step}
+\label{app:gauge-conditioning:matrixpolicy}
+
+MatrixPolicy uses the gauge freedom to control the relative scale of $A_{l,g}$ and
+$B_{l,g}$.  Define the observed log-ratio
+\begin{equation}
+    \gamma_g
+    =
+    \log \rms(A_{l,g})-
+    \log \rms(B_{l,g}).
+    \label{eq:app-gamma}
+\end{equation}
+Let $\tau_g$ be the target log-ratio computed by the optimizer from group-level statistics
+such as gain and relative gradient pressure.  Ignoring clipping, the rebalance step is
+\begin{equation}
+    \ell_g=\frac{1}{2}(\tau_g-\gamma_g),
+    \qquad
+    A_{l,g}\leftarrow e^{\ell_g}A_{l,g},
+    \qquad
+    B_{l,g}\leftarrow e^{-\ell_g}B_{l,g}.
+    \label{eq:app-mp-rebalance}
+\end{equation}
+
+\begin{lemma}[Targeting the log-ratio]
+\label{lem:app-target-log-ratio}
+If clipping is inactive, the rebalance step in \eqref{eq:app-mp-rebalance} maps
+$\gamma_g$ exactly to $\tau_g$.
+\end{lemma}
+
+\begin{proof}
+After the rebalance,
+\begin{align}
+    \gamma_g'
+    &=\log \rms(e^{\ell_g}A_{l,g})-
+      \log \rms(e^{-\ell_g}B_{l,g}) \\
+    &=\gamma_g+2\ell_g
+     =\gamma_g+\tau_g-\gamma_g
+     =\tau_g.
+\end{align}
+\end{proof}
+
+The clipped implementation is a bounded version of the same operation.  Hence the
+rebalance should be interpreted as a local canonicalization of the gauge representative:
+it changes the coordinates used by the optimizer, while preserving the represented
+function exactly in Lemma~\ref{lem:app-exact-gauge} and up to
+$O(\epsilon_{\rm rms})$ in Proposition~\ref{prop:app-approx-gauge}.
+
+\subsection{Coordinatewise adaptive updates are not gauge-equivariant}
+\label{app:gauge-conditioning:adamw}
+
+Let $\Phi$ denote one optimizer step applied to $(A,B)$ and its optimizer state.  A step is
+gauge-equivariant if, for every $s$,
+\begin{equation}
+    \Phi(T_s(A,B))=T_s(\Phi(A,B)).
+    \label{eq:app-equivariance}
+\end{equation}
+Gauge equivariance is a natural property here because $T_s(A,B)$ represents the same
+function as $(A,B)$ in the homogeneous block.  If \eqref{eq:app-equivariance} fails, then
+the optimizer's next function-space move depends on an arbitrary scale representative.
+
+For clarity, consider a single group and suppress layer and group indices.  Write the
+AdamW matrix update in the simplified form
+\begin{equation}
+    M^+=(1-\eta\lambda)M
+    -\eta\frac{m_M}{\sqrt{v_M}+\epsilon_{\rm opt}},
+    \label{eq:app-adamw}
+\end{equation}
+where $m_M$ and $v_M$ are the first- and second-moment estimates and division is
+coordinatewise.  Consider the log-gauge transform $A_s=e^sA$ and $B_s=e^{-s}B$.  Even if
+we give AdamW the ideally transformed moment state,
+\begin{equation}
+    m_{A,s}=e^{-s}m_A,
+    \qquad
+    v_{A,s}=e^{-2s}v_A,
+    \label{eq:app-moment-transform-a}
+\end{equation}
+with the analogous transformation for $B$, the update does not commute with the gauge.
+Indeed, for $\epsilon_{\rm opt}=0$,
+\begin{equation}
+    A_s^+-e^sA^+
+    =
+    \eta(e^s-1)\frac{m_A}{\sqrt{v_A}},
+    \label{eq:app-adamw-non-equivariant-a}
+\end{equation}
+which is nonzero for $s\neq0$ whenever $m_A\neq0$.  Similarly,
+\begin{equation}
+    B_s^+-e^{-s}B^+
+    =
+    \eta(e^{-s}-1)\frac{m_B}{\sqrt{v_B}}.
+    \label{eq:app-adamw-non-equivariant-b}
+\end{equation}
+Thus a coordinatewise adaptive step is not an update on the quotient space induced by the
+RLB gauge.  The mismatch remains generically nonzero for
+$\epsilon_{\rm opt}>0$.
+
+\subsection{A scalar separation illustrating gauge regret}
+\label{app:gauge-conditioning:separation}
+
+The preceding non-equivariance can be made concrete in a one-dimensional example.  This
+example is not intended to model the full MatrixPolicy implementation.  It isolates the
+effect of using a canonical representative before a coordinatewise adaptive update.
+
+Let
+\begin{equation}
+    f(a,b)=ab,
+    \qquad
+    L(a,b)=\frac{1}{2}(ab-y)^2,
+\end{equation}
+with $a,b>0$, $w=ab>y>0$, and residual $\rho=w-y$.  The gauge action is
+\begin{equation}
+    (a,b)\mapsto(e^s a,e^{-s}b),
+\end{equation}
+which preserves $ab$.  Define the balanced representative
+\begin{equation}
+    C(w)=(\sqrt{w},\sqrt{w}).
+\end{equation}
+Starting from $C(w)$, the first Adam-style normalized coordinate step with
+$\lambda=0$ and $\epsilon_{\rm opt}=0$ has
+\begin{equation}
+    a^+=a-\eta,\qquad b^+=b-\eta,
+\end{equation}
+because $\partial L/\partial a=\rho b>0$ and
+$\partial L/\partial b=\rho a>0$.  The balanced representative gives
+\begin{equation}
+    w_{\rm bal}^+=(\sqrt{w}-\eta)^2
+    =w-2\eta\sqrt{w}+\eta^2,
+\end{equation}
+and hence
+\begin{equation}
+    L_{\rm bal}^+
+    =\frac{1}{2}\left(\rho-2\eta\sqrt{w}+\eta^2\right)^2.
+    \label{eq:app-balanced-loss}
+\end{equation}
+In contrast, the gauge-equivalent representative
+\begin{equation}
+    (a_s,b_s)=(e^s\sqrt{w},e^{-s}\sqrt{w})
+\end{equation}
+gives
+\begin{align}
+    w_s^+
+    &=(e^s\sqrt{w}-\eta)(e^{-s}\sqrt{w}-\eta) \\
+    &=w-\eta\sqrt{w}(e^s+e^{-s})+\eta^2 \\
+    &=w-2\eta\sqrt{w}\cosh(s)+\eta^2,
+\end{align}
+and therefore
+\begin{equation}
+    L_s^+
+    =\frac{1}{2}\left(\rho-2\eta\sqrt{w}\cosh(s)+\eta^2\right)^2.
+    \label{eq:app-imbalanced-loss}
+\end{equation}
+Since $\cosh(s)$ is unbounded, for every $\eta>0$ there exist gauge-equivalent
+representatives such that
+\begin{equation}
+    L_s^+>L_{\rm bal}^+.
+\end{equation}
+One sufficient condition is
+\begin{equation}
+    \cosh(s)
+    >
+    \frac{\rho+\eta^2+|\rho-2\eta\sqrt{w}+\eta^2|}{2\eta\sqrt{w}}.
+    \label{eq:app-separation-condition}
+\end{equation}
+Thus the same function value can lead to a strictly worse one-step loss solely because the
+coordinatewise adaptive update was applied to a less balanced gauge representative.
+
+\begin{remark}[Interpretation of the toy example]
+The scalar construction should be viewed as a gauge-regret example, not as a faithful
+model of language-model training.  Its role is to show that representative dependence is
+not merely a formal inconvenience: it can change the one-step loss.  MatrixPolicy's
+rebalance step is designed to reduce this source of variation in the RLB matrices before
+subsequent updates accumulate optimizer state.
+\end{remark}
+
+\subsection{Robustness of the separation}
+\label{app:gauge-conditioning:robustness}
+
+The scalar separation was written in the clean limit
+$\lambda=\epsilon_{\rm opt}=\epsilon_{\rm rms}=0$.  The strict inequality persists under
+small perturbations.
+
+\begin{corollary}[Local $\delta$--$\epsilon$ robustness]
+\label{cor:app-delta-epsilon}
+Let
+\begin{equation}
+    \Delta(s,\eta,\lambda,\epsilon_{\rm opt},\epsilon_{\rm rms})
+    =L_s^+-L_{\rm bal}^+
+\end{equation}
+denote the one-step gap in the scalar construction, restricted to a compact nondegenerate
+region where optimizer denominators are bounded away from zero.  Suppose that, for some
+$s_0$,
+\begin{equation}
+    \Delta(s_0,\eta,0,0,0)=m>0.
+\end{equation}
+Then, for every $\epsilon_{\rm gap}\in(0,m)$, there exists $\delta>0$ such that
+\begin{equation}
+    |\lambda|+\epsilon_{\rm opt}+\epsilon_{\rm rms}<\delta
+\end{equation}
+implies
+\begin{equation}
+    \Delta(s_0,\eta,\lambda,\epsilon_{\rm opt},\epsilon_{\rm rms})
+    >m-\epsilon_{\rm gap}>0.
+\end{equation}
+\end{corollary}
+
+\begin{proof}
+On the stated compact region, the one-step maps and the loss are continuous functions of
+$(\lambda,\epsilon_{\rm opt},\epsilon_{\rm rms})$.  Since the unperturbed gap is positive,
+continuity gives a neighborhood of $(0,0,0)$ on which the change in the gap is smaller
+than any prescribed $\epsilon_{\rm gap}\in(0,m)$.  This proves the claim.
+\end{proof}
+
+\subsection{Scope}
+\label{app:gauge-conditioning:scope}
+
+The analysis above supports a design motivation rather than a complete optimization
+proof.  It establishes that RLB contains a scale gauge, that MatrixPolicy's rebalance step
+acts as a bounded canonicalization of that gauge, and that AdamW-style coordinatewise
+adaptive steps are not invariant to the resulting equivalence relation.  It does not prove
+that MatrixPolicy converges faster, reaches a lower loss, or dominates AdamW for arbitrary
+training runs.  The empirical comparison in the main text must therefore remain the basis
+for claims about validation loss, while this appendix explains one structural reason that
+an RLB-specific matrix policy can behave differently from a generic optimizer.

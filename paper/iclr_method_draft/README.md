@@ -51,15 +51,15 @@ Switch to the official ICLR 2027 template as soon as it is published.
 
 ## Paper Structure
 
-Recommended main-paper shape:
+Current main-paper shape after the ICLR cleanup:
 
 ```text
-1. Introduction: optimizer-specific rational FFN claim.
-2. RLB geometry: grouped rational block and positive gauge.
-3. MatrixPolicy: role/depth matrix update, group stats, exact rebalance.
-4. Experiments: HPO protocol, tuned optimizer benchmark, speed-to-target, scale, mechanism, downstream checks.
-5. Limitations: baseline coverage, scale, overhead, and instability of plain RLB+AdamW.
-6. Reproducibility statement.
+1. Introduction: optimizer-specific rational FFN claim and contributions.
+2. Background and Related Work: optimizer evidence standard and RLB-specific geometry.
+3. Rational Matrix Policy Optimization: one compact method section, no main-text subsection sprawl.
+4. Experiments: current three-seed real-corpus screen, mean +/- std curves, and paper-result requirements.
+5. Discussion and Limitations: scope of the claim, missing tuned baselines, scale, speed, and mechanism evidence.
+6. Conclusion.
 ```
 
 Appendix should contain:
@@ -67,6 +67,7 @@ Appendix should contain:
 ```text
 full optimizer pseudocode
 all hyperparameters and launch commands
+gauge-conditioning theoretical note
 all per-seed tables
 all curves and AUC metrics
 nonfinite/divergent rows
