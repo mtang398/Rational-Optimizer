@@ -148,10 +148,17 @@ $d_l=(l-1)/(L-1)$ and set
     \rho_{\mathrm{out}}(l)&=\clip(1+1.00(d_l-0.5),0.55,1.40),\\
     a_{\mathrm{role}}(l,r)&=\max(0.10,1+1.20(\rho_r(l)-1)).
 \end{align}
-The local adaptive scale is
+Let $\xi_t=t/T$ be training progress and let $\sigma_{a,b}(\xi)$ denote the
+smoothstep gate from $0$ to $1$ over $[a,b]$.  The statistic multiplier
+$a_{\mathrm{stat}}(l,r,t)>0$ is the layer/role aggregate of the group
+preconditioners defined below, normalized to one when group statistics are not
+active.  The local adaptive scale is
 \begin{align}
     a_{\mathrm{mat}}(l,r,t)=\clip(3.0\,a_{\mathrm{role}}(l,r)a_{\mathrm{stat}}(l,r,t),0.40,4.0).
 \end{align}
+The matrix-normalized branch uses multiplier $a_{\mathrm{matnorm}}>0$ and
+mixture weight $\mu(l,r,t)\in[0,1]$, a smoothstep-gated function of
+$\xi_t$, layer depth, matrix role, and $a_{\mathrm{stat}}(l,r,t)$.
 
 \paragraph{On-policy group statistics.}
 All ratios and logarithms below are evaluated on strictly positive stabilized
@@ -177,7 +184,8 @@ The group preconditioner is centered and clipped:
     \qquad c_g\leftarrow c_g/\geom(c),
     \qquad c_g\leftarrow\clip(c_g,0.75,1.35).
 \end{align}
-The factors are
+Here $k_g>0$ is the role-specific group gain used for matrix preconditioning: the
+derivative-RMS gain for $A_l$ and the output-RMS gain for $B_l$.  The factors are
 \begin{align}
     c_{\mathrm{gain},g}=\left(\frac{\geom(k)}{k_g}\right)^{0.20},\qquad
     c_{\mathrm{pressure},g}=\exp(0.10\,d_{\mathrm{pressure},g}),
@@ -198,12 +206,19 @@ The target log-ratio is
     \tau_g=\frac{1}{2}(\log d^{\mathrm{gain}}_g-\log o^{\mathrm{gain}}_g)
     +\beta_{\mathrm{pressure}}(\log q_{\mathrm{in},g}-\log q_{\mathrm{out},g}).
 \end{align}
-The applied correction is
+Here $d^{\mathrm{gain}}_g>0$ and $o^{\mathrm{gain}}_g>0$ are the derivative and
+output group-gain estimates, and $\beta_{\mathrm{pressure}}$ is the pressure
+balance coefficient.  Let $s(t,l)\in[0,1]$ be the rebalance schedule,
+$a^{\mathrm{activity}}_g\in(0,1]$ the activity damping multiplier, and
+$\ell_{\max}>0$ the maximum absolute log-scale move.  The exact target step is
+$\ell_g^{\star}=\frac{1}{2}(\tau_g-\gamma_g)$, while the applied bounded move is
 \begin{align}
-    \ell_g=\frac{1}{2}(\tau_g-\gamma_g),\qquad
-    \ell_g\leftarrow\clip(s(t,l)a^{\mathrm{activity}}_g\ell_g,-\ell_{\max},\ell_{\max}).
+    \ell_g=\clip(s(t,l)a^{\mathrm{activity}}_g\ell_g^{\star},-\ell_{\max},\ell_{\max}).
 \end{align}
-The transform $A_{l,g}\leftarrow e^{\ell_g}A_{l,g}$ and
+The clipped update maps $\gamma_g$ to $\gamma_g+2\ell_g$, so it is a bounded
+move toward $\tau_g$ rather than exact canonicalization unless clipping and
+schedule damping are inactive.  The transform
+$A_{l,g}\leftarrow e^{\ell_g}A_{l,g}$ and
 $B_{l,g}\leftarrow e^{-\ell_g}B_{l,g}$ preserves the homogeneous RLB function
 exactly under the nonzero-radius condition; the stabilized implementation is
 covered by the residual perturbation model in Appendix~\ref{app:complete-opt-proof}.

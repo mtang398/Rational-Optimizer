@@ -105,9 +105,10 @@ For group $g$, define
     \gamma_g=\log \rms(A_g)-\log \rms(B_g).
     \label{eq:complete-gamma}
 \end{equation}
-The logarithms in this subsection are taken on positive RMS quantities.  Equivalently,
-the local region excludes zero RMS matrices, or the implementation supplies fixed
-positive floors.
+The logarithms in this subsection are taken on true positive RMS quantities.
+Stabilized RMS floors preserve the lemma exactly only when inactive; otherwise the
+resulting discrepancy is part of the perturbation model in
+Assumption~\ref{ass:uniform-perturbation}.
 Given a target log-ratio $\tau_g$, the unclipped rebalance is
 \begin{equation}
     \ell_g=\frac{1}{2}(\tau_g-\gamma_g),
@@ -120,7 +121,7 @@ Given a target log-ratio $\tau_g$, the unclipped rebalance is
 
 \begin{lemma}[RMS-ratio canonicalization]
 \label{lem:complete-targeting}
-The update in \eqref{eq:complete-rebalance} satisfies
+For true positive RMS values, the update in \eqref{eq:complete-rebalance} satisfies
 \begin{equation}
     \log\rms(A_g^+)-\log\rms(B_g^+)=\tau_g .
 \end{equation}
@@ -265,7 +266,7 @@ integer $T\geq1$,
 
 \begin{proof}
 The map $\kappa\mapsto(\kappa-1)/(\kappa+1)$ is strictly increasing for
-$\kappa>1$.  Assumption~\ref{ass:conditioning-advantage} gives
+$\kappa>0$.  Assumption~\ref{ass:conditioning-advantage} gives
 $\rho(P_{\MP};H)<\rho(P_{\AW};H)$.  Lemma~\ref{lem:preconditioned-contraction} applied to
 $P_{\MP}$ and $P_{\AW}$ gives the displayed factors, and sharpness gives both
 equalities.
@@ -293,9 +294,10 @@ Fix $T\geq1$ and suppose the idealized dynamics satisfy
     \label{eq:finite-gap}
 \end{equation}
 Assume the implemented and ideal recursions use the same initial points, and assume the
-ideal trajectories remain in a compact region on which $F$ and the ideal one-step maps
-are Lipschitz.  Then there exists $\delta_0>0$ such that, whenever
-Assumption~\ref{ass:uniform-perturbation} holds with $\delta<\delta_0$,
+ideal trajectories lie in a compact set $K$ with a compact neighborhood $U$ on which
+$F$ and the ideal one-step maps are Lipschitz.  Then there exists $\delta_0>0$ such
+that, whenever Assumption~\ref{ass:uniform-perturbation} holds with
+$\delta<\delta_0$, the implemented trajectories remain in $U$ through time $T$ and
 \begin{equation}
     F(q_T^{\AW,{\rm impl}})-F(q_T^{\MP,{\rm impl}})>\frac{m_T}{2}>0 .
     \label{eq:stable-gap}
@@ -303,21 +305,28 @@ Assumption~\ref{ass:uniform-perturbation} holds with $\delta<\delta_0$,
 \end{proposition}
 
 \begin{proof}
-Let $\Psi_{\MP}$ and $\Psi_{\AW}$ be the ideal one-step maps.  On a compact neighborhood
-of the ideal trajectories, let $C_\Psi$ be a common Lipschitz constant.  By induction,
+Let $\Psi_{\MP}$ and $\Psi_{\AW}$ be the ideal one-step maps, and let $C_\Psi$ be a
+common Lipschitz constant on $U$.  Let $r_{\rm stay}>0$ be the distance from the
+finite ideal trajectories to $U^c$.  By induction, as long as the implemented
+trajectories remain in $U$,
 \begin{equation}
     \norm{q_t^{\MP,{\rm impl}}-q_t^{\MP}}
     +
     \norm{q_t^{\AW,{\rm impl}}-q_t^{\AW}}
     \leq C_T\delta
 \end{equation}
-for a constant $C_T$ depending only on $T$ and $C_\Psi$.  If $C_F$ is a Lipschitz constant
-for $F$ on the same compact region, then
+for a constant $C_T$ depending only on $T$ and $C_\Psi$.  Taking
+$\delta\leq r_{\rm stay}/(2C_T)$ keeps the implemented trajectories in $U$ and
+closes the induction.  If $C_F$ is a Lipschitz constant for $F$ on $U$, then
 \begin{equation}
     \left|F(q_T^{\MP,{\rm impl}})-F(q_T^{\MP})\right|
     +
     \left|F(q_T^{\AW,{\rm impl}})-F(q_T^{\AW})\right|
     \leq C_F C_T\delta .
 \end{equation}
-Taking $\delta_0=m_T/(2C_FC_T)$ gives the claim.
+Taking
+\begin{equation}
+    \delta_0=\min\left\{\frac{m_T}{2C_FC_T},\frac{r_{\rm stay}}{2C_T}\right\}
+\end{equation}
+gives the claim.
 \end{proof}
