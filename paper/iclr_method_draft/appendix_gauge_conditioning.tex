@@ -44,8 +44,8 @@ $\cQ=\cP/\cG$.
 
 \begin{lemma}[Exact positive gauge]
 \label{lem:exact-positive-gauge}
-If $\epsilon_{\rm rms}=0$, then $T_s(A,B)$ and $(A,B)$ represent the same layer map for
-all $s\in\R^G$.
+If $\epsilon_{\rm rms}=0$ and $r_g>0$ for every group on the considered input, then
+$T_s(A,B)$ and $(A,B)$ represent the same layer map for all $s\in\R^G$.
 \end{lemma}
 
 \begin{proof}
@@ -70,7 +70,7 @@ satisfies
     \label{eq:loss-quotient}
 \end{equation}
 For the exact statements, $\epsilon_{\rm rms}=0$.  Nonzero RMS stabilization is included
-in the residual model of Assumption~\ref{ass:uniform-perturbation}.
+only through the residual model of Assumption~\ref{ass:uniform-perturbation}.
 \end{assumption}
 
 \begin{assumption}[Local quadratic model]
@@ -105,6 +105,9 @@ For group $g$, define
     \gamma_g=\log \rms(A_g)-\log \rms(B_g).
     \label{eq:complete-gamma}
 \end{equation}
+The logarithms in this subsection are taken on positive RMS quantities.  Equivalently,
+the local region excludes zero RMS matrices, or the implementation supplies fixed
+positive floors.
 Given a target log-ratio $\tau_g$, the unclipped rebalance is
 \begin{equation}
     \ell_g=\frac{1}{2}(\tau_g-\gamma_g),
@@ -135,7 +138,7 @@ By homogeneity of RMS under positive scaling,
 
 \begin{lemma}[Gauge-dependent raw quotient step]
 \label{lem:gauge-dependent-step}
-Let $w=ab$, $a=e^s\sqrt{w}$, $b=e^{-s}\sqrt{w}$, and
+Let $w>0$, $a=e^s\sqrt{w}$, $b=e^{-s}\sqrt{w}$, and
 $\ell(w)=\frac{1}{2}(w-y)^2$.  One Euclidean gradient-descent step in $(a,b)$ with step
 size $\eta$ gives
 \begin{equation}
@@ -236,8 +239,9 @@ Thus
     &\leq \rho(P;H)^2\sum_i \lambda_i v_{t,i}^2 \\
     &=2\rho(P;H)^2(F(q_t)-F_\star).
 \end{align}
-Iteration gives \eqref{eq:upper-contraction}.  Equality holds for an eigenvector of
-$K(P)$ associated with $\lammin(K(P))$ or $\lammax(K(P))$.
+Iteration gives \eqref{eq:upper-contraction}.  Equality holds when the transformed
+initial error $\widetilde e_0=P^{-1/2}(q_0-q_\star)$ is an eigenvector of $K(P)$
+associated with $\lammin(K(P))$ or $\lammax(K(P))$.
 \end{proof}
 
 \begin{theorem}[Conditional optimization separation]
@@ -248,7 +252,7 @@ integer $T\geq1$,
 \begin{equation}
     \sup_{q_0\neq q_\star}
     \frac{F(q_T^{\MP})-F_\star}{F(q_0)-F_\star}
-    \leq
+    =
     \left(\frac{\kappa_{\MP}-1}{\kappa_{\MP}+1}\right)^{2T}
     <
     \left(\frac{\kappa_{\AW}-1}{\kappa_{\AW}+1}\right)^{2T}
@@ -263,8 +267,8 @@ integer $T\geq1$,
 The map $\kappa\mapsto(\kappa-1)/(\kappa+1)$ is strictly increasing for
 $\kappa>1$.  Assumption~\ref{ass:conditioning-advantage} gives
 $\rho(P_{\MP};H)<\rho(P_{\AW};H)$.  Lemma~\ref{lem:preconditioned-contraction} applied to
-$P_{\MP}$ and $P_{\AW}$ gives the two displayed bounds.  The AdamW equality follows from
-sharpness in Lemma~\ref{lem:preconditioned-contraction}.
+$P_{\MP}$ and $P_{\AW}$ gives the displayed factors, and sharpness gives both
+equalities.
 \end{proof}
 
 \begin{assumption}[Uniform local perturbation bound]
@@ -277,6 +281,8 @@ For a fixed horizon $T$, the implemented quotient iterates satisfy
     &=q_t^{\AW,{\rm impl}}-\eta_{\AW}P_{\AW}\nabla F(q_t^{\AW,{\rm impl}})+r_t^{\AW},
 \end{align}
 with $\norm{r_t^{\MP}}_2+\norm{r_t^{\AW}}_2\leq\delta$ for all $0\leq t<T$.
+The residuals include the RMS floor, denominator floors, clipping, moment lag, weight
+decay, and nonquadratic Taylor remainders.
 \end{assumption}
 
 \begin{proposition}[Stability of a strict finite-time gap]
@@ -286,8 +292,9 @@ Fix $T\geq1$ and suppose the idealized dynamics satisfy
     m_T:=F(q_T^{\AW})-F(q_T^{\MP})>0 .
     \label{eq:finite-gap}
 \end{equation}
-Assume the ideal trajectories remain in a compact region on which $F$ and the ideal
-one-step maps are Lipschitz.  Then there exists $\delta_0>0$ such that, whenever
+Assume the implemented and ideal recursions use the same initial points, and assume the
+ideal trajectories remain in a compact region on which $F$ and the ideal one-step maps
+are Lipschitz.  Then there exists $\delta_0>0$ such that, whenever
 Assumption~\ref{ass:uniform-perturbation} holds with $\delta<\delta_0$,
 \begin{equation}
     F(q_T^{\AW,{\rm impl}})-F(q_T^{\MP,{\rm impl}})>\frac{m_T}{2}>0 .

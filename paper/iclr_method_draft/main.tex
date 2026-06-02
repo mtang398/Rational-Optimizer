@@ -74,18 +74,18 @@ The base parameters use the same optimizer as the non-rational baseline.  Ration
 coefficients use a coefficient rule.  MatrixPolicy is applied only to $A_l$ and
 $B_l$.
 
-In the homogeneous case $\epsilon_{\rm rms}=0$, each group has a positive scale
-gauge:
+In the homogeneous case $\epsilon_{\rm rms}=0$, and for nonzero group radii, each
+group has a positive scale gauge:
 \begin{align}
     A_{l,g}\mapsto a_gA_{l,g},\qquad
     B_{l,g}\mapsto a_g^{-1}B_{l,g},\qquad a_g>0.
 \end{align}
 The represented function is unchanged because $z_{l,g}$ and $r_{l,g}$ scale
 together, $u_{l,g}$ is unchanged, and the inverse scale in $B_l$ cancels the scale
-in $h_{l,g}$.  With a nonzero RMS floor, this symmetry is approximate but remains
-locally controlled under mild nondegeneracy assumptions
-(Appendix~\ref{app:complete-opt-proof}).  This matters because optimizer state is
-stored in coordinates, not in the quotient space of represented functions.
+in $h_{l,g}$.  With a nonzero RMS floor, the exact quotient dynamics are replaced
+by the residual model in Appendix~\ref{app:complete-opt-proof}.  This matters
+because optimizer state is stored in coordinates, not in the quotient space of
+represented functions.
 
 At step $t$, each matrix role $r\in\{\mathrm{in},\mathrm{out}\}$ receives a
 role-depth factor $\rho_r(l)$ and an on-policy statistic factor
@@ -141,7 +141,8 @@ Given gradients $\nabla\mathcal{L}(\theta^t)$ and base learning rate $\eta_t$:
 \label{app:details}
 
 \paragraph{Role-depth factors.}
-For normalized layer depth $d_l=l/(L-1)$,
+For layers indexed by $l=1,\ldots,L$ with $L>1$, define normalized layer depth
+$d_l=(l-1)/(L-1)$ and set
 \begin{align}
     \rho_{\mathrm{in}}(l)&=\clip(1-0.50(d_l-0.5),0.55,1.40),\\
     \rho_{\mathrm{out}}(l)&=\clip(1+1.00(d_l-0.5),0.55,1.40),\\
@@ -153,6 +154,9 @@ The local adaptive scale is
 \end{align}
 
 \paragraph{On-policy group statistics.}
+All ratios and logarithms below are evaluated on strictly positive stabilized
+RMS, EMA, and gain quantities; the displayed formulas omit the corresponding
+epsilon floors.
 For group $g$, MatrixPolicy tracks relative gradient pressures
 \begin{align}
     p_{\mathrm{in},g}=\frac{\rms(\nabla A_{l,g})}{\rms(A_{l,g})},\qquad
@@ -201,8 +205,8 @@ The applied correction is
 \end{align}
 The transform $A_{l,g}\leftarrow e^{\ell_g}A_{l,g}$ and
 $B_{l,g}\leftarrow e^{-\ell_g}B_{l,g}$ preserves the homogeneous RLB function
-exactly and the stabilized implementation up to the RMS-floor perturbation
-described in Appendix~\ref{app:complete-opt-proof}.
+exactly under the nonzero-radius condition; the stabilized implementation is
+covered by the residual perturbation model in Appendix~\ref{app:complete-opt-proof}.
 
 \input{appendix_gauge_conditioning}
 
