@@ -10,16 +10,13 @@ The paper should make one focused claim:
 Rational FFNs expose optimizer-visible geometry, and an on-policy matrix optimizer that uses this geometry trains rational language models more robustly and to lower heldout loss than generic AdamW or Muon under the same base protocol.
 ```
 
-The draft now presents the positive core paper story while keeping assumptions and benchmark scope explicit:
+Current source state:
 
 ```text
-3-seed FineWeb/FineWeb-Edu result: included
-same-protocol AdamW/Muon controls: included
-plain RLB+AdamW stability accounting: included
-mean +/- std curves: included
-conditional quotient-optimization theorem: included in appendix
-mechanism telemetry and broader HPO surfaces: tracked in the experiment blueprint
-scale, speed-to-target, transfer, and downstream checks: tracked in the experiment blueprint
+abstract, introduction, experiments, discussion, and conclusion are intentionally empty placeholders
+method section is retained
+conditional quotient-optimization theorem is retained in the appendix
+appendix proof is organized as quotient geometry, canonicalized preconditioning, and contraction/stability
 ```
 
 ## Template Status
@@ -45,15 +42,15 @@ Switch to the official ICLR 2027 template as soon as it is published.
 
 ## Paper Structure
 
-Current main-paper shape after the ICLR cleanup:
+Current main-paper shape:
 
 ```text
-1. Introduction: optimizer-specific rational FFN claim and contributions.
+1. Introduction: placeholder.
 2. Background and Related Work: optimizer evidence standard and RLB-specific geometry.
-3. Rational Matrix Policy Optimization: one compact method section, no main-text subsection sprawl.
-4. Experiments: current three-seed real-corpus screen, mean +/- std curves, and paper-result requirements.
-5. Discussion: positive optimizer-specific interpretation and explicit theorem scope.
-6. Conclusion.
+3. Rational Matrix Policy Optimization: compact method section.
+4. Experiments: placeholder.
+5. Discussion: placeholder.
+6. Conclusion: placeholder.
 ```
 
 Appendix should contain:

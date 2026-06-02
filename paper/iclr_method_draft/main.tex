@@ -35,48 +35,10 @@
 \maketitle
 
 \begin{abstract}
-Rational feed-forward blocks introduce useful nonlinear structure, but they also
-change the geometry seen by an optimizer.  We study Rational Local Basis (RLB)
-feed-forward layers in Transformer language models and introduce Rational Matrix
-Policy Optimization, an optimizer that treats the input and output matrices around
-each rational block as role-specific objects rather than generic dense weights.
-The method combines a standard base optimizer for the rest of the model with
-role-depth scaling, on-policy group statistics, and a bounded gauge rebalance for
-the RLB matrices.  On FineWeb and FineWeb-Edu, a three-seed real-corpus study
-shows about a 0.15 validation-loss improvement over same-protocol SiLU+AdamW and
-the strongest non-MatrixPolicy control in the study.
 \end{abstract}
 
 \section{Introduction}
 \label{sec:introduction}
-
-Most language-model optimizer studies treat the feed-forward block as a generic
-collection of matrices.  That is appropriate for standard elementwise activations,
-but it misses structure when the feed-forward layer is itself a learned rational
-map.  In an RLB block, one matrix chooses the normalized domains presented to
-rational groups, the rational coefficients shape each group response, and a second
-matrix recombines the resulting features into the residual stream.  These roles
-create optimizer-visible structure that is not captured by a single scalar
-learning-rate rule.
-
-This paper studies the following claim: rational feed-forward networks expose
-geometry that a block-aware optimizer can exploit, and an optimizer that uses that
-geometry can train rational language models more robustly than generic optimizers
-under the same base protocol.  The method is Rational Matrix Policy Optimization
-(MatrixPolicy).  It keeps the surrounding Transformer training recipe unchanged
-and modifies only the optimization of matrices adjacent to RLB groups.  The
-central mechanism is not that rational activations are intrinsically better than
-SiLU; it is that the rational parameterization gives the optimizer additional
-structure, including a positive scale gauge and group-level pressure signals.
-
-This work makes three contributions.  First, it defines the RLB matrix
-roles and the MatrixPolicy update used in our language-model experiments.  Second,
-it reports a replicated real-corpus study on FineWeb and FineWeb-Edu with
-stability-aware plain-RLB controls.  Third, Appendix~\ref{app:complete-opt-proof}
-proves a conditional mechanism theorem: under a local quotient chart, a strongly
-convex quadratic approximation, and frozen preconditioners, MatrixPolicy has a
-smaller contraction factor than AdamW whenever its canonicalized quotient
-preconditioner has a smaller condition number.
 
 \section{Background and Related Work}
 \label{sec:related-work}
@@ -188,79 +150,11 @@ Given gradients $\nabla\mathcal{L}(\theta^t)$ and base learning rate $\eta_t$:
 \section{Experiments}
 \label{sec:experiments}
 
-We evaluate MatrixPolicy in a same-protocol real-corpus language-model study.  All
-rows use a 123M-parameter Transformer, GPT-2 tokenizer, 100M-token training
-budget, the same validation slice, three seeds $(1337,2027,3407)$, equal global
-batch size, shared base schedule, and common evaluation cadence.  The comparison
-includes standard SiLU+AdamW, plain RLB+AdamW, RLB+Muon, and RLB+MatrixPolicy
-with group-stat scaling.  Failed or nonfinite plain-RLB rows are counted in
-stability reporting.
-
-\begin{table}[t]
-\centering
-\caption{Three-seed real-corpus study.  Gaps are validation-loss improvements
-for RLB+MatrixPolicy over the comparison row.}
-\label{tab:prelim-real-lm}
-\begin{tabular}{@{}lccccc@{}}
-\toprule
-Task & MP loss & Std. & PPL & Gap vs. SiLU & Gap vs. ctrl \\
-\midrule
-FineWeb & 4.369701 & 0.026358 & 79.04 & 0.159263 & 0.152302 \\
-FineWeb-Edu & 4.069422 & 0.002281 & 58.52 & 0.154149 & 0.153402 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{figure}[t]
-\centering
-\begin{minipage}{0.48\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{../../experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean.png}
-\end{minipage}
-\hfill
-\begin{minipage}{0.48\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{../../experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean.png}
-\end{minipage}
-\caption{Mean validation-loss curves across three seeds with $\pm1$ standard
- deviation bands for FineWeb (left) and FineWeb-Edu (right).}
-\label{fig:prelim-curves}
-\end{figure}
-
-MatrixPolicy improves mean validation loss on both web corpora and the gap is
-visible throughout the validation curves in Figure~\ref{fig:prelim-curves}.  The
-plain RLB+AdamW control is not a sufficient explanation for the gain: it is
-marginal on FineWeb and has seed-sensitive instability on FineWeb-Edu.  The
-empirical picture is therefore optimizer-specific: the RLB parameterization is
-most effective when paired with the matrix policy that uses its role, group, and
-gauge structure.
-
 \section{Discussion}
 \label{sec:discussion}
 
-MatrixPolicy is a structure-specific optimizer for rational feed-forward blocks.
-The conditional analysis in Appendix~\ref{app:complete-opt-proof} formalizes the
-mechanism: once the RLB gauge is quotiented out, a canonicalized preconditioner
-with a better quotient condition number has a smaller local contraction factor.
-The assumptions make the mathematical scope explicit, and the experiments test the
-corresponding empirical claim in matched language-model training protocols.
-
-The main result is a positive optimizer-specific signal: rational blocks expose
-geometry that generic coordinatewise updates do not use, and MatrixPolicy converts
-that geometry into lower validation loss on two real web corpora.  This motivates
-reporting optimizer surfaces, speed-to-target, and mechanism telemetry as part of
-the full benchmark rather than treating final loss alone as the whole story.
-
 \section{Conclusion}
 \label{sec:conclusion}
-
-Rational feed-forward layers expose optimizer-visible structure that generic
-coordinatewise updates do not explicitly use.  MatrixPolicy uses RLB matrix roles,
-group pressures, and gauge rebalancing to optimize rational FFNs with a small,
-localized change to the training recipe.  The real-corpus results and the
-conditional quotient theorem support the same mechanism: RLB creates optimizer
-structure, and MatrixPolicy uses that structure to improve rational language-model
-training.
 
 \bibliographystyle{iclr2026_conference}
 \bibliography{references}

@@ -1,21 +1,9 @@
 % Appendix-only theoretical note for an ICLR-style paper.
 % Intended use: place after \appendix and include with \input{...}.
-%
-% Preamble requirements, if not already present:
-%   \usepackage{amsmath,amssymb,mathtools,amsthm}
-%   \newtheorem{assumption}{Assumption}[section]
-%   \newtheorem{lemma}{Lemma}[section]
-%   \newtheorem{proposition}{Proposition}[section]
-%   \newtheorem{theorem}{Theorem}[section]
-%   \newtheorem{corollary}{Corollary}[section]
-%   \newtheorem{remark}{Remark}[section]
-%
-% Optional macros. Remove these if already defined in the main paper.
+
 \providecommand{\rms}{\operatorname{rms}}
-\providecommand{\diag}{\operatorname{diag}}
 \providecommand{\MP}{\operatorname{MP}}
 \providecommand{\AW}{\operatorname{AdamW}}
-\providecommand{\E}{\mathbb{E}}
 \providecommand{\R}{\mathbb{R}}
 \providecommand{\cG}{\mathcal{G}}
 \providecommand{\cQ}{\mathcal{Q}}
@@ -25,28 +13,12 @@
 \providecommand{\lammax}{\lambda_{\max}}
 \providecommand{\lammin}{\lambda_{\min}}
 
-\section{A Conditional Optimization Separation for MatrixPolicy}
+\section{A Conditional Quotient-Optimization Separation}
 \label{app:complete-opt-proof}
 \label{app:gauge-conditioning}
 
-This appendix gives a conditional optimization guarantee for MatrixPolicy in the
-local regime suggested by the RLB parameterization.  The assumptions are stated
-explicitly: the rational block is in a stable local regime, the loss is well
-approximated by a strongly convex quotient objective, and optimizer states have
-entered a frozen-preconditioner phase.  In that regime, MatrixPolicy has a
-strictly better contraction factor than AdamW whenever its canonicalized quotient
-preconditioner has a smaller condition number.
-
-The proof has three steps.  First, the RLB block induces a positive scale gauge, so many
-matrix pairs represent the same function.  Second, MatrixPolicy's rebalance step selects a
-bounded representative of that gauge orbit, whereas AdamW operates in raw coordinates and
-therefore induces a gauge-dependent quotient preconditioner.  Third, for a strongly convex
-quadratic quotient objective, the optimizer with the smaller quotient condition number has
-the smaller worst-case linear convergence factor.  This gives a complete optimization
-separation under the stated assumptions.
-
-\subsection{Gauge quotient model}
-\label{app:complete-opt-proof:model}
+\subsection{Quotient Geometry}
+\label{app:complete-opt-proof:geometry}
 
 For one RLB layer, suppress the layer index and write
 \begin{align}
@@ -56,7 +28,7 @@ For one RLB layer, suppress the layer index and write
     h_g &= r_g R_g(u_g), \\
     y &= B\operatorname{concat}_{g=1}^G h_g .
 \end{align}
-For $a_g>0$, define the positive scale action
+For $a_g>0$, define
 \begin{equation}
     T_a(A_g,B_g)=(a_gA_g,a_g^{-1}B_g),
     \qquad g=1,\ldots,G .
@@ -67,115 +39,126 @@ Equivalently, with $s_g=\log a_g$,
     T_s(A_g,B_g)=(e^{s_g}A_g,e^{-s_g}B_g).
     \label{eq:complete-log-action}
 \end{equation}
-When $\epsilon_{\rm rms}=0$, the RLB block is homogeneous and
-$T_s(A,B)$ represents the same function as $(A,B)$.  With a nonzero RMS floor, this
-symmetry is approximate on nondegenerate activation regions; the perturbation is handled
-in Proposition~\ref{prop:complete-perturbation} below.
+Let $\cP$ be the local RLB-matrix parameter space, let $\cG=(\R,+)^G$, and let
+$\cQ=\cP/\cG$.
 
-Let $\cP$ denote the local parameter space of the RLB matrices and let
-$\cG=(\R,+)^G$ denote the log-gauge group.  We write the quotient space as
-$\cQ=\cP/\cG$.  A point of $\cQ$ represents a function-space degree of freedom, whereas
-the gauge coordinate only selects a matrix representative of the same function.
+\begin{lemma}[Exact positive gauge]
+\label{lem:exact-positive-gauge}
+If $\epsilon_{\rm rms}=0$, then $T_s(A,B)$ and $(A,B)$ represent the same layer map for
+all $s\in\R^G$.
+\end{lemma}
+
+\begin{proof}
+For one group, $A_g'=e^{s_g}A_g$ gives $z_g'=e^{s_g}z_g$.  Since
+$\epsilon_{\rm rms}=0$, $r_g'=e^{s_g}r_g$, hence $u_g'=u_g$ and
+$h_g'=e^{s_g}h_g$.  The corresponding output block satisfies
+$B_g'h_g'=e^{-s_g}B_g e^{s_g}h_g=B_gh_g$.  Summing over groups gives the claim.
+\end{proof}
 
 \begin{assumption}[Local quotient chart]
 \label{ass:quotient-chart}
-There is a neighborhood of the training trajectory in which parameters can be written as
+In a neighborhood of the trajectory, parameters can be written as
 \begin{equation}
     \theta=\theta(q,s),
     \qquad q\in\R^d,
     \qquad s\in\R^G,
 \end{equation}
-where $q$ is a local coordinate on the quotient $\cQ$ and $s$ is the log-gauge coordinate.
-The objective depends on $\theta$ only through $q$:
+where $q$ is a local coordinate on $\cQ$ and $s$ is the log-gauge coordinate.  The objective
+satisfies
 \begin{equation}
     L(\theta(q,s))=F(q).
     \label{eq:loss-quotient}
 \end{equation}
-For the exact theorem we take $\epsilon_{\rm rms}=0$.  For the perturbed theorem we assume
-that $\epsilon_{\rm rms}$ is small enough that the quotient description holds up to an
-$O(\epsilon_{\rm rms})$ error on the local region.
+For the exact statements, $\epsilon_{\rm rms}=0$.  Nonzero RMS stabilization is included
+in the residual model of Assumption~\ref{ass:uniform-perturbation}.
 \end{assumption}
 
-\begin{assumption}[Quadratic local objective]
+\begin{assumption}[Local quadratic model]
 \label{ass:quadratic-objective}
-In the quotient chart, the loss is a strongly convex quadratic
+The quotient objective is
 \begin{equation}
     F(q)=F_\star+\frac{1}{2}(q-q_\star)^\top H(q-q_\star),
     \label{eq:quadratic-F}
 \end{equation}
-where $H\succ 0$ and
-\begin{equation}
-    0<\mu I\preceq H\preceq L I<\infty .
-\end{equation}
+where $H\succ0$ and $0<\mu I\preceq H\preceq L I<\infty$.
 \end{assumption}
 
-Assumption~\ref{ass:quadratic-objective} is the standard local model behind
-condition-number analyses of first-order methods and gives a complete closed-form
-contraction proof.  A smooth strongly convex objective
-can be reduced to this setting locally by replacing $H$ with the Hessian at $q_\star$ and
-controlling the Taylor remainder; the finite-perturbation version is stated in
-Proposition~\ref{prop:complete-perturbation}.
+\begin{lemma}[Gauge tangent orthogonality]
+\label{lem:gauge-null-direction}
+Under Lemma~\ref{lem:exact-positive-gauge}, for any differentiable loss depending on the
+RLB matrices only through the represented function,
+\begin{equation}
+    \ip{\nabla_{A_g}L}{A_g}-\ip{\nabla_{B_g}L}{B_g}=0 .
+    \label{eq:gauge-null-gradient}
+\end{equation}
+\end{lemma}
 
-\subsection{MatrixPolicy canonicalization}
-\label{app:complete-opt-proof:canonicalization}
+\begin{proof}
+Differentiate $L(e^{s_g}A_g,e^{-s_g}B_g)=L(A_g,B_g)$ at $s_g=0$.
+\end{proof}
 
-MatrixPolicy uses the gauge freedom to select a controlled representative of the same
-quotient point.  For group $g$, define the log scale ratio
+\subsection{Canonicalized Quotient Preconditioning}
+\label{app:complete-opt-proof:preconditioning}
+
+For group $g$, define
 \begin{equation}
     \gamma_g=\log \rms(A_g)-\log \rms(B_g).
     \label{eq:complete-gamma}
 \end{equation}
-Let $\tau_g$ be the target log ratio determined by the optimizer's gain and pressure
-statistics.  Ignoring clipping, the rebalance step applies
+Given a target log-ratio $\tau_g$, the unclipped rebalance is
 \begin{equation}
     \ell_g=\frac{1}{2}(\tau_g-\gamma_g),
     \qquad
-    A_g\leftarrow e^{\ell_g}A_g,
+    A_g^+=e^{\ell_g}A_g,
     \qquad
-    B_g\leftarrow e^{-\ell_g}B_g.
+    B_g^+=e^{-\ell_g}B_g.
     \label{eq:complete-rebalance}
 \end{equation}
 
-\begin{lemma}[Exact targeting of the representative]
+\begin{lemma}[RMS-ratio canonicalization]
 \label{lem:complete-targeting}
-If the clipping in \eqref{eq:complete-rebalance} is inactive, then the rebalance maps
-$\gamma_g$ exactly to $\tau_g$.
+The update in \eqref{eq:complete-rebalance} satisfies
+\begin{equation}
+    \log\rms(A_g^+)-\log\rms(B_g^+)=\tau_g .
+\end{equation}
 \end{lemma}
 
 \begin{proof}
-After the rebalance,
+By homogeneity of RMS under positive scaling,
 \begin{align}
-    \gamma_g^+
-    &=\log \rms(e^{\ell_g}A_g)-\log \rms(e^{-\ell_g}B_g) \\
+    \log\rms(A_g^+)-\log\rms(B_g^+)
+    &=\log\rms(e^{\ell_g}A_g)-\log\rms(e^{-\ell_g}B_g) \\
     &=\gamma_g+2\ell_g
-      =\gamma_g+\tau_g-\gamma_g
       =\tau_g .
 \end{align}
 \end{proof}
 
-Thus, in the homogeneous block, the rebalance changes only the gauge coordinate and leaves
-the quotient coordinate $q$ unchanged.  In the exact theorem below we assume the target is
-inside the clipping interval.  If clipping, the RMS floor, or finite precision introduces a
-small deviation from exact canonicalization, that deviation is included in the perturbation
-term of Proposition~\ref{prop:complete-perturbation}.
-
-\subsection{Optimizer-induced quotient dynamics}
-\label{app:complete-opt-proof:quotient-dynamics}
-
-A raw matrix optimizer induces a motion on the quotient coordinate $q$.  In a local
-frozen-state regime, both MatrixPolicy and AdamW can be written as preconditioned gradient
-steps on $F$:
+\begin{lemma}[Gauge-dependent raw quotient step]
+\label{lem:gauge-dependent-step}
+Let $w=ab$, $a=e^s\sqrt{w}$, $b=e^{-s}\sqrt{w}$, and
+$\ell(w)=\frac{1}{2}(w-y)^2$.  One Euclidean gradient-descent step in $(a,b)$ with step
+size $\eta$ gives
 \begin{equation}
-    q_{t+1}=q_t-\eta P\nabla F(q_t),
-    \label{eq:preconditioned-q-update}
+    w^+=w-2\eta w\cosh(2s)(w-y)+O(\eta^2).
+    \label{eq:scalar-gauge-step}
 \end{equation}
-where $P\succ0$ is the quotient preconditioner induced by the optimizer and by the chosen
-gauge representative.  The next assumption makes this statement exact.
+\end{lemma}
 
-\begin{assumption}[Frozen-preconditioner optimizer model]
+\begin{proof}
+Since $\partial\ell/\partial a=(w-y)b$ and $\partial\ell/\partial b=(w-y)a$,
+\begin{align}
+    w^+
+    &=(a-\eta(w-y)b)(b-\eta(w-y)a) \\
+    &=w-\eta(w-y)(a^2+b^2)+O(\eta^2).
+\end{align}
+Using $a^2+b^2=w(e^{2s}+e^{-2s})=2w\cosh(2s)$ gives
+\eqref{eq:scalar-gauge-step}.
+\end{proof}
+
+\begin{assumption}[Frozen quotient preconditioners]
 \label{ass:frozen-preconditioner}
-During the local phase analyzed here, the two optimizers induce fixed positive definite
-quotient preconditioners $P_{\MP}$ and $P_{\AW}$ satisfying
+During the local phase, MatrixPolicy and AdamW induce fixed positive definite quotient
+preconditioners $P_{\MP}$ and $P_{\AW}$ satisfying
 \begin{align}
     q_{t+1}^{\MP}
     &=q_t^{\MP}-\eta_{\MP}P_{\MP}\nabla F(q_t^{\MP}),
@@ -184,149 +167,61 @@ quotient preconditioners $P_{\MP}$ and $P_{\AW}$ satisfying
     &=q_t^{\AW}-\eta_{\AW}P_{\AW}\nabla F(q_t^{\AW}).
     \label{eq:aw-ideal-dynamics}
 \end{align}
-Here $P_{\MP}$ is the preconditioner after MatrixPolicy has applied its gauge rebalance,
-and $P_{\AW}$ is the quotient preconditioner induced by AdamW's raw-coordinate diagonal
-adaptive state at the same represented function.  Weight decay is set to zero in the exact
-theorem, or else is treated as a perturbation in
-Proposition~\ref{prop:complete-perturbation}.
+Here $P_{\MP}$ is the quotient preconditioner after gauge rebalance and $P_{\AW}$ is the
+quotient preconditioner induced by AdamW's raw-coordinate adaptive state.
 \end{assumption}
 
-This idealized frozen-state model isolates the mechanism: AdamW is analyzed as
-the diagonal adaptive method seen by the quotient after its moment estimates have
-stabilized, while MatrixPolicy is analyzed after canonicalizing the RLB gauge.
-
-For a preconditioner $P\succ0$, define the quotient Hessian seen by the optimizer as
+For $P\succ0$, define
 \begin{equation}
     K(P)=P^{1/2}HP^{1/2},
-    \label{eq:quotient-hessian}
-\end{equation}
-and define its condition number
-\begin{equation}
+    \qquad
     \kappa(P;H)=\frac{\lammax(K(P))}{\lammin(K(P))}.
     \label{eq:precond-condition-number}
 \end{equation}
-The best constant step size for the quadratic under preconditioner $P$ is
+Let
 \begin{equation}
     \eta^\star(P)=\frac{2}{\lammax(K(P))+\lammin(K(P))},
-    \label{eq:best-stepsize}
-\end{equation}
-with contraction factor
-\begin{equation}
-    \rho(P;H)
-    =\frac{\kappa(P;H)-1}{\kappa(P;H)+1}.
+    \qquad
+    \rho(P;H)=\frac{\kappa(P;H)-1}{\kappa(P;H)+1}.
     \label{eq:rho-def}
 \end{equation}
 
 \begin{assumption}[Strict quotient-conditioning advantage]
 \label{ass:conditioning-advantage}
-MatrixPolicy's canonicalized quotient preconditioner has a strictly smaller condition
-number than AdamW's raw-coordinate quotient preconditioner:
 \begin{equation}
     \kappa_{\MP}:=\kappa(P_{\MP};H)
     <
     \kappa(P_{\AW};H)=:\kappa_{\AW} .
     \label{eq:kappa-gap}
 \end{equation}
-Equivalently, for some $\Delta_\kappa>0$,
-\begin{equation}
-    \kappa_{\AW}\geq \kappa_{\MP}+\Delta_\kappa .
-\end{equation}
 \end{assumption}
 
-Assumption~\ref{ass:conditioning-advantage} is the mechanism condition.  In the
-local regime being modeled, MatrixPolicy's role-aware matrix step and gauge
-rebalance produce a better conditioned quotient update than the AdamW update
-induced by the raw matrix coordinates.  This is the formal version of the
-mechanism suggested by the empirical comparison.
-
-\subsection{Why the condition-number gap is a gauge effect}
-\label{app:complete-opt-proof:gauge-effect}
-
-The condition-number assumption is natural for RLB because the raw Euclidean coordinates
-contain a nonfunctional scale direction.  We record the elementary calculation.
-
-\begin{lemma}[Gauge directions are null function directions]
-\label{lem:gauge-null-direction}
-Assume $\epsilon_{\rm rms}=0$.  For any differentiable loss depending on the RLB matrices
-only through the represented function,
-\begin{equation}
-    \ip{\nabla_{A_g}L}{A_g}-\ip{\nabla_{B_g}L}{B_g}=0 .
-    \label{eq:gauge-null-gradient}
-\end{equation}
-\end{lemma}
-
-\begin{proof}
-Since $L(T_s(A_g,B_g))=L(A_g,B_g)$ for all $s_g$, differentiate at $s_g=0$:
-\begin{align}
-    0
-    &=\frac{d}{ds_g}L(e^{s_g}A_g,e^{-s_g}B_g)\bigg|_{s_g=0} \\
-    &=\ip{\nabla_{A_g}L}{A_g}-\ip{\nabla_{B_g}L}{B_g}.
-\end{align}
-\end{proof}
-
-Thus $(A_g,-B_g)$ changes the representative but not the function.  AdamW leaves
-this representative dependence in its raw-coordinate diagonal moments, denominator
-terms, and decoupled weight decay.  Consequently, two gauge-equivalent parameterizations can
-induce different $P_{\AW}$ on the quotient.
-
-The following toy calculation shows the scaling explicitly.  Consider the scalar quotient
-coordinate $w=ab$, with gauge $a=e^s\sqrt{w}$ and $b=e^{-s}\sqrt{w}$.  For
-$\ell(w)=\frac{1}{2}(w-y)^2$, raw Euclidean gradient descent in $(a,b)$ gives, to first
-order in the step size,
-\begin{equation}
-    w^+
-    =w-\eta(a^2+b^2)(w-y)+O(\eta^2).
-\end{equation}
-Since
-\begin{equation}
-    a^2+b^2=w(e^{2s}+e^{-2s})=2w\cosh(2s),
-\end{equation}
-the quotient step size depends on the arbitrary gauge $s$.  MatrixPolicy's
-rebalance sets $s$ to a controlled target, while AdamW operates in the raw
-representative.  In higher dimensions, the same
-calculation appears as a gauge-dependent quotient metric, which is summarized by
-$\kappa(P_{\AW};H)$.
-
-\subsection{Contraction theorem}
-\label{app:complete-opt-proof:theorem}
-
-We now prove the optimization separation.  The proof is standard for preconditioned
-gradient descent on a quadratic, but the notation makes explicit that the relevant
-condition number is the quotient condition number, not the raw parameter condition number.
+\subsection{Contraction and Perturbation Bounds}
+\label{app:complete-opt-proof:contraction}
 
 \begin{lemma}[Preconditioned quadratic contraction]
 \label{lem:preconditioned-contraction}
-Let $F$ satisfy Assumption~\ref{ass:quadratic-objective}.  For any $P\succ0$, consider
-\begin{equation}
-    q_{t+1}=q_t-\eta^\star(P)P\nabla F(q_t),
-\end{equation}
-where $\eta^\star(P)$ is defined in \eqref{eq:best-stepsize}.  Then
+Let $F$ satisfy Assumption~\ref{ass:quadratic-objective}.  For $P\succ0$, consider
+$q_{t+1}=q_t-\eta^\star(P)P\nabla F(q_t)$.  Then
 \begin{equation}
     F(q_T)-F_\star
     \leq
     \rho(P;H)^{2T}\bigl(F(q_0)-F_\star\bigr),
     \label{eq:upper-contraction}
 \end{equation}
-where $\rho(P;H)$ is defined in \eqref{eq:rho-def}.  Moreover, the bound is sharp: for
-each $T$, there exists an initialization $q_0$ for which equality holds.
+and the bound is sharp.
 \end{lemma}
 
 \begin{proof}
-Let $e_t=q_t-q_\star$ and define $\widetilde e_t=P^{-1/2}e_t$.  Since
-$\nabla F(q_t)=He_t$, the update becomes
+Let $e_t=q_t-q_\star$ and $\widetilde e_t=P^{-1/2}e_t$.  Then
 \begin{equation}
     \widetilde e_{t+1}
     =\left(I-\eta^\star(P)K(P)\right)\widetilde e_t,
+    \qquad
+    2(F(q_t)-F_\star)=\widetilde e_t^TK(P)\widetilde e_t.
 \end{equation}
-where $K(P)=P^{1/2}HP^{1/2}$.  Also,
-\begin{equation}
-    2(F(q_t)-F_\star)=e_t^THe_t=\widetilde e_t^TK(P)\widetilde e_t.
-\end{equation}
-Diagonalize $K(P)=U\Lambda U^T$ and write $v_t=U^T\widetilde e_t$.  Then
-\begin{equation}
-    v_{t+1,i}=\left(1-\eta^\star(P)\lambda_i\right)v_{t,i}.
-\end{equation}
-The largest absolute multiplier is
+Diagonalize $K(P)=U\Lambda U^T$ and set $v_t=U^T\widetilde e_t$.  The largest multiplier
+satisfies
 \begin{equation}
     \max_i\left|1-\eta^\star(P)\lambda_i\right|
     =
@@ -334,164 +229,64 @@ The largest absolute multiplier is
     {\lammax(K(P))+\lammin(K(P))}
     =\rho(P;H).
 \end{equation}
-Therefore
+Thus
 \begin{align}
     2(F(q_{t+1})-F_\star)
     &=\sum_i \lambda_i v_{t+1,i}^2 \\
     &\leq \rho(P;H)^2\sum_i \lambda_i v_{t,i}^2 \\
     &=2\rho(P;H)^2(F(q_t)-F_\star).
 \end{align}
-Iterating gives \eqref{eq:upper-contraction}.  Equality is obtained by choosing
-$\widetilde e_0$ to be an eigenvector of $K(P)$ associated with either
-$\lammin(K(P))$ or $\lammax(K(P))$.
+Iteration gives \eqref{eq:upper-contraction}.  Equality holds for an eigenvector of
+$K(P)$ associated with $\lammin(K(P))$ or $\lammax(K(P))$.
 \end{proof}
 
 \begin{theorem}[Conditional optimization separation]
 \label{thm:conditional-optimization-separation}
 Suppose Assumptions~\ref{ass:quotient-chart}--\ref{ass:conditioning-advantage} hold, and
-choose the locally optimal constant step sizes
-\begin{equation}
-    \eta_{\MP}=\eta^\star(P_{\MP}),
-    \qquad
-    \eta_{\AW}=\eta^\star(P_{\AW}).
-\end{equation}
-Let
-\begin{equation}
-    \rho_{\MP}=\frac{\kappa_{\MP}-1}{\kappa_{\MP}+1},
-    \qquad
-    \rho_{\AW}=\frac{\kappa_{\AW}-1}{\kappa_{\AW}+1}.
-\end{equation}
-Then
-\begin{equation}
-    \rho_{\MP}<\rho_{\AW}<1 .
-    \label{eq:rho-strict-gap}
-\end{equation}
-Consequently, MatrixPolicy has a strictly smaller worst-case linear convergence factor on
-the quotient objective:
+set $\eta_{\MP}=\eta^\star(P_{\MP})$ and $\eta_{\AW}=\eta^\star(P_{\AW})$.  Then, for every
+integer $T\geq1$,
 \begin{equation}
     \sup_{q_0\neq q_\star}
     \frac{F(q_T^{\MP})-F_\star}{F(q_0)-F_\star}
     \leq
-    \rho_{\MP}^{2T}
+    \left(\frac{\kappa_{\MP}-1}{\kappa_{\MP}+1}\right)^{2T}
     <
-    \rho_{\AW}^{2T}
+    \left(\frac{\kappa_{\AW}-1}{\kappa_{\AW}+1}\right)^{2T}
     =
     \sup_{q_0\neq q_\star}
-    \frac{F(q_T^{\AW})-F_\star}{F(q_0)-F_\star}
+    \frac{F(q_T^{\AW})-F_\star}{F(q_0)-F_\star}.
     \label{eq:main-separation}
 \end{equation}
-for every integer $T\geq1$.
 \end{theorem}
 
 \begin{proof}
 The map $\kappa\mapsto(\kappa-1)/(\kappa+1)$ is strictly increasing for
-$\kappa>1$.  Assumption~\ref{ass:conditioning-advantage} therefore implies
-$\rho_{\MP}<\rho_{\AW}$.  Since both condition numbers are finite and at least one,
-$0\leq\rho_{\MP}<\rho_{\AW}<1$ unless both methods are perfectly conditioned, in which
-case the strict condition-number gap cannot hold.  Applying
-Lemma~\ref{lem:preconditioned-contraction} to $P_{\MP}$ and $P_{\AW}$ gives the two
-worst-case contraction factors.  The strict inequality in \eqref{eq:main-separation}
-follows from $\rho_{\MP}<\rho_{\AW}$ and $T\geq1$.
+$\kappa>1$.  Assumption~\ref{ass:conditioning-advantage} gives
+$\rho(P_{\MP};H)<\rho(P_{\AW};H)$.  Lemma~\ref{lem:preconditioned-contraction} applied to
+$P_{\MP}$ and $P_{\AW}$ gives the two displayed bounds.  The AdamW equality follows from
+sharpness in Lemma~\ref{lem:preconditioned-contraction}.
 \end{proof}
-
-The theorem compares the best constant learning rate for each local preconditioner, so the
-separation is not caused by giving MatrixPolicy a better scalar step size.  It comes only
-from the quotient condition number.  In this sense, the result is an optimizer-level
-statement: after quotienting the RLB gauge, the method with the better induced quotient
-metric converges faster on the local quadratic model.
-
-\subsection{Finite-time dominance for a fixed initialization}
-\label{app:complete-opt-proof:fixed-init}
-
-Theorem~\ref{thm:conditional-optimization-separation} is a worst-case statement.  A fixed
-initialization version follows by assuming that the AdamW trajectory has a component in an
-extremal eigendirection of its quotient Hessian.
-
-\begin{assumption}[Nontrivial AdamW hard-mode component]
-\label{ass:hard-mode}
-Let $K_{\AW}=K(P_{\AW})$.  In the eigenbasis of $K_{\AW}$, the initial transformed error
-$P_{\AW}^{-1/2}(q_0-q_\star)$ has at least an $\alpha$ fraction of its $K_{\AW}$-energy in
-eigendirections whose one-step multiplier under AdamW has absolute value at least
-$\rho_{\AW}-\xi$, where $\alpha\in(0,1]$ and $0\leq\xi<\rho_{\AW}-\rho_{\MP}$.
-\end{assumption}
-
-\begin{corollary}[Fixed-initialization separation]
-\label{cor:fixed-init-separation}
-Under the assumptions of Theorem~\ref{thm:conditional-optimization-separation} and
-Assumption~\ref{ass:hard-mode}, AdamW satisfies
-\begin{equation}
-    F(q_T^{\AW})-F_\star
-    \geq
-    \alpha(\rho_{\AW}-\xi)^{2T}\bigl(F(q_0)-F_\star\bigr).
-    \label{eq:adam-lower-fixed}
-\end{equation}
-MatrixPolicy satisfies
-\begin{equation}
-    F(q_T^{\MP})-F_\star
-    \leq
-    \rho_{\MP}^{2T}\bigl(F(q_0)-F_\star\bigr).
-    \label{eq:mp-upper-fixed}
-\end{equation}
-Thus, whenever
-\begin{equation}
-    \rho_{\MP}^{2T}<\alpha(\rho_{\AW}-\xi)^{2T},
-    \label{eq:fixed-separation-condition}
-\end{equation}
-MatrixPolicy has strictly lower quotient loss after $T$ steps.
-\end{corollary}
-
-\begin{proof}
-Equation~\eqref{eq:mp-upper-fixed} is Lemma~\ref{lem:preconditioned-contraction}.  For
-AdamW, decompose the transformed error in the eigenbasis of $K_{\AW}$.  The part of the
-initial energy in the hard eigendirections is at least an $\alpha$ fraction by
-Assumption~\ref{ass:hard-mode}, and every such component is multiplied by at least
-$\rho_{\AW}-\xi$ in absolute value each step.  This gives
-\eqref{eq:adam-lower-fixed}.  Combining \eqref{eq:adam-lower-fixed} and
-\eqref{eq:mp-upper-fixed} gives the strict separation condition
-\eqref{eq:fixed-separation-condition}.
-\end{proof}
-
-The additional assumption is mild in high-dimensional quadratic models: unless the initial
-error is specially aligned away from AdamW's hard directions, some energy is present in
-those directions.  The corollary is nevertheless stated explicitly because fixed-run
-comparisons always depend on initialization.
-
-\subsection{Perturbation stability}
-\label{app:complete-opt-proof:perturbation}
-
-The exact theorem used a homogeneous radius, frozen optimizer states, zero weight decay,
-and a quadratic loss.  The next proposition states the usual finite-time stability fact:
-if the implemented dynamics are uniformly close to the ideal dynamics, then a strict
-finite-time gap persists.  This is the appropriate $\delta$--$\epsilon$ statement for the
-proof.
 
 \begin{assumption}[Uniform local perturbation bound]
 \label{ass:uniform-perturbation}
-For a fixed horizon $T$, the implemented MatrixPolicy and AdamW quotient iterates satisfy
+For a fixed horizon $T$, the implemented quotient iterates satisfy
 \begin{align}
     q_{t+1}^{\MP,{\rm impl}}
     &=q_t^{\MP,{\rm impl}}-\eta_{\MP}P_{\MP}\nabla F(q_t^{\MP,{\rm impl}})+r_t^{\MP}, \\
     q_{t+1}^{\AW,{\rm impl}}
     &=q_t^{\AW,{\rm impl}}-\eta_{\AW}P_{\AW}\nabla F(q_t^{\AW,{\rm impl}})+r_t^{\AW},
 \end{align}
-with
-\begin{equation}
-    \norm{r_t^{\MP}}_2+\norm{r_t^{\AW}}_2\leq \delta
-\end{equation}
-for all $0\leq t<T$.  The residuals collect the effects of nonzero
-$\epsilon_{\rm rms}$, AdamW denominator floors, EMA lag, clipping, decoupled weight decay,
-and Taylor remainders of the nonquadratic objective.
+with $\norm{r_t^{\MP}}_2+\norm{r_t^{\AW}}_2\leq\delta$ for all $0\leq t<T$.
 \end{assumption}
 
-\begin{proposition}[Stability of the strict gap]
+\begin{proposition}[Stability of a strict finite-time gap]
 \label{prop:complete-perturbation}
-Fix $T\geq1$ and suppose the idealized dynamics satisfy a strict finite-time gap
+Fix $T\geq1$ and suppose the idealized dynamics satisfy
 \begin{equation}
-    m_T
-    :=F(q_T^{\AW})-F(q_T^{\MP})>0 .
+    m_T:=F(q_T^{\AW})-F(q_T^{\MP})>0 .
     \label{eq:finite-gap}
 \end{equation}
-Assume the ideal trajectories remain in a compact region on which $F$ is Lipschitz and the
+Assume the ideal trajectories remain in a compact region on which $F$ and the ideal
 one-step maps are Lipschitz.  Then there exists $\delta_0>0$ such that, whenever
 Assumption~\ref{ass:uniform-perturbation} holds with $\delta<\delta_0$,
 \begin{equation}
@@ -501,53 +296,21 @@ Assumption~\ref{ass:uniform-perturbation} holds with $\delta<\delta_0$,
 \end{proposition}
 
 \begin{proof}
-Let $\Psi_{\MP}$ and $\Psi_{\AW}$ denote the ideal one-step maps.  By compactness, both
-maps are Lipschitz on a neighborhood of the two ideal trajectories; let $C_\Psi$ be a
-common Lipschitz constant.  A standard induction gives
+Let $\Psi_{\MP}$ and $\Psi_{\AW}$ be the ideal one-step maps.  On a compact neighborhood
+of the ideal trajectories, let $C_\Psi$ be a common Lipschitz constant.  By induction,
 \begin{equation}
     \norm{q_t^{\MP,{\rm impl}}-q_t^{\MP}}
     +
     \norm{q_t^{\AW,{\rm impl}}-q_t^{\AW}}
-    \leq
-    C_T\delta,
+    \leq C_T\delta
 \end{equation}
-where $C_T$ depends on $T$ and $C_\Psi$ but not on $\delta$.  Since $F$ is Lipschitz on the
-same compact region, with constant $C_F$,
+for a constant $C_T$ depending only on $T$ and $C_\Psi$.  If $C_F$ is a Lipschitz constant
+for $F$ on the same compact region, then
 \begin{equation}
     \left|F(q_T^{\MP,{\rm impl}})-F(q_T^{\MP})\right|
     +
     \left|F(q_T^{\AW,{\rm impl}})-F(q_T^{\AW})\right|
-    \leq
-    C_F C_T\delta .
+    \leq C_F C_T\delta .
 \end{equation}
-Choose $\delta_0=m_T/(2C_FC_T)$.  Then $\delta<\delta_0$ implies
-\begin{align}
-    F(q_T^{\AW,{\rm impl}})-F(q_T^{\MP,{\rm impl}})
-    &\geq F(q_T^{\AW})-F(q_T^{\MP})-C_FC_T\delta \\
-    &>m_T/2.
-\end{align}
-This proves \eqref{eq:stable-gap}.
+Taking $\delta_0=m_T/(2C_FC_T)$ gives the claim.
 \end{proof}
-
-In particular, if the ideal strict gap comes from
-Corollary~\ref{cor:fixed-init-separation}, then the separation survives all sufficiently
-small stabilizer, moment-lag, clipping, and weight-decay perturbations.  This is why the
-exact homogeneous proof is still informative for the implemented optimizer: the conclusion
-is finite-time stable as long as the run remains in the local regime described by the
-assumptions.
-
-\subsection{Statement of what is proved}
-\label{app:complete-opt-proof:scope}
-
-The result can be summarized as follows.  Under a local quotient model of the RLB block,
-MatrixPolicy's rebalance step removes a nonfunctional positive scale degree of freedom and
-thereby induces a canonical quotient preconditioner.  If that preconditioner has a strictly
-smaller condition number than the quotient preconditioner induced by AdamW's raw-coordinate
-adaptive state, then MatrixPolicy has a strictly smaller worst-case contraction factor on a
-strongly convex quadratic quotient objective.  The finite-time gap is stable under small
-implementation perturbations.
-
-The theorem is a local quotient result for the mechanism tested empirically in
-the main text: RLB exposes a gauge structure, and an optimizer that canonicalizes
-and preconditions the quotient can converge faster than a coordinatewise optimizer
-whose effective update depends on the arbitrary gauge representative.
