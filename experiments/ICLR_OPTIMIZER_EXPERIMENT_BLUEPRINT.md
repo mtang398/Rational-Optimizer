@@ -239,6 +239,23 @@ optimizer_overhead.csv
 mechanism_summary.csv
 ```
 
+## Accepted Optimizer-Paper Evidence Standard
+
+The target evidence standard is set by accepted optimizer papers, not by the current machine budget:
+
+| Paper | Relevant standard to match |
+| --- | --- |
+| Sophia, ICLR 2024 | Report token, step, compute, and wall-clock speed-to-target across GPT scales; include optimizer overhead and large-scale language modeling. |
+| SOAP, ICLR 2025 | Compare against Adam, Shampoo/Adafactor-style baselines; report stability, memory, hyperparameter sensitivity, and language-model performance. |
+| Lion, NeurIPS 2023 | Use broad tuned baselines, smaller LR grid for sign updates, memory/compute accounting, task transfer, and explicit limitations. |
+| Schedule-Free, NeurIPS 2024 | Compare to scheduled baselines across tasks; report horizon-free behavior and OpenWebText/GPT-style evidence. |
+| AdEMAMix, ICLR 2025 | Show long-horizon token efficiency, slow-gradient relevance, forgetting behavior, and paper-style alpha/beta3 warmups. |
+| CAME, ACL 2023 | Report convergence and memory footprint, especially versus Adam/Adafactor-like memory-efficient baselines. |
+
+Reference links used for this standard: Sophia ICLR 2024 (`https://proceedings.iclr.cc/paper_files/paper/2024/hash/06960915ba8674c7a898ec0b472b80ff-Abstract-Conference.html`), SOAP ICLR 2025 (`https://openreview.net/forum?id=IDxZhXrpNf`), Lion NeurIPS 2023 (`https://proceedings.neurips.cc/paper_files/paper/2023/hash/9a39b4925e35cf447ccba8757137d84f-Abstract.html`), Schedule-Free NeurIPS 2024 (`https://openreview.net/forum?id=0XeNkkENuI`), AdEMAMix ICLR 2025 (`https://iclr.cc/virtual/2025/poster/28625`), and CAME ACL 2023/arXiv (`https://arxiv.org/abs/2307.02047`).
+
+RationalOPT therefore needs tuned optimizer-family surfaces, final held-out benchmarks, speed-to-target, overhead, academic-scale scaling, transfer, and mechanism/stability evidence. A single same-LR table is not a paper result. The plan should use the best academically feasible proxy and scaling evidence, not claim that industrial 100B-token reproduction is necessary.
+
 ## Experiment Phase A: Fair HPO, Not Final Results
 
 Purpose: choose fair optimizer settings before final comparisons and produce the hyperparameter-sensitivity figures reviewers expect from optimizer papers.
@@ -258,8 +275,9 @@ global tokens/step: 32768
 Schedule:
 
 ```text
-pilot length: 1000 steps
+surface length: 1525 steps for bounded HPO chunks
 confirmation length: 3050 steps for the top configs
+long-horizon length: academically feasible longer-token runs that test AdEMAMix/Schedule-Free/Sophia-style claims, not industrial-scale reproduction
 eval interval: 50
 log interval: 10
 ```
@@ -290,8 +308,10 @@ HPO structure:
 2. For each family, hold the top LR/WD band and sweep the family-specific parameters below.
 3. Run beta/min-LR/clip/eps sensitivity for Adam-like methods.
 4. Run update-scale/weight-decay/momentum sensitivity for matrix and sign optimizers.
-5. Confirm the top 5 configs per family at 3050 steps on both HPO corpora.
-6. Carry forward either one shared config per family or two corpus-specific configs if the ranking differs materially between FineWeb and FineWeb-Edu.
+5. Run bounded chunks with `CONFIG_START` and `CONFIG_LIMIT`; do not submit monolithic multi-day HPO jobs.
+6. Confirm the top 5 configs per family at 3050 steps on both HPO corpora.
+7. Carry forward either one shared config per family or two corpus-specific configs if the ranking differs materially between FineWeb and FineWeb-Edu.
+8. For final results, plot mean +/- std curves and report speed-to-target in tokens, steps, GPU-hours, and wall-clock time.
 
 Shared grid:
 

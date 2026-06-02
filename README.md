@@ -66,6 +66,8 @@ What is not yet claimed:
 
 The full paper program is in `experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`. The current result is preliminary evidence for that program, not the final benchmark.
 
+The paper plan is intentionally not a resource-excuse plan, but it is also not an industrial-pretraining plan. The target is what a strong academic optimizer paper can defend: carefully tuned baselines, enough scale to show the trend, transfer beyond the selection corpora, speed-to-target, overhead, stability, and mechanism evidence. Accepted optimizer papers set the evidence style: Sophia reports step, compute, and wall-clock speed-to-target across GPT scales; SOAP compares Adam, Shampoo, Adafactor-style behavior, stability, and overhead on language modeling; Lion evaluates broad task transfer, memory, compute, learning-rate sensitivity, and limitations; Schedule-Free reports horizon-free behavior across deep-learning tasks including OpenWebText GPT-2; AdEMAMix reports long-horizon language-model token efficiency and forgetting; CAME emphasizes convergence and memory. RationalOPT must match that style at academic scale before it is treated as ICLR-ready.
+
 Implemented since the 3-seed result:
 
 ```text
@@ -83,10 +85,14 @@ Phase A HPO scaffolding with unique token caches and guarded 4-A6000 launch slic
 Still required before paper-result runs:
 
 ```text
-complete the active Phase A HPO runs with LR/WD surfaces and family-specific sensitivity plots for all supported optimizer families
-summarize Phase A and select tuned configs without using the preliminary 3-seed screen as the final benchmark
-final tuned benchmark across FineWeb-Edu, FineWeb, and DCLM or Dolma
-speed-to-target, scale, mechanism-intervention, and downstream evaluation figures
+reference-matched baselines, not just locally named baseline styles
+full LR/WD/beta/clip/eps surfaces with mean +/- std curves
+speed-to-target in tokens, optimizer steps, GPU-hours, and wall-clock time
+throughput, memory, and optimizer-overhead tables
+final tuned benchmark across FineWeb-Edu, FineWeb, DCLM, and at least one additional transfer corpus/task
+model-scale and token-budget scaling at academic scale, including at least one larger-than-123M setting and a longer-token run that tests whether the trend survives
+mechanism interventions: gauge-equivalent initialization, mid-training gauge perturbation, optimizer-state gauge covariance, role update geometry, function movement
+stability/accounting: divergence rate, failed-run policy, seeds, exact configs, and confidence intervals
 ```
 
 ## Method Sketch
@@ -228,7 +234,7 @@ TODO.md             research backlog and paper-readiness checklist
 
 The next phase follows the blueprint, not an ablation-first path:
 
-1. Keep the active Phase A HPO slices within the 4-A6000-per-job and 8-active-A6000 limits; dependency-queued jobs are fine.
+1. Finish Phase A HPO as bounded chunks, not monolithic multi-day jobs.
 2. Summarize Phase A with `experiments/scripts/summarize_iclr_phase_a_hpo.py`, select tuned configs, then run final benchmarks and mechanism experiments.
 3. Treat AdEMAMix as paper-style only with no slow-EMA bias correction and alpha/beta3 warmups; any older partial runs without those settings are invalid.
 4. Convert telemetry and tuned benchmark outputs into paper figures: LR/WD surfaces, speed-to-target, overhead/memory, role telemetry, gauge/function movement, and mechanism-intervention tables.

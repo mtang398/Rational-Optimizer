@@ -183,13 +183,16 @@ Current paper-program launchers:
 
 ```bash
 sbatch experiments/scripts/run_iclr_optimizer_validation_20260602.sh
-CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="adamw muon lion soap_adamw" sbatch experiments/scripts/run_iclr_phase_a_hpo_20260602.sh
-CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="ademamix schedule_free_adamw adafactor_came rational_matrix_policy_onpolicy" sbatch experiments/scripts/run_iclr_phase_a_hpo_20260602.sh
+CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="adamw muon lion soap_adamw" CONFIG_START=0 CONFIG_LIMIT=8 sbatch experiments/scripts/run_iclr_phase_a_hpo_20260602.sh
+CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="ademamix schedule_free_adamw adafactor_came rational_matrix_policy_onpolicy" CONFIG_START=0 CONFIG_LIMIT=6 sbatch experiments/scripts/run_iclr_phase_a_hpo_20260602.sh
+CONFIRM_ICLR_PHASE_A=1 experiments/scripts/submit_iclr_phase_a_chunks_20260602.sh
 ```
 
-The HPO launcher refuses to run unless `CONFIRM_ICLR_PHASE_A=1` is set. Each submitted HPO job uses 4 A6000 GPUs; keep at most two active jobs. It supports family-specific `*_LRS` and `*_WEIGHT_DECAYS` variables so Lion and AdEMAMix are not forced onto the AdamW grid. AdEMAMix HPO rows should use the default paper-style alpha and beta3 warmups; older partial rows without that fix are invalid.
+The HPO launcher refuses to run unless `CONFIRM_ICLR_PHASE_A=1` is set. Each submitted HPO job uses 4 A6000 GPUs; keep at most two active jobs. It supports family-specific `*_LRS` and `*_WEIGHT_DECAYS` variables so Lion and AdEMAMix are not forced onto the AdamW grid. It also supports `CONFIG_START` and `CONFIG_LIMIT`; wide grids must be run as bounded chunks, not 7-day monolithic jobs. AdEMAMix HPO rows should use the default paper-style alpha and beta3 warmups; older partial rows without that fix are invalid.
 
 The current launch sequence has passed tiny CUDA/DDP telemetry and broad-optimizer validation. The active work is Phase A HPO on FineWeb-Edu and FineWeb. Do not run MatrixPolicy component ablations before tuned configs exist from that HPO phase.
+
+Chunking rule: submit chunks of roughly 6-8 configs per job for the adaptive lane and 8-10 configs per job for the core lane. Chain chunks with `afterok` dependencies. This keeps wall times bounded while preserving the 4-GPU-per-job and 8-active-GPU limits. The launcher stores token caches under `TOKEN_CACHE_DIR/<task>` so FineWeb and FineWeb-Edu never share tokenized data. This is operational discipline only; the paper TODO remains the academically strongest evidence plan, not a list cut down to today's queue.
 
 Current launch order:
 

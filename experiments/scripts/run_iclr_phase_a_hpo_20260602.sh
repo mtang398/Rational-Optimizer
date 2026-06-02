@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:nvidia_rtx_a6000:4
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=128G
-#SBATCH --time=72:00:00
+#SBATCH --time=12:00:00
 #SBATCH --requeue
 #SBATCH --signal=B:USR1@300
 #SBATCH --output=/home/mt872/rationalOPT/experiments/runs/logs/%x-%j.out
@@ -40,6 +40,8 @@ LOG_INTERVAL="${LOG_INTERVAL:-10}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-50}"
 MAX_REPO_GIB="${MAX_REPO_GIB:-190}"
 MAX_CONFIGS="${MAX_CONFIGS:-0}"
+CONFIG_START="${CONFIG_START:-0}"
+CONFIG_LIMIT="${CONFIG_LIMIT:-${MAX_CONFIGS}}"
 CONFIRM_ICLR_PHASE_A="${CONFIRM_ICLR_PHASE_A:-0}"
 
 if [[ "${HPO_STAGE}" == "confirm" ]]; then
@@ -199,6 +201,7 @@ run_config() {
   local extra_args="${7:-}"
   local run_name="${task}_${tag}_lr${lr}_wd${wd}_${RUN_SUFFIX}"
   local run_dir="${OUTPUT_ROOT}/${task}/${run_name}"
+  local task_cache_dir="${TOKEN_CACHE_DIR}/${task}"
   local pending=""
   local activation
 
@@ -227,7 +230,7 @@ run_config() {
   LOG_INTERVAL="${LOG_INTERVAL}" \
   NPROC_PER_NODE="${NPROC_PER_NODE}" \
   SKIP_BUILD_EXT="1" \
-  EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${TOKEN_CACHE_DIR} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} --lr ${lr} --weight-decay ${wd} --probe-batch-size 1 --matrix-spectrum-interval 250 ${extra_args}" \
+  EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${task_cache_dir} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} --lr ${lr} --weight-decay ${wd} --probe-batch-size 1 --matrix-spectrum-interval 250 ${extra_args}" \
   bash training/run_wikitext103_optimizer_sweep.sbatch
 }
 
@@ -270,27 +273,34 @@ planned_configs() {
   echo "${count}"
 }
 
-maybe_stop_after_max() {
-  CONFIGS_STARTED=$((CONFIGS_STARTED + 1))
-  if (( MAX_CONFIGS > 0 && CONFIGS_STARTED > MAX_CONFIGS )); then
-    echo "=== MAX_CONFIGS=${MAX_CONFIGS} reached; stopping cleanly ==="
+should_run_config() {
+  CONFIGS_SEEN=$((CONFIGS_SEEN + 1))
+  local zero_based=$((CONFIGS_SEEN - 1))
+  if (( zero_based < CONFIG_START )); then
+    return 1
+  fi
+  if (( CONFIG_LIMIT > 0 && CONFIGS_STARTED >= CONFIG_LIMIT )); then
+    echo "=== CONFIG_LIMIT=${CONFIG_LIMIT} reached after CONFIG_START=${CONFIG_START}; stopping cleanly ==="
     "${PYTHON}" experiments/scripts/summarize_iclr_phase_a_hpo.py --run-root "${OUTPUT_ROOT}" --output-dir "${OUTPUT_ROOT}/summary" || true
     exit 0
   fi
+  CONFIGS_STARTED=$((CONFIGS_STARTED + 1))
+  return 0
 }
 
 if [[ "${CONFIRM_ICLR_PHASE_A}" != "1" ]]; then
   echo "Refusing to start Phase A HPO without CONFIRM_ICLR_PHASE_A=1."
   echo "Planned configs: $(planned_configs). One job uses 4 A6000s; submit at most two active jobs for the 8-GPU cap."
-  echo "Use HPO_FAMILIES to split families across two jobs, family-specific *_LRS/*_WEIGHT_DECAYS for fair grids, and MAX_CONFIGS for controlled slices."
+  echo "Use HPO_FAMILIES to split families across two jobs, family-specific *_LRS/*_WEIGHT_DECAYS for fair grids, and CONFIG_START/CONFIG_LIMIT for bounded chunks."
   exit 2
 fi
 
 mkdir -p experiments/runs/logs
 check_repo_size
+CONFIGS_SEEN=0
 CONFIGS_STARTED=0
 
-echo "=== ICLR Phase A HPO ${SLURM_JOB_ID:-manual}; stage=${HPO_STAGE}; planned=$(planned_configs); one job uses 4 A6000s ==="
+echo "=== ICLR Phase A HPO ${SLURM_JOB_ID:-manual}; stage=${HPO_STAGE}; planned=$(planned_configs); chunk_start=${CONFIG_START}; chunk_limit=${CONFIG_LIMIT}; one job uses 4 A6000s ==="
 for task in ${TASKS}; do
   task_spec "${task}"
   for family in ${HPO_FAMILIES}; do
@@ -300,39 +310,39 @@ for task in ${TASKS}; do
       for wd in ${FAMILY_WEIGHT_DECAYS}; do
         case "${family}" in
           adamw|lion)
-            maybe_stop_after_max
+            should_run_config || continue
             run_config "${task}" "${family}" "${family}" "silu ${RLB_ACTIVATION}" "${lr}" "${wd}"
             ;;
           muon)
             for momentum in ${MUON_MOMENTA}; do
-              maybe_stop_after_max
+              should_run_config || continue
               run_config "${task}" "muon_m${momentum}" "muon" "silu ${RLB_ACTIVATION}" "${lr}" "${wd}" "--muon-momentum ${momentum}"
             done
             ;;
           ademamix)
             for alpha in ${ADEMAMIX_ALPHAS}; do
               for beta3 in ${ADEMAMIX_BETA3S}; do
-                maybe_stop_after_max
+                should_run_config || continue
                 run_config "${task}" "ademamix_a${alpha}_b3${beta3}" "ademamix" "silu ${RLB_ACTIVATION}" "${lr}" "${wd}" "--ademamix-alpha ${alpha} --ademamix-beta3 ${beta3}"
               done
             done
             ;;
           schedule_free_adamw)
             for beta1 in ${SCHEDULE_FREE_BETA1S}; do
-              maybe_stop_after_max
+              should_run_config || continue
               run_config "${task}" "schedule_free_b1${beta1}" "schedule_free_adamw" "silu ${RLB_ACTIVATION}" "${lr}" "${wd}" "--schedule-free-beta1 ${beta1} --schedule-free-warmup-steps 0"
             done
             ;;
           adafactor_came)
             for confidence in ${CAME_CONFIDENCE_SCALES}; do
-              maybe_stop_after_max
+              should_run_config || continue
               run_config "${task}" "adafactor_came_c${confidence}" "adafactor_came" "silu ${RLB_ACTIVATION}" "${lr}" "${wd}" "--came-confidence-scale ${confidence}"
             done
             ;;
           soap_adamw)
             for freq in ${SOAP_FREQS}; do
               for one_sided in ${SOAP_ONE_SIDED_VALUES}; do
-                maybe_stop_after_max
+                should_run_config || continue
                 flag="--soap-precondition-frequency ${freq}"
                 if [[ "${one_sided}" == "true" ]]; then
                   flag="${flag} --soap-one-sided"
@@ -346,7 +356,7 @@ for task in ${TASKS}; do
           rational_matrix_policy_onpolicy)
             for adam_scale in ${MATRIX_ADAM_LR_SCALES}; do
               for group_gain in ${MATRIX_GROUP_GAINS}; do
-                maybe_stop_after_max
+                should_run_config || continue
                 run_config \
                   "${task}" \
                   "matrix_policy_as${adam_scale}_gg${group_gain}" \
