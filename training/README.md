@@ -34,14 +34,14 @@ RLB + rational_matrix_policy_onpolicy
 
 The current public tables use `silu` and `rlb_fused_fixed_strong_ffn` as the two activation rows.
 
-The full paper benchmark must additionally support tuned broad baselines:
+The harness now exposes these additional broad baselines for tuned paper runs:
 
 ```text
-SOAP/Shampoo-style
-Lion
-AdEMAMix
-Schedule-Free AdamW
-Adafactor/CAME
+--optimizer soap_adamw              # SOAP/Shampoo-style AdamW eigenbasis baseline
+--optimizer lion
+--optimizer ademamix
+--optimizer schedule_free_adamw     # schedule-free-style AdamW baseline
+--optimizer adafactor_came          # Adafactor/CAME-style factored adaptive baseline
 ```
 
 ## MatrixPolicy Wiring
@@ -152,7 +152,7 @@ MatrixPolicy role update, weight, LR-scale, Muon-mix, pressure, activity, and gr
 SVD entropy for attention and RLB matrices at configured intervals
 ```
 
-Before launching Phase A HPO, run a tiny CUDA/DDP validation and verify these fields appear in JSONL on rank 0.
+Before launching Phase A HPO, run a tiny CUDA/DDP validation and verify these fields appear in JSONL on rank 0. Also verify at least one smoke row for each new broad optimizer name because the CPU checks do not exercise CUDA/DDP interaction.
 
 ## Runtime Rules
 

@@ -82,7 +82,16 @@ RATIONAL_ACTIVATIONS = {
 }
 
 
-CLASSIC_OPTIMIZERS = {"adamw", "muon", "factored_adamw"}
+CLASSIC_OPTIMIZERS = {
+    "adamw",
+    "factored_adamw",
+    "muon",
+    "lion",
+    "ademamix",
+    "schedule_free_adamw",
+    "adafactor_came",
+    "soap_adamw",
+}
 RATIONAL_SPECIFIC_OPTIMIZERS = {
     "rational_onpolicy_balance",
     "rational_quotient_onpolicy",
@@ -4949,6 +4958,66 @@ def configure_optimizer(model, args):
             factored_min_dim=args.factored_min_dim,
             clip_threshold=args.factored_clip_threshold,
         )
+    if args.optimizer == "lion":
+        from optimizer_design import Lion
+
+        return Lion(
+            groups,
+            lr=args.lr,
+            betas=(args.beta1, args.beta2),
+            weight_decay=args.weight_decay,
+        )
+    if args.optimizer == "ademamix":
+        from optimizer_design import AdEMAMix
+
+        return AdEMAMix(
+            groups,
+            lr=args.lr,
+            betas=(args.beta1, args.beta2, args.ademamix_beta3),
+            eps=args.eps,
+            weight_decay=args.weight_decay,
+            alpha=args.ademamix_alpha,
+        )
+    if args.optimizer == "schedule_free_adamw":
+        from optimizer_design import ScheduleFreeAdamW
+
+        return ScheduleFreeAdamW(
+            groups,
+            lr=args.lr,
+            beta1=args.schedule_free_beta1,
+            beta2=args.beta2,
+            eps=args.eps,
+            weight_decay=args.weight_decay,
+            warmup_steps=args.schedule_free_warmup_steps,
+        )
+    if args.optimizer == "adafactor_came":
+        from optimizer_design import CAMEStyleAdamW
+
+        return CAMEStyleAdamW(
+            groups,
+            lr=args.lr,
+            betas=(args.beta1, args.beta2, args.came_beta3),
+            eps=args.eps,
+            weight_decay=args.weight_decay,
+            factored_min_dim=args.factored_min_dim,
+            clip_threshold=args.factored_clip_threshold,
+            confidence_scale=args.came_confidence_scale,
+            confidence_min=args.came_confidence_min,
+            confidence_max=args.came_confidence_max,
+        )
+    if args.optimizer == "soap_adamw":
+        from optimizer_design import SOAPStyleAdamW
+
+        return SOAPStyleAdamW(
+            groups,
+            lr=args.lr,
+            betas=(args.beta1, args.beta2),
+            eps=args.eps,
+            weight_decay=args.weight_decay,
+            precondition_frequency=args.soap_precondition_frequency,
+            large_side_identity_threshold=args.soap_large_side_identity_threshold,
+            one_sided=args.soap_one_sided,
+        )
     if args.optimizer == "muon":
         muon_named = []
         adam_decay = []
@@ -6450,6 +6519,17 @@ def parse_args():
     parser.add_argument("--eps", type=float, default=1e-8)
     parser.add_argument("--factored-min-dim", type=int, default=128)
     parser.add_argument("--factored-clip-threshold", type=float, default=1.0)
+    parser.add_argument("--ademamix-beta3", type=float, default=0.9999)
+    parser.add_argument("--ademamix-alpha", type=float, default=5.0)
+    parser.add_argument("--schedule-free-beta1", type=float, default=0.9)
+    parser.add_argument("--schedule-free-warmup-steps", type=int, default=0)
+    parser.add_argument("--came-beta3", type=float, default=0.999)
+    parser.add_argument("--came-confidence-scale", type=float, default=1.0)
+    parser.add_argument("--came-confidence-min", type=float, default=0.25)
+    parser.add_argument("--came-confidence-max", type=float, default=4.0)
+    parser.add_argument("--soap-precondition-frequency", type=int, default=50)
+    parser.add_argument("--soap-large-side-identity-threshold", type=int, default=2048)
+    parser.add_argument("--soap-one-sided", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--rational-dense-depth-gain", type=float, default=0.15)
     parser.add_argument("--rational-dense-no-decay-lr-scale", type=float, default=0.75)
     parser.add_argument("--rational-dense-min-lr-scale", type=float, default=0.70)
@@ -6866,8 +6946,19 @@ def main():
         "optimizer_lr": args.lr,
         "optimizer_min_lr": args.min_lr,
         "optimizer_weight_decay": args.weight_decay,
-        "factored_min_dim": args.factored_min_dim if "factored" in args.optimizer else None,
-        "factored_clip_threshold": args.factored_clip_threshold if "factored" in args.optimizer else None,
+        "factored_min_dim": args.factored_min_dim if args.optimizer in {"factored_adamw", "adafactor_came"} else None,
+        "factored_clip_threshold": args.factored_clip_threshold if args.optimizer in {"factored_adamw", "adafactor_came"} else None,
+        "ademamix_beta3": args.ademamix_beta3 if args.optimizer == "ademamix" else None,
+        "ademamix_alpha": args.ademamix_alpha if args.optimizer == "ademamix" else None,
+        "schedule_free_beta1": args.schedule_free_beta1 if args.optimizer == "schedule_free_adamw" else None,
+        "schedule_free_warmup_steps": args.schedule_free_warmup_steps if args.optimizer == "schedule_free_adamw" else None,
+        "came_beta3": args.came_beta3 if args.optimizer == "adafactor_came" else None,
+        "came_confidence_scale": args.came_confidence_scale if args.optimizer == "adafactor_came" else None,
+        "came_confidence_min": args.came_confidence_min if args.optimizer == "adafactor_came" else None,
+        "came_confidence_max": args.came_confidence_max if args.optimizer == "adafactor_came" else None,
+        "soap_precondition_frequency": args.soap_precondition_frequency if args.optimizer == "soap_adamw" else None,
+        "soap_large_side_identity_threshold": args.soap_large_side_identity_threshold if args.optimizer == "soap_adamw" else None,
+        "soap_one_sided": args.soap_one_sided if args.optimizer == "soap_adamw" else None,
         "rational_dense_depth_gain": args.rational_dense_depth_gain if "layerwise" in args.optimizer else None,
         "rational_dense_no_decay_lr_scale": args.rational_dense_no_decay_lr_scale if "layerwise" in args.optimizer else None,
         "rational_dense_min_lr_scale": args.rational_dense_min_lr_scale if "layerwise" in args.optimizer else None,

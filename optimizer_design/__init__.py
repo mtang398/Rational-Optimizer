@@ -2,6 +2,7 @@
 
 from .function_space_rational_optimizer import FunctionSpaceRationalOptimizer
 from .factored_adamw import FactoredAdamW
+from .baseline_optimizers import AdEMAMix, CAMEStyleAdamW, Lion, ScheduleFreeAdamW, SOAPStyleAdamW
 from .switching_rational_optimizer import SwitchingRationalOptimizer
 from .onpolicy_balance_optimizer import RationalOnPolicyBalanceOptimizer
 from .quotient_onpolicy_optimizer import RationalQuotientOnPolicyOptimizer
@@ -15,6 +16,11 @@ from .matrix_policy_optimizer import RationalMatrixPolicyOptimizer
 __all__ = [
     "FunctionSpaceRationalOptimizer",
     "FactoredAdamW",
+    "AdEMAMix",
+    "CAMEStyleAdamW",
+    "Lion",
+    "ScheduleFreeAdamW",
+    "SOAPStyleAdamW",
     "SwitchingRationalOptimizer",
     "RationalOnPolicyBalanceOptimizer",
     "RationalQuotientOnPolicyOptimizer",

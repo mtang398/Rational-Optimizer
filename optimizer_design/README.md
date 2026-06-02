@@ -1,6 +1,6 @@
 # Optimizer Design
 
-This directory contains the rational-specific optimizer implementations. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
+This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
 ## Problem Setup
 
@@ -176,6 +176,20 @@ B_{l,g} <- B_{l,g} / s_g
 ```
 
 This changes the parameterization but preserves the represented function up to floating-point error.
+
+## Generic Baseline Optimizers
+
+`baseline_optimizers.py` adds the broad optimizer-family controls needed for the paper HPO harness:
+
+```text
+lion                  -> Lion with decoupled weight decay
+ademamix              -> AdamW plus a slow gradient EMA
+schedule_free_adamw   -> schedule-free-style AdamW/Polyak interpolation baseline
+adafactor_came        -> factored adaptive AdamW with CAME-style confidence correction
+soap_adamw            -> SOAP/Shampoo-style eigenbasis AdamW for eligible 2D tensors
+```
+
+The SOAP/Shampoo and CAME rows are intentionally labeled as style baselines until they are matched line-by-line to a reference implementation. They are now suitable for Phase A tuning and stability checks, not for claiming exact reproduction of those papers.
 
 ## Full Step Order
 

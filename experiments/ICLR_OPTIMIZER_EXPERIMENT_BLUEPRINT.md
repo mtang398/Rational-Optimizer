@@ -76,7 +76,7 @@ fairly tuned optimizer benchmark
 
 ## Required Code Before New GPU Runs
 
-Do this before launching more experiments. This is not optional instrumentation; these fields define the evidence the paper will need.
+Telemetry and broad baseline optimizer wiring are now implemented. The remaining pre-launch requirement is to validate them under CUDA/DDP and add the Phase A HPO launch/summarization layer. The fields below define what must be checked in that validation.
 
 ### 1. Add Optimizer Telemetry
 
@@ -174,9 +174,9 @@ svd_entropy_rlb_out
 
 This mirrors Muon's spectrum analysis but uses our roles.
 
-### 4. Add A Real Matrix-Preconditioned Baseline
+### 4. Matrix-Preconditioned Baseline Status
 
-Muon alone is insufficient. Implement or vendor a SOAP/Shampoo-style baseline.
+Muon alone is insufficient. The harness now includes `soap_adamw`, a SOAP/Shampoo-style eigenbasis AdamW baseline for eligible 2D tensors.
 
 Required implementation target:
 
@@ -191,19 +191,19 @@ state precision: fp32 first
 
 Do not call this a final SOAP reproduction until matched against the original implementation details. In paper tables, label it accurately as `SOAP-style AdamW eigenbasis` unless it exactly matches a known implementation.
 
-### 5. Add Broad Optimizer Baselines
+### 5. Broad Baseline Family Status
 
-The final benchmark should not look like MatrixPolicy was compared only to weak or convenient controls. Implement or integrate these families before the final benchmark:
+The final benchmark should not look like MatrixPolicy was compared only to weak or convenient controls. The harness now exposes these families for Phase A tuning:
 
 | family | required variants | why it is needed |
 | --- | --- | --- |
 | AdamW | SiLU/SwiGLU, RLB | standard baseline and current strongest generic baseline |
 | Muon | SiLU/SwiGLU, RLB | spectral/matrix optimizer baseline, update-scale treatment required |
-| SOAP/Shampoo-style | SiLU/SwiGLU, RLB | direct matrix preconditioning competitor |
-| Lion | SiLU/SwiGLU, RLB if stable | sign/momentum optimizer baseline with LR/WD surfaces |
-| AdEMAMix | SiLU/SwiGLU, RLB if stable | token-efficiency competitor with long-gradient-memory behavior |
-| Schedule-Free AdamW | SiLU/SwiGLU, RLB if stable | horizon-free competitor and stopping-time stress test |
-| Adafactor/CAME | SiLU/SwiGLU, RLB if stable | factorized-memory adaptive optimizer baseline |
+| `soap_adamw` | SiLU/SwiGLU, RLB | direct matrix preconditioning competitor; style baseline until reference-matched |
+| `lion` | SiLU/SwiGLU, RLB if stable | sign/momentum optimizer baseline with LR/WD surfaces |
+| `ademamix` | SiLU/SwiGLU, RLB if stable | token-efficiency competitor with long-gradient-memory behavior |
+| `schedule_free_adamw` | SiLU/SwiGLU, RLB if stable | horizon-free competitor and stopping-time stress test |
+| `adafactor_came` | SiLU/SwiGLU, RLB if stable | factorized-memory adaptive optimizer baseline; style baseline until reference-matched |
 | MatrixPolicy | RLB primary; SiLU/SwiGLU only if a non-RLB fallback is meaningful | proposed method |
 
 Optional only if implementation time allows:

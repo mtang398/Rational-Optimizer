@@ -35,14 +35,14 @@ RLB + rational_matrix_policy_onpolicy
 
 A rational optimizer result is meaningful only if the base LR schedule is shared across these rows.
 
-The full paper benchmark must add tuned modern optimizer families before final claims:
+The training harness now includes broad modern optimizer-family baselines, but they still need tuned paper-result runs before final claims:
 
 ```text
-SOAP/Shampoo-style
+SOAP/Shampoo-style AdamW
 Lion
 AdEMAMix
-Schedule-Free AdamW
-Adafactor/CAME
+Schedule-Free AdamW-style
+Adafactor/CAME-style
 ```
 
 ## Method Summary
@@ -99,4 +99,4 @@ reported divergent/nonfinite rows
 mechanism readouts for gauge drift, function-space movement, role-specific updates, denominator margins, and matrix spectra
 ```
 
-The current real-corpus screen now satisfies the preliminary multi-seed evidence requirement for two corpora. Telemetry code for the mechanism readouts is implemented; the main missing pieces are CUDA/DDP validation of that telemetry, tuned broad baselines, Phase A HPO, scale/budget tests, mechanism-intervention experiments, downstream checks, and only then method-component ablations.
+The current real-corpus screen now satisfies the preliminary multi-seed evidence requirement for two corpora. Telemetry and broad-baseline optimizer code are implemented; the main missing pieces are CUDA/DDP validation of the telemetry path, Phase A HPO over tuned broad baselines, scale/budget tests, mechanism-intervention experiments, downstream checks, and only then method-component ablations.

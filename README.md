@@ -75,14 +75,15 @@ fixed-probe logit movement and KL telemetry
 RLB gauge, rational-activity, denominator, and matrix-spectrum telemetry
 MatrixPolicy role/update/group-stat telemetry
 CPU smoke tests for the new telemetry helpers
+broad baseline optimizer wiring: Lion, AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, and SOAP/Shampoo-style AdamW
 ```
 
 Still required before paper-result runs:
 
 ```text
 tiny CUDA/DDP telemetry validation run
-required broad optimizer baselines: SOAP/Shampoo-style, Lion, AdEMAMix, Schedule-Free AdamW, Adafactor/CAME
-Phase A two-corpus HPO with LR/WD surfaces and family-specific sensitivity plots
+Phase A two-corpus HPO launcher and summarizer support
+Phase A HPO with LR/WD surfaces and family-specific sensitivity plots for all supported optimizer families
 final tuned benchmark across FineWeb-Edu, FineWeb, and DCLM or Dolma
 speed-to-target, scale, mechanism-intervention, and downstream evaluation figures
 ```
@@ -226,8 +227,8 @@ TODO.md             research backlog and paper-readiness checklist
 
 The next phase follows the blueprint, not an ablation-first path:
 
-1. Run a tiny CUDA/DDP telemetry validation job and verify the new JSONL fields.
-2. Add the required optimizer families and config plumbing.
-3. Add Phase A HPO launchers and summarizers with resolved configs, LR/WD heatmaps, rank-over-horizon plots, tokens-to-target tables, overhead, memory, and mechanism summaries.
-4. Run Phase A HPO on FineWeb-Edu and FineWeb with at most two active 4-A6000 jobs.
-5. Select tuned configs, then run final benchmarks and mechanism experiments.
+1. Run a tiny CUDA/DDP telemetry validation job and verify the new JSONL fields plus one smoke row for each broad optimizer name.
+2. Add Phase A HPO launchers and summarizers with resolved configs, LR/WD heatmaps, rank-over-horizon plots, tokens-to-target tables, overhead, memory, and mechanism summaries.
+3. Run Phase A HPO on FineWeb-Edu and FineWeb with at most two active 4-A6000 jobs.
+4. Select tuned configs, then run final benchmarks and mechanism experiments.
+5. Convert telemetry and tuned benchmark outputs into paper figures: LR/WD surfaces, speed-to-target, overhead/memory, role telemetry, gauge/function movement, and mechanism-intervention tables.

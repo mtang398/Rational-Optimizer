@@ -179,12 +179,12 @@ Main Slurm launcher:
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
-The next launches should follow `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`: validate the implemented telemetry with a tiny CUDA/DDP job, integrate the required baseline families, then run Phase A HPO on FineWeb-Edu and FineWeb. Do not run MatrixPolicy component ablations before tuned configs exist from that HPO phase.
+The next launches should follow `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`: validate the implemented telemetry and broad optimizer wiring with a tiny CUDA/DDP job, then run Phase A HPO on FineWeb-Edu and FineWeb. Do not run MatrixPolicy component ablations before tuned configs exist from that HPO phase.
 
 Current launch order:
 
 ```text
-1. tiny CUDA/DDP telemetry validation
+1. tiny CUDA/DDP telemetry and broad-optimizer validation
 2. Phase A HPO launcher/summarizer development
 3. broad optimizer-family HPO on FineWeb-Edu and FineWeb
 4. final tuned benchmark
