@@ -82,8 +82,8 @@ Still required before paper-result runs:
 
 ```text
 tiny CUDA/DDP telemetry validation run
-Phase A two-corpus HPO launcher and summarizer support
-Phase A HPO with LR/WD surfaces and family-specific sensitivity plots for all supported optimizer families
+tiny CUDA/DDP validation output from `experiments/scripts/run_iclr_optimizer_validation_20260602.sh`
+Phase A HPO runs with LR/WD surfaces and family-specific sensitivity plots for all supported optimizer families
 final tuned benchmark across FineWeb-Edu, FineWeb, and DCLM or Dolma
 speed-to-target, scale, mechanism-intervention, and downstream evaluation figures
 ```
@@ -227,8 +227,7 @@ TODO.md             research backlog and paper-readiness checklist
 
 The next phase follows the blueprint, not an ablation-first path:
 
-1. Run a tiny CUDA/DDP telemetry validation job and verify the new JSONL fields plus one smoke row for each broad optimizer name.
-2. Add Phase A HPO launchers and summarizers with resolved configs, LR/WD heatmaps, rank-over-horizon plots, tokens-to-target tables, overhead, memory, and mechanism summaries.
-3. Run Phase A HPO on FineWeb-Edu and FineWeb with at most two active 4-A6000 jobs.
-4. Select tuned configs, then run final benchmarks and mechanism experiments.
-5. Convert telemetry and tuned benchmark outputs into paper figures: LR/WD surfaces, speed-to-target, overhead/memory, role telemetry, gauge/function movement, and mechanism-intervention tables.
+1. Run `experiments/scripts/run_iclr_optimizer_validation_20260602.sh` and verify the new JSONL fields plus one smoke row for each broad optimizer name.
+2. If validation passes, launch guarded Phase A HPO slices with `experiments/scripts/run_iclr_phase_a_hpo_20260602.sh` on FineWeb-Edu and FineWeb with at most two active 4-A6000 jobs.
+3. Summarize Phase A with `experiments/scripts/summarize_iclr_phase_a_hpo.py`, select tuned configs, then run final benchmarks and mechanism experiments.
+4. Convert telemetry and tuned benchmark outputs into paper figures: LR/WD surfaces, speed-to-target, overhead/memory, role telemetry, gauge/function movement, and mechanism-intervention tables.

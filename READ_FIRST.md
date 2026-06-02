@@ -99,4 +99,4 @@ reported divergent/nonfinite rows
 mechanism readouts for gauge drift, function-space movement, role-specific updates, denominator margins, and matrix spectra
 ```
 
-The current real-corpus screen now satisfies the preliminary multi-seed evidence requirement for two corpora. Telemetry and broad-baseline optimizer code are implemented; the main missing pieces are CUDA/DDP validation of the telemetry path, Phase A HPO over tuned broad baselines, scale/budget tests, mechanism-intervention experiments, downstream checks, and only then method-component ablations.
+The current real-corpus screen now satisfies the preliminary multi-seed evidence requirement for two corpora. Telemetry, broad-baseline optimizer code, CUDA/DDP validation scaffolding, and Phase A HPO scaffolding are implemented; the main missing pieces are the actual validation run, Phase A HPO over tuned broad baselines, scale/budget tests, mechanism-intervention experiments, downstream checks, and only then method-component ablations.

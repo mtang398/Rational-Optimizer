@@ -173,11 +173,21 @@ It is not the main result because the current real-corpus gaps are larger and mo
 
 ## Launching More Runs
 
-Main Slurm launcher:
+Main historical Slurm launcher:
 
 ```bash
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
+
+Current paper-program launchers:
+
+```bash
+sbatch experiments/scripts/run_iclr_optimizer_validation_20260602.sh
+CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="adamw muon lion soap_adamw" sbatch experiments/scripts/run_iclr_phase_a_hpo_20260602.sh
+CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="ademamix schedule_free_adamw adafactor_came rational_matrix_policy_onpolicy" sbatch experiments/scripts/run_iclr_phase_a_hpo_20260602.sh
+```
+
+The HPO launcher refuses to run unless `CONFIRM_ICLR_PHASE_A=1` is set. Each submitted HPO job uses 4 A6000 GPUs; keep at most two active jobs.
 
 The next launches should follow `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`: validate the implemented telemetry and broad optimizer wiring with a tiny CUDA/DDP job, then run Phase A HPO on FineWeb-Edu and FineWeb. Do not run MatrixPolicy component ablations before tuned configs exist from that HPO phase.
 
@@ -185,8 +195,8 @@ Current launch order:
 
 ```text
 1. tiny CUDA/DDP telemetry and broad-optimizer validation
-2. Phase A HPO launcher/summarizer development
-3. broad optimizer-family HPO on FineWeb-Edu and FineWeb
+2. broad optimizer-family HPO on FineWeb-Edu and FineWeb
+3. Phase A summarization and tuned-config selection
 4. final tuned benchmark
 5. mechanism interventions and method-component ablations
 ```

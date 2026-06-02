@@ -76,9 +76,9 @@ fairly tuned optimizer benchmark
 
 ## Required Code Before New GPU Runs
 
-Telemetry and broad baseline optimizer wiring are now implemented. The remaining pre-launch requirement is to validate them under CUDA/DDP and add the Phase A HPO launch/summarization layer. The fields below define what must be checked in that validation.
+Telemetry, broad baseline optimizer wiring, CUDA/DDP validation scaffolding, and Phase A HPO scaffolding are now implemented. The remaining pre-launch requirement is to run the validation job and inspect its summary. The fields below define what must be checked in that validation.
 
-### 1. Add Optimizer Telemetry
+### 1. Optimizer Telemetry Validation Target
 
 File: `training/transformer_wikitext103_compare.py`
 
@@ -135,7 +135,7 @@ log_norm_product_by_layer
 
 These are not optional. They make the paper about the actual method instead of a loss-table artifact.
 
-### 2. Add Fixed-Probe Function Movement
+### 2. Fixed-Probe Function Movement Validation Target
 
 At prepare time, create a deterministic probe batch per dataset/seed from the validation stream and store token IDs in the run directory.
 
@@ -151,7 +151,7 @@ probe_kl_since_step1
 
 This is the function-space analogue of Adam-mini trajectory analysis and is directly relevant to the RLB geometry claim.
 
-### 3. Add Matrix Spectrum Sampling
+### 3. Matrix Spectrum Sampling Validation Target
 
 At eval intervals divisible by 250 or 500 steps, sample matrix SVD entropy for:
 

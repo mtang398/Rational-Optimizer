@@ -33,6 +33,8 @@ EVAL_BATCHES="${EVAL_BATCHES:-20}"
 LOG_INTERVAL="${LOG_INTERVAL:-25}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
 BUILD_EXT_ARGS="${BUILD_EXT_ARGS:-}"
+SKIP_BUILD_EXT="${SKIP_BUILD_EXT:-0}"
+SKIP_PREPARE="${SKIP_PREPARE:-0}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
 ACTIVE_OPTIMIZERS="adamw factored_adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_onpolicy_balance rational_quotient_onpolicy rational_jacobian_onpolicy rational_jacobian_factored_onpolicy rational_layerwise_switch_onpolicy rational_layerwise_factored_switch_onpolicy rational_quotient_jacobian_onpolicy rational_adaptive_metric_onpolicy rational_transport_onpolicy rational_functional_trust_onpolicy rational_matrix_policy_onpolicy"
 
@@ -46,11 +48,15 @@ for optimizer in ${OPTIMIZERS}; do
   esac
 done
 
-"${PYTHON}" setup.py build_ext --inplace ${BUILD_EXT_ARGS}
-"${PYTHON}" training/transformer_wikitext103_compare.py \
-  --prepare-only \
-  --run-name "${RUN_NAME}" \
-  ${EXTRA_ARGS}
+if [[ "${SKIP_BUILD_EXT}" != "1" ]]; then
+  "${PYTHON}" setup.py build_ext --inplace ${BUILD_EXT_ARGS}
+fi
+if [[ "${SKIP_PREPARE}" != "1" ]]; then
+  "${PYTHON}" training/transformer_wikitext103_compare.py \
+    --prepare-only \
+    --run-name "${RUN_NAME}" \
+    ${EXTRA_ARGS}
+fi
 
 for seed in ${SEEDS}; do
   for optimizer in ${OPTIMIZERS}; do
