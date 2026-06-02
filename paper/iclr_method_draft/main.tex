@@ -215,9 +215,11 @@ $\ell_g^{\star}=\frac{1}{2}(\tau_g-\gamma_g)$, while the applied bounded move is
 \begin{align}
     \ell_g=\clip(s(t,l)a^{\mathrm{activity}}_g\ell_g^{\star},-\ell_{\max},\ell_{\max}).
 \end{align}
-The clipped update maps $\gamma_g$ to $\gamma_g+2\ell_g$, so it is a bounded
-move toward $\tau_g$ rather than exact canonicalization unless clipping and
-schedule damping are inactive.  The transform
+For true RMS values, or when stabilization floors are inactive, the clipped update
+maps $\gamma_g$ to $\gamma_g+2\ell_g$; with active RMS floors this identity is
+approximate and the discrepancy is included in the residual perturbation model.
+The update is therefore a bounded move toward $\tau_g$ rather than exact
+canonicalization unless clipping and schedule damping are inactive.  The transform
 $A_{l,g}\leftarrow e^{\ell_g}A_{l,g}$ and
 $B_{l,g}\leftarrow e^{-\ell_g}B_{l,g}$ preserves the homogeneous RLB function
 exactly under the nonzero-radius condition; the stabilized implementation is

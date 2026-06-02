@@ -86,7 +86,7 @@ where $H\succ0$ and $0<\mu I\preceq H\preceq L I<\infty$.
 \begin{lemma}[Gauge tangent orthogonality]
 \label{lem:gauge-null-direction}
 Under Lemma~\ref{lem:exact-positive-gauge}, for any differentiable loss depending on the
-RLB matrices only through the represented function,
+RLB matrices only through the represented function, with Frobenius inner products,
 \begin{equation}
     \ip{\nabla_{A_g}L}{A_g}-\ip{\nabla_{B_g}L}{B_g}=0 .
     \label{eq:gauge-null-gradient}
@@ -140,7 +140,7 @@ By homogeneity of RMS under positive scaling,
 \begin{lemma}[Gauge-dependent raw quotient step]
 \label{lem:gauge-dependent-step}
 Let $w>0$, $a=e^s\sqrt{w}$, $b=e^{-s}\sqrt{w}$, and
-$\ell(w)=\frac{1}{2}(w-y)^2$.  One Euclidean gradient-descent step in $(a,b)$ with step
+$\varphi(w)=\frac{1}{2}(w-y)^2$.  One Euclidean gradient-descent step in $(a,b)$ with step
 size $\eta$ gives
 \begin{equation}
     w^+=w-2\eta w\cosh(2s)(w-y)+O(\eta^2).
@@ -149,7 +149,7 @@ size $\eta$ gives
 \end{lemma}
 
 \begin{proof}
-Since $\partial\ell/\partial a=(w-y)b$ and $\partial\ell/\partial b=(w-y)a$,
+Since $\partial\varphi/\partial a=(w-y)b$ and $\partial\varphi/\partial b=(w-y)a$,
 \begin{align}
     w^+
     &=(a-\eta(w-y)b)(b-\eta(w-y)a) \\
@@ -245,11 +245,11 @@ initial error $\widetilde e_0=P^{-1/2}(q_0-q_\star)$ is an eigenvector of $K(P)$
 associated with $\lammin(K(P))$ or $\lammax(K(P))$.
 \end{proof}
 
-\begin{theorem}[Conditional optimization separation]
+\begin{theorem}[Conditional worst-case optimization separation]
 \label{thm:conditional-optimization-separation}
 Suppose Assumptions~\ref{ass:quotient-chart}--\ref{ass:conditioning-advantage} hold, and
-set $\eta_{\MP}=\eta^\star(P_{\MP})$ and $\eta_{\AW}=\eta^\star(P_{\AW})$.  Then, for every
-integer $T\geq1$,
+set $\eta_{\MP}=\eta^\star(P_{\MP})$ and $\eta_{\AW}=\eta^\star(P_{\AW})$.  Then the
+worst-case contraction factors satisfy, for every integer $T\geq1$,
 \begin{equation}
     \sup_{q_0\neq q_\star}
     \frac{F(q_T^{\MP})-F_\star}{F(q_0)-F_\star}
@@ -294,8 +294,9 @@ Fix $T\geq1$ and suppose the idealized dynamics satisfy
     \label{eq:finite-gap}
 \end{equation}
 Assume the implemented and ideal recursions use the same initial points, and assume the
-ideal trajectories lie in a compact set $K$ with a compact neighborhood $U$ on which
-$F$ and the ideal one-step maps are Lipschitz.  Then there exists $\delta_0>0$ such
+ideal trajectories lie in a compact set $K\subset\operatorname{int}(U)$, where $U$ is a
+compact neighborhood on which $F$ and the ideal one-step maps are Lipschitz.  Then
+there exists $\delta_0>0$ such
 that, whenever Assumption~\ref{ass:uniform-perturbation} holds with
 $\delta<\delta_0$, the implemented trajectories remain in $U$ through time $T$ and
 \begin{equation}
@@ -306,8 +307,8 @@ $\delta<\delta_0$, the implemented trajectories remain in $U$ through time $T$ a
 
 \begin{proof}
 Let $\Psi_{\MP}$ and $\Psi_{\AW}$ be the ideal one-step maps, and let $C_\Psi$ be a
-common Lipschitz constant on $U$.  Let $r_{\rm stay}>0$ be the distance from the
-finite ideal trajectories to $U^c$.  By induction, as long as the implemented
+common Lipschitz constant on $U$.  Let $r_{\rm stay}=\operatorname{dist}(K,U^c)>0$.
+By induction, as long as the implemented
 trajectories remain in $U$,
 \begin{equation}
     \norm{q_t^{\MP,{\rm impl}}-q_t^{\MP}}
