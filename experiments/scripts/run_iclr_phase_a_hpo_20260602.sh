@@ -237,7 +237,7 @@ run_config() {
   LOG_INTERVAL="${LOG_INTERVAL}" \
   NPROC_PER_NODE="${NPROC_PER_NODE}" \
   SKIP_BUILD_EXT="1" \
-  EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${task_cache_dir} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} --lr ${lr} --weight-decay ${wd} --probe-batch-size 1 --matrix-spectrum-interval 250 --early-stop-min-step ${EARLY_STOP_MIN_STEP:-50} --early-stop-max-val-loss ${EARLY_STOP_MAX_VAL_LOSS:-8.0} --early-stop-loss-increase ${EARLY_STOP_LOSS_INCREASE:-1.0} ${extra_args}" \
+  EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${task_cache_dir} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} --lr ${lr} --weight-decay ${wd} --probe-batch-size 1 --matrix-spectrum-interval 250 --early-stop-min-step ${EARLY_STOP_MIN_STEP:-250} --early-stop-max-val-loss ${EARLY_STOP_MAX_VAL_LOSS:-20.0} --early-stop-loss-increase ${EARLY_STOP_LOSS_INCREASE:-1.0} ${extra_args}" \
   bash training/run_wikitext103_optimizer_sweep.sbatch
 }
 
