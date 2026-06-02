@@ -59,8 +59,33 @@ What is not yet claimed:
 
 - This is not yet an ICLR-ready optimizer paper by itself.
 - The baselines are same-protocol but not fully hyperparameter-tuned against the new method.
-- Mechanism diagnostics for gauge drift and function-space movement still need to be added.
+- Mechanism telemetry is implemented, but paper-grade mechanism result tables and figures have not yet been run.
 - The result has not yet been stress-tested at a larger model size, longer token budget, or third corpus.
+
+## Paper Plan And Current Status
+
+The full paper program is in `experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`. The current result is preliminary evidence for that program, not the final benchmark.
+
+Implemented since the 3-seed result:
+
+```text
+full ICLR optimizer experiment blueprint
+training-loop telemetry for grad norm, clipping, timing, and CUDA memory
+fixed-probe logit movement and KL telemetry
+RLB gauge, rational-activity, denominator, and matrix-spectrum telemetry
+MatrixPolicy role/update/group-stat telemetry
+CPU smoke tests for the new telemetry helpers
+```
+
+Still required before paper-result runs:
+
+```text
+tiny CUDA/DDP telemetry validation run
+required broad optimizer baselines: SOAP/Shampoo-style, Lion, AdEMAMix, Schedule-Free AdamW, Adafactor/CAME
+Phase A two-corpus HPO with LR/WD surfaces and family-specific sensitivity plots
+final tuned benchmark across FineWeb-Edu, FineWeb, and DCLM or Dolma
+speed-to-target, scale, mechanism-intervention, and downstream evaluation figures
+```
 
 ## Method Sketch
 
@@ -199,10 +224,10 @@ TODO.md             research backlog and paper-readiness checklist
 
 ## Next Work
 
-The next phase is about making the result paper-grade, not just larger:
+The next phase follows the blueprint, not an ablation-first path:
 
-1. Finish the provenance bundle: exact commands, commit hash, Slurm job IDs, dataset slices, and environment metadata.
-2. Add diagnostics for gauge drift, group norm products, rational activity, denominator risk, and function-space movement.
-3. Run full ablations: no group stats, no early Muon phase, no exact gauge rebalance, gain-only, pressure-only, activity-only.
-4. Tune strong baselines fairly and add at least one serious modern optimizer baseline if practical.
-5. Repeat at a larger model size and a longer token budget while respecting the 4-GPU/job and 8-GPU-active cap.
+1. Run a tiny CUDA/DDP telemetry validation job and verify the new JSONL fields.
+2. Add the required optimizer families and config plumbing.
+3. Add Phase A HPO launchers and summarizers with resolved configs, LR/WD heatmaps, rank-over-horizon plots, tokens-to-target tables, overhead, memory, and mechanism summaries.
+4. Run Phase A HPO on FineWeb-Edu and FineWeb with at most two active 4-A6000 jobs.
+5. Select tuned configs, then run final benchmarks and mechanism experiments.

@@ -201,6 +201,20 @@ Current 3-seed aggregate:
 
 The paper story should be: RLB creates optimizer-visible geometry, and MatrixPolicy uses it. It should not be sold as an activation-only result or a generic Muon result.
 
+## Telemetry Status
+
+`RationalMatrixPolicyOptimizer` now exposes log-step telemetry for:
+
+```text
+per-role Muon mixture
+per-role Adam LR scale
+per-role update RMS, weight RMS, and update/weight RMS
+group policy scale mean/std/min/max
+on-policy pressure and activity mean/std
+```
+
+The training harness also logs RLB gauge/rational/denominator metrics and fixed-probe function movement. These fields are implemented for paper diagnostics; CUDA/DDP validation and paper result figures are still pending.
+
 ## Evaluation Standard
 
 A new optimizer variant should be judged by:
@@ -210,6 +224,7 @@ final heldout loss and PPL
 validation loss AUC at early, mid, and full horizons
 step-matched train and validation curves from step 1
 comparison to SiLU+AdamW, RLB+AdamW, SiLU+Muon, and RLB+Muon
+comparison to tuned SOAP/Shampoo-style, Lion, AdEMAMix, Schedule-Free AdamW, and Adafactor/CAME baselines where stable
 wall-clock/tokens-to-target, because MatrixPolicy has per-step overhead
 function movement per parameter movement
 gauge drift and W_in/W_out norm-product diagnostics

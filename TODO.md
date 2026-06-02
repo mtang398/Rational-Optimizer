@@ -42,7 +42,9 @@ multi-seed summarizer and result tables
 bootstrap gap CI table
 multi-seed train/eval curve CSVs and mean plots
 requeue-safe launcher behavior for activation-level reruns
-1000-step MatrixPolicy ablation launcher prepared
+1000-step MatrixPolicy ablation launcher prepared but intentionally not next in the paper sequence
+full ICLR optimizer experiment blueprint
+optimizer telemetry instrumentation for gradient, timing, CUDA memory, probe movement, RLB stats, MatrixPolicy role stats, and SVD entropy
 ```
 
 ## Immediate TODO
@@ -118,11 +120,11 @@ Remaining weaknesses:
 
 ```text
 baselines are not yet fully tuned
-mechanism diagnostics are missing
-ablation table is missing
+mechanism telemetry is implemented but CUDA/DDP validation and paper figures are missing
+method-component ablation table is missing and should wait until tuned configs exist
 larger scale and longer budget are missing
 third corpus is missing
 wall-clock/tokens-to-target story is not yet clean
 ```
 
-Score needed before a strong ICLR submission: at least 8.7 / 10. The fastest path is diagnostics plus ablations plus one harder baseline/scale test.
+Score needed before a strong ICLR submission: at least 8.7 / 10. The fastest path is telemetry validation, broad tuned baselines, Phase A HPO, speed-to-target, scale, and then mechanism interventions/ablations.

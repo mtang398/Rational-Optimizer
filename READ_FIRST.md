@@ -23,7 +23,7 @@ This should be read as an optimizer result, not an RLB-only activation compariso
 
 ## Control Set
 
-The baseline control set is:
+The current completed control set is:
 
 ```text
 SiLU/SwiGLU + AdamW
@@ -34,6 +34,16 @@ RLB + rational_matrix_policy_onpolicy
 ```
 
 A rational optimizer result is meaningful only if the base LR schedule is shared across these rows.
+
+The full paper benchmark must add tuned modern optimizer families before final claims:
+
+```text
+SOAP/Shampoo-style
+Lion
+AdEMAMix
+Schedule-Free AdamW
+Adafactor/CAME
+```
 
 ## Method Summary
 
@@ -60,11 +70,12 @@ MatrixPolicy updates `W_in` and `W_out` with role-aware, depth-aware, time-aware
 ## What To Read
 
 1. [README.md](README.md) for the current results and claim boundary.
-2. [experiments/README.md](experiments/README.md) for result packages and regeneration commands.
-3. [optimizer_design/README.md](optimizer_design/README.md) for the mathematical optimizer definition.
-4. [training/README.md](training/README.md) for the fair-comparison and logging contract.
-5. [activation/README.md](activation/README.md) for the RLB layer definition.
-6. [paper/iclr_method_draft/README.md](paper/iclr_method_draft/README.md) for the paper draft status.
+2. [experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md](experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md) for the full paper experiment program.
+3. [experiments/README.md](experiments/README.md) for result packages and regeneration commands.
+4. [optimizer_design/README.md](optimizer_design/README.md) for the mathematical optimizer definition.
+5. [training/README.md](training/README.md) for the fair-comparison and logging contract.
+6. [activation/README.md](activation/README.md) for the RLB layer definition.
+7. [paper/iclr_method_draft/README.md](paper/iclr_method_draft/README.md) for the paper draft status.
 
 ## Resource Rules
 
@@ -81,11 +92,11 @@ A result should be treated as paper-relevant only if it has:
 ```text
 same base LR schedule across controls
 step-1 training and validation curves
-strong AdamW and Muon controls for both SiLU/SwiGLU and RLB
+strong tuned AdamW, Muon, SOAP/Shampoo-style, Lion, AdEMAMix, Schedule-Free AdamW, and Adafactor/CAME controls where stable
 multi-seed real-corpus LM evidence
 non-saturated task or real LM loss scale
 reported divergent/nonfinite rows
-mechanism diagnostics for gauge drift and function-space movement
+mechanism readouts for gauge drift, function-space movement, role-specific updates, denominator margins, and matrix spectra
 ```
 
-The current real-corpus screen now satisfies the multi-seed evidence requirement for two corpora. The main missing pieces are mechanism diagnostics, ablations, stronger/tuned baselines, and scale/budget tests.
+The current real-corpus screen now satisfies the preliminary multi-seed evidence requirement for two corpora. Telemetry code for the mechanism readouts is implemented; the main missing pieces are CUDA/DDP validation of that telemetry, tuned broad baselines, Phase A HPO, scale/budget tests, mechanism-intervention experiments, downstream checks, and only then method-component ablations.

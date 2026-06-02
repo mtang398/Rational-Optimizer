@@ -22,7 +22,7 @@ Changing the global LR schedule is an LR ablation, not evidence for an RLB-speci
 
 ## Required Control Rows
 
-Every serious run should include:
+The completed preliminary screen includes:
 
 ```text
 SiLU/SwiGLU + AdamW
@@ -33,6 +33,16 @@ RLB + rational_matrix_policy_onpolicy
 ```
 
 The current public tables use `silu` and `rlb_fused_fixed_strong_ffn` as the two activation rows.
+
+The full paper benchmark must additionally support tuned broad baselines:
+
+```text
+SOAP/Shampoo-style
+Lion
+AdEMAMix
+Schedule-Free AdamW
+Adafactor/CAME
+```
 
 ## MatrixPolicy Wiring
 
@@ -127,6 +137,22 @@ training loss curves from step 1
 wall-clock seconds per step and tokens per second
 nonfinite/divergent rows, without hiding them
 ```
+
+The training loop now also emits paper-mechanism telemetry:
+
+```text
+grad_global_norm_before_clip
+grad_clip_triggered
+forward_backward_seconds
+optimizer_step_seconds
+cuda_max_memory_allocated/reserved
+probe_logit_rms and probe KL/delta metrics
+RLB output/derivative/atom/gauge/denominator metrics
+MatrixPolicy role update, weight, LR-scale, Muon-mix, pressure, activity, and group-scale metrics
+SVD entropy for attention and RLB matrices at configured intervals
+```
+
+Before launching Phase A HPO, run a tiny CUDA/DDP validation and verify these fields appear in JSONL on rank 0.
 
 ## Runtime Rules
 

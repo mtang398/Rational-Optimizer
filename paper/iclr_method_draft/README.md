@@ -16,10 +16,14 @@ The current evidence is promising but not yet complete for an ICLR submission. T
 3-seed primary table: available
 same-protocol AdamW/Muon controls: available
 RLB+AdamW divergence reported: available
-mechanism diagnostics: missing
-ablation table: missing
+mechanism telemetry implementation: available
+mechanism diagnostic result figures: missing
+method-component ablation table: deferred until tuned configs exist
 stronger/tuned baselines: missing
+Phase A HPO surfaces and rank-over-horizon plots: missing
 scale or longer-budget test: missing
+speed-to-target curves: missing
+downstream sanity checks: missing
 reproducibility statement and exact protocol appendix: partially available
 bootstrap gap CIs and multi-seed mean plots: available
 ```
@@ -53,8 +57,8 @@ Recommended main-paper shape:
 1. Introduction: optimizer-specific rational FFN claim.
 2. RLB geometry: grouped rational block and positive gauge.
 3. MatrixPolicy: role/depth matrix update, group stats, exact rebalance.
-4. Experiments: 3-seed FineWeb/FineWeb-Edu table, ablations, diagnostics, compute.
-5. Limitations: baseline tuning, scale, overhead, and instability of plain RLB+AdamW.
+4. Experiments: HPO protocol, tuned optimizer benchmark, speed-to-target, scale, mechanism, downstream checks.
+5. Limitations: baseline coverage, scale, overhead, and instability of plain RLB+AdamW.
 6. Reproducibility statement.
 ```
 

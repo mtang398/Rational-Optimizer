@@ -62,6 +62,19 @@ RLB exposes these handles to the optimizer:
 
 The activation code supports the forward path and the statistics needed by the optimizer wrapper.
 
+The fused RLB path now exposes `_rlb_optimizer_stats` used by the training harness for paper telemetry:
+
+```text
+output RMS
+derivative RMS
+atom RMS
+absolute moments
+denominator probe margins
+W_in/W_out gauge metrics
+```
+
+These are optimizer-diagnostic fields. They do not change the activation claim boundary: RLB is evaluated as activation plus optimizer-visible structure.
+
 ## Evidence Boundary
 
 The current 3-seed evidence should be read as activation plus optimizer, not activation alone:
