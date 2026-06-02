@@ -54,6 +54,22 @@ fi
 
 LRS="${LRS:-0.0001 0.0002 0.0003 0.0005}"
 WEIGHT_DECAYS="${WEIGHT_DECAYS:-0.03 0.10 0.20}"
+ADAMW_LRS="${ADAMW_LRS:-${LRS}}"
+MUON_LRS="${MUON_LRS:-${LRS}}"
+LION_LRS="${LION_LRS:-0.00003 0.00006 0.0001 0.0002}"
+ADEMAMIX_LRS="${ADEMAMIX_LRS:-${LRS}}"
+SCHEDULE_FREE_LRS="${SCHEDULE_FREE_LRS:-${LRS}}"
+CAME_LRS="${CAME_LRS:-${LRS}}"
+SOAP_LRS="${SOAP_LRS:-${LRS}}"
+MATRIX_POLICY_LRS="${MATRIX_POLICY_LRS:-${LRS}}"
+ADAMW_WEIGHT_DECAYS="${ADAMW_WEIGHT_DECAYS:-${WEIGHT_DECAYS}}"
+MUON_WEIGHT_DECAYS="${MUON_WEIGHT_DECAYS:-${WEIGHT_DECAYS}}"
+LION_WEIGHT_DECAYS="${LION_WEIGHT_DECAYS:-${WEIGHT_DECAYS}}"
+ADEMAMIX_WEIGHT_DECAYS="${ADEMAMIX_WEIGHT_DECAYS:-${WEIGHT_DECAYS}}"
+SCHEDULE_FREE_WEIGHT_DECAYS="${SCHEDULE_FREE_WEIGHT_DECAYS:-${WEIGHT_DECAYS}}"
+CAME_WEIGHT_DECAYS="${CAME_WEIGHT_DECAYS:-${WEIGHT_DECAYS}}"
+SOAP_WEIGHT_DECAYS="${SOAP_WEIGHT_DECAYS:-${WEIGHT_DECAYS}}"
+MATRIX_POLICY_WEIGHT_DECAYS="${MATRIX_POLICY_WEIGHT_DECAYS:-${WEIGHT_DECAYS}}"
 MUON_MOMENTA="${MUON_MOMENTA:-0.90 0.95}"
 ADEMAMIX_ALPHAS="${ADEMAMIX_ALPHAS:-2.0 5.0 8.0}"
 ADEMAMIX_BETA3S="${ADEMAMIX_BETA3S:-0.999 0.9999}"
@@ -81,6 +97,34 @@ check_repo_size() {
     echo "Repo is above ${MAX_REPO_GIB} GiB cap; refusing to continue. Used KiB=${used_kib}" >&2
     exit 80
   fi
+}
+
+family_lrs() {
+  case "$1" in
+    adamw) echo "${ADAMW_LRS}" ;;
+    muon) echo "${MUON_LRS}" ;;
+    lion) echo "${LION_LRS}" ;;
+    ademamix) echo "${ADEMAMIX_LRS}" ;;
+    schedule_free_adamw) echo "${SCHEDULE_FREE_LRS}" ;;
+    adafactor_came) echo "${CAME_LRS}" ;;
+    soap_adamw) echo "${SOAP_LRS}" ;;
+    rational_matrix_policy_onpolicy) echo "${MATRIX_POLICY_LRS}" ;;
+    *) echo "${LRS}" ;;
+  esac
+}
+
+family_weight_decays() {
+  case "$1" in
+    adamw) echo "${ADAMW_WEIGHT_DECAYS}" ;;
+    muon) echo "${MUON_WEIGHT_DECAYS}" ;;
+    lion) echo "${LION_WEIGHT_DECAYS}" ;;
+    ademamix) echo "${ADEMAMIX_WEIGHT_DECAYS}" ;;
+    schedule_free_adamw) echo "${SCHEDULE_FREE_WEIGHT_DECAYS}" ;;
+    adafactor_came) echo "${CAME_WEIGHT_DECAYS}" ;;
+    soap_adamw) echo "${SOAP_WEIGHT_DECAYS}" ;;
+    rational_matrix_policy_onpolicy) echo "${MATRIX_POLICY_WEIGHT_DECAYS}" ;;
+    *) echo "${WEIGHT_DECAYS}" ;;
+  esac
 }
 
 task_spec() {
@@ -189,11 +233,13 @@ run_config() {
 
 planned_configs() {
   local count=0
-  local task family lr wd value value2
+  local task family lr wd value value2 lrs weight_decays
   for task in ${TASKS}; do
     for family in ${HPO_FAMILIES}; do
-      for lr in ${LRS}; do
-        for wd in ${WEIGHT_DECAYS}; do
+      lrs="$(family_lrs "${family}")"
+      weight_decays="$(family_weight_decays "${family}")"
+      for lr in ${lrs}; do
+        for wd in ${weight_decays}; do
           case "${family}" in
             adamw|lion)
               count=$((count + 1))
@@ -236,7 +282,7 @@ maybe_stop_after_max() {
 if [[ "${CONFIRM_ICLR_PHASE_A}" != "1" ]]; then
   echo "Refusing to start Phase A HPO without CONFIRM_ICLR_PHASE_A=1."
   echo "Planned configs: $(planned_configs). One job uses 4 A6000s; submit at most two active jobs for the 8-GPU cap."
-  echo "Use HPO_FAMILIES to split families across two jobs and MAX_CONFIGS for controlled slices."
+  echo "Use HPO_FAMILIES to split families across two jobs, family-specific *_LRS/*_WEIGHT_DECAYS for fair grids, and MAX_CONFIGS for controlled slices."
   exit 2
 fi
 
@@ -248,8 +294,10 @@ echo "=== ICLR Phase A HPO ${SLURM_JOB_ID:-manual}; stage=${HPO_STAGE}; planned=
 for task in ${TASKS}; do
   task_spec "${task}"
   for family in ${HPO_FAMILIES}; do
-    for lr in ${LRS}; do
-      for wd in ${WEIGHT_DECAYS}; do
+    FAMILY_LRS="$(family_lrs "${family}")"
+    FAMILY_WEIGHT_DECAYS="$(family_weight_decays "${family}")"
+    for lr in ${FAMILY_LRS}; do
+      for wd in ${FAMILY_WEIGHT_DECAYS}; do
         case "${family}" in
           adamw|lion)
             maybe_stop_after_max

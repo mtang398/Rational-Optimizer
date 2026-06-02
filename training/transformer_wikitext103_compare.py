@@ -4930,6 +4930,16 @@ def collect_rlb_optimizer_groups(model, args):
     return groups
 
 
+def resolve_ademamix_warmup(value, steps):
+    if value is None:
+        return None
+    if int(value) < 0:
+        return max(1, int(round(0.15 * int(steps))))
+    if int(value) == 0:
+        return None
+    return int(value)
+
+
 def configure_optimizer(model, args):
     if args.optimizer not in ACTIVE_OPTIMIZERS:
         allowed = ", ".join(ACTIVE_OPTIMIZERS)
@@ -4970,6 +4980,8 @@ def configure_optimizer(model, args):
     if args.optimizer == "ademamix":
         from optimizer_design import AdEMAMix
 
+        beta3_warmup = resolve_ademamix_warmup(args.ademamix_beta3_warmup_steps, args.steps)
+        alpha_warmup = resolve_ademamix_warmup(args.ademamix_alpha_warmup_steps, args.steps)
         return AdEMAMix(
             groups,
             lr=args.lr,
@@ -4977,6 +4989,8 @@ def configure_optimizer(model, args):
             eps=args.eps,
             weight_decay=args.weight_decay,
             alpha=args.ademamix_alpha,
+            beta3_warmup=beta3_warmup,
+            alpha_warmup=alpha_warmup,
         )
     if args.optimizer == "schedule_free_adamw":
         from optimizer_design import ScheduleFreeAdamW
@@ -6521,6 +6535,8 @@ def parse_args():
     parser.add_argument("--factored-clip-threshold", type=float, default=1.0)
     parser.add_argument("--ademamix-beta3", type=float, default=0.9999)
     parser.add_argument("--ademamix-alpha", type=float, default=5.0)
+    parser.add_argument("--ademamix-beta3-warmup-steps", type=int, default=-1)
+    parser.add_argument("--ademamix-alpha-warmup-steps", type=int, default=-1)
     parser.add_argument("--schedule-free-beta1", type=float, default=0.9)
     parser.add_argument("--schedule-free-warmup-steps", type=int, default=0)
     parser.add_argument("--came-beta3", type=float, default=0.999)
@@ -6950,6 +6966,8 @@ def main():
         "factored_clip_threshold": args.factored_clip_threshold if args.optimizer in {"factored_adamw", "adafactor_came"} else None,
         "ademamix_beta3": args.ademamix_beta3 if args.optimizer == "ademamix" else None,
         "ademamix_alpha": args.ademamix_alpha if args.optimizer == "ademamix" else None,
+        "ademamix_beta3_warmup_steps": resolve_ademamix_warmup(args.ademamix_beta3_warmup_steps, args.steps) if args.optimizer == "ademamix" else None,
+        "ademamix_alpha_warmup_steps": resolve_ademamix_warmup(args.ademamix_alpha_warmup_steps, args.steps) if args.optimizer == "ademamix" else None,
         "schedule_free_beta1": args.schedule_free_beta1 if args.optimizer == "schedule_free_adamw" else None,
         "schedule_free_warmup_steps": args.schedule_free_warmup_steps if args.optimizer == "schedule_free_adamw" else None,
         "came_beta3": args.came_beta3 if args.optimizer == "adafactor_came" else None,

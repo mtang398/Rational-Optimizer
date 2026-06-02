@@ -75,15 +75,16 @@ fixed-probe logit movement and KL telemetry
 RLB gauge, rational-activity, denominator, and matrix-spectrum telemetry
 MatrixPolicy role/update/group-stat telemetry
 CPU smoke tests for the new telemetry helpers
-broad baseline optimizer wiring: Lion, AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, and SOAP/Shampoo-style AdamW
+CUDA/DDP telemetry validation passed for all broad optimizer names
+broad baseline optimizer wiring: Lion, paper-style AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, and SOAP/Shampoo-style AdamW
+Phase A HPO scaffolding with unique token caches and guarded 4-A6000 launch slices
 ```
 
 Still required before paper-result runs:
 
 ```text
-tiny CUDA/DDP telemetry validation run
-tiny CUDA/DDP validation output from `experiments/scripts/run_iclr_optimizer_validation_20260602.sh`
-Phase A HPO runs with LR/WD surfaces and family-specific sensitivity plots for all supported optimizer families
+complete the active Phase A HPO runs with LR/WD surfaces and family-specific sensitivity plots for all supported optimizer families
+summarize Phase A and select tuned configs without using the preliminary 3-seed screen as the final benchmark
 final tuned benchmark across FineWeb-Edu, FineWeb, and DCLM or Dolma
 speed-to-target, scale, mechanism-intervention, and downstream evaluation figures
 ```
@@ -227,7 +228,7 @@ TODO.md             research backlog and paper-readiness checklist
 
 The next phase follows the blueprint, not an ablation-first path:
 
-1. Run `experiments/scripts/run_iclr_optimizer_validation_20260602.sh` and verify the new JSONL fields plus one smoke row for each broad optimizer name.
-2. If validation passes, launch guarded Phase A HPO slices with `experiments/scripts/run_iclr_phase_a_hpo_20260602.sh` on FineWeb-Edu and FineWeb with at most two active 4-A6000 jobs.
-3. Summarize Phase A with `experiments/scripts/summarize_iclr_phase_a_hpo.py`, select tuned configs, then run final benchmarks and mechanism experiments.
+1. Keep the active Phase A HPO slices within the 4-A6000-per-job and 8-active-A6000 limits; dependency-queued jobs are fine.
+2. Summarize Phase A with `experiments/scripts/summarize_iclr_phase_a_hpo.py`, select tuned configs, then run final benchmarks and mechanism experiments.
+3. Treat AdEMAMix as paper-style only with no slow-EMA bias correction and alpha/beta3 warmups; any older partial runs without those settings are invalid.
 4. Convert telemetry and tuned benchmark outputs into paper figures: LR/WD surfaces, speed-to-target, overhead/memory, role telemetry, gauge/function movement, and mechanism-intervention tables.

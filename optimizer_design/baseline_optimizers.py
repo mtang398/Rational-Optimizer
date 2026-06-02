@@ -35,6 +35,30 @@ def _should_factor(param: torch.Tensor, factored_min_dim: int) -> bool:
     return param.dim() == 2 and min(param.shape) >= int(factored_min_dim)
 
 
+def _ademamix_linear_warmup(step: int, value_end: float, value_start: float, warmup_steps: int | None) -> float:
+    if warmup_steps is None or int(warmup_steps) <= 0 or step >= int(warmup_steps):
+        return float(value_end)
+    mix = float(step) / float(warmup_steps)
+    return (1.0 - mix) * float(value_start) + mix * float(value_end)
+
+
+def _ademamix_half_life_warmup(step: int, beta_end: float, beta_start: float, warmup_steps: int | None) -> float:
+    if warmup_steps is None or int(warmup_steps) <= 0 or step >= int(warmup_steps):
+        return float(beta_end)
+
+    def half_life(beta: float) -> float:
+        beta = min(max(float(beta), 1e-8), 1.0 - 1e-12)
+        return math.log(0.5) / math.log(beta) - 1.0
+
+    def inverse_half_life(value: float) -> float:
+        return math.pow(0.5, 1.0 / (float(value) + 1.0))
+
+    mix = float(step) / float(warmup_steps)
+    start = half_life(beta_start)
+    end = half_life(beta_end)
+    return inverse_half_life((1.0 - mix) * start + mix * end)
+
+
 class Lion(Optimizer):
     """Lion optimizer with decoupled weight decay."""
 
@@ -70,10 +94,34 @@ class Lion(Optimizer):
 
 
 class AdEMAMix(Optimizer):
-    """AdamW with an additional slow EMA of gradients."""
+    """AdEMAMix with paper-style slow-EMA treatment and warmups.
 
-    def __init__(self, params, lr=1e-4, betas=(0.9, 0.999, 0.9999), eps=1e-8, weight_decay=0.0, alpha=5.0):
-        defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, alpha=alpha)
+    The slow EMA is intentionally not bias-corrected. This matches the
+    reference implementation and keeps the old-gradient term from dominating
+    early training. ``alpha_warmup`` is linear; ``beta3_warmup`` interpolates
+    the EMA half-life from beta1 to beta3.
+    """
+
+    def __init__(
+        self,
+        params,
+        lr=1e-4,
+        betas=(0.9, 0.999, 0.9999),
+        eps=1e-8,
+        weight_decay=0.0,
+        alpha=5.0,
+        beta3_warmup=None,
+        alpha_warmup=None,
+    ):
+        defaults = dict(
+            lr=lr,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+            alpha=alpha,
+            beta3_warmup=beta3_warmup,
+            alpha_warmup=alpha_warmup,
+        )
         super().__init__(_to_group_list(params), defaults)
 
     @torch.no_grad()
@@ -84,10 +132,12 @@ class AdEMAMix(Optimizer):
                 loss = closure()
         for group in self.param_groups:
             lr = float(group["lr"])
-            beta1, beta2, beta3 = group["betas"]
+            beta1, beta2, beta3_final = group["betas"]
             eps = float(group["eps"])
             weight_decay = float(group["weight_decay"])
-            alpha = float(group["alpha"])
+            alpha_final = float(group["alpha"])
+            beta3_warmup = group.get("beta3_warmup")
+            alpha_warmup = group.get("alpha_warmup")
             for param in group["params"]:
                 if param.grad is None:
                     continue
@@ -97,25 +147,31 @@ class AdEMAMix(Optimizer):
                 state = self.state[param]
                 if len(state) == 0:
                     state["step"] = 0
-                    state["exp_avg"] = torch.zeros_like(param)
+                    state["exp_avg_fast"] = torch.zeros_like(param) if beta1 != 0.0 else None
+                    state["exp_avg_slow"] = torch.zeros_like(param)
                     state["exp_avg_sq"] = torch.zeros_like(param)
-                    state["slow_exp_avg"] = torch.zeros_like(param)
                 state["step"] += 1
                 step = int(state["step"])
-                exp_avg = state["exp_avg"]
+                exp_avg_fast = state["exp_avg_fast"]
+                exp_avg_slow = state["exp_avg_slow"]
                 exp_avg_sq = state["exp_avg_sq"]
-                slow_exp_avg = state["slow_exp_avg"]
+
+                alpha = _ademamix_linear_warmup(step, alpha_final, 0.0, alpha_warmup)
+                beta3 = _ademamix_half_life_warmup(step, beta3_final, beta1, beta3_warmup)
 
                 _decoupled_weight_decay(param, lr, weight_decay)
-                exp_avg.mul_(beta1).add_(grad, alpha=1.0 - beta1)
+                if beta1 != 0.0:
+                    exp_avg_fast.mul_(beta1).add_(grad, alpha=1.0 - beta1)
+                    bias1 = 1.0 - beta1 ** step
+                    fast_update = exp_avg_fast / bias1
+                else:
+                    fast_update = grad
+                exp_avg_slow.mul_(beta3).add_(grad, alpha=1.0 - beta3)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1.0 - beta2)
-                slow_exp_avg.mul_(beta3).add_(grad, alpha=1.0 - beta3)
 
-                bias1 = 1.0 - beta1 ** step
                 bias2 = 1.0 - beta2 ** step
-                bias3 = 1.0 - beta3 ** step
                 denom = exp_avg_sq.sqrt().div_(math.sqrt(bias2)).add_(eps)
-                update = exp_avg.div(bias1) + alpha * slow_exp_avg.div(bias3)
+                update = fast_update + alpha * exp_avg_slow
                 param.addcdiv_(update, denom, value=-lr)
         return loss
 

@@ -76,7 +76,7 @@ fairly tuned optimizer benchmark
 
 ## Required Code Before New GPU Runs
 
-Telemetry, broad baseline optimizer wiring, CUDA/DDP validation scaffolding, and Phase A HPO scaffolding are now implemented. The remaining pre-launch requirement is to run the validation job and inspect its summary. The fields below define what must be checked in that validation.
+Telemetry, broad baseline optimizer wiring, CUDA/DDP validation, and Phase A HPO scaffolding are now implemented. The validation job passed and the active pre-benchmark work is Phase A HPO plus summarization. The fields below define what the validation summary checked.
 
 ### 1. Optimizer Telemetry Validation Target
 
@@ -332,6 +332,8 @@ beta2:        0.98, 0.99
 ```
 
 AdEMAMix grid:
+
+Use paper-style AdEMAMix for all rows: no bias correction on the slow EMA, linear alpha warmup, and beta3 half-life warmup. Discard any partial row that used fixed alpha/beta3 from step 1.
 
 ```text
 lr:             1e-4, 2e-4, 3e-4, 4.5e-4

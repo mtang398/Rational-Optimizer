@@ -45,18 +45,19 @@ requeue-safe launcher behavior for activation-level reruns
 1000-step MatrixPolicy ablation launcher prepared but intentionally not next in the paper sequence
 full ICLR optimizer experiment blueprint
 optimizer telemetry instrumentation for gradient, timing, CUDA memory, probe movement, RLB stats, MatrixPolicy role stats, and SVD entropy
-broad baseline optimizer wiring for Lion, AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, and SOAP/Shampoo-style AdamW
-CUDA/DDP telemetry validation launcher and checker
+broad baseline optimizer wiring for Lion, paper-style AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, and SOAP/Shampoo-style AdamW
+CUDA/DDP telemetry validation launcher/checker and completed validation summary
 Phase A HPO launcher and summarizer scaffolding
+reference-aligned AdEMAMix behavior: no slow-EMA bias correction, alpha warmup, beta3 half-life warmup
 ```
 
 ## Immediate TODO
 
 The next phase is the full paper program in `experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`, not an ablation-first path. Keep the hard limits: max 4 A6000 GPUs per job, max 8 A6000 GPUs active total, repo below 200G.
 
-1. Submit the tiny CUDA/DDP validation launcher and inspect `validation_summary.md` for grad norm, clipping, timing, CUDA memory, fixed-probe movement, RLB gauge/rational stats, MatrixPolicy role telemetry, SVD entropy, and every broad optimizer name.
-2. If validation passes, run Phase A HPO on FineWeb-Edu and FineWeb at 123M across AdamW, Muon, Lion, AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, SOAP/Shampoo-style AdamW, and MatrixPolicy with no more than two 4-GPU jobs active; use `HPO_FAMILIES` splits and Slurm dependencies.
-3. Summarize Phase A with `summarize_iclr_phase_a_hpo.py`, select tuned configs, then run the final benchmark across FineWeb-Edu, FineWeb, and DCLM/Dolma with 5 seeds at 123M and 3 seeds at larger scale if cost forces it.
+1. Monitor the active Phase A HPO slices on FineWeb-Edu/FineWeb at 123M across AdamW, Muon, Lion, paper-style AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, SOAP/Shampoo-style AdamW, and MatrixPolicy; keep no more than two 4-GPU jobs active.
+2. Summarize Phase A with `summarize_iclr_phase_a_hpo.py`, select tuned configs, then run the final benchmark across FineWeb-Edu, FineWeb, and DCLM/Dolma with 5 seeds at 123M and 3 seeds at larger scale if cost forces it.
+3. For AdEMAMix, discard/ignore partial runs made before the paper-style warmup/no-slow-bias-correction fix; they are not comparable baselines.
 4. Only after tuned configs exist, run mechanism experiments: gauge-equivalent initialization, mid-training gauge intervention, optimizer-state gauge covariance, rational function movement, and role-specific update geometry.
 5. Keep the current 3-seed FineWeb/FineWeb-Edu results as preliminary evidence, not the final paper benchmark.
 
@@ -121,7 +122,7 @@ Remaining weaknesses:
 
 ```text
 broad baseline implementations exist but are not yet tuned on the Phase A corpora
-mechanism telemetry is implemented but CUDA/DDP validation and paper figures are missing
+mechanism telemetry is implemented and CUDA/DDP validation passed, but paper figures are missing
 method-component ablation table is missing and should wait until tuned configs exist
 larger scale and longer budget are missing
 third corpus is missing

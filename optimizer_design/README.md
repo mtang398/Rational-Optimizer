@@ -183,13 +183,13 @@ This changes the parameterization but preserves the represented function up to f
 
 ```text
 lion                  -> Lion with decoupled weight decay
-ademamix              -> AdamW plus a slow gradient EMA
+ademamix              -> paper-style AdEMAMix: fast AdamW EMA plus uncorrected slow EMA, alpha warmup, beta3 half-life warmup
 schedule_free_adamw   -> schedule-free-style AdamW/Polyak interpolation baseline
 adafactor_came        -> factored adaptive AdamW with CAME-style confidence correction
 soap_adamw            -> SOAP/Shampoo-style eigenbasis AdamW for eligible 2D tensors
 ```
 
-The SOAP/Shampoo and CAME rows are intentionally labeled as style baselines until they are matched line-by-line to a reference implementation. They are now suitable for Phase A tuning and stability checks, not for claiming exact reproduction of those papers.
+AdEMAMix now follows the paper/reference implementation details that matter for stability: the slow EMA is not bias-corrected, alpha warms linearly, and beta3 warms by interpolating EMA half-life. The SOAP/Shampoo and CAME rows are intentionally labeled as style baselines until they are matched line-by-line to a reference implementation. They are suitable for Phase A tuning and stability checks, not for claiming exact reproduction of those papers.
 
 ## Full Step Order
 

@@ -187,15 +187,15 @@ CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="adamw muon lion soap_adamw" sbatch experime
 CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="ademamix schedule_free_adamw adafactor_came rational_matrix_policy_onpolicy" sbatch experiments/scripts/run_iclr_phase_a_hpo_20260602.sh
 ```
 
-The HPO launcher refuses to run unless `CONFIRM_ICLR_PHASE_A=1` is set. Each submitted HPO job uses 4 A6000 GPUs; keep at most two active jobs.
+The HPO launcher refuses to run unless `CONFIRM_ICLR_PHASE_A=1` is set. Each submitted HPO job uses 4 A6000 GPUs; keep at most two active jobs. It supports family-specific `*_LRS` and `*_WEIGHT_DECAYS` variables so Lion and AdEMAMix are not forced onto the AdamW grid. AdEMAMix HPO rows should use the default paper-style alpha and beta3 warmups; older partial rows without that fix are invalid.
 
-The next launches should follow `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`: validate the implemented telemetry and broad optimizer wiring with a tiny CUDA/DDP job, then run Phase A HPO on FineWeb-Edu and FineWeb. Do not run MatrixPolicy component ablations before tuned configs exist from that HPO phase.
+The current launch sequence has passed tiny CUDA/DDP telemetry and broad-optimizer validation. The active work is Phase A HPO on FineWeb-Edu and FineWeb. Do not run MatrixPolicy component ablations before tuned configs exist from that HPO phase.
 
 Current launch order:
 
 ```text
-1. tiny CUDA/DDP telemetry and broad-optimizer validation
-2. broad optimizer-family HPO on FineWeb-Edu and FineWeb
+1. tiny CUDA/DDP telemetry and broad-optimizer validation - done
+2. broad optimizer-family HPO on FineWeb-Edu and FineWeb - in progress
 3. Phase A summarization and tuned-config selection
 4. final tuned benchmark
 5. mechanism interventions and method-component ablations
