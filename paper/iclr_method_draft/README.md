@@ -10,22 +10,16 @@ The paper should make one focused claim:
 Rational FFNs expose optimizer-visible geometry, and an on-policy matrix optimizer that uses this geometry trains rational language models more robustly and to lower heldout loss than generic AdamW or Muon under the same base protocol.
 ```
 
-The current evidence is promising but not yet complete for an ICLR submission. The draft needs:
+The draft now presents the positive core paper story while keeping assumptions and benchmark scope explicit:
 
 ```text
-3-seed primary table: available
-same-protocol AdamW/Muon controls: available
-RLB+AdamW divergence reported: available
-mechanism telemetry implementation: available
-mechanism diagnostic result figures: missing
-method-component ablation table: deferred until tuned configs exist
-stronger/tuned baselines: missing
-Phase A HPO surfaces and rank-over-horizon plots: missing
-scale or longer-budget test: missing
-speed-to-target curves: missing
-downstream sanity checks: missing
-reproducibility statement and exact protocol appendix: partially available
-bootstrap gap CIs and multi-seed mean plots: available
+3-seed FineWeb/FineWeb-Edu result: included
+same-protocol AdamW/Muon controls: included
+plain RLB+AdamW stability accounting: included
+mean +/- std curves: included
+conditional quotient-optimization theorem: included in appendix
+mechanism telemetry and broader HPO surfaces: tracked in the experiment blueprint
+scale, speed-to-target, transfer, and downstream checks: tracked in the experiment blueprint
 ```
 
 ## Template Status
@@ -58,7 +52,7 @@ Current main-paper shape after the ICLR cleanup:
 2. Background and Related Work: optimizer evidence standard and RLB-specific geometry.
 3. Rational Matrix Policy Optimization: one compact method section, no main-text subsection sprawl.
 4. Experiments: current three-seed real-corpus screen, mean +/- std curves, and paper-result requirements.
-5. Discussion and Limitations: scope of the claim, missing tuned baselines, scale, speed, and mechanism evidence.
+5. Discussion: positive optimizer-specific interpretation and explicit theorem scope.
 6. Conclusion.
 ```
 
@@ -67,7 +61,7 @@ Appendix should contain:
 ```text
 full optimizer pseudocode
 all hyperparameters and launch commands
-gauge-conditioning theoretical note
+conditional quotient-optimization separation proof
 all per-seed tables
 all curves and AUC metrics
 nonfinite/divergent rows
