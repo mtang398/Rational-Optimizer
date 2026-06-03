@@ -134,11 +134,10 @@ For group $g$, define
     \gamma_g=\log \rms(A_g)-\log \rms(B_g).
     \label{eq:complete-gamma}
 \end{equation}
-The logarithms in this subsection are taken on true positive RMS quantities.
-Stabilized RMS floors preserve the lemma exactly only when inactive; otherwise the
-resulting discrepancy is part of the perturbation model in
-Assumption~\ref{ass:uniform-perturbation}.  Given a target log-ratio $\tau_g$, the
-unclipped rebalance is
+The exact identities in this subsection use true positive RMS quantities.  For the
+quadratic RMS floor $\widehat{\rms}_\epsilon(M)=\sqrt{\rms(M)^2+\epsilon}$, the active-floor
+log-ratio error is locally $O(\epsilon)$ by Proposition~\ref{prop:stabilized-rms-ratio-error}.
+Given a target log-ratio $\tau_g$, the unclipped rebalance is
 \begin{equation}
     \ell_g=\frac{1}{2}(\tau_g-\gamma_g),
     \qquad
@@ -164,6 +163,83 @@ By homogeneity of RMS under positive scaling,
     &=\gamma_g+2\ell_g
       =\tau_g .
 \end{align}
+\end{proof}
+
+\begin{lemma}[Bounded rebalance moves toward the target]
+\label{lem:bounded-rebalance-target}
+Let $\gamma_g=\log\rms(A_g)-\log\rms(B_g)$ and let $\tau_g$ be the target log-ratio,
+with true positive RMS values.  Suppose the applied log-scale move $\ell_g$ satisfies
+\begin{equation}
+    \ell_g(\tau_g-\gamma_g)\geq0,
+    \qquad
+    2|\ell_g|\leq |\tau_g-\gamma_g| .
+    \label{eq:bounded-rebalance-condition}
+\end{equation}
+Then the rebalance $A_g^+=e^{\ell_g}A_g$, $B_g^+=e^{-\ell_g}B_g$ satisfies
+\begin{equation}
+    \left|\log\rms(A_g^+)-\log\rms(B_g^+)-\tau_g\right|
+    \leq
+    |\gamma_g-\tau_g| .
+    \label{eq:bounded-rebalance-nonexpansive}
+\end{equation}
+If $\ell_g=\frac{1}{2}(\tau_g-\gamma_g)$, the new ratio is exactly $\tau_g$.
+\end{lemma}
+
+\begin{proof}
+By RMS homogeneity, the new log-ratio is $\gamma_g^+=\gamma_g+2\ell_g$.  Let
+$d=\tau_g-\gamma_g$.  If $d=0$, then \eqref{eq:bounded-rebalance-condition} implies
+$\ell_g=0$ and the claim is immediate.  Otherwise, the same condition gives
+$\ell_g=\operatorname{sign}(d)m$ for some $0\leq m\leq |d|/2$.  Hence
+\begin{equation}
+    |\gamma_g^+-\tau_g|=|2\ell_g-d|=|d|-2m\leq |d|=|\gamma_g-\tau_g|.
+\end{equation}
+The exact-target case follows by setting $m=|d|/2$.
+\end{proof}
+
+\begin{corollary}[Clipped scheduled rebalance]
+\label{cor:clipped-scheduled-rebalance}
+Let
+\begin{equation}
+    \ell_g^\star=\frac{1}{2}(\tau_g-\gamma_g),
+    \qquad
+    \ell_g=\clip(c_g\ell_g^\star,-\ell_{\max},\ell_{\max}),
+\end{equation}
+where $0\leq c_g\leq1$ and $\ell_{\max}>0$.  For true positive RMS values, the resulting
+rebalance is nonexpansive toward the target in the sense of
+\eqref{eq:bounded-rebalance-nonexpansive}.
+\end{corollary}
+
+\begin{proof}
+The clipped value has the same sign as $\ell_g^\star$ and satisfies
+$|\ell_g|\leq |\ell_g^\star|=|\tau_g-\gamma_g|/2$.  Lemma~\ref{lem:bounded-rebalance-target}
+therefore applies.
+\end{proof}
+
+\begin{proposition}[Stabilized RMS-ratio error]
+\label{prop:stabilized-rms-ratio-error}
+Let $\widehat{\rms}_\epsilon(M)=\sqrt{\rms(M)^2+\epsilon}$.  Fix $|\ell_g|\leq S$ and
+$\epsilon_0>0$.  If $\rms(A_g)\geq\sigma$ and $\rms(B_g)\geq\sigma$ for some
+$\sigma>0$, then there is a constant $C$ independent of $\epsilon$ such that, for all
+$0\leq\epsilon\leq\epsilon_0$,
+\begin{align}
+&\Bigl|\log\widehat{\rms}_\epsilon(e^{\ell_g}A_g)
+      -\log\widehat{\rms}_\epsilon(e^{-\ell_g}B_g) \\
+&\qquad\qquad
+      -\bigl(\log\rms(A_g)-\log\rms(B_g)+2\ell_g\bigr)\Bigr|
+\leq C\epsilon .
+\label{eq:stabilized-rms-ratio-error}
+\end{align}
+\end{proposition}
+
+\begin{proof}
+For $R_A=\rms(A_g)$,
+\begin{equation}
+    \log\widehat{\rms}_\epsilon(e^{\ell_g}A_g)
+    =\ell_g+\log R_A+\frac{1}{2}\log\left(1+\epsilon e^{-2\ell_g}R_A^{-2}\right).
+\end{equation}
+The last term is bounded by $C_A\epsilon$ uniformly because $|\ell_g|\leq S$ and
+$R_A\geq\sigma$.  The same calculation for $B_g$ gives the second $O(\epsilon)$ term.
+Combining the two bounds proves \eqref{eq:stabilized-rms-ratio-error}.
 \end{proof}
 
 \begin{lemma}[Gauge-dependent raw quotient step]
@@ -243,6 +319,36 @@ whenever their product is below one.
 Iterate \eqref{eq:pathwise-certificate}.
 \end{proof}
 
+\begin{lemma}[Approximate quotient transfer]
+\label{lem:approximate-quotient-transfer}
+Let $\mathcal{J}_t$ be the actual represented loss along a trajectory and suppose
+\begin{equation}
+    |\mathcal{J}_t-F(q_t)|\leq\delta
+\end{equation}
+at $t=0$ and $t=T$.  If the quotient certificate gives
+\begin{equation}
+    F(q_T)-F_\star\leq A_T\bigl(F(q_0)-F_\star\bigr),
+    \qquad A_T\geq0,
+\end{equation}
+then
+\begin{equation}
+    \mathcal{J}_T-F_\star
+    \leq
+    A_T\bigl(\mathcal{J}_0-F_\star\bigr)+(1+A_T)\delta .
+    \label{eq:approximate-quotient-transfer}
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Using the final-time approximation error and then the quotient certificate,
+\begin{equation}
+    \mathcal{J}_T-F_\star
+    \leq F(q_T)-F_\star+\delta
+    \leq A_T(F(q_0)-F_\star)+\delta .
+\end{equation}
+Since $F(q_0)-F_\star\leq \mathcal{J}_0-F_\star+\delta$, the claim follows.
+\end{proof}
+
 \begin{proposition}[Expected contraction certificate]
 \label{prop:expected-contraction-certificate}
 Let $q_t^o$ be a stochastic quotient trajectory adapted to a filtration
@@ -284,13 +390,13 @@ Iterating proves \eqref{eq:expected-certificate-product}.
 
 \begin{lemma}[One-step transformed PL decrease]
 \label{lem:one-step-pl-decrease}
-Let $P\succ0$, define $\widetilde F_P$ by \eqref{eq:transformed-objective}, and set
-$x=P^{-1/2}(q-q_\star)$ and
-$x^+=x-L_P^{-1}\nabla\widetilde F_P(x)$.  Suppose the pathwise descent inequality
+Let $P\succ0$, define $\widetilde F_P$ by \eqref{eq:transformed-objective}, choose
+$\eta_P>0$, and set $x=P^{-1/2}(q-q_\star)$ and
+$x^+=x-\eta_P\nabla\widetilde F_P(x)$.  Suppose the pathwise descent inequality
 \begin{equation}
     \widetilde F_P(x^+)
     \leq
-    \widetilde F_P(x)-\frac{1}{2L_P}\norm{\nabla\widetilde F_P(x)}_2^2
+    \widetilde F_P(x)-\frac{\eta_P}{2}\norm{\nabla\widetilde F_P(x)}_2^2
     \label{eq:pathwise-descent}
 \end{equation}
 and the pointwise PL inequality
@@ -298,33 +404,34 @@ and the pointwise PL inequality
     \frac{1}{2}\norm{\nabla\widetilde F_P(x)}_2^2
     \geq
     \mu_P\bigl(\widetilde F_P(x)-F_\star\bigr),
-    \qquad 0<\mu_P\leq L_P,
+    \qquad \mu_P>0,
+    \qquad \eta_P\mu_P\leq1,
     \label{eq:local-pl-ineq}
 \end{equation}
 hold at the current iterate.  If
 \begin{equation}
-    q^+=q-L_P^{-1}P\nabla F(q),
+    q^+=q-\eta_PP\nabla F(q),
 \end{equation}
 then
 \begin{equation}
     F(q^+)-F_\star
     \leq
-    \left(1-\frac{\mu_P}{L_P}\right)\bigl(F(q)-F_\star\bigr).
+    \left(1-\eta_P\mu_P\right)\bigl(F(q)-F_\star\bigr).
     \label{eq:one-step-pl-decrease}
 \end{equation}
-The descent condition \eqref{eq:pathwise-descent} is implied by $L_P$-smoothness of
-$\widetilde F_P$ on the segment from $x$ to $x^+$, but global smoothness or convexity is
-not required.
+The descent condition \eqref{eq:pathwise-descent} is implied, for example, by
+$L_P$-smoothness of $\widetilde F_P$ on the segment from $x$ to $x^+$ and
+$0<\eta_P\leq L_P^{-1}$; global smoothness or convexity is not required.
 \end{lemma}
 
 \begin{proof}
 The update in $q$ is the gradient step
-$x^+=x-L_P^{-1}\nabla\widetilde F_P(x)$.  Combining
-\eqref{eq:pathwise-descent} and \eqref{eq:local-pl-ineq} gives
+$x^+=x-\eta_P\nabla\widetilde F_P(x)$.  Combining \eqref{eq:pathwise-descent} and
+\eqref{eq:local-pl-ineq} gives
 \begin{equation}
     \widetilde F_P(x^+)-F_\star
     \leq
-    \left(1-\frac{\mu_P}{L_P}\right)
+    \left(1-\eta_P\mu_P\right)
     \bigl(\widetilde F_P(x)-F_\star\bigr).
 \end{equation}
 Since $\widetilde F_P(x)=F(q)$ and $\widetilde F_P(x^+)=F(q^+)$, this proves
@@ -336,16 +443,15 @@ Since $\widetilde F_P(x)=F(q)$ and $\widetilde F_P(x^+)=F(q^+)$, this proves
 For each optimizer $o\in\{\MP,\AW\}$, suppose both ideal quotient trajectories start
 from the same quotient point $q_0$ and have the form
 \begin{equation}
-    q_{t+1}^o=q_t^o-L_{o,t}^{-1}P_{o,t}\nabla F(q_t^o),
+    q_{t+1}^o=q_t^o-\eta_{o,t}P_{o,t}\nabla F(q_t^o),
     \qquad P_{o,t}\succ0,
+    \qquad \eta_{o,t}>0,
     \label{eq:time-varying-quotient-update}
 \end{equation}
 and that Lemma~\ref{lem:one-step-pl-decrease} applies at every step with constants
-$(L_{o,t},\mu_{o,t})$.  Define
+$(\eta_{o,t},\mu_{o,t})$.  Define
 \begin{equation}
-    \kappa_{o,t}=\frac{L_{o,t}}{\mu_{o,t}},
-    \qquad
-    \Xi_o(T)=\prod_{t=0}^{T-1}\left(1-\kappa_{o,t}^{-1}\right).
+    \Xi_o(T)=\prod_{t=0}^{T-1}\left(1-\eta_{o,t}\mu_{o,t}\right).
     \label{eq:time-varying-product}
 \end{equation}
 Then
@@ -361,8 +467,7 @@ finite-horizon PL contraction bound.
 
 \begin{proof}
 Lemma~\ref{lem:one-step-pl-decrease} gives the pathwise certificate
-\eqref{eq:pathwise-certificate} with
-$\alpha_{o,t}=1-\kappa_{o,t}^{-1}$.  Apply
+\eqref{eq:pathwise-certificate} with $\alpha_{o,t}=1-\eta_{o,t}\mu_{o,t}$.  Apply
 Lemma~\ref{lem:pathwise-contraction-certificate}.
 \end{proof}
 
@@ -370,15 +475,13 @@ Lemma~\ref{lem:pathwise-contraction-certificate}.
 \label{cor:frozen-pl-bound}
 Suppose the frozen quotient dynamics in Assumption~\ref{ass:frozen-preconditioner} hold.
 For $o\in\{\MP,\AW\}$, suppose Lemma~\ref{lem:one-step-pl-decrease} applies along
-the transformed ideal trajectory with $P=P_o$ and fixed constants $(L_o,\mu_o)$.  Let
+the transformed ideal trajectory with $P=P_o$ and fixed constants $(\eta_o,\mu_o)$.  Let
 \begin{equation}
-    \kappa_o=\frac{L_o}{\mu_o},
-    \qquad
-    \chi_o=1-\kappa_o^{-1}.
+    \chi_o=1-\eta_o\mu_o.
 \end{equation}
-If $\kappa_{\MP}<\kappa_{\AW}$ and $\eta_o=1/L_o$, then
+If $\eta_{\MP}\mu_{\MP}>\eta_{\AW}\mu_{\AW}$, then
 \begin{equation}
-    \chi_{\MP}<\chi_{\AW}<1
+    \chi_{\MP}<\chi_{\AW}
 \end{equation}
 and, for every initial point whose two ideal trajectories remain in their local regions,
 \begin{align}
@@ -387,12 +490,13 @@ and, for every initial point whose two ideal trajectories remain in their local 
     F(q_T^{\AW})-F_\star
     &\leq \chi_{\AW}^T\bigl(F(q_0)-F_\star\bigr).
 \end{align}
+When $\eta_o=L_o^{-1}$, this recovers the condition-number form
+$\chi_o=1-\kappa_o^{-1}$ with $\kappa_o=L_o/\mu_o$.
 \end{corollary}
 
 \begin{proof}
 This is Proposition~\ref{prop:time-varying-pl-bound} with constant
-$P_{o,t}=P_o$, $L_{o,t}=L_o$, and $\mu_{o,t}=\mu_o$.  The map
-$\kappa\mapsto1-\kappa^{-1}$ is strictly increasing for $\kappa\geq1$.
+$P_{o,t}=P_o$, $\eta_{o,t}=\eta_o$, and $\mu_{o,t}=\mu_o$.
 \end{proof}
 
 \begin{proposition}[Time-varying quadratic spectral bound]
