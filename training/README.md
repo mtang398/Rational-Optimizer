@@ -176,6 +176,8 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 NCCL_P2P_DISABLE=1
 ```
 
+The CUDA venv used for paper jobs must include `ninja` for extension builds and `zstandard` for DCLM zstd shards.
+
 For long Slurm runs, use requeue support:
 
 ```text

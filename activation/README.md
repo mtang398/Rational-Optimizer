@@ -105,4 +105,4 @@ activation/rational_opt/  Python package, compiled kernels, and PyTorch referenc
 activation/csrc/          CUDA/C++ extension sources
 ```
 
-A6000 launchers use the compiled extension path by default (`RATIONAL_OPT_TORCH_FALLBACK=0`). Set `RATIONAL_OPT_TORCH_FALLBACK=1` only for local implementation debugging, not paper runs.
+A6000 launchers use the compiled extension path by default (`RATIONAL_OPT_TORCH_FALLBACK=0`). The CUDA venv must expose `ninja` on `PATH` before running paper jobs. Set `RATIONAL_OPT_TORCH_FALLBACK=1` only for local implementation debugging, not paper runs.
