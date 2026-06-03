@@ -99,18 +99,30 @@ multi-seed summarizers and mean +/- std curve generation
 Still required before ICLR-level claims:
 
 ```text
-loader smokes for dclm, fineweb_edu, fineweb, dolma_sample, and c4_en
-M1 memory smoke
-50M baseline protocol lock on dclm and fineweb_edu
+finish Phase 1 protocol lock on dclm and fineweb_edu
 100M/300M main suite across dclm, fineweb_edu, fineweb, dolma_sample, and c4_en
 600M frontier on decisive rows
-M1 scale confirmation and optional M2 stretch
+M1 scale confirmation beyond the completed short smoke and optional M2 stretch
 batch/throughput/memory profiling
 cross-corpus evaluation of 300M checkpoints
 corpus-shift continued training
 sensitivity maps
 mechanism diagnostics and late-stage ablations
 ```
+
+## Current 2026 ICLR Run Status
+
+Phase 0 loader/model smokes have completed for `dclm`, `fineweb_edu`, `dolma_sample`, `c4_en`, and the M1 DCLM smoke. The compact tracked summary is `experiments/results/iclr26_smoke_20260603/summary.md`. Raw JSONL remains under ignored `experiments/runs/iclr26_smoke/`.
+
+M1 DCLM smoke final validation loss:
+
+| row | final val loss | tokens/s |
+| --- | ---: | ---: |
+| SiLU+AdamW | 6.8513 | 30607.3 |
+| RLB+AdamW | 6.7335 | 24243.2 |
+| RLB+MatrixPolicy group-stat | 6.7349 | 25005.4 |
+
+Active continuation as of 2026-06-03T17:35:02-04:00: jobs `67183` and `67184` are the first two Phase 1 protocol-lock DCLM shards, using 8 A6000 total. Do not submit more GPU work until one exits.
 
 ## Method Sketch
 
@@ -251,8 +263,8 @@ TODO.md             research backlog and paper-readiness checklist
 
 Run the queue in `experiments/ICLR_EXACT_RUN_PLAN.md`:
 
-1. Run Phase 0 smokes for `dclm + fineweb_edu`, `dolma_sample + c4_en`, and M1 on `dclm`.
-2. Run Phase 1 baseline protocol lock on `dclm` and `fineweb_edu`.
+1. Monitor active Phase 1 jobs `67183` and `67184`; summarize them when they finish.
+2. Continue the next Phase 1 protocol-lock shards on `dclm` and `fineweb_edu` while keeping at most 8 A6000 active.
 3. Run Phase 2 M0 100M main suite for seeds 1337, 2027, 3407.
 4. Move Phase 2 to 300M after 100M summaries are generated.
 5. Start M1 and 600M only after 300M loss-per-GPU-hour curves are summarized.

@@ -14,8 +14,13 @@ The current public evidence package is the 3-seed FineWeb/FineWeb-Edu pilot repl
 | `runs/real_lm_multiseed_20260531/` | Compact raw JSONL traces for seed 2027 and seed 3407 runs. |
 | `results/real_lm_screen_2026_05_30/` | Seed-1337 baseline summary, curves, and one-seed plot images. |
 | `results/rlb_matrix_policy_muon_switch_2026_05_28/` | Older WikiText-103 same-LR anchor. |
+| `results/iclr26_smoke_20260603/` | Compact Phase 0A/0B/0C smoke summary and active Phase 1 handoff status. |
 
 Slurm `.out` files are local logs and are ignored. Compact JSONL traces are small enough to commit and are used by the multi-seed summarizer.
+
+## Current 2026 ICLR Status
+
+Phase 0A/0B/0C smokes completed successfully. See `results/iclr26_smoke_20260603/summary.md` for the compact table. The active continuation at handoff is jobs `67183` and `67184`, the first two Phase 1 protocol-lock DCLM shards, using 8 A6000 total.
 
 ## Primary 3-Seed Summary
 
@@ -191,11 +196,10 @@ dolma_sample
 Immediate launch order:
 
 ```text
-1. smoke: dclm + fineweb_edu
-2. smoke: dolma_sample + c4_en
-3. M1 memory smoke on dclm
-4. baseline protocol lock on dclm and fineweb_edu
-5. M0 100M main suite, paired two jobs at a time
+1. monitor active protocol-lock jobs 67183 and 67184
+2. summarize completed protocol-lock shards
+3. continue Phase 1 protocol lock on dclm and fineweb_edu
+4. M0 100M main suite, paired two jobs at a time
 6. M0 300M main suite after 100M summaries
 7. 600M frontier and M1 scale after 300M loss-per-GPU-hour summaries
 8. batch/memory profiling, transfer, corpus shift, sensitivity maps, diagnostics

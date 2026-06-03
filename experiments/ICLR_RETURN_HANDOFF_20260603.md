@@ -1,29 +1,31 @@
 # ICLR Return Handoff - 2026-06-03
 
-Last updated: 2026-06-03T17:19:13-04:00
-Current pushed commit: `c5ceac2`
+Last updated: 2026-06-03T17:35:02-04:00
+Current pushed commit before this handoff update: `ccc5ab5`
 
 ## Current Slurm State
 
-Active job:
+Active jobs:
 
 | job | state | node | purpose | GPU use |
 | --- | --- | --- | --- | --- |
-| `65084` | RUNNING at 00:05:10 when checked | `sun-compute-03` | Phase 0C M1 DCLM smoke | 4 A6000 |
+| `67183` | RUNNING | `sun-compute-03` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 4 A6000 |
+| `67184` | RUNNING | `fang-compute-02` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 4 A6000 |
 
-No other project jobs were active when this handoff was written. The active total is 4 A6000, under the 8 A6000 cap.
+Active total: 8 A6000, exactly at the cap. Do not submit another GPU job until one of these exits.
 
 Useful checks when returning:
 
 ```bash
 squeue -u mt872 -o "%.18i %.9P %.40j %.8T %.10M %.6D %R"
-sacct -j 65084 --format=JobID,JobName%30,State,ExitCode,Elapsed,NodeList
-sed -n 1,260p experiments/runs/logs/real-lm-screen-65084.out
+sacct -j 67183,67184 --format=JobID,JobName%30,State,ExitCode,Elapsed,NodeList
+sed -n '1,220p' experiments/runs/logs/iclr-protocol-lock-67183.out
+sed -n '1,220p' experiments/runs/logs/iclr-protocol-lock-67184.out
 ```
 
 ## Completed Phase 0A/0B Smoke Results
 
-All rows below used the compiled RLB extension path (`RATIONAL_OPT_TORCH_FALLBACK=0`), job-local extension build directories, exact dataset names/configs from the ICLR run plan, and explicit smoke validation skip (`VAL_SKIP_TOKENS=10000`, `DEFAULT_VAL_SKIP_TOKENS=10000`). Raw JSONL lives under ignored `experiments/runs/iclr26_smoke/`.
+All rows below used the compiled RLB extension path, job-local extension build directories, exact dataset names/configs from the ICLR run plan, and explicit smoke validation skip (`VAL_SKIP_TOKENS=10000`, `DEFAULT_VAL_SKIP_TOKENS=10000`). Raw JSONL lives under ignored `experiments/runs/iclr26_smoke/`.
 
 Final validation loss, lower is better:
 
@@ -41,45 +43,63 @@ Phase 0A/0B Slurm jobs:
 | `62426` | `dclm fineweb_edu` | COMPLETED, exit 0 | 00:31:38 |
 | `62425` | `dolma_sample c4_en` | COMPLETED, exit 0 | 00:36:49 |
 
-Interpretation: this is a feasibility smoke, not paper evidence. It is nevertheless a strong sanity signal: MatrixPolicy completed and was the best final-val row on all four Phase 0A/0B datasets.
+Interpretation: this is feasibility smoke, not paper evidence. It is a useful sanity signal: MatrixPolicy completed and was the best final-validation row on all four Phase 0A/0B datasets.
 
-## Current Phase 0C M1 Smoke
+## Completed Phase 0C M1 Smoke
 
-Command submitted as job `65084`:
+Job `65084` completed with exit `0:0` in `00:11:12` on `sun-compute-03`.
+
+Command used:
 
 ```bash
 env RATIONAL_OPT_TORCH_FALLBACK=0 REAL_LM_TASKS="dclm" SEEDS="1337" RUN_SUFFIX="iclr26_smoke_m1_dclm" OUTPUT_ROOT="experiments/runs/iclr26_smoke" TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_smoke" MAX_TRAIN_TOKENS=4000000 MAX_VAL_TOKENS=200000 STEPS=120 EVAL_INTERVAL=60 EVAL_BATCHES=2 LOG_INTERVAL=10 BATCH_SIZE=8 GRAD_ACCUM=4 INCLUDE_MUON=0 VAL_SKIP_TOKENS=10000 DEFAULT_VAL_SKIP_TOKENS=10000 COMMON_EXTRA_ARGS="--layers 18 --d-model 1024 --heads 16 --ffn-dim 3072" sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
-Current observed M1 rows:
+Final M1 smoke rows:
 
-| row | status at handoff | latest val |
-| --- | --- | ---: |
-| `dclm_adamw_controls_iclr26_smoke_m1_dclm/silu` | complete | 6.8513 |
-| `dclm_adamw_controls_iclr26_smoke_m1_dclm/rlb_fused_fixed_strong_ffn` | running, observed through step 10 | 10.5107 from step-1 eval only |
-| `dclm_matrix_policy_groupstat_iclr26_smoke_m1_dclm/rlb_fused_fixed_strong_ffn` | not started at handoff | n/a |
+| row | final step | final val loss | tokens/s |
+| --- | ---: | ---: | ---: |
+| `dclm_adamw_controls_iclr26_smoke_m1_dclm/silu` | 120 | 6.8513 | 30607.3 |
+| `dclm_adamw_controls_iclr26_smoke_m1_dclm/rlb_fused_fixed_strong_ffn` | 120 | 6.7335 | 24243.2 |
+| `dclm_matrix_policy_groupstat_iclr26_smoke_m1_dclm/rlb_fused_fixed_strong_ffn` | 120 | 6.7349 | 25005.4 |
 
-Do not interpret the current RLB M1 val yet; it is only the step-1 eval before the scheduled step-60/120 evals.
+Interpretation: at this larger smoke scale, both RLB+AdamW and RLB+MatrixPolicy beat SiLU+AdamW. MatrixPolicy is essentially tied with RLB+AdamW in final validation loss on this short 120-step smoke and is faster than RLB+AdamW in tokens/s for this run.
+
+## Submitted Continuation
+
+The previous legacy-named submission `67175` was canceled before any result should be used. It was replaced by protocol-lock jobs with the new launcher `experiments/scripts/run_iclr_phase1_protocol_lock_20260603.sh`.
+
+Submitted jobs:
+
+| job | shard | command shape |
+| --- | --- | --- |
+| `67183` | DCLM AdamW control configs 0-3 | `TASKS=dclm`, `OPTIMIZER_FAMILIES=adamw`, `CONFIG_START=0`, `CONFIG_LIMIT=4` |
+| `67184` | DCLM MatrixPolicy configs 0-3 | `TASKS=dclm`, `OPTIMIZER_FAMILIES=rational_matrix_policy_onpolicy`, `CONFIG_START=0`, `CONFIG_LIMIT=4` |
+
+Both use:
+
+```bash
+MAX_TRAIN_TOKENS=50000000 MAX_VAL_TOKENS=4000000 STEPS=1525 EVAL_INTERVAL=50 EVAL_BATCHES=10 BATCH_SIZE=16 GRAD_ACCUM=2 DCLM_VAL_SKIP_TOKENS=110000000 COMMON_EXTRA_ARGS="--layers 18 --d-model 1024 --heads 16 --ffn-dim 3072"
+```
 
 ## Pending Tasks by Condition
 
-1. If job `65084` completes with exit code 0 and all three M1 JSONL summaries exist:
-   - Record final M1 values in this file or a compact result summary.
-   - Confirm no OOM, no NaN, and that the MatrixPolicy M1 row has a final eval at step 120.
-   - Then start Phase 1 baseline protocol-lock jobs from `experiments/ICLR_EXACT_RUN_PLAN.md`, keeping at most two 4-GPU jobs active.
+1. If `67183` or `67184` fails:
+   - Do not submit more GPU work.
+   - Check the corresponding log in `experiments/runs/logs/iclr-protocol-lock-<job>.out` and `sacct` first.
+   - If the issue is launch/configuration, patch the exact failing path, commit, push, then rerun only the failed shard.
 
-2. If job `65084` fails:
-   - Do not start Phase 1.
-   - Inspect `experiments/runs/logs/real-lm-screen-65084.out` and `sacct -j 65084` first.
-   - If it is a memory failure, keep the same DCLM/M1 model geometry and fix the launch configuration before rerunning Phase 0C.
-   - If it is a loader/build/runtime bug, patch the exact failing path, commit, push, and rerun only Phase 0C.
+2. If both `67183` and `67184` complete:
+   - Run `experiments/scripts/summarize_iclr_phase1_protocol_lock.py` on `experiments/runs/iclr26_phase1_protocol_lock`.
+   - Record the compact DCLM protocol-lock summary in this handoff or a tracked result summary.
+   - Decide the next two shards from `experiments/ICLR_EXACT_RUN_PLAN.md` while keeping the active total at or below 8 A6000.
 
-3. If Phase 0C passes:
-   - Start Phase 1 only as protocol lock, not ablation and not HPO-centered evidence.
+3. Continue only with protocol-locked evidence:
    - Use `dclm` and `fineweb_edu` as specified in the exact plan.
-   - Keep raw outputs under ignored run directories; commit only code, plans, compact summaries, plots, and paper assets.
+   - Keep raw outputs under ignored run directories.
+   - Commit only code, plans, compact summaries, plots, and paper assets.
 
-4. If Phase 1 passes:
+4. After Phase 1 passes:
    - Move to the main 100M M0 suite in the plan across `dclm`, `fineweb_edu`, `fineweb`, `dolma_sample`, and `c4_en` with seeds `1337`, `2027`, `3407`.
    - Do not start late ablations before main evidence is complete.
 
@@ -90,18 +110,15 @@ Do not interpret the current RLB M1 val yet; it is only the step-1 eval before t
    - No substitute dataset/toolchain path for the planned experiment.
    - Keep FineWeb and FineWeb-Edu README curves/data intact.
 
-## Repo/Infrastructure Changes Already Pushed
+## Repo/Infrastructure Changes Included in This Update
 
-Recent pushed commits include:
+This update removes the old protocol surface with legacy tuning terminology and replaces it with:
 
-| commit | purpose |
+| file | purpose |
 | --- | --- |
-| `d733962` | Load Dolma sample through the official URL manifest instead of the unsupported legacy dataset script. |
-| `8acf02f` | Use compiled RLB extension path for paper jobs by default. |
-| `89289da` | Document `ninja` and `zstandard` runtime dependencies. |
-| `3e2e79f` | Add explicit validation skip to Phase 0A/0B smoke commands. |
-| `9813977` | Use Slurm-job-local extension build directories. |
-| `e477c4d` | Add explicit validation skip to Phase 0C smoke command. |
-| `c5ceac2` | Ignore raw Phase 0 smoke output directory. |
+| `experiments/scripts/run_iclr_phase1_protocol_lock_20260603.sh` | Protocol-lock Slurm launcher with DCLM support, bounded `CONFIG_START`/`CONFIG_LIMIT` shards, model-size hook, and optional extension-build guard. |
+| `experiments/scripts/summarize_iclr_phase1_protocol_lock.py` | Protocol-lock JSONL summarizer with run CSV, ranking CSV, and Markdown summary outputs. |
+| `.gitignore` | Ignores raw `experiments/runs/iclr26_phase1_protocol_lock/` outputs. |
+| `optimizer_design/README.md` and `optimizer_design/baseline_optimizers.py` | Removes legacy tuning wording from optimizer infrastructure docs/comments. |
 
 Paper PDF was already rendered with the Overleaf-style `pdflatex`/`bibtex` path and committed earlier at `paper/iclr_method_draft/main.pdf`.

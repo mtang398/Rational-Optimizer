@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize Phase A optimizer HPO JSONL traces."""
+"""Summarize Phase 1 protocol-lock JSONL traces."""
 
 from __future__ import annotations
 
@@ -255,8 +255,8 @@ def aggregate(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def write_markdown(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
-        handle.write("# Phase A HPO Summary\n\n")
-        handle.write("Rows are grouped by task, activation, optimizer, LR/WD, and family-specific knobs. Lower validation loss is better.\n\n")
+        handle.write("# Phase 1 Protocol-Lock Summary\n\n")
+        handle.write("Rows are grouped by task, activation, optimizer, LR/WD, and family-specific protocol settings. Lower validation loss is better.\n\n")
         for task in sorted({row["task"] for row in rows}):
             handle.write(f"## {TASK_NAMES.get(task, task)}\n\n")
             task_rows = [row for row in rows if row["task"] == task]
@@ -333,11 +333,11 @@ def main() -> int:
         *HYPER_KEYS,
     ]
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    write_csv(args.output_dir / "phase_a_hpo_runs.csv", rows, fieldnames)
+    write_csv(args.output_dir / "phase1_protocol_lock_runs.csv", rows, fieldnames)
     agg = aggregate(rows)
     aggregate_fields = ["task", "activation", "optimizer", *HYPER_KEYS, "n", "complete_n", "stopped_n", "diverged_n", "mean_final_val_loss", "std_final_val_loss", "mean_val_loss_auc_full", "mean_seconds_per_step", "sources"]
-    write_csv(args.output_dir / "phase_a_hpo_rankings.csv", agg, aggregate_fields)
-    write_markdown(args.output_dir / "phase_a_hpo_summary.md", agg)
+    write_csv(args.output_dir / "phase1_protocol_lock_rankings.csv", agg, aggregate_fields)
+    write_markdown(args.output_dir / "phase1_protocol_lock_summary.md", agg)
     print(json.dumps({"runs": len(rows), "groups": len(agg), "output_dir": str(args.output_dir)}, sort_keys=True))
     return 0
 

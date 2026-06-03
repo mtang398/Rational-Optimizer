@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=iclr-hpo-a
+#SBATCH --job-name=iclr-protocol-lock
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:nvidia_rtx_a6000:4
@@ -24,13 +24,13 @@ export TOKENIZERS_PARALLELISM=false
 export PATH="${PWD}/.venv-cu128/bin:${PATH}"
 
 PYTHON="${PYTHON:-${PWD}/.venv-cu128/bin/python}"
-OUTPUT_ROOT="${OUTPUT_ROOT:-experiments/runs/iclr_phase_a_hpo_20260602}"
-RUN_SUFFIX="${RUN_SUFFIX:-phase_a_surface}"
-TOKEN_CACHE_DIR="${TOKEN_CACHE_DIR:-experiments/cache/tokens_iclr_phase_a_${RUN_SUFFIX}}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-experiments/runs/iclr26_phase1_protocol_lock}"
+RUN_SUFFIX="${RUN_SUFFIX:-phase1_protocol_lock}"
+TOKEN_CACHE_DIR="${TOKEN_CACHE_DIR:-experiments/cache/tokens_iclr26_phase1_protocol_lock}"
 RLB_ACTIVATION="${RLB_ACTIVATION:-rlb_fused_fixed_strong_ffn}"
-TASKS="${TASKS:-fineweb_edu fineweb}"
-HPO_FAMILIES="${HPO_FAMILIES:-adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_matrix_policy_onpolicy}"
-HPO_STAGE="${HPO_STAGE:-surface}"
+TASKS="${TASKS:-dclm fineweb_edu}"
+OPTIMIZER_FAMILIES="${OPTIMIZER_FAMILIES:-adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_matrix_policy_onpolicy}"
+PROTOCOL_STAGE="${PROTOCOL_STAGE:-surface}"
 SEEDS="${SEEDS:-1337}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
 BATCH_SIZE="${BATCH_SIZE:-16}"
@@ -42,9 +42,9 @@ MAX_REPO_GIB="${MAX_REPO_GIB:-190}"
 MAX_CONFIGS="${MAX_CONFIGS:-0}"
 CONFIG_START="${CONFIG_START:-0}"
 CONFIG_LIMIT="${CONFIG_LIMIT:-${MAX_CONFIGS}}"
-CONFIRM_ICLR_PHASE_A="${CONFIRM_ICLR_PHASE_A:-0}"
+CONFIRM_ICLR_PHASE1="${CONFIRM_ICLR_PHASE1:-0}"
 
-if [[ "${HPO_STAGE}" == "confirm" ]]; then
+if [[ "${PROTOCOL_STAGE}" == "confirm" ]]; then
   STEPS="${STEPS:-3050}"
   MAX_TRAIN_TOKENS="${MAX_TRAIN_TOKENS:-100000000}"
   MAX_VAL_TOKENS="${MAX_VAL_TOKENS:-4000000}"
@@ -82,6 +82,8 @@ SOAP_FREQS="${SOAP_FREQS:-10 50 100}"
 SOAP_ONE_SIDED_VALUES="${SOAP_ONE_SIDED_VALUES:-false true}"
 MATRIX_ADAM_LR_SCALES="${MATRIX_ADAM_LR_SCALES:-2.0 3.0 4.0}"
 MATRIX_GROUP_GAINS="${MATRIX_GROUP_GAINS:-0.0 0.20}"
+COMMON_EXTRA_ARGS="${COMMON_EXTRA_ARGS:-}"
+BUILD_EXT="${BUILD_EXT:-1}"
 
 request_requeue() {
   echo "=== received USR1 at $(date -Is); requesting requeue for job ${SLURM_JOB_ID:-manual} ==="
@@ -133,6 +135,14 @@ family_weight_decays() {
 task_spec() {
   local task="$1"
   case "${task}" in
+    dclm)
+      DATASET_NAME="mlfoundations/dclm-baseline-1.0"
+      DATASET_CONFIG="none"
+      TEXT_COLUMN="text"
+      TRAIN_SPLIT="train"
+      VAL_SPLIT="train"
+      VAL_SKIP_TOKENS="${DCLM_VAL_SKIP_TOKENS:-110000000}"
+      ;;
     fineweb_edu)
       DATASET_NAME="HuggingFaceFW/fineweb-edu"
       DATASET_CONFIG="sample-10BT"
@@ -150,7 +160,7 @@ task_spec() {
       VAL_SKIP_TOKENS="${FINEWEB_VAL_SKIP_TOKENS:-110000000}"
       ;;
     *)
-      echo "Unknown TASK '${task}'. Valid: fineweb_edu fineweb" >&2
+      echo "Unknown TASK '${task}'. Valid: dclm fineweb_edu fineweb" >&2
       exit 2
       ;;
   esac
@@ -237,7 +247,7 @@ run_config() {
   LOG_INTERVAL="${LOG_INTERVAL}" \
   NPROC_PER_NODE="${NPROC_PER_NODE}" \
   SKIP_BUILD_EXT="1" \
-  EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${task_cache_dir} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} --lr ${lr} --weight-decay ${wd} --probe-batch-size 1 --matrix-spectrum-interval 250 --early-stop-min-step ${EARLY_STOP_MIN_STEP:-250} --early-stop-max-val-loss ${EARLY_STOP_MAX_VAL_LOSS:-20.0} --early-stop-loss-increase ${EARLY_STOP_LOSS_INCREASE:-1.0} ${extra_args}" \
+  EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${task_cache_dir} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} --lr ${lr} --weight-decay ${wd} --probe-batch-size 1 --matrix-spectrum-interval 250 --early-stop-min-step ${EARLY_STOP_MIN_STEP:-250} --early-stop-max-val-loss ${EARLY_STOP_MAX_VAL_LOSS:-20.0} --early-stop-loss-increase ${EARLY_STOP_LOSS_INCREASE:-1.0} ${COMMON_EXTRA_ARGS} ${extra_args}" \
   bash training/run_wikitext103_optimizer_sweep.sbatch
 }
 
@@ -245,7 +255,7 @@ planned_configs() {
   local count=0
   local task family lr wd value value2 lrs weight_decays
   for task in ${TASKS}; do
-    for family in ${HPO_FAMILIES}; do
+    for family in ${OPTIMIZER_FAMILIES}; do
       lrs="$(family_lrs "${family}")"
       weight_decays="$(family_weight_decays "${family}")"
       for lr in ${lrs}; do
@@ -288,29 +298,34 @@ should_run_config() {
   fi
   if (( CONFIG_LIMIT > 0 && CONFIGS_STARTED >= CONFIG_LIMIT )); then
     echo "=== CONFIG_LIMIT=${CONFIG_LIMIT} reached after CONFIG_START=${CONFIG_START}; stopping cleanly ==="
-    "${PYTHON}" experiments/scripts/summarize_iclr_phase_a_hpo.py --run-root "${OUTPUT_ROOT}" --output-dir "${OUTPUT_ROOT}/summary" || true
+    "${PYTHON}" experiments/scripts/summarize_iclr_phase1_protocol_lock.py --run-root "${OUTPUT_ROOT}" --output-dir "${OUTPUT_ROOT}/summary" || true
     exit 0
   fi
   CONFIGS_STARTED=$((CONFIGS_STARTED + 1))
   return 0
 }
 
-if [[ "${CONFIRM_ICLR_PHASE_A}" != "1" ]]; then
-  echo "Refusing to start Phase A HPO without CONFIRM_ICLR_PHASE_A=1."
+if [[ "${CONFIRM_ICLR_PHASE1}" != "1" ]]; then
+  echo "Refusing to start Phase 1 protocol lock without CONFIRM_ICLR_PHASE1=1."
   echo "Planned configs: $(planned_configs). One job uses 4 A6000s; submit at most two active jobs for the 8-GPU cap."
-  echo "Use HPO_FAMILIES to split families across two jobs, family-specific *_LRS/*_WEIGHT_DECAYS for fair grids, and CONFIG_START/CONFIG_LIMIT for bounded chunks."
+  echo "Use OPTIMIZER_FAMILIES, family-specific *_LRS/*_WEIGHT_DECAYS, and CONFIG_START/CONFIG_LIMIT for bounded chunks."
   exit 2
 fi
 
 mkdir -p experiments/runs/logs
 check_repo_size
+if [[ "${BUILD_EXT}" == "1" ]]; then
+  BUILD_EXT_ROOT="${OUTPUT_ROOT}/_build/${SLURM_JOB_ID:-manual}"
+  mkdir -p "${BUILD_EXT_ROOT}/temp" "${BUILD_EXT_ROOT}/lib"
+  "${PYTHON}" setup.py build_ext --inplace --build-temp "${BUILD_EXT_ROOT}/temp" --build-lib "${BUILD_EXT_ROOT}/lib"
+fi
 CONFIGS_SEEN=0
 CONFIGS_STARTED=0
 
-echo "=== ICLR Phase A HPO ${SLURM_JOB_ID:-manual}; stage=${HPO_STAGE}; planned=$(planned_configs); chunk_start=${CONFIG_START}; chunk_limit=${CONFIG_LIMIT}; one job uses 4 A6000s ==="
+echo "=== ICLR Phase 1 protocol lock ${SLURM_JOB_ID:-manual}; stage=${PROTOCOL_STAGE}; planned=$(planned_configs); chunk_start=${CONFIG_START}; chunk_limit=${CONFIG_LIMIT}; one job uses 4 A6000s ==="
 for task in ${TASKS}; do
   task_spec "${task}"
-  for family in ${HPO_FAMILIES}; do
+  for family in ${OPTIMIZER_FAMILIES}; do
     FAMILY_LRS="$(family_lrs "${family}")"
     FAMILY_WEIGHT_DECAYS="$(family_weight_decays "${family}")"
     for lr in ${FAMILY_LRS}; do
@@ -376,7 +391,7 @@ for task in ${TASKS}; do
             done
             ;;
           *)
-            echo "Unknown HPO family '${family}'" >&2
+            echo "Unknown optimizer family '${family}'" >&2
             exit 2
             ;;
         esac
@@ -385,4 +400,4 @@ for task in ${TASKS}; do
   done
 done
 
-"${PYTHON}" experiments/scripts/summarize_iclr_phase_a_hpo.py --run-root "${OUTPUT_ROOT}" --output-dir "${OUTPUT_ROOT}/summary"
+"${PYTHON}" experiments/scripts/summarize_iclr_phase1_protocol_lock.py --run-root "${OUTPUT_ROOT}" --output-dir "${OUTPUT_ROOT}/summary"

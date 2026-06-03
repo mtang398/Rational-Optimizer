@@ -179,7 +179,7 @@ This changes the parameterization but preserves the represented function up to f
 
 ## Generic Baseline Optimizers
 
-`baseline_optimizers.py` adds the broad optimizer-family controls needed for the paper HPO harness:
+`baseline_optimizers.py` adds the broad optimizer-family controls needed for protocol-locked paper comparisons:
 
 ```text
 lion                  -> Lion with decoupled weight decay
@@ -189,7 +189,7 @@ adafactor_came        -> factored adaptive AdamW with CAME-style confidence corr
 soap_adamw            -> SOAP/Shampoo-style eigenbasis AdamW for eligible 2D tensors
 ```
 
-AdEMAMix now follows the paper/reference implementation details that matter for stability: the slow EMA is not bias-corrected, alpha warms linearly, and beta3 warms by interpolating EMA half-life. The SOAP/Shampoo and CAME rows are intentionally labeled as style baselines until they are matched line-by-line to a reference implementation. They are suitable for Phase A tuning and stability checks, not for claiming exact reproduction of those papers.
+AdEMAMix now follows the paper/reference implementation details that matter for stability: the slow EMA is not bias-corrected, alpha warms linearly, and beta3 warms by interpolating EMA half-life. The SOAP/Shampoo and CAME rows are intentionally labeled as style baselines until they are matched line-by-line to a reference implementation. They are suitable for protocol-locked screening and stability checks, not for claiming exact reproduction of those papers.
 
 ## Full Step Order
 

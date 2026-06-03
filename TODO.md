@@ -47,27 +47,31 @@ full ICLR optimizer experiment blueprint
 optimizer telemetry instrumentation for gradient, timing, CUDA memory, probe movement, RLB stats, MatrixPolicy role stats, and SVD entropy
 broad baseline optimizer wiring for Lion, paper-style AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, and SOAP/Shampoo-style AdamW
 CUDA/DDP telemetry validation launcher/checker and completed validation summary
-bounded baseline-sweep launcher and summarizer scaffolding
+bounded protocol-lock launcher and summarizer scaffolding
 reference-aligned AdEMAMix behavior: no slow-EMA bias correction, alpha warmup, beta3 half-life warmup
+Phase 0A/0B smokes completed on dclm, fineweb_edu, dolma_sample, and c4_en
+Phase 0C M1 DCLM smoke completed
+first two Phase 1 protocol-lock DCLM shards submitted as jobs 67183 and 67184
 ```
 
 ## Immediate TODO
 
 Use `experiments/ICLR_EXACT_RUN_PLAN.md` as the source of truth. The plan contains distinct optimizer-paper experiments, not a dressed-up version of the pilot.
 
-1. Run Phase 0 loader/model smokes.
-2. Run Phase 1 baseline protocol lock on `dclm` and `fineweb_edu`.
-3. Run Phase 2 M0 100M main suite on `dclm`, `fineweb_edu`, `fineweb`, `dolma_sample`, and `c4_en`.
-4. Repeat Phase 2 100M for seeds 2027 and 3407.
-5. Run Phase 2 300M after 100M summaries.
-6. Run Phase 3 600M long-horizon frontier on decisive rows.
-7. Run Phase 4 M1 scale confirmation and optional M2 stretch.
-8. Run Phase 5 batch, throughput, memory, and optimizer-state accounting.
-9. Run Phase 6 cross-corpus transfer from 300M checkpoints.
-10. Run Phase 7 corpus-shift continued training.
-11. Run Phase 8 sensitivity maps.
-12. Run Phase 9 mechanism diagnostics from main logs.
-13. Run Phase 10 method ablations last.
+1. Monitor jobs `67183` and `67184`; if either fails, inspect and rerun only the failed shard.
+2. If both complete, summarize with `experiments/scripts/summarize_iclr_phase1_protocol_lock.py`.
+3. Continue Phase 1 protocol lock on `dclm` and `fineweb_edu` with at most two 4-GPU jobs active.
+4. Run Phase 2 M0 100M main suite on `dclm`, `fineweb_edu`, `fineweb`, `dolma_sample`, and `c4_en`.
+5. Repeat Phase 2 100M for seeds 2027 and 3407.
+6. Run Phase 2 300M after 100M summaries.
+7. Run Phase 3 600M long-horizon frontier on decisive rows.
+8. Run Phase 4 M1 scale confirmation and optional M2 stretch.
+9. Run Phase 5 batch, throughput, memory, and optimizer-state accounting.
+10. Run Phase 6 cross-corpus transfer from 300M checkpoints.
+11. Run Phase 7 corpus-shift continued training.
+12. Run Phase 8 sensitivity maps.
+13. Run Phase 9 mechanism diagnostics from main logs.
+14. Run Phase 10 method ablations last.
 
 ## Mechanism Diagnostics Needed
 
