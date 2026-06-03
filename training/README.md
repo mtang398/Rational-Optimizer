@@ -171,7 +171,7 @@ repository size below 200G
 Standard runtime environment:
 
 ```text
-RATIONAL_OPT_TORCH_FALLBACK=1
+RATIONAL_OPT_TORCH_FALLBACK=0
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 NCCL_P2P_DISABLE=1
 ```

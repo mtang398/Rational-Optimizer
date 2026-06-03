@@ -101,8 +101,8 @@ This README defines the RLB layer and its optimizer-visible handles. It should n
 ## Implementation Layout
 
 ```text
-activation/rational_opt/  Python package and PyTorch fallback paths
+activation/rational_opt/  Python package, compiled kernels, and PyTorch reference path
 activation/csrc/          CUDA/C++ extension sources
 ```
 
-A6000 launchers set `RATIONAL_OPT_TORCH_FALLBACK=1` when the PyTorch implementation is the desired path. That fallback uses the same RLB math and is the path used by the current real-LM jobs.
+A6000 launchers use the compiled extension path by default (`RATIONAL_OPT_TORCH_FALLBACK=0`). Set `RATIONAL_OPT_TORCH_FALLBACK=1` only for local implementation debugging, not paper runs.

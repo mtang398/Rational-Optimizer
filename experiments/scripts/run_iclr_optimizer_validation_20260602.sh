@@ -12,7 +12,7 @@ set -euo pipefail
 
 cd /home/mt872/rationalOPT
 
-export RATIONAL_OPT_TORCH_FALLBACK="${RATIONAL_OPT_TORCH_FALLBACK:-1}"
+export RATIONAL_OPT_TORCH_FALLBACK="${RATIONAL_OPT_TORCH_FALLBACK:-0}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-1}"
 export HF_HOME="${PWD}/experiments/cache/huggingface"
