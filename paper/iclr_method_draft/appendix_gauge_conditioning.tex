@@ -44,15 +44,52 @@ $\cQ=\cP/\cG$.
 
 \begin{lemma}[Exact positive gauge]
 \label{lem:exact-positive-gauge}
-If $\epsilon_{\rm rms}=0$ and $r_g>0$ for every group on the considered input, then
-$T_s(A,B)$ and $(A,B)$ represent the same layer map for all $s\in\R^G$.
+If $\epsilon_{\rm rms}=0$ and each zero-radius group, if present, is evaluated by a
+bounded convention with $h_g=0$, then $T_s(A,B)$ and $(A,B)$ represent the same layer map
+for all $s\in\R^G$.  In particular, the claim holds on any input for which all group
+radii are nonzero.
 \end{lemma}
 
 \begin{proof}
-For one group, $A_g'=e^{s_g}A_g$ gives $z_g'=e^{s_g}z_g$.  Since
+For a group with $r_g>0$, $A_g'=e^{s_g}A_g$ gives $z_g'=e^{s_g}z_g$.  Since
 $\epsilon_{\rm rms}=0$, $r_g'=e^{s_g}r_g$, hence $u_g'=u_g$ and
 $h_g'=e^{s_g}h_g$.  The corresponding output block satisfies
-$B_g'h_g'=e^{-s_g}B_g e^{s_g}h_g=B_gh_g$.  Summing over groups gives the claim.
+$B_g'h_g'=e^{-s_g}B_g e^{s_g}h_g=B_gh_g$.  If $r_g=0$, then $z_g=0$ and also
+$z_g'=0$; by the zero-radius convention both group features are zero, so the output
+block is again unchanged.  Summing over groups gives the claim.
+\end{proof}
+
+\begin{proposition}[Stabilized gauge error]
+\label{prop:stabilized-gauge-error}
+Fix $|s_g|\leq S$ and $\epsilon_0>0$, and let $f_\epsilon$ denote the layer map with
+radius $r_g=\sqrt{m^{-1}\norm{z_g}_2^2+\epsilon}$.  Suppose that, on the considered
+local activation set,
+\begin{equation}
+    0<\sigma^2\leq m^{-1}\norm{z_g}_2^2\leq M^2<\infty
+\end{equation}
+for every group, the rational maps are bounded and Lipschitz on the resulting normalized
+inputs uniformly for $0\leq\epsilon\leq\epsilon_0$ and $|s_g|\leq S$, and the output
+blocks $B_g$ have bounded operator norm.  Then there is a constant $C$ independent of
+$\epsilon$ such that, for all $0\leq\epsilon\leq\epsilon_0$,
+\begin{equation}
+    \norm{f_\epsilon(T_s(A,B);x)-f_\epsilon(A,B;x)}_2\leq C\epsilon .
+    \label{eq:stabilized-gauge-error}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+It suffices to bound one group.  Let $a=e^{s_g}$ and
+$S_z=m^{-1}\norm{z_g}_2^2$.  After applying $T_s$, the contribution of this group after
+the inverse scaling of $B_g$ is governed by the radius
+$\sqrt{S_z+\epsilon/a^2}$, whereas the original radius is $\sqrt{S_z+\epsilon}$.
+Because $a$ is bounded above and below and $S_z\geq\sigma^2$,
+\begin{equation}
+    \left|\sqrt{S_z+\epsilon/a^2}-\sqrt{S_z+\epsilon}\right|\leq C_1\epsilon .
+\end{equation}
+The normalized inputs differ by $O(\epsilon)$ by the same calculation applied to the
+reciprocal square-root factor.  Boundedness and Lipschitzness of $R_g$, together with the
+bounded operator norm of $B_g$, therefore give an $O(\epsilon)$ bound for the group output.
+Summing over finitely many groups proves \eqref{eq:stabilized-gauge-error}.
 \end{proof}
 
 \begin{assumption}[Local quotient chart]
@@ -69,8 +106,10 @@ satisfies
     L(\theta(q,s))=F(q).
     \label{eq:loss-quotient}
 \end{equation}
-For the exact gauge statements, $\epsilon_{\rm rms}=0$.  Nonzero RMS stabilization is
-included only through the residual model of Assumption~\ref{ass:uniform-perturbation}.
+For exact gauge identities, $\epsilon_{\rm rms}=0$.  For nonzero RMS stabilization,
+Proposition~\ref{prop:stabilized-gauge-error} gives a local $O(\epsilon_{\rm rms})$
+gauge error under nondegenerate activations; the remaining implementation effects are
+included in the residual model of Assumption~\ref{ass:uniform-perturbation}.
 \end{assumption}
 
 \begin{lemma}[Gauge tangent orthogonality]
@@ -149,7 +188,7 @@ Using $a^2+b^2=w(e^{2s}+e^{-2s})=2w\cosh(2s)$ gives
 \eqref{eq:scalar-gauge-step}.
 \end{proof}
 
-\begin{assumption}[Frozen quotient preconditioners]
+\begin{assumption}[Frozen quotient preconditioners for the quadratic specialization]
 \label{ass:frozen-preconditioner}
 During the local phase, MatrixPolicy and AdamW induce fixed positive definite quotient
 preconditioners $P_{\MP}$ and $P_{\AW}$ satisfying
@@ -176,6 +215,72 @@ For $P\succ0$, define the transformed quotient objective
 A preconditioned quotient step $q^+=q-\eta P\nabla F(q)$ is equivalent to ordinary
 gradient descent on $\widetilde F_P$ in the coordinate $x=P^{-1/2}(q-q_\star)$.
 
+
+\begin{lemma}[Pathwise contraction certificate]
+\label{lem:pathwise-contraction-certificate}
+Let an ideal quotient trajectory for optimizer $o$ have nonnegative gaps
+$Y_t^o=F(q_t^o)-F_\star\geq0$ and satisfy
+\begin{equation}
+    Y_{t+1}^o
+    \leq
+    \alpha_{o,t}Y_t^o,
+    \qquad \alpha_{o,t}\geq0,
+    \label{eq:pathwise-certificate}
+\end{equation}
+for $0\leq t<T$.  Then
+\begin{equation}
+    F(q_T^o)-F_\star
+    \leq
+    \left(\prod_{t=0}^{T-1}\alpha_{o,t}\right)
+    \bigl(F(q_0^o)-F_\star\bigr).
+    \label{eq:pathwise-certificate-product}
+\end{equation}
+The factors need not be below one at every step; a finite-horizon contraction follows
+whenever their product is below one.
+\end{lemma}
+
+\begin{proof}
+Iterate \eqref{eq:pathwise-certificate}.
+\end{proof}
+
+\begin{proposition}[Expected contraction certificate]
+\label{prop:expected-contraction-certificate}
+Let $q_t^o$ be a stochastic quotient trajectory adapted to a filtration
+$\mathcal{H}_t$, and set $Y_t^o=F(q_t^o)-F_\star\geq0$.  Suppose there are
+nonnegative $\mathcal{H}_t$-measurable factors $\alpha_{o,t}$ and deterministic upper
+bounds $\bar\alpha_{o,t}$ such that $\alpha_{o,t}\leq\bar\alpha_{o,t}$ almost surely and
+\begin{equation}
+    \mathbb{E}\left[Y_{t+1}^o\mid\mathcal{H}_t\right]
+    \leq
+    \alpha_{o,t}Y_t^o
+    \label{eq:expected-certificate}
+\end{equation}
+for $0\leq t<T$.  Then
+\begin{equation}
+    \mathbb{E}\left[F(q_T^o)-F_\star\right]
+    \leq
+    \left(\prod_{t=0}^{T-1}\bar\alpha_{o,t}\right)
+    \mathbb{E}\left[F(q_0^o)-F_\star\right].
+    \label{eq:expected-certificate-product}
+\end{equation}
+The factors may be state dependent, the initial point may be random, and no individual
+envelope has to be below one; finite-horizon expected contraction is controlled by the
+product of the deterministic envelopes.  For two optimizers initialized from the same
+distribution, the smaller product gives the smaller certified expected finite-horizon
+bound.
+\end{proposition}
+
+\begin{proof}
+Since $Y_t^o$ and $\alpha_{o,t}$ are $\mathcal{H}_t$-measurable and nonnegative,
+\begin{equation}
+    \mathbb{E}Y_{t+1}^o
+    \leq
+    \mathbb{E}\left[\alpha_{o,t}Y_t^o\right]
+    \leq
+    \bar\alpha_{o,t}\mathbb{E}Y_t^o .
+\end{equation}
+Iterating proves \eqref{eq:expected-certificate-product}.
+\end{proof}
 
 \begin{lemma}[One-step transformed PL decrease]
 \label{lem:one-step-pl-decrease}
@@ -255,13 +360,15 @@ finite-horizon PL contraction bound.
 \end{proposition}
 
 \begin{proof}
-Apply Lemma~\ref{lem:one-step-pl-decrease} at each step and multiply the resulting
-one-step factors.
+Lemma~\ref{lem:one-step-pl-decrease} gives the pathwise certificate
+\eqref{eq:pathwise-certificate} with
+$\alpha_{o,t}=1-\kappa_{o,t}^{-1}$.  Apply
+Lemma~\ref{lem:pathwise-contraction-certificate}.
 \end{proof}
 
 \begin{corollary}[Frozen PL quotient bound]
 \label{cor:frozen-pl-bound}
-Suppose Assumptions~\ref{ass:quotient-chart} and \ref{ass:frozen-preconditioner} hold.
+Suppose the frozen quotient dynamics in Assumption~\ref{ass:frozen-preconditioner} hold.
 For $o\in\{\MP,\AW\}$, suppose Lemma~\ref{lem:one-step-pl-decrease} applies along
 the transformed ideal trajectory with $P=P_o$ and fixed constants $(L_o,\mu_o)$.  Let
 \begin{equation}
@@ -286,6 +393,49 @@ and, for every initial point whose two ideal trajectories remain in their local 
 This is Proposition~\ref{prop:time-varying-pl-bound} with constant
 $P_{o,t}=P_o$, $L_{o,t}=L_o$, and $\mu_{o,t}=\mu_o$.  The map
 $\kappa\mapsto1-\kappa^{-1}$ is strictly increasing for $\kappa\geq1$.
+\end{proof}
+
+\begin{proposition}[Time-varying quadratic spectral bound]
+\label{prop:time-varying-quadratic-bound}
+Let
+\begin{equation}
+    F(q)=F_\star+\frac{1}{2}(q-q_\star)^\top H(q-q_\star),
+    \qquad H\succ0,
+\end{equation}
+and consider the time-varying preconditioned update
+\begin{equation}
+    q_{t+1}=q_t-\eta_t P_t\nabla F(q_t).
+\end{equation}
+Define
+\begin{equation}
+    A_t=H^{1/2}(I-\eta_tP_tH)H^{-1/2},
+    \qquad
+    \alpha_t=\norm{A_t}_2^2 .
+    \label{eq:time-varying-quadratic-alpha}
+\end{equation}
+Then
+\begin{equation}
+    F(q_T)-F_\star
+    \leq
+    \left(\prod_{t=0}^{T-1}\alpha_t\right)
+    \bigl(F(q_0)-F_\star\bigr).
+    \label{eq:time-varying-quadratic-bound}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Let $e_t=q_t-q_\star$ and $y_t=H^{1/2}e_t$.  Since
+$\nabla F(q_t)=He_t$,
+\begin{equation}
+    y_{t+1}=H^{1/2}(I-\eta_tP_tH)H^{-1/2}y_t=A_ty_t.
+\end{equation}
+Also $2(F(q_t)-F_\star)=\norm{y_t}_2^2$.  Hence
+\begin{equation}
+    2(F(q_{t+1})-F_\star)=\norm{A_ty_t}_2^2
+    \leq \alpha_t\norm{y_t}_2^2
+    =2\alpha_t(F(q_t)-F_\star).
+\end{equation}
+Iterating this one-step inequality gives \eqref{eq:time-varying-quadratic-bound}.
 \end{proof}
 
 \begin{lemma}[Preconditioned quadratic contraction]
@@ -349,7 +499,7 @@ associated with $\lammin(K(P))$ or $\lammax(K(P))$.
 
 \begin{theorem}[Conditional worst-case optimization separation]
 \label{thm:conditional-optimization-separation}
-Suppose Assumptions~\ref{ass:quotient-chart} and \ref{ass:frozen-preconditioner} hold,
+Suppose the frozen quotient dynamics in Assumption~\ref{ass:frozen-preconditioner} hold,
 and suppose $F$ is the quadratic objective in Lemma~\ref{lem:preconditioned-contraction}.
 Assume also that
 \begin{equation}

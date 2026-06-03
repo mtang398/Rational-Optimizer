@@ -82,10 +82,10 @@ group has a positive scale gauge:
 \end{align}
 The represented function is unchanged because $z_{l,g}$ and $r_{l,g}$ scale
 together, $u_{l,g}$ is unchanged, and the inverse scale in $B_l$ cancels the scale
-in $h_{l,g}$.  With a nonzero RMS floor, the exact quotient dynamics are replaced
-by the residual model in Appendix~\ref{app:complete-opt-proof}.  This matters
-because optimizer state is stored in coordinates, not in the quotient space of
-represented functions.
+in $h_{l,g}$.  With a nonzero RMS floor, Appendix~\ref{app:complete-opt-proof} bounds the resulting
+local gauge error under nondegenerate activations and treats the remaining implementation
+deviations through a residual model.  This matters because optimizer state is stored in
+coordinates, not in the quotient space of represented functions.
 
 At step $t$, each matrix role $r\in\{\mathrm{in},\mathrm{out}\}$ receives a
 role-depth factor $\rho_r(l)$ and an on-policy statistic factor
