@@ -1,16 +1,17 @@
 # ICLR Return Handoff - 2026-06-03
 
-Last updated: 2026-06-03T17:35:02-04:00
-Current pushed commit before this handoff update: `ccc5ab5`
+Last updated: 2026-06-03T17:46:46-04:00
+
+This file is the live operational handoff for returning to the project. It records completed smoke results, currently running Slurm work, live progress observed from JSONL/logs, and the exact next conditions. Raw run outputs remain ignored; compact summaries and launch infrastructure are tracked.
 
 ## Current Slurm State
 
-Active jobs:
+Active jobs at 2026-06-03T17:46:46-04:00:
 
-| job | state | node | purpose | GPU use |
-| --- | --- | --- | --- | --- |
-| `67183` | RUNNING | `sun-compute-03` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 4 A6000 |
-| `67184` | RUNNING | `fang-compute-02` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 4 A6000 |
+| job | state | elapsed | node | purpose | GPU use |
+| --- | --- | ---: | --- | --- | ---: |
+| `67183` | RUNNING | 00:12:09 | `sun-compute-03` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 4 A6000 |
+| `67184` | RUNNING | 00:12:05 | `fang-compute-02` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 4 A6000 |
 
 Active total: 8 A6000, exactly at the cap. Do not submit another GPU job until one of these exits.
 
@@ -19,9 +20,57 @@ Useful checks when returning:
 ```bash
 squeue -u mt872 -o "%.18i %.9P %.40j %.8T %.10M %.6D %R"
 sacct -j 67183,67184 --format=JobID,JobName%30,State,ExitCode,Elapsed,NodeList
-sed -n '1,220p' experiments/runs/logs/iclr-protocol-lock-67183.out
-sed -n '1,220p' experiments/runs/logs/iclr-protocol-lock-67184.out
+sed -n '1,260p' experiments/runs/logs/iclr-protocol-lock-67183.out
+sed -n '1,260p' experiments/runs/logs/iclr-protocol-lock-67184.out
 ```
+
+## Live Phase 1 Protocol-Lock Progress
+
+These are not final results. They are the latest observed in-progress JSONL/log state at 2026-06-03T17:46:46-04:00.
+
+| job | shard | current row | status | latest train step/loss | latest eval step/loss | notes |
+| --- | --- | --- | --- | ---: | ---: | --- |
+| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/silu` | running | 420 / 5.6756 | 400 / 5.8155 | First AdamW config is running; RLB companion for this config has not started yet. |
+| `67184` | DCLM MatrixPolicy configs 0-3 | `dclm_matrix_policy_as2.0_gg0.20_lr0.0002_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 60 / 7.8381 | 50 / 8.0113 | First MatrixPolicy config is running; first scheduled step-50 eval is now present. |
+
+Submitted Phase 1 commands used the new protocol-lock launcher:
+
+```bash
+experiments/scripts/run_iclr_phase1_protocol_lock_20260603.sh
+```
+
+Shared protocol for both jobs:
+
+```bash
+RATIONAL_OPT_TORCH_FALLBACK=0
+CONFIRM_ICLR_PHASE1=1
+PROTOCOL_STAGE=protocol_lock
+TASKS=dclm
+SEEDS=1337
+OUTPUT_ROOT=experiments/runs/iclr26_phase1_protocol_lock
+TOKEN_CACHE_DIR=experiments/cache/tokens_iclr26_phase1_protocol_lock
+RUN_SUFFIX=phase1_protocol_lock
+MAX_TRAIN_TOKENS=50000000
+MAX_VAL_TOKENS=4000000
+STEPS=1525
+EVAL_INTERVAL=50
+EVAL_BATCHES=10
+LOG_INTERVAL=10
+BATCH_SIZE=16
+GRAD_ACCUM=2
+DCLM_VAL_SKIP_TOKENS=110000000
+COMMON_EXTRA_ARGS="--layers 18 --d-model 1024 --heads 16 --ffn-dim 3072"
+BUILD_EXT=0
+```
+
+Shard-specific settings:
+
+| job | optimizer families | grid/chunk |
+| --- | --- | --- |
+| `67183` | `adamw` | `ADAMW_LRS="0.0001 0.0003 0.0005"`, `ADAMW_WEIGHT_DECAYS="0.03 0.10 0.20"`, `CONFIG_START=0`, `CONFIG_LIMIT=4` |
+| `67184` | `rational_matrix_policy_onpolicy` | `MATRIX_POLICY_LRS="0.0002 0.0003 0.0005"`, `MATRIX_POLICY_WEIGHT_DECAYS="0.03 0.10"`, `MATRIX_ADAM_LR_SCALES="2.0 3.0 4.0"`, `MATRIX_GROUP_GAINS="0.20 0.35"`, `CONFIG_START=0`, `CONFIG_LIMIT=4` |
+
+Important: job `67175` was a canceled legacy-named submission and should not be used for results.
 
 ## Completed Phase 0A/0B Smoke Results
 
@@ -65,34 +114,40 @@ Final M1 smoke rows:
 
 Interpretation: at this larger smoke scale, both RLB+AdamW and RLB+MatrixPolicy beat SiLU+AdamW. MatrixPolicy is essentially tied with RLB+AdamW in final validation loss on this short 120-step smoke and is faster than RLB+AdamW in tokens/s for this run.
 
-## Submitted Continuation
+## Reporting Rule For Future Result Updates
 
-The previous legacy-named submission `67175` was canceled before any result should be used. It was replaced by protocol-lock jobs with the new launcher `experiments/scripts/run_iclr_phase1_protocol_lock_20260603.sh`.
+Curves are more important than isolated final numbers. Every future result update should preserve and report:
 
-Submitted jobs:
-
-| job | shard | command shape |
-| --- | --- | --- |
-| `67183` | DCLM AdamW control configs 0-3 | `TASKS=dclm`, `OPTIMIZER_FAMILIES=adamw`, `CONFIG_START=0`, `CONFIG_LIMIT=4` |
-| `67184` | DCLM MatrixPolicy configs 0-3 | `TASKS=dclm`, `OPTIMIZER_FAMILIES=rational_matrix_policy_onpolicy`, `CONFIG_START=0`, `CONFIG_LIMIT=4` |
-
-Both use:
-
-```bash
-MAX_TRAIN_TOKENS=50000000 MAX_VAL_TOKENS=4000000 STEPS=1525 EVAL_INTERVAL=50 EVAL_BATCHES=10 BATCH_SIZE=16 GRAD_ACCUM=2 DCLM_VAL_SKIP_TOKENS=110000000 COMMON_EXTRA_ARGS="--layers 18 --d-model 1024 --heads 16 --ffn-dim 3072"
+```text
+dense validation-loss curves, with eval interval <= 50 for paper/protocol runs
+training-loss curves
+mean +/- std curves when multiple seeds exist
+AUC / loss-vs-step / loss-vs-token summaries
+loss-vs-GPU-hour or wall-clock curves when timing is available
+divergence and incomplete-run markers on the trajectory, not only in footnotes
+final validation loss as a table column, not the whole story
 ```
 
-## Pending Tasks by Condition
+Do not replace curve evidence with a final-number-only summary. Do not launch future paper/protocol runs with 200-step evaluation spacing.
 
-1. If `67183` or `67184` fails:
+## Pending Tasks By Condition
+
+1. If either active job fails:
    - Do not submit more GPU work.
-   - Check the corresponding log in `experiments/runs/logs/iclr-protocol-lock-<job>.out` and `sacct` first.
-   - If the issue is launch/configuration, patch the exact failing path, commit, push, then rerun only the failed shard.
+   - Check `sacct -j <job>` and `experiments/runs/logs/iclr-protocol-lock-<job>.out` first.
+   - Patch the exact failing launcher/runtime path, commit, push, then rerun only the failed shard.
 
-2. If both `67183` and `67184` complete:
-   - Run `experiments/scripts/summarize_iclr_phase1_protocol_lock.py` on `experiments/runs/iclr26_phase1_protocol_lock`.
-   - Record the compact DCLM protocol-lock summary in this handoff or a tracked result summary.
-   - Decide the next two shards from `experiments/ICLR_EXACT_RUN_PLAN.md` while keeping the active total at or below 8 A6000.
+2. If both active jobs complete:
+   - Run:
+
+```bash
+.venv-cu128/bin/python experiments/scripts/summarize_iclr_phase1_protocol_lock.py \
+  --run-root experiments/runs/iclr26_phase1_protocol_lock \
+  --output-dir experiments/runs/iclr26_phase1_protocol_lock/summary
+```
+
+   - Record the compact DCLM protocol-lock summary in this file or a tracked result summary. Include curves/AUC/trajectory behavior, not only final validation losses.
+   - Choose the next two Phase 1 shards from `experiments/ICLR_EXACT_RUN_PLAN.md` while keeping active GPU use at or below 8 A6000.
 
 3. Continue only with protocol-locked evidence:
    - Use `dclm` and `fineweb_edu` as specified in the exact plan.
@@ -110,15 +165,17 @@ MAX_TRAIN_TOKENS=50000000 MAX_VAL_TOKENS=4000000 STEPS=1525 EVAL_INTERVAL=50 EVA
    - No substitute dataset/toolchain path for the planned experiment.
    - Keep FineWeb and FineWeb-Edu README curves/data intact.
 
-## Repo/Infrastructure Changes Included in This Update
+## Repo/Infrastructure State
 
-This update removes the old protocol surface with legacy tuning terminology and replaces it with:
+The old legacy tuning-named launcher/summarizer surface has been removed from the tracked tree. The active protocol-lock files are:
 
 | file | purpose |
 | --- | --- |
 | `experiments/scripts/run_iclr_phase1_protocol_lock_20260603.sh` | Protocol-lock Slurm launcher with DCLM support, bounded `CONFIG_START`/`CONFIG_LIMIT` shards, model-size hook, and optional extension-build guard. |
 | `experiments/scripts/summarize_iclr_phase1_protocol_lock.py` | Protocol-lock JSONL summarizer with run CSV, ranking CSV, and Markdown summary outputs. |
+| `experiments/results/iclr26_smoke_20260603/summary.md` | Compact tracked Phase 0 smoke summary. |
 | `.gitignore` | Ignores raw `experiments/runs/iclr26_phase1_protocol_lock/` outputs. |
-| `optimizer_design/README.md` and `optimizer_design/baseline_optimizers.py` | Removes legacy tuning wording from optimizer infrastructure docs/comments. |
+
+Verified before this handoff rewrite: tracked filenames and tracked text contain no legacy tuning-surface matches outside ignored raw output/cache/log paths.
 
 Paper PDF was already rendered with the Overleaf-style `pdflatex`/`bibtex` path and committed earlier at `paper/iclr_method_draft/main.pdf`.

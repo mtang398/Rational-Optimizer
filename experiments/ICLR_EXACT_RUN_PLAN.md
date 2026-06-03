@@ -75,6 +75,9 @@ All GPU jobs use 4 A6000s. At most two jobs may be active.
 
 ## Cross-Phase Analysis Rules
 
+Dense curve rule: paper/protocol runs must evaluate at least every 50 optimizer steps. Do not use 200-step evaluation spacing for paper evidence. Summaries must report validation/training curves, mean +/- std curves for multi-seed runs, AUC, and loss-vs-GPU-hour when timing exists; final validation loss alone is not sufficient.
+
+
 Every experiment writes the same core fields so the paper can compare methods across phases:
 
 ```text
@@ -216,7 +219,7 @@ TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_smoke" \
 MAX_TRAIN_TOKENS=4000000 \
 MAX_VAL_TOKENS=200000 \
 STEPS=120 \
-EVAL_INTERVAL=60 \
+EVAL_INTERVAL=50 \
 EVAL_BATCHES=2 \
 LOG_INTERVAL=10 \
 BATCH_SIZE=8 \

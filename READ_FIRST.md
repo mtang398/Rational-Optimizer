@@ -90,6 +90,7 @@ repo size below 200G
 The current FineWeb/FineWeb-Edu result is a pilot signal. A paper-relevant claim requires the accepted optimizer-paper evidence stack:
 
 ```text
+Dense curves are mandatory: eval interval <= 50 for paper/protocol runs, not every 200 steps
 seriously tuned AdamW and accepted optimizer-family baselines
 final-budget comparisons, not intermediate-checkpoint wins
 speed-to-target in tokens, steps, GPU-hours, and wall-clock time

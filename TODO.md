@@ -59,19 +59,20 @@ first two Phase 1 protocol-lock DCLM shards submitted as jobs 67183 and 67184
 Use `experiments/ICLR_EXACT_RUN_PLAN.md` as the source of truth. The plan contains distinct optimizer-paper experiments, not a dressed-up version of the pilot.
 
 1. Monitor jobs `67183` and `67184`; if either fails, inspect and rerun only the failed shard.
-2. If both complete, summarize with `experiments/scripts/summarize_iclr_phase1_protocol_lock.py`.
-3. Continue Phase 1 protocol lock on `dclm` and `fineweb_edu` with at most two 4-GPU jobs active.
-4. Run Phase 2 M0 100M main suite on `dclm`, `fineweb_edu`, `fineweb`, `dolma_sample`, and `c4_en`.
-5. Repeat Phase 2 100M for seeds 2027 and 3407.
-6. Run Phase 2 300M after 100M summaries.
-7. Run Phase 3 600M long-horizon frontier on decisive rows.
-8. Run Phase 4 M1 scale confirmation and optional M2 stretch.
-9. Run Phase 5 batch, throughput, memory, and optimizer-state accounting.
-10. Run Phase 6 cross-corpus transfer from 300M checkpoints.
-11. Run Phase 7 corpus-shift continued training.
-12. Run Phase 8 sensitivity maps.
-13. Run Phase 9 mechanism diagnostics from main logs.
-14. Run Phase 10 method ablations last.
+2. For every future result summary, generate and inspect curves first: densely sampled validation loss with eval interval <= 50, training loss, mean +/- std when multi-seed, AUC, and loss-vs-GPU-hour when timing exists. Final loss alone is insufficient.
+3. If both complete, summarize with `experiments/scripts/summarize_iclr_phase1_protocol_lock.py`.
+4. Continue Phase 1 protocol lock on `dclm` and `fineweb_edu` with at most two 4-GPU jobs active.
+5. Run Phase 2 M0 100M main suite on `dclm`, `fineweb_edu`, `fineweb`, `dolma_sample`, and `c4_en`.
+6. Repeat Phase 2 100M for seeds 2027 and 3407.
+7. Run Phase 2 300M after 100M summaries.
+8. Run Phase 3 600M long-horizon frontier on decisive rows.
+9. Run Phase 4 M1 scale confirmation and optional M2 stretch.
+10. Run Phase 5 batch, throughput, memory, and optimizer-state accounting.
+11. Run Phase 6 cross-corpus transfer from 300M checkpoints.
+12. Run Phase 7 corpus-shift continued training.
+13. Run Phase 8 sensitivity maps.
+14. Run Phase 9 mechanism diagnostics from main logs.
+15. Run Phase 10 method ablations last.
 
 ## Mechanism Diagnostics Needed
 

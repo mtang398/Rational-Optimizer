@@ -38,6 +38,7 @@ GRAD_ACCUM="${GRAD_ACCUM:-2}"
 EVAL_BATCHES="${EVAL_BATCHES:-10}"
 LOG_INTERVAL="${LOG_INTERVAL:-10}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-50}"
+MAX_EVAL_INTERVAL="${MAX_EVAL_INTERVAL:-50}"
 MAX_REPO_GIB="${MAX_REPO_GIB:-190}"
 MAX_CONFIGS="${MAX_CONFIGS:-0}"
 CONFIG_START="${CONFIG_START:-0}"
@@ -93,6 +94,13 @@ request_requeue() {
   exit 0
 }
 trap request_requeue USR1
+
+check_eval_density() {
+  if (( EVAL_INTERVAL > MAX_EVAL_INTERVAL )); then
+    echo "EVAL_INTERVAL=${EVAL_INTERVAL} is too sparse for paper curves; max allowed is ${MAX_EVAL_INTERVAL}." >&2
+    exit 2
+  fi
+}
 
 check_repo_size() {
   local used_kib
@@ -313,6 +321,7 @@ if [[ "${CONFIRM_ICLR_PHASE1}" != "1" ]]; then
 fi
 
 mkdir -p experiments/runs/logs
+check_eval_density
 check_repo_size
 if [[ "${BUILD_EXT}" == "1" ]]; then
   BUILD_EXT_ROOT="${OUTPUT_ROOT}/_build/${SLURM_JOB_ID:-manual}"

@@ -34,6 +34,7 @@ STEPS="${STEPS:-1000}"
 MAX_TRAIN_TOKENS="${MAX_TRAIN_TOKENS:-100000000}"
 MAX_VAL_TOKENS="${MAX_VAL_TOKENS:-4000000}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-50}"
+MAX_EVAL_INTERVAL="${MAX_EVAL_INTERVAL:-50}"
 EVAL_BATCHES="${EVAL_BATCHES:-10}"
 LOG_INTERVAL="${LOG_INTERVAL:-10}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
@@ -54,6 +55,13 @@ request_requeue() {
   exit 0
 }
 trap request_requeue USR1
+
+check_eval_density() {
+  if (( EVAL_INTERVAL > MAX_EVAL_INTERVAL )); then
+    echo "EVAL_INTERVAL=${EVAL_INTERVAL} is too sparse for paper curves; max allowed is ${MAX_EVAL_INTERVAL}." >&2
+    exit 2
+  fi
+}
 
 check_repo_size() {
   local used_kib
