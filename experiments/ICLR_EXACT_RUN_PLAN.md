@@ -179,6 +179,8 @@ EVAL_BATCHES=2 \
 LOG_INTERVAL=10 \
 INCLUDE_MUON=1 \
 EXTRA_OPTIMIZERS="soap_adamw" \
+VAL_SKIP_TOKENS=10000 \
+DEFAULT_VAL_SKIP_TOKENS=10000 \
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
@@ -198,6 +200,8 @@ EVAL_BATCHES=2 \
 LOG_INTERVAL=10 \
 INCLUDE_MUON=1 \
 EXTRA_OPTIMIZERS="soap_adamw" \
+VAL_SKIP_TOKENS=10000 \
+DEFAULT_VAL_SKIP_TOKENS=10000 \
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
