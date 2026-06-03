@@ -47,7 +47,7 @@ full ICLR optimizer experiment blueprint
 optimizer telemetry instrumentation for gradient, timing, CUDA memory, probe movement, RLB stats, MatrixPolicy role stats, and SVD entropy
 broad baseline optimizer wiring for Lion, paper-style AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, and SOAP/Shampoo-style AdamW
 CUDA/DDP telemetry validation launcher/checker and completed validation summary
-bounded protocol-lock launcher and summarizer scaffolding
+bounded protocol-lock launcher and curve-first summarizer
 reference-aligned AdEMAMix behavior: no slow-EMA bias correction, alpha warmup, beta3 half-life warmup
 Phase 0A/0B smokes completed on dclm, fineweb_edu, dolma_sample, and c4_en
 Phase 0C M1 DCLM smoke completed

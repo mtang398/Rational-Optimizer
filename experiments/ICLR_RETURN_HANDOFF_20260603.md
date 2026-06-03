@@ -146,7 +146,7 @@ Do not replace curve evidence with a final-number-only summary. Do not launch fu
   --output-dir experiments/runs/iclr26_phase1_protocol_lock/summary
 ```
 
-   - Record the compact DCLM protocol-lock summary in this file or a tracked result summary. Include curves/AUC/trajectory behavior, not only final validation losses.
+   - Record the compact DCLM protocol-lock summary in this file or a tracked result summary. The summarizer now emits `eval_curves.csv`, `train_curves.csv`, validation-loss/PPL plots, training-loss plots, AUC fields, and dense-curve checks; use those curve artifacts before final validation losses.
    - Choose the next two Phase 1 shards from `experiments/ICLR_EXACT_RUN_PLAN.md` while keeping active GPU use at or below 8 A6000.
 
 3. Continue only with protocol-locked evidence:
@@ -172,7 +172,7 @@ The old legacy tuning-named launcher/summarizer surface has been removed from th
 | file | purpose |
 | --- | --- |
 | `experiments/scripts/run_iclr_phase1_protocol_lock_20260603.sh` | Protocol-lock Slurm launcher with DCLM support, bounded `CONFIG_START`/`CONFIG_LIMIT` shards, model-size hook, and optional extension-build guard. |
-| `experiments/scripts/summarize_iclr_phase1_protocol_lock.py` | Protocol-lock JSONL summarizer with run CSV, ranking CSV, and Markdown summary outputs. |
+| `experiments/scripts/summarize_iclr_phase1_protocol_lock.py` | Curve-first protocol-lock summarizer with run CSV, ranking CSV, dense eval/train curve CSVs, validation/training plots, AUC fields, and Markdown summary outputs. |
 | `experiments/results/iclr26_smoke_20260603/summary.md` | Compact tracked Phase 0 smoke summary. |
 | `.gitignore` | Ignores raw `experiments/runs/iclr26_phase1_protocol_lock/` outputs. |
 
