@@ -122,7 +122,7 @@ M1 DCLM smoke final validation loss:
 | RLB+AdamW | 6.7335 | 24243.2 |
 | RLB+MatrixPolicy group-stat | 6.7349 | 25005.4 |
 
-Active continuation as of 2026-06-03T17:46:46-04:00: jobs `67183` and `67184` are the first two Phase 1 protocol-lock DCLM shards, using 8 A6000 total. Do not submit more GPU work until one exits. Latest observed progress: `67183` was on the first AdamW row at train step 420 / eval step 400; `67184` was on the first MatrixPolicy row at train step 60 / eval step 50. For all future result updates, curves and AUC are primary; final validation loss alone is not enough.
+Active continuation as of 2026-06-03T17:59:56-04:00: jobs `67183` and `67184` are the first two Phase 1 protocol-lock DCLM shards, using 8 A6000 total. Do not submit more GPU work until one exits. Latest observed progress: `67183` was on the first AdamW row at train step 1460 / eval step 1450; `67184` was on the first MatrixPolicy row at train step 220 / eval step 200. Jobs `69975` and `69976` are dependency-queued as the next bounded shards. For all future result updates, curves and AUC are primary; final validation loss alone is not enough.
 
 ## Method Sketch
 

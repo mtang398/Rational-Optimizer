@@ -20,7 +20,7 @@ Slurm `.out` files are local logs and are ignored. Compact JSONL traces are smal
 
 ## Current 2026 ICLR Status
 
-Phase 0A/0B/0C smokes completed successfully. See `results/iclr26_smoke_20260603/summary.md` for the compact table. As of 2026-06-03T17:44:18-04:00, jobs `67183` and `67184` are the first two Phase 1 protocol-lock DCLM shards, using 8 A6000 total. Protocol-lock summaries generate dense curve artifacts (`eval_curves.csv`, `train_curves.csv`, plots, AUC) by default.
+Phase 0A/0B/0C smokes completed successfully. See `results/iclr26_smoke_20260603/summary.md` for the compact table. As of 2026-06-03T17:59:56-04:00, jobs `67183` and `67184` are the first two Phase 1 protocol-lock DCLM shards, using 8 A6000 total; jobs `69975` and `69976` are dependency-queued as the next bounded shards. Protocol-lock summaries generate dense curve artifacts (`eval_curves.csv`, `train_curves.csv`, plots, AUC) by default.
 
 ## Primary 3-Seed Summary
 

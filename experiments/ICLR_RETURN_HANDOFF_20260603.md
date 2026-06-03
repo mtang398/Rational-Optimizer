@@ -1,17 +1,17 @@
 # ICLR Return Handoff - 2026-06-03
 
-Last updated: 2026-06-03T17:46:46-04:00
+Last updated: 2026-06-03T17:59:56-04:00
 
 This file is the live operational handoff for returning to the project. It records completed smoke results, currently running Slurm work, live progress observed from JSONL/logs, and the exact next conditions. Raw run outputs remain ignored; compact summaries and launch infrastructure are tracked.
 
 ## Current Slurm State
 
-Active jobs at 2026-06-03T17:46:46-04:00:
+Active jobs at 2026-06-03T17:59:56-04:00:
 
 | job | state | elapsed | node | purpose | GPU use |
 | --- | --- | ---: | --- | --- | ---: |
-| `67183` | RUNNING | 00:12:09 | `sun-compute-03` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 4 A6000 |
-| `67184` | RUNNING | 00:12:05 | `fang-compute-02` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 4 A6000 |
+| `67183` | RUNNING | 00:25:02 | `sun-compute-03` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 4 A6000 |
+| `67184` | RUNNING | 00:24:58 | `fang-compute-02` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 4 A6000 |
 
 Active total: 8 A6000, exactly at the cap. Do not submit another GPU job until one of these exits.
 
@@ -19,19 +19,19 @@ Useful checks when returning:
 
 ```bash
 squeue -u mt872 -o "%.18i %.9P %.40j %.8T %.10M %.6D %R"
-sacct -j 67183,67184 --format=JobID,JobName%30,State,ExitCode,Elapsed,NodeList
+sacct -j 67183,67184,69975,69976 --format=JobID,JobName%30,State,ExitCode,Elapsed,NodeList
 sed -n '1,260p' experiments/runs/logs/iclr-protocol-lock-67183.out
 sed -n '1,260p' experiments/runs/logs/iclr-protocol-lock-67184.out
 ```
 
 ## Live Phase 1 Protocol-Lock Progress
 
-These are not final results. They are the latest observed in-progress JSONL/log state at 2026-06-03T17:46:46-04:00.
+These are not final results. They are the latest observed in-progress JSONL/log state at 2026-06-03T17:59:56-04:00.
 
 | job | shard | current row | status | latest train step/loss | latest eval step/loss | notes |
 | --- | --- | --- | --- | ---: | ---: | --- |
-| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/silu` | running | 420 / 5.6756 | 400 / 5.8155 | First AdamW config is running; RLB companion for this config has not started yet. |
-| `67184` | DCLM MatrixPolicy configs 0-3 | `dclm_matrix_policy_as2.0_gg0.20_lr0.0002_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 60 / 7.8381 | 50 / 8.0113 | First MatrixPolicy config is running; first scheduled step-50 eval is now present. |
+| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/silu` | running | 1460 / 4.9328 | 1450 / 5.0919 | First AdamW config is near completion; RLB companion for this config has not started yet. |
+| `67184` | DCLM MatrixPolicy configs 0-3 | `dclm_matrix_policy_as2.0_gg0.20_lr0.0002_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 220 / 5.9446 | 200 / 6.0781 | First MatrixPolicy config is running with dense evals present. |
 
 Submitted Phase 1 commands used the new protocol-lock launcher:
 
@@ -71,6 +71,22 @@ Shard-specific settings:
 | `67184` | `rational_matrix_policy_onpolicy` | `MATRIX_POLICY_LRS="0.0002 0.0003 0.0005"`, `MATRIX_POLICY_WEIGHT_DECAYS="0.03 0.10"`, `MATRIX_ADAM_LR_SCALES="2.0 3.0 4.0"`, `MATRIX_GROUP_GAINS="0.20 0.35"`, `CONFIG_START=0`, `CONFIG_LIMIT=4` |
 
 Important: job `67175` was a canceled legacy-named submission and should not be used for results.
+
+## Queued Continuation
+
+The next bounded shards are already queued behind both active jobs and cannot start until `67183` and `67184` both complete successfully. This keeps active GPU use at or below 8 A6000.
+
+| job | state | dependency | shard | GPU use when released |
+| --- | --- | --- | --- | ---: |
+| `69975` | PENDING, dependency-held | `afterok:67183:67184` | DCLM AdamW control configs 4-7 | 4 A6000 |
+| `69976` | PENDING, dependency-held | `afterok:67183:67184` | DCLM MatrixPolicy configs 4-7 | 4 A6000 |
+
+Useful dependency check:
+
+```bash
+scontrol show job 69975
+scontrol show job 69976
+```
 
 ## Completed Phase 0A/0B Smoke Results
 
@@ -147,7 +163,7 @@ Do not replace curve evidence with a final-number-only summary. Do not launch fu
 ```
 
    - Record the compact DCLM protocol-lock summary in this file or a tracked result summary. The summarizer now emits `eval_curves.csv`, `train_curves.csv`, validation-loss/PPL plots, training-loss plots, AUC fields, and dense-curve checks; use those curve artifacts before final validation losses.
-   - Choose the next two Phase 1 shards from `experiments/ICLR_EXACT_RUN_PLAN.md` while keeping active GPU use at or below 8 A6000.
+   - Jobs `69975` and `69976` should release automatically if both active jobs succeed. If they do not release, inspect their dependency state with `scontrol show job`.
 
 3. Continue only with protocol-locked evidence:
    - Use `dclm` and `fineweb_edu` as specified in the exact plan.
