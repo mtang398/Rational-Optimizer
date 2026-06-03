@@ -174,7 +174,7 @@ It is not the main result because the current real-corpus gaps are larger and mo
 
 ## Launching More Runs
 
-Read `ICLR_EXACT_RUN_PLAN.md` before launching. The corrected queue keeps FineWeb/FineWeb-Edu and adds accepted-paper anchor tasks.
+Read `ICLR_EXACT_RUN_PLAN.md` before launching. The corrected queue keeps FineWeb/FineWeb-Edu and adds benchmark comparability tasks.
 
 Supported real-LM task names now include:
 
@@ -191,13 +191,15 @@ dolma_sample
 Immediate launch order:
 
 ```text
-1. smoke: c4_en + openwebtext
-2. smoke: dclm + fineweb_edu
-3. smoke: M1 on fineweb_edu
-4. main pair: c4_en 100M seed 1337 + fineweb_edu 100M seed 1337
-5. main pair: dclm 100M seed 1337 + openwebtext 100M seed 1337
-6. repeat 100M for seeds 2027/3407
-7. run 300M, then M1, then 600M if justified by loss per GPU-hour
+1. smoke: dclm + fineweb_edu
+2. smoke: dolma_sample + c4_en
+3. M1 memory smoke on dclm
+4. baseline protocol lock on dclm and fineweb_edu
+5. M0 100M main suite, paired two jobs at a time
+6. M0 300M main suite after 100M summaries
+7. 600M frontier and M1 scale after 300M loss-per-GPU-hour summaries
+8. batch/memory profiling, transfer, corpus shift, sensitivity maps, diagnostics
+9. ablations last
 ```
 
 Example C4-EN 100M launch:

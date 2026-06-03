@@ -47,28 +47,27 @@ full ICLR optimizer experiment blueprint
 optimizer telemetry instrumentation for gradient, timing, CUDA memory, probe movement, RLB stats, MatrixPolicy role stats, and SVD entropy
 broad baseline optimizer wiring for Lion, paper-style AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, and SOAP/Shampoo-style AdamW
 CUDA/DDP telemetry validation launcher/checker and completed validation summary
-bounded tuning launcher and summarizer scaffolding
+bounded baseline-sweep launcher and summarizer scaffolding
 reference-aligned AdEMAMix behavior: no slow-EMA bias correction, alpha warmup, beta3 half-life warmup
 ```
 
 ## Immediate TODO
 
-Use `experiments/ICLR_EXACT_RUN_PLAN.md` as the source of truth. FineWeb remains, but it is integrated as modern 2026-grade web evidence alongside accepted-paper anchors.
+Use `experiments/ICLR_EXACT_RUN_PLAN.md` as the source of truth. The plan contains distinct optimizer-paper experiments, not a dressed-up version of the pilot.
 
-1. Run Job 0A smoke: `c4_en openwebtext`, 2M tokens, seed 1337.
-2. Run Job 0B smoke: `dclm fineweb_edu`, 2M tokens, seed 1337.
-3. Run Job 0C M1 memory smoke on `fineweb_edu`.
-4. Run C4-EN M0 100M seed 1337 and FineWeb-Edu M0 100M seed 1337 as the first real two-job pair.
-5. Run DCLM M0 100M seed 1337 and OpenWebText M0 100M seed 1337 as the second pair.
-6. Repeat the 100M matrix for seeds 2027 and 3407.
-7. Run 300M on C4-EN, FineWeb-Edu, DCLM, and OpenWebText for seeds 1337, 2027, 3407.
-8. Run M1 300M on C4-EN, FineWeb-Edu, and DCLM after M1 smoke passes.
-9. Run 600M on FineWeb-Edu, FineWeb, C4-EN, and DCLM only after 300M loss-per-GPU-hour curves justify it.
-10. Build cross-corpus evaluation from C4/FineWeb/DCLM checkpoints to C4, OpenWebText, FineWeb-Edu, FineWeb, DCLM, Dolma, and Pile if available.
-11. Run memory/throughput/batch-regime profiling.
-12. Run long-horizon corpus-shift runs.
-13. Run reviewer-defense sensitivity maps.
-14. Run ablations last.
+1. Run Phase 0 loader/model smokes.
+2. Run Phase 1 baseline protocol lock on `dclm` and `fineweb_edu`.
+3. Run Phase 2 M0 100M main suite on `dclm`, `fineweb_edu`, `fineweb`, `dolma_sample`, and `c4_en`.
+4. Repeat Phase 2 100M for seeds 2027 and 3407.
+5. Run Phase 2 300M after 100M summaries.
+6. Run Phase 3 600M long-horizon frontier on decisive rows.
+7. Run Phase 4 M1 scale confirmation and optional M2 stretch.
+8. Run Phase 5 batch, throughput, memory, and optimizer-state accounting.
+9. Run Phase 6 cross-corpus transfer from 300M checkpoints.
+10. Run Phase 7 corpus-shift continued training.
+11. Run Phase 8 sensitivity maps.
+12. Run Phase 9 mechanism diagnostics from main logs.
+13. Run Phase 10 method ablations last.
 
 ## Mechanism Diagnostics Needed
 
@@ -133,11 +132,11 @@ Remaining weaknesses:
 broad baselines are implemented but not yet reference-matched or tuned enough for final claims
 Sophia-style and exact reference SOAP/CAME comparisons are still missing or only approximate
 mechanism telemetry is implemented and CUDA/DDP validation passed, but paper figures are missing
-method-component ablation table is missing and should wait until tuned configs exist
+method-component ablation table is missing and should wait until baseline-locked configs exist
 larger model scale and longer token budget are missing
 third/fourth corpus and transfer-task evidence are missing
 wall-clock/tokens-to-target/GPU-hour story is not yet clean
 statistical reporting needs mean +/- std curves, CIs, divergence accounting, and exact failed-run policy
 ```
 
-Score needed before a strong ICLR submission: at least 8.7 / 10. The fastest path is a decisive tuned headline benchmark, speed-to-target/overhead accounting, scale and transfer evidence, mechanism diagnostics tied to optimizer role behavior, and only then explanatory ablations.
+Score needed before a strong ICLR submission: at least 8.7 / 10. The fastest path is a decisive headline benchmark, speed-to-target/overhead accounting, scale and transfer evidence, mechanism diagnostics tied to optimizer role behavior, and only then explanatory ablations.
