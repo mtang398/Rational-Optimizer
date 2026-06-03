@@ -34,12 +34,12 @@ At this short M1 smoke scale, both RLB+AdamW and RLB+MatrixPolicy beat SiLU+Adam
 
 ## Active Continuation At Handoff
 
-Latest observed at 2026-06-03T18:20:30-04:00:
+Latest observed at 2026-06-03T18:26:15-04:00:
 
 | job | purpose | elapsed | latest observed row | latest train | latest eval | GPU use |
 | --- | --- | ---: | --- | ---: | ---: | ---: |
-| `67183` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 00:46:05 | `adamw lr=0.0001 wd=0.03 / silu complete; rlb adamw active` | RLB step 1160 loss 5.0358 | RLB eval step 1150 loss 5.1759 | 4 A6000 |
-| `67184` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 00:46:01 | `matrix_policy lr=0.0002 wd=0.03 adam_scale=2.0 group_gain=0.20` | step 460 loss 5.2513 | step 450 loss 5.3607 | 4 A6000 |
+| `67183` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 00:50:15 | `adamw lr=0.0001 wd=0.03 pair complete; wd=0.10 active` | current SiLU step 20 loss 10.5233 | latest eval step 1 loss 11.0157 | 4 A6000 |
+| `67184` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 00:50:11 | `matrix_policy lr=0.0002 wd=0.03 adam_scale=2.0 group_gain=0.20` | step 550 loss 5.1224 | eval step 550 loss 5.2261 | 4 A6000 |
 
 No more GPU work should be submitted while both jobs are active because the 8 A6000 cap is fully used.
 

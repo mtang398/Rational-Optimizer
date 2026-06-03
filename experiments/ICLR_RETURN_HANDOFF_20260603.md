@@ -1,17 +1,17 @@
 # ICLR Return Handoff - 2026-06-03
 
-Last updated: 2026-06-03T18:20:30-04:00
+Last updated: 2026-06-03T18:26:15-04:00
 
 This file is the live operational handoff for returning to the project. It records completed smoke results, currently running Slurm work, live progress observed from JSONL/logs, and the exact next conditions. Raw run outputs remain ignored; compact summaries and launch infrastructure are tracked.
 
 ## Current Slurm State
 
-Active jobs at 2026-06-03T18:20:30-04:00:
+Active jobs at 2026-06-03T18:26:15-04:00:
 
 | job | state | elapsed | node | purpose | GPU use |
 | --- | --- | ---: | --- | --- | ---: |
-| `67183` | RUNNING | 00:46:05 | `sun-compute-03` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 4 A6000 |
-| `67184` | RUNNING | 00:46:01 | `fang-compute-02` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 4 A6000 |
+| `67183` | RUNNING | 00:50:15 | `sun-compute-03` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 4 A6000 |
+| `67184` | RUNNING | 00:50:11 | `fang-compute-02` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 4 A6000 |
 
 Active total: 8 A6000, exactly at the cap. Do not submit another GPU job until one of these exits.
 
@@ -26,13 +26,14 @@ sed -n '1,260p' experiments/runs/logs/iclr-protocol-lock-67184.out
 
 ## Live Phase 1 Protocol-Lock Progress
 
-These are not final results. They are the latest observed in-progress JSONL/log state at 2026-06-03T18:20:30-04:00.
+These are not final results. They are the latest observed in-progress JSONL/log state at 2026-06-03T18:26:15-04:00.
 
 | job | shard | current row | status | latest train step/loss | latest eval step/loss | notes |
 | --- | --- | --- | --- | ---: | ---: | --- |
-| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/silu` | complete | 1525 / 4.9551 | 1525 / 5.0774 | First SiLU+AdamW row complete. |
-| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 1160 / 5.0358 | 1150 / 5.1759 | Paired RLB+AdamW row is running. |
-| `67184` | DCLM MatrixPolicy configs 0-3 | `dclm_matrix_policy_as2.0_gg0.20_lr0.0002_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 460 / 5.2513 | 450 / 5.3607 | First MatrixPolicy config is running with dense evals present. |
+| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/silu` | complete | 1525 / final train in summary | 1525 / final eval in curve | First SiLU+AdamW row complete. |
+| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | complete | 1525 / 4.9564 | 1525 / 5.0784 | First paired RLB+AdamW row complete. |
+| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.10_phase1_protocol_lock/silu` | running | 20 / 10.5233 | 1 / 11.0157 | Next AdamW control config has started. |
+| `67184` | DCLM MatrixPolicy configs 0-3 | `dclm_matrix_policy_as2.0_gg0.20_lr0.0002_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 550 / 5.1224 | 550 / 5.2261 | First MatrixPolicy config is running with dense evals present. |
 
 Submitted Phase 1 commands used the new protocol-lock launcher:
 
@@ -157,7 +158,7 @@ Do not replace curve evidence with a final-number-only summary. Do not launch fu
 
 ## Rough Finish Estimate
 
-Estimates below are deliberately rough because MatrixPolicy step time changes after warmup and Slurm scheduling can delay dependency release. Current time basis: 2026-06-03T18:20:30-04:00.
+Estimates below are deliberately rough because MatrixPolicy step time changes after warmup and Slurm scheduling can delay dependency release. Current time basis: 2026-06-03T18:26:15-04:00.
 
 | item | expected window | basis |
 | --- | --- | --- |
