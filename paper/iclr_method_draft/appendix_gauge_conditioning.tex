@@ -97,25 +97,23 @@ an $O(\epsilon)$ bound for the group output.
 Summing over finitely many groups proves \eqref{eq:stabilized-gauge-error}.
 \end{proof}
 
-\begin{assumption}[Local quotient chart]
-\label{ass:quotient-chart}
-In a neighborhood of the trajectory, parameters can be written as
+\paragraph{Local quotient coordinates.}
+In local statements below, parameters are written in a chart
 \begin{equation}
     \theta=\theta(q,s),
     \qquad q\in\R^d,
     \qquad s\in\R^G,
 \end{equation}
-where $q$ is a local coordinate on $\cQ$ and $s$ is the log-gauge coordinate.  The objective
-satisfies
+where $q$ is a coordinate on $\cQ$ and $s$ is the log-gauge coordinate.  The exact quotient
+model is
 \begin{equation}
     L(\theta(q,s))=F(q).
     \label{eq:loss-quotient}
 \end{equation}
-For exact gauge identities, $\epsilon_{\rm rms}=0$.  For nonzero RMS stabilization,
+For exact gauge identities, $\epsilon_{\rm rms}=0$.  With nonzero RMS stabilization,
 Proposition~\ref{prop:stabilized-gauge-error} gives a local $O(\epsilon_{\rm rms})$
-gauge error under nondegenerate activations; the remaining implementation effects are
-included in the residual model of Assumption~\ref{ass:uniform-perturbation}.
-\end{assumption}
+gauge error under nondegenerate activations; the remaining implementation effects enter
+the finite-horizon perturbation model in Proposition~\ref{prop:complete-perturbation}.
 
 \begin{lemma}[Gauge tangent orthogonality]
 \label{lem:gauge-null-direction}
@@ -270,10 +268,8 @@ Using $ab=w$ and $a^2+b^2=w(e^{2s}+e^{-2s})=2w\cosh(2s)$ gives
 \eqref{eq:scalar-gauge-step}.
 \end{proof}
 
-\begin{assumption}[Frozen quotient preconditioners for the quadratic specialization]
-\label{ass:frozen-preconditioner}
-During the local phase, MatrixPolicy and AdamW induce fixed positive definite quotient
-preconditioners $P_{\MP}$ and $P_{\AW}$ satisfying
+For the frozen quadratic specialization, MatrixPolicy and AdamW induce fixed positive
+definite quotient preconditioners $P_{\MP}$ and $P_{\AW}$ satisfying
 \begin{align}
     q_{t+1}^{\MP}
     &=q_t^{\MP}-\eta_{\MP}P_{\MP}\nabla F(q_t^{\MP}),
@@ -282,12 +278,17 @@ preconditioners $P_{\MP}$ and $P_{\AW}$ satisfying
     &=q_t^{\AW}-\eta_{\AW}P_{\AW}\nabla F(q_t^{\AW}).
     \label{eq:aw-ideal-dynamics}
 \end{align}
-Here $P_{\MP}$ is the quotient preconditioner after gauge rebalance and $P_{\AW}$ is the
-quotient preconditioner induced by AdamW's raw-coordinate adaptive state.
-\end{assumption}
+Here $P_{\MP}\succ0$ is the quotient preconditioner after gauge rebalance and
+$P_{\AW}\succ0$ is the quotient preconditioner induced by AdamW's raw-coordinate adaptive
+state.
 
 \subsection{Contraction and Perturbation Bounds}
 \label{app:complete-opt-proof:contraction}
+
+The next statements are alternative sufficient routes to a quotient-contraction
+certificate.  The pathwise, expected, PL, and quadratic results are not cumulative
+requirements; the frozen quadratic theorem is the sharp closed-form specialization used to
+isolate the conditioning mechanism.
 
 For $P\succ0$, define the transformed quotient objective
 \begin{equation}
@@ -479,7 +480,7 @@ Lemma~\ref{lem:pathwise-contraction-certificate}.
 
 \begin{corollary}[Frozen PL quotient bound]
 \label{cor:frozen-pl-bound}
-Suppose the frozen quotient dynamics in Assumption~\ref{ass:frozen-preconditioner} hold.
+Suppose the frozen quotient dynamics in \eqref{eq:mp-ideal-dynamics}--\eqref{eq:aw-ideal-dynamics} hold.
 For $o\in\{\MP,\AW\}$, suppose Lemma~\ref{lem:one-step-pl-decrease} applies along
 the transformed ideal trajectory with $P=P_o$ and fixed constants $(\eta_o,\mu_o)$.  Let
 \begin{equation}
@@ -609,7 +610,7 @@ associated with $\lammin(K(P))$ or $\lammax(K(P))$.
 
 \begin{theorem}[Conditional worst-case optimization separation]
 \label{thm:conditional-optimization-separation}
-Suppose the frozen quotient dynamics in Assumption~\ref{ass:frozen-preconditioner} hold,
+Suppose the frozen quotient dynamics in \eqref{eq:mp-ideal-dynamics}--\eqref{eq:aw-ideal-dynamics} hold,
 and suppose $F$ is the quadratic objective in Lemma~\ref{lem:preconditioned-contraction}.
 Assume also that
 \begin{equation}
@@ -643,22 +644,21 @@ $q_0-q_\star$, the extremal transformed-eigenvector initializations can be chose
 any sufficiently small neighborhood $U_T$.
 \end{proof}
 
-\begin{assumption}[Uniform local perturbation bound]
-\label{ass:uniform-perturbation}
-For a fixed horizon $T$, let the ideal quotient recursions be
+For a fixed horizon $T$, write the ideal quotient recursions as
 \begin{equation}
     q_{t+1}^o=\Psi_{o,t}(q_t^o),
     \qquad o\in\{\MP,\AW\}.
+    \label{eq:ideal-quotient-recursion}
 \end{equation}
-The implemented quotient iterates satisfy
+The implemented quotient iterates are modeled by
 \begin{equation}
     q_{t+1}^{o,{\rm impl}}=\Psi_{o,t}(q_t^{o,{\rm impl}})+r_t^o,
     \qquad
     \norm{r_t^{\MP}}_2+\norm{r_t^{\AW}}_2\leq\delta
+    \label{eq:local-perturbation-model}
 \end{equation}
 for all $0\leq t<T$.  The residuals include the RMS floor, denominator floors, clipping,
 moment lag, weight decay, and nonquadratic Taylor remainders.
-\end{assumption}
 
 \begin{proposition}[Stability of a strict finite-time gap]
 \label{prop:complete-perturbation}
@@ -670,7 +670,7 @@ Fix $T\geq1$ and suppose the idealized dynamics satisfy
 Assume the implemented and ideal recursions use the same initial points, and assume the
 ideal trajectories lie in a compact set $K\subset\operatorname{int}(U)$, where $U$ is a
 compact neighborhood on which $F$ and all $\Psi_{o,t}$ are Lipschitz.  Then
-there exists $\delta_0>0$ such that, whenever Assumption~\ref{ass:uniform-perturbation}
+there exists $\delta_0>0$ such that, whenever \eqref{eq:local-perturbation-model}
 holds with $\delta<\delta_0$, the implemented trajectories remain in $U$ through time
 $T$ and
 \begin{equation}
