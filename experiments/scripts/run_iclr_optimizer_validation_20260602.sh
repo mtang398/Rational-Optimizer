@@ -126,7 +126,9 @@ run_validation_variant() {
 
 mkdir -p experiments/runs/logs
 check_repo_size
-"${PYTHON}" setup.py build_ext --inplace
+BUILD_EXT_ROOT="${BUILD_EXT_ROOT:-${TMPDIR:-/tmp}/rationalopt_build_ext_${SLURM_JOB_ID:-manual}_$$}"
+mkdir -p "${BUILD_EXT_ROOT}"
+"${PYTHON}" setup.py build_ext --inplace --build-temp "${BUILD_EXT_ROOT}/temp" --build-lib "${BUILD_EXT_ROOT}/lib"
 
 echo "=== ICLR optimizer validation ${SLURM_JOB_ID:-manual}; one job uses 4 A6000s; keep at most two active jobs total ==="
 for optimizer in ${BROAD_OPTIMIZERS}; do

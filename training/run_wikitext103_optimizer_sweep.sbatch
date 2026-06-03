@@ -49,7 +49,9 @@ for optimizer in ${OPTIMIZERS}; do
 done
 
 if [[ "${SKIP_BUILD_EXT}" != "1" ]]; then
-  "${PYTHON}" setup.py build_ext --inplace ${BUILD_EXT_ARGS}
+  BUILD_EXT_ROOT="${BUILD_EXT_ROOT:-${TMPDIR:-/tmp}/rationalopt_build_ext_${SLURM_JOB_ID:-manual}_$$}"
+  mkdir -p "${BUILD_EXT_ROOT}"
+  "${PYTHON}" setup.py build_ext --inplace --build-temp "${BUILD_EXT_ROOT}/temp" --build-lib "${BUILD_EXT_ROOT}/lib" ${BUILD_EXT_ARGS}
 fi
 if [[ "${SKIP_PREPARE}" != "1" ]]; then
   "${PYTHON}" training/transformer_wikitext103_compare.py \
