@@ -59,18 +59,27 @@ Fantastic Pretraining Optimizers: https://openreview.net/forum?id=2J51qUZ0iG
 
 ## Exact Experiments
 
-The exact new experiments are specified in `ICLR_EXACT_RUN_PLAN.md`:
+The exact experiments are specified in `ICLR_EXACT_RUN_PLAN.md`. The corrected design uses:
 
 ```text
-1. Sophia/SOAP-style LM speed-to-target
-2. Fantastic-style model/data scaling
-3. SOAP-style batch-size and overhead study
-4. Adam-mini/GaLore/CAME-style memory and throughput
-5. Lion/Schedule-Free-style broad transfer
-6. AdEMAMix-style long-horizon and forgetting
-7. AdamW-style hyperparameter landscapes as reviewer defense
-8. post-training probe
-9. mechanism and diagnostics, not main theory
+accepted-paper anchors: C4-EN, OpenWebText, Pile where feasible
+modern 2026-grade corpora: FineWeb-Edu, FineWeb, DCLM, Dolma sample
+```
+
+FineWeb remains in the paper as the modern web stress test. It is not described as a dataset copied from accepted optimizer papers.
+
+The run blocks are:
+
+```text
+1. loader/model smoke tests
+2. accepted-anchor speed-to-target on C4-EN and OpenWebText
+3. FineWeb/FineWeb-Edu modern web integration
+4. DCLM 2026-grade corpus runs
+5. model/data-ratio scaling
+6. cross-corpus transfer
+7. memory, throughput, and batch-regime accounting
+8. long-horizon corpus shift and forgetting
+9. reviewer-defense sensitivity maps
 10. ablations last
 ```
 

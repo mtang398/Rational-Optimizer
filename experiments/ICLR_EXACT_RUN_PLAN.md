@@ -1,324 +1,419 @@
-# Exact New Experiment Plan For An ICLR MatrixPolicy Paper
+# Exact 2026 ICLR Experiment Plan
 
-This is the experiment plan to make RationalOPT look like a serious accepted optimizer paper. It copies the experimental shapes used by accepted optimizer papers: Sophia, SOAP, AdamW, Lion, Adam-mini, GaLore, CAME, Schedule-Free, AdEMAMix, and Fantastic Pretraining Optimizers.
+This is the concrete run plan for turning MatrixPolicy into a 2026-level optimizer paper. FineWeb and FineWeb-Edu remain in the plan. They are not copied from the accepted optimizer papers, but they are modern 2024 web pretraining corpora and should be used as a modern stress test. Accepted optimizer papers supply the experimental templates and anchor datasets: Sophia used OpenWebText and the Pile, SOAP used C4, and Fantastic Pretraining Optimizers evaluates C4-EN while training on a modern OLMo-like mixture with DCLM.
 
-The main paper should be won by standard optimizer evidence: speed-to-target, final-budget loss, scaling, data-ratio robustness, transfer, memory/throughput, and broad baselines.
-
-## Main Claim To Prove
+Therefore the paper uses two dataset tiers:
 
 ```text
-MatrixPolicy is a stronger optimizer for RLB Transformer training than generic AdamW/Muon and modern optimizer-family baselines, giving a better loss-vs-compute frontier at academic LM-pretraining scale while remaining stable, transferable, and efficient enough to justify its overhead.
+accepted-paper anchors: C4-EN, OpenWebText, Pile validation where feasible
+modern 2026-grade corpora: FineWeb-Edu, FineWeb, DCLM, Dolma sample
 ```
 
-The existing 100M-token FineWeb/FineWeb-Edu result is only a pilot. The paper needs the new experiments below.
+The existing FineWeb/FineWeb-Edu 100M-token 3-seed result stays as pilot evidence. The experiments below are the new paper evidence.
 
-## Accepted-Paper Templates To Copy
+## Fixed Methods
 
-| accepted paper | what to copy exactly |
-| --- | --- |
-| Sophia, ICLR 2024 | GPT-style LM pretraining at multiple model sizes; report steps, tokens, compute, and wall-clock to the same validation loss. |
-| SOAP, ICLR 2025 | Compare AdamW vs matrix/preconditioned optimizers on LM pretraining; report wall-clock, preconditioner overhead, batch-size sensitivity, and long runs. |
-| Fantastic Pretraining Optimizers, ICLR 2026 | Tune/check baselines fairly, but main comparisons are final-budget, across model scales and data-to-model ratios; detect ranking flips over training horizon. |
-| AdamW, ICLR 2019 | Include LR/WD heatmaps to show a method is not winning from an unfair regularization/schedule choice. |
-| Lion, NeurIPS 2023 | Include broad transfer, batch-size behavior, and limitations, not only one LM curve. |
-| Adam-mini, ICLR 2025 | Report memory, throughput, role/block behavior, and optimizer-state footprint. |
-| GaLore, ICML 2024 oral | Include optimizer-state memory and feasibility/efficiency tables at meaningful model scale. |
-| CAME, ACL 2023 | Report convergence, stability, and memory for memory-efficient adaptive baselines. |
-| Schedule-Free, NeurIPS 2024 | Check stopping-horizon effects; compare without relying on one lucky schedule endpoint. |
-| AdEMAMix, ICLR 2025 | Include long-horizon token-efficiency and forgetting/distribution-shift behavior. |
+Run these methods unless a row is explicitly marked as reduced:
 
-## Model And Data Grid
+```text
+silu_adamw:        SiLU + AdamW
+rlb_adamw:         RLB + AdamW
+silu_muon:         SiLU + Muon
+rlb_muon:          RLB + Muon
+silu_soap:         SiLU + SOAP-style AdamW
+rlb_soap:          RLB + SOAP-style AdamW
+silu_lion:         SiLU + Lion
+rlb_lion:          RLB + Lion
+silu_ademamix:     SiLU + AdEMAMix
+rlb_ademamix:      RLB + AdEMAMix
+silu_came:         SiLU + CAME-style
+rlb_came:          RLB + CAME-style
+rlb_matrixpolicy:  RLB + original MatrixPolicy group-stat
+```
 
-These are the model/data settings for all main experiments.
+Minimum main-table row set if runtime forces staged execution:
 
-| id | purpose | layers | d_model | heads | ffn_dim | seq_len | global tokens/step | note |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| M0 | main small scale | 12 | 768 | 12 | 2048 | 256 | 32768 | existing 123M setting |
-| M1 | medium scale | 18 | 1024 | 16 | 3072 | 256 | 32768 | required after smoke |
-| M2 | stretch scale | 24 | 1280 | 16 | 4096 | 256 | 32768 | run if 4xA6000 memory smoke passes |
+```text
+silu_adamw, rlb_adamw, rlb_muon, rlb_soap, rlb_matrixpolicy
+```
+
+No MatrixPolicy v2 result belongs in the original MatrixPolicy claim.
+
+## Fixed Models
+
+| model | layers | d_model | heads | ffn_dim | seq_len | batch plan | role |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| M0 | 12 | 768 | 12 | 2048 | 256 | batch 16/GPU, grad_accum 2 | main 123M setting |
+| M1 | 18 | 1024 | 16 | 3072 | 256 | batch 8/GPU, grad_accum 4 | required scale setting |
+| M2 | 24 | 1280 | 16 | 4096 | 256 | memory-smoke first | stretch setting |
+
+All jobs use 4 A6000 GPUs. At most two jobs may be active.
+
+## Phase 0: Loader And Model Smoke Tests
+
+Purpose: make accepted-paper anchors and modern corpora runnable before expensive runs.
+
+Run these first. Each job is small and uses the minimum row set.
+
+### Job 0A: accepted anchors C4-EN and OpenWebText
+
+```bash
+REAL_LM_TASKS="c4_en openwebtext" \
+SEEDS="1337" \
+RUN_SUFFIX="iclr26_smoke_anchor_m0" \
+OUTPUT_ROOT="experiments/runs/iclr26_smoke" \
+TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_smoke" \
+MAX_TRAIN_TOKENS=2000000 \
+MAX_VAL_TOKENS=200000 \
+STEPS=80 \
+EVAL_INTERVAL=40 \
+EVAL_BATCHES=2 \
+LOG_INTERVAL=10 \
+INCLUDE_MUON=1 \
+EXTRA_OPTIMIZERS="soap_adamw" \
+sbatch experiments/scripts/run_real_lm_screen_20260530.sh
+```
+
+### Job 0B: modern corpora DCLM and FineWeb-Edu
+
+```bash
+REAL_LM_TASKS="dclm fineweb_edu" \
+SEEDS="1337" \
+RUN_SUFFIX="iclr26_smoke_modern_m0" \
+OUTPUT_ROOT="experiments/runs/iclr26_smoke" \
+TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_smoke" \
+MAX_TRAIN_TOKENS=2000000 \
+MAX_VAL_TOKENS=200000 \
+STEPS=80 \
+EVAL_INTERVAL=40 \
+EVAL_BATCHES=2 \
+LOG_INTERVAL=10 \
+INCLUDE_MUON=1 \
+EXTRA_OPTIMIZERS="soap_adamw" \
+sbatch experiments/scripts/run_real_lm_screen_20260530.sh
+```
+
+### Job 0C: M1 memory smoke on FineWeb-Edu
+
+```bash
+REAL_LM_TASKS="fineweb_edu" \
+SEEDS="1337" \
+RUN_SUFFIX="iclr26_smoke_m1" \
+OUTPUT_ROOT="experiments/runs/iclr26_smoke" \
+TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_smoke" \
+MAX_TRAIN_TOKENS=4000000 \
+MAX_VAL_TOKENS=200000 \
+STEPS=120 \
+EVAL_INTERVAL=60 \
+EVAL_BATCHES=2 \
+LOG_INTERVAL=10 \
+BATCH_SIZE=8 \
+GRAD_ACCUM=4 \
+INCLUDE_MUON=0 \
+COMMON_EXTRA_ARGS="--layers 18 --d-model 1024 --heads 16 --ffn-dim 3072" \
+sbatch experiments/scripts/run_real_lm_screen_20260530.sh
+```
+
+Pass condition: every task writes complete JSONL for `silu_adamw`, `rlb_adamw`, `rlb_soap`, and `rlb_matrixpolicy`; M1 does not OOM.
+
+## Phase 1: Accepted-Anchor Reproduction Runs
+
+Purpose: make the paper comparable to accepted optimizer papers.
 
 Datasets:
 
 ```text
-FineWeb-Edu sample-10BT
-FineWeb sample-10BT
-DCLM baseline
-Dolma sample
-WikiText-103 only as a small anchor, not main evidence
+c4_en          # SOAP and Fantastic-style C4/C4-EN anchor
+openwebtext    # Sophia-style GPT-2 anchor
 ```
 
-Validation policy for final runs:
+Run matrix:
 
-```text
-validation skip: 610M tokens
-validation budget: 8M tokens
-same tokenizer: GPT-2
-same validation slice for every optimizer row within a dataset
-```
-
-## Experiment 1: Sophia/SOAP-Style LM Speed-To-Target
-
-This is the main experiment.
-
-### Run Matrix
-
-| model | datasets | train budgets | seeds | rows |
+| model | dataset | token budgets | seeds | row set |
 | --- | --- | --- | --- | --- |
-| M0 | FineWeb-Edu, FineWeb, DCLM | 100M, 300M, 600M | 1337, 2027, 3407 | all rows below |
-| M1 | FineWeb-Edu, DCLM | 300M, 600M | 1337, 2027, 3407 | all rows below |
-| M2 | FineWeb-Edu | 300M | 1337 | reduced rows below |
+| M0 | c4_en | 100M, 300M | 1337, 2027, 3407 | full methods |
+| M0 | openwebtext | 100M, 300M | 1337, 2027, 3407 | full methods |
+| M1 | c4_en | 300M | 1337, 2027, 3407 | minimum row set |
 
-Full rows:
+Concrete launch template for one M0 100M C4-EN seed:
 
-```text
-SiLU+AdamW
-RLB+AdamW
-SiLU+Muon
-RLB+Muon
-SiLU+SOAP-style or reference SOAP
-RLB+SOAP-style or reference SOAP
-SiLU+Lion
-RLB+Lion
-SiLU+AdEMAMix
-RLB+AdEMAMix
-SiLU+Schedule-Free AdamW
-RLB+Schedule-Free AdamW
-SiLU+CAME-style
-RLB+CAME-style
-RLB+MatrixPolicy original group-stat
+```bash
+REAL_LM_TASKS="c4_en" \
+SEEDS="1337" \
+RUN_SUFFIX="iclr26_anchor_c4_m0_100m_seed1337" \
+OUTPUT_ROOT="experiments/runs/iclr26_anchor" \
+TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_anchor" \
+MAX_TRAIN_TOKENS=100000000 \
+MAX_VAL_TOKENS=4000000 \
+STEPS=3050 \
+EVAL_INTERVAL=50 \
+EVAL_BATCHES=10 \
+LOG_INTERVAL=10 \
+INCLUDE_MUON=1 \
+EXTRA_OPTIMIZERS="soap_adamw lion ademamix schedule_free_adamw adafactor_came" \
+sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
-M2 reduced rows:
+For 300M, change:
 
 ```text
-SiLU+AdamW
-RLB+AdamW
-RLB+SOAP-style or best matrix baseline
-RLB+MatrixPolicy original group-stat
+MAX_TRAIN_TOKENS=300000000
+MAX_VAL_TOKENS=8000000
+STEPS=9150
+RUN_SUFFIX includes 300m
 ```
 
-### Metrics
+For OpenWebText, change `REAL_LM_TASKS="openwebtext"`. For seed changes, change `SEEDS` and `RUN_SUFFIX`.
+
+Deliverables:
 
 ```text
-final validation loss
-validation loss AUC
-tokens to reach SiLU+AdamW final loss
-steps to reach target
-GPU-hours to reach target
-wall-clock to reach target
-optimizer-step time
-forward/backward time
-tokens/sec
-peak CUDA memory
-optimizer-state memory
-nonfinite/divergence count
+accepted-anchor loss-vs-token curves
+accepted-anchor loss-vs-GPU-hour curves
+tokens-to-target table using tuned/selected AdamW target loss
+optimizer overhead table
+ranking-flip table from 100M to 300M
 ```
 
-### Required Figures
+## Phase 2: FineWeb Modern Web Integration
+
+Purpose: keep FineWeb/FineWeb-Edu and make them a strength rather than an unsupported accepted-paper claim.
+
+Datasets:
 
 ```text
-loss vs tokens
-loss vs GPU-hours
-speedup-to-target bar chart
-final loss table with mean +/- std
-ranking over budget, showing any ranking flips
+fineweb_edu
+fineweb
 ```
 
-This copies Sophia/SOAP/Fantastic directly: speed is not asserted from a single equal-length run.
+Run matrix:
 
-## Experiment 2: Fantastic-Style Model/Data Scaling
-
-Purpose: show whether MatrixPolicy's advantage changes with model size and data-to-model ratio.
-
-### Run Matrix
-
-| model | token ratios to run | datasets | seeds | rows |
+| model | dataset | token budgets | seeds | row set |
 | --- | --- | --- | --- | --- |
-| M0 | 100M, 300M, 600M | FineWeb-Edu, DCLM | 1337, 2027, 3407 | AdamW, best generic matrix/scalar, MatrixPolicy |
-| M1 | 300M, 600M | FineWeb-Edu, DCLM | 1337, 2027, 3407 | AdamW, best generic matrix/scalar, MatrixPolicy |
-| M2 | 300M | FineWeb-Edu | 1337 | AdamW, MatrixPolicy |
+| M0 | fineweb_edu | 100M, 300M, 600M | 1337, 2027, 3407 | full methods |
+| M0 | fineweb | 100M, 300M, 600M | 1337, 2027, 3407 | full methods |
+| M1 | fineweb_edu | 300M | 1337, 2027, 3407 | minimum row set |
 
-Best generic matrix/scalar means the strongest non-MatrixPolicy row from Experiment 1, frozen before this experiment is summarized.
+Concrete launch template for one FineWeb-Edu 300M seed:
 
-### Analysis
-
-Fit an optimizer comparison table:
-
-```text
-compute multiplier needed by AdamW to match MatrixPolicy loss
-compute multiplier needed by best generic optimizer to match MatrixPolicy loss
-MatrixPolicy gap vs model size
-MatrixPolicy gap vs token budget
+```bash
+REAL_LM_TASKS="fineweb_edu" \
+SEEDS="1337" \
+RUN_SUFFIX="iclr26_modern_fwedu_m0_300m_seed1337" \
+OUTPUT_ROOT="experiments/runs/iclr26_modern_fineweb" \
+TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_modern_fineweb" \
+MAX_TRAIN_TOKENS=300000000 \
+MAX_VAL_TOKENS=8000000 \
+FINEWEB_EDU_VAL_SKIP_TOKENS=610000000 \
+STEPS=9150 \
+EVAL_INTERVAL=50 \
+EVAL_BATCHES=10 \
+LOG_INTERVAL=10 \
+INCLUDE_MUON=1 \
+EXTRA_OPTIMIZERS="soap_adamw lion ademamix schedule_free_adamw adafactor_came" \
+sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
-### Required Figures
+For FineWeb, use `REAL_LM_TASKS="fineweb"` and `FINEWEB_VAL_SKIP_TOKENS=610000000`.
+
+Deliverables:
 
 ```text
-loss-vs-compute frontier by model size
+modern web speed-to-target table
+FineWeb/FineWeb-Edu final-budget mean +/- std curves
+comparison of accepted anchors vs modern web results
+statement: FineWeb is not copied from accepted optimizer papers; it is the modern web generalization test
+```
+
+## Phase 3: DCLM 2026-Grade Pretraining Corpus
+
+Purpose: align with modern DCLM/DataComp and Fantastic-style data mixtures.
+
+Run matrix:
+
+| model | dataset | token budgets | seeds | row set |
+| --- | --- | --- | --- | --- |
+| M0 | dclm | 100M, 300M, 600M | 1337, 2027, 3407 | full methods |
+| M1 | dclm | 300M | 1337, 2027, 3407 | minimum row set |
+
+Concrete launch template for one DCLM 300M seed:
+
+```bash
+REAL_LM_TASKS="dclm" \
+SEEDS="1337" \
+RUN_SUFFIX="iclr26_dclm_m0_300m_seed1337" \
+OUTPUT_ROOT="experiments/runs/iclr26_dclm" \
+TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_dclm" \
+MAX_TRAIN_TOKENS=300000000 \
+MAX_VAL_TOKENS=8000000 \
+DCLM_VAL_SKIP_TOKENS=610000000 \
+STEPS=9150 \
+EVAL_INTERVAL=50 \
+EVAL_BATCHES=10 \
+LOG_INTERVAL=10 \
+INCLUDE_MUON=1 \
+EXTRA_OPTIMIZERS="soap_adamw lion ademamix schedule_free_adamw adafactor_came" \
+sbatch experiments/scripts/run_real_lm_screen_20260530.sh
+```
+
+Deliverables:
+
+```text
+DCLM loss-vs-compute frontier
+MatrixPolicy gap on a modern DataComp-style corpus
+comparison with FineWeb and C4/OpenWebText anchors
+```
+
+## Phase 4: Scale And Data-Ratio Study
+
+Purpose: copy Fantastic Pretraining Optimizers' scale/data-ratio lesson at academic scale.
+
+Run matrix:
+
+| model | datasets | token budgets | seeds | rows |
+| --- | --- | --- | --- | --- |
+| M0 | c4_en, fineweb_edu, dclm | 100M, 300M, 600M | 1337, 2027, 3407 | adamw, rlb_adamw, rlb_soap, rlb_matrixpolicy |
+| M1 | c4_en, fineweb_edu, dclm | 300M | 1337, 2027, 3407 | adamw, rlb_adamw, rlb_soap, rlb_matrixpolicy |
+| M2 | fineweb_edu | 100M | 1337 | adamw, rlb_matrixpolicy |
+
+M1 launch changes from the M0 templates:
+
+```text
+BATCH_SIZE=8
+GRAD_ACCUM=4
+COMMON_EXTRA_ARGS="--layers 18 --d-model 1024 --heads 16 --ffn-dim 3072"
+```
+
+M2 is launched only after smoke success:
+
+```text
+BATCH_SIZE=4
+GRAD_ACCUM=8
+COMMON_EXTRA_ARGS="--layers 24 --d-model 1280 --heads 16 --ffn-dim 4096"
+```
+
+Deliverables:
+
+```text
 speedup vs model size
 speedup vs token budget
+rank changes over training horizon
+compute multiplier needed by AdamW/other baselines to match MatrixPolicy loss
 ```
 
-This copies Fantastic Pretraining Optimizers: do not rely on one size or one data ratio.
+## Phase 5: Cross-Corpus Transfer
 
-## Experiment 3: SOAP-Style Batch-Size And Overhead Study
+Purpose: show the result is not one-corpus overfitting.
 
-Purpose: optimizer rankings change with batch regime and overhead. MatrixPolicy must be measured like SOAP.
-
-### Run Matrix
-
-| model | dataset | tokens | seeds | global batch tokens | rows |
-| --- | --- | ---: | --- | --- | --- |
-| M0 | FineWeb-Edu | 100M, 300M | 1337, 2027, 3407 | 16k, 32k, 65k | AdamW, RLB+AdamW, RLB+SOAP, RLB+MatrixPolicy |
-
-For 16k/65k, change per-GPU batch and grad accumulation only; keep total train tokens fixed.
-
-### Metrics
+Use checkpoints from selected 300M runs. Evaluate each checkpoint on validation caches from:
 
 ```text
-final loss
-loss AUC
-tokens-to-target
-steps-to-target
-wall-clock-to-target
-optimizer-step overhead
-tokens/sec
-peak memory
-clipping frequency
-grad norm before clipping
+c4_en
+openwebtext
+fineweb_edu
+fineweb
+dclm
+dolma_sample
+pile, if loader smoke passed
 ```
 
-### Required Figures
+Train/eval grid:
+
+| train corpus | eval corpora | model | seeds | rows |
+| --- | --- | --- | --- | --- |
+| c4_en | openwebtext, fineweb_edu, dclm | M0 | 1337, 2027, 3407 | adamw, rlb_soap, rlb_matrixpolicy |
+| fineweb_edu | c4_en, openwebtext, dclm, dolma_sample | M0 | 1337, 2027, 3407 | adamw, rlb_soap, rlb_matrixpolicy |
+| dclm | c4_en, fineweb_edu, dolma_sample | M0 | 1337, 2027, 3407 | adamw, rlb_soap, rlb_matrixpolicy |
+
+Needed code: add an evaluation-only script that loads a checkpoint and multiple token caches. Do not run more pretraining just to get transfer numbers if the checkpoints already exist.
+
+Deliverables:
 
 ```text
-speedup vs batch size
-loss vs wall-clock by batch size
-optimizer-step overhead table
+in-domain vs out-of-domain validation scatter
+transfer degradation table
+MatrixPolicy gap retained/lost across corpora
 ```
 
-## Experiment 4: Adam-mini/GaLore/CAME-Style Memory And Throughput
+## Phase 6: Memory, Throughput, And Batch Regime
 
-Purpose: show whether MatrixPolicy's loss gain survives overhead and memory accounting.
+Purpose: copy SOAP, Adam-mini, GaLore, and CAME efficiency accounting.
 
-### Run Matrix
+Run profiling jobs:
 
-Use M0 and M1, one seed each for profiling, then aggregate from full runs.
+| model | dataset | steps | global tokens/step | rows |
+| --- | --- | ---: | ---: | --- |
+| M0 | c4_en | 1000 | 16k, 32k, 65k | adamw, rlb_soap, rlb_matrixpolicy |
+| M0 | fineweb_edu | 1000 | 16k, 32k, 65k | adamw, rlb_soap, rlb_matrixpolicy |
+| M1 | fineweb_edu | 1000 | 32k | adamw, rlb_soap, rlb_matrixpolicy |
 
-```text
-models: M0, M1
-datasets: FineWeb-Edu
-steps: first 1000 steps and full-run averages
-rows: AdamW, Muon, SOAP-style, CAME-style, AdEMAMix, MatrixPolicy
-```
-
-### Metrics
+Deliverables:
 
 ```text
-optimizer state memory, estimated and measured where possible
-peak CUDA allocated/reserved
-forward/backward seconds
 optimizer-step seconds
+forward/backward seconds
 tokens/sec
-extra memory vs AdamW
-extra step time vs AdamW
+peak CUDA allocated/reserved
+optimizer-state memory estimate
 loss improvement per extra GPU-hour
+batch-size sensitivity curves
 ```
 
-### Required Tables
+## Phase 7: Long-Horizon Corpus Shift
+
+Purpose: copy AdEMAMix-style long-horizon/forgetting evaluation.
+
+Run continued training:
 
 ```text
-memory table by optimizer
-throughput table by optimizer
-loss-per-GPU-hour table
+FineWeb-Edu 300M -> DCLM 300M
+C4-EN 300M -> FineWeb-Edu 300M
 ```
 
-This copies Adam-mini/GaLore/CAME-style efficiency accounting.
-
-## Experiment 5: Lion/Schedule-Free-Style Broad Transfer
-
-Purpose: show MatrixPolicy is not a one-corpus artifact.
-
-### Run Matrix
-
-| train corpus | evaluation corpus | model | tokens | seeds | rows |
-| --- | --- | --- | ---: | --- | --- |
-| FineWeb-Edu | FineWeb-Edu, DCLM, Dolma | M0 | 300M | 1337, 2027, 3407 | AdamW, best generic, MatrixPolicy |
-| DCLM | DCLM, FineWeb-Edu, Dolma | M0 | 300M | 1337, 2027, 3407 | AdamW, best generic, MatrixPolicy |
-| FineWeb | FineWeb, DCLM, Dolma | M0 | 300M | 1337, 2027, 3407 | AdamW, best generic, MatrixPolicy |
-
-Best generic is selected from non-MatrixPolicy rows in Experiment 1. No retuning on transfer corpora.
-
-### Metrics
+Rows:
 
 ```text
-in-domain loss
-cross-corpus loss
-transfer degradation
-loss AUC
-nonfinite/divergence
+adamw
+rlb_soap
+rlb_ademamix
+rlb_matrixpolicy
 ```
 
-### Required Figure
+Seeds:
 
 ```text
-in-domain vs transfer validation loss scatter
+1337, 2027, 3407
 ```
 
-This copies Lion/Schedule-Free's broad-transfer expectation but keeps the scope academic.
-
-## Experiment 6: AdEMAMix-Style Long-Horizon And Forgetting
-
-Purpose: accepted optimizer papers test long-horizon behavior, not only early gains.
-
-### Run Matrix
+Evaluate at switch and final on:
 
 ```text
-model: M0
-dataset order: FineWeb-Edu 300M -> DCLM 300M continued training
-seeds: 1337, 2027, 3407
-rows: AdamW, best generic, AdEMAMix, MatrixPolicy
+source corpus validation
+target corpus validation
+Dolma validation
 ```
 
-At the switch and final point, evaluate on:
+Deliverables:
 
 ```text
-FineWeb-Edu heldout
-DCLM heldout
-Dolma heldout
+new-domain learning curve
+old-domain forgetting curve
+MatrixPolicy loss-vs-GPU-hour after corpus shift
 ```
 
-### Metrics
+## Phase 8: Reviewer-Defense Sensitivity Maps
+
+Purpose: prevent weak-baseline criticism. This is a support experiment, not the main evidence.
+
+Run 50M-token maps on:
 
 ```text
-continued-training loss on new corpus
-forgetting on original corpus
-transfer loss on Dolma
-wall-clock and GPU-hours to target
+c4_en
+fineweb_edu
+dclm
 ```
 
-### Required Figure
-
-```text
-old-domain loss and new-domain loss over continued training
-```
-
-This copies AdEMAMix's long-horizon/older-gradient framing and the modern concern that optimizers affect forgetting.
-
-## Experiment 7: AdamW-Style Hyperparameter Landscape As Reviewer Defense
-
-Purpose: show the result is not caused by a weak AdamW/baseline setting. This is not the core paper story, but accepted papers include it.
-
-### Run Matrix
-
-```text
-model: M0
-datasets: FineWeb-Edu, FineWeb
-tokens: 50M
-seed: 1337
-rows: AdamW, Muon, Lion, SOAP-style, AdEMAMix, Schedule-Free AdamW, CAME-style, MatrixPolicy
-```
-
-Paper-informed grids:
+Rows and grids:
 
 ```text
 AdamW: LR {1e-4, 3e-4, 5e-4}, WD {0.03, 0.10, 0.20}
@@ -326,96 +421,26 @@ Muon: LR {1e-4, 3e-4, 5e-4}, WD {0.03, 0.10, 0.20}, momentum {0.90, 0.95}
 Lion: LR {3e-5, 1e-4, 2e-4}, WD {0.10, 0.30, 0.60}
 SOAP-style: LR {1e-4, 3e-4, 5e-4}, WD {0.03, 0.10}, frequency {10, 50}
 AdEMAMix: LR {1e-4, 2e-4, 3e-4}, WD {0.03, 0.10}, alpha {2, 5}, beta3 {0.999, 0.9999}
-Schedule-Free: LR {1e-4, 3e-4, 5e-4}, WD {0.03, 0.10, 0.20}
-CAME-style: LR {1e-4, 3e-4, 5e-4}, WD {0.03, 0.10, 0.20}, confidence {0.5, 1.0}
 MatrixPolicy: LR {2e-4, 3e-4, 5e-4}, WD {0.03, 0.10}, adam-scale {2, 3, 4}, group-gain {0.20, 0.35}
 ```
 
-### Required Figures
+If this finds a stronger baseline, rerun the affected main rows. Do not change the dataset, token budget, model size, or seed plan.
+
+## Immediate Queue
+
+Run in this order:
 
 ```text
-LR/WD heatmaps for AdamW, Lion, SOAP, MatrixPolicy
-best-row comparison table
-stability map showing divergence/nonfinite rows
+1. Job 0A smoke: c4_en + openwebtext.
+2. Job 0B smoke: dclm + fineweb_edu.
+3. Job 0C M1 memory smoke on fineweb_edu.
+4. Phase 1 C4-EN M0 100M seed 1337 and Phase 2 FineWeb-Edu M0 100M seed 1337, two jobs active.
+5. Phase 3 DCLM M0 100M seed 1337 and Phase 1 OpenWebText M0 100M seed 1337, two jobs active.
+6. Repeat 100M for seeds 2027 and 3407.
+7. Move to 300M on c4_en, fineweb_edu, dclm, openwebtext.
+8. Start M1 300M only after M1 smoke passes.
+9. Run 600M only after 300M curves show MatrixPolicy is still competitive in loss per GPU-hour.
+10. Run sensitivity maps and ablations after the main curves exist.
 ```
 
-If this finds a stronger baseline, rerun the relevant Experiment 1 rows. Do not change the benchmark.
-
-## Experiment 8: Post-Training Probe
-
-Purpose: show pretrained checkpoints are useful, not only lower pretraining loss.
-
-### Run Matrix
-
-Use checkpoints from M0 300M FineWeb-Edu:
-
-```text
-rows: AdamW, RLB+AdamW, best generic, MatrixPolicy
-seeds: 1337, 2027, 3407
-adaptation budget: 10M tokens
-adaptation corpus: small held-out instruction-like or domain mixture if available; otherwise continued-pretraining transfer on WikiText/OpenWebText-style data
-```
-
-Metrics:
-
-```text
-adaptation loss
-heldout loss after adaptation
-forgetting on FineWeb-Edu heldout
-```
-
-This is secondary, but useful for ICLR reviewers who distrust pretraining loss alone.
-
-## Experiment 9: Mechanism And Diagnostics, Not Main Theory
-
-Purpose: support the optimizer story with measurements, without making gauge the paper center.
-
-Use logs from Experiments 1-6. Produce:
-
-```text
-role update/weight RMS
-matrix spectrum/SVD entropy
-rational output RMS
-rational derivative RMS
-denominator margin
-gradient clipping frequency
-grad norm before clipping
-fixed-probe logit KL/RMS movement
-optimizer-step overhead by role
-```
-
-Main mechanism claim:
-
-```text
-MatrixPolicy allocates updates differently across rational FFN roles and converts optimizer overhead into better loss-per-compute.
-```
-
-Gauge-specific diagnostics can go in an appendix only if they clarify results; they are not the main experiment plan.
-
-## Experiment 10: Ablations Last
-
-Only after Experiments 1-6 show MatrixPolicy is truly ahead.
-
-```text
-model: M0
-dataset: FineWeb-Edu first
-tokens: 100M, then 300M for promoted rows
-seeds: 1337, 2027, 3407
-base: MatrixPolicy original group-stat
-ablations: no group-stat scaling, no role-depth policy, no matrix branch, no rebalance if still relevant, gain-only, pressure-only, activity-only
-```
-
-Ablations explain the method. They do not choose model size, dataset, token budget, baseline rows, or paper claim.
-
-## Immediate Work Order
-
-```text
-1. Validate DCLM and Dolma loaders with tiny 500-step M0 runs.
-2. Validate M1 memory with 500-step M1 FineWeb-Edu runs.
-3. Start Experiment 1 M0 speed-to-target runs at 100M/300M on FineWeb-Edu and DCLM.
-4. Start Experiment 7 hyperparameter landscapes only as reviewer defense, not as the main work.
-5. Start Experiment 3 batch-size/overhead runs after first M0 curves confirm runtime.
-6. Then run M1 scale, transfer, long-horizon forgetting, post-training probe, diagnostics, and ablations last.
-```
-
-This plan contains the new experiments that have not been done yet and follows accepted optimizer-paper experimental style.
+This plan integrates FineWeb correctly: FineWeb/FineWeb-Edu remain central modern web stress tests, while C4/OpenWebText/Pile/DCLM connect the paper to accepted optimizer-paper evaluation practice.

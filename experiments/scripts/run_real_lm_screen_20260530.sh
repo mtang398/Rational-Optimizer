@@ -41,9 +41,12 @@ BATCH_SIZE="${BATCH_SIZE:-16}"
 GRAD_ACCUM="${GRAD_ACCUM:-2}"
 INCLUDE_MUON="${INCLUDE_MUON:-1}"
 INCLUDE_PLAIN_MATRIX_POLICY="${INCLUDE_PLAIN_MATRIX_POLICY:-0}"
+EXTRA_OPTIMIZERS="${EXTRA_OPTIMIZERS:-}"
+COMMON_EXTRA_ARGS="${COMMON_EXTRA_ARGS:-}"
 MAX_REPO_GIB="${MAX_REPO_GIB:-190}"
 DEFAULT_VAL_SKIP_DOCS="${DEFAULT_VAL_SKIP_DOCS:-0}"
 VAL_SKIP_TOKENS="${VAL_SKIP_TOKENS:-110000000}"
+DEFAULT_VAL_SKIP_TOKENS="${DEFAULT_VAL_SKIP_TOKENS:-${VAL_SKIP_TOKENS}}"
 
 request_requeue() {
   echo "=== received USR1 at $(date -Is); requesting requeue for job ${SLURM_JOB_ID:-manual} ==="
@@ -126,6 +129,7 @@ task_spec() {
       TRAIN_SPLIT="train"
       VAL_SPLIT="train"
       VAL_SKIP_DOCS="${FINEWEB_EDU_VAL_SKIP_DOCS:-${DEFAULT_VAL_SKIP_DOCS}}"
+      VAL_SKIP_TOKENS="${FINEWEB_EDU_VAL_SKIP_TOKENS:-${DEFAULT_VAL_SKIP_TOKENS}}"
       ;;
     fineweb)
       DATASET_NAME="HuggingFaceFW/fineweb"
@@ -134,6 +138,34 @@ task_spec() {
       TRAIN_SPLIT="train"
       VAL_SPLIT="train"
       VAL_SKIP_DOCS="${FINEWEB_VAL_SKIP_DOCS:-${DEFAULT_VAL_SKIP_DOCS}}"
+      VAL_SKIP_TOKENS="${FINEWEB_VAL_SKIP_TOKENS:-${DEFAULT_VAL_SKIP_TOKENS}}"
+      ;;
+    c4_en)
+      DATASET_NAME="allenai/c4"
+      DATASET_CONFIG="en"
+      TEXT_COLUMN="text"
+      TRAIN_SPLIT="train"
+      VAL_SPLIT="validation"
+      VAL_SKIP_DOCS="${C4_EN_VAL_SKIP_DOCS:-0}"
+      VAL_SKIP_TOKENS="${C4_EN_VAL_SKIP_TOKENS:-0}"
+      ;;
+    openwebtext)
+      DATASET_NAME="Skylion007/openwebtext"
+      DATASET_CONFIG="none"
+      TEXT_COLUMN="text"
+      TRAIN_SPLIT="train"
+      VAL_SPLIT="train"
+      VAL_SKIP_DOCS="${OPENWEBTEXT_VAL_SKIP_DOCS:-${DEFAULT_VAL_SKIP_DOCS}}"
+      VAL_SKIP_TOKENS="${OPENWEBTEXT_VAL_SKIP_TOKENS:-${DEFAULT_VAL_SKIP_TOKENS}}"
+      ;;
+    pile)
+      DATASET_NAME="EleutherAI/pile"
+      DATASET_CONFIG="none"
+      TEXT_COLUMN="text"
+      TRAIN_SPLIT="train"
+      VAL_SPLIT="validation"
+      VAL_SKIP_DOCS="${PILE_VAL_SKIP_DOCS:-0}"
+      VAL_SKIP_TOKENS="${PILE_VAL_SKIP_TOKENS:-0}"
       ;;
     dclm)
       DATASET_NAME="mlfoundations/dclm-baseline-1.0"
@@ -142,6 +174,7 @@ task_spec() {
       TRAIN_SPLIT="train"
       VAL_SPLIT="train"
       VAL_SKIP_DOCS="${DCLM_VAL_SKIP_DOCS:-${DEFAULT_VAL_SKIP_DOCS}}"
+      VAL_SKIP_TOKENS="${DCLM_VAL_SKIP_TOKENS:-${DEFAULT_VAL_SKIP_TOKENS}}"
       ;;
     dolma_sample)
       DATASET_NAME="allenai/dolma"
@@ -150,9 +183,10 @@ task_spec() {
       TRAIN_SPLIT="train"
       VAL_SPLIT="train"
       VAL_SKIP_DOCS="${DOLMA_VAL_SKIP_DOCS:-${DEFAULT_VAL_SKIP_DOCS}}"
+      VAL_SKIP_TOKENS="${DOLMA_VAL_SKIP_TOKENS:-${DEFAULT_VAL_SKIP_TOKENS}}"
       ;;
     *)
-      echo "Unknown REAL_LM_TASK '${task}'. Valid: fineweb_edu fineweb dclm dolma_sample" >&2
+      echo "Unknown REAL_LM_TASK '${task}'. Valid: fineweb_edu fineweb c4_en openwebtext pile dclm dolma_sample" >&2
       exit 2
       ;;
   esac
@@ -185,7 +219,7 @@ run_variant() {
   fi
 
   echo "=== ${run_name}: ${DATASET_NAME}/${DATASET_CONFIG}; steps=${STEPS}; train_tokens=${MAX_TRAIN_TOKENS}; val_tokens=${MAX_VAL_TOKENS}; val_skip_tokens=${VAL_SKIP_TOKENS} ==="
-  RUN_NAME="${run_name}"   STEPS="${STEPS}"   SEEDS="${SEEDS}"   OPTIMIZERS="${optimizers}"   ACTIVATIONS="${pending_activations}"   EVAL_INTERVAL="${EVAL_INTERVAL}"   EVAL_BATCHES="${EVAL_BATCHES}"   LOG_INTERVAL="${LOG_INTERVAL}"   NPROC_PER_NODE="${NPROC_PER_NODE}"   EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-documents ${VAL_SKIP_DOCS} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${TOKEN_CACHE_DIR} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} ${extra_args}"   bash training/run_wikitext103_optimizer_sweep.sbatch
+  RUN_NAME="${run_name}"   STEPS="${STEPS}"   SEEDS="${SEEDS}"   OPTIMIZERS="${optimizers}"   ACTIVATIONS="${pending_activations}"   EVAL_INTERVAL="${EVAL_INTERVAL}"   EVAL_BATCHES="${EVAL_BATCHES}"   LOG_INTERVAL="${LOG_INTERVAL}"   NPROC_PER_NODE="${NPROC_PER_NODE}"   EXTRA_ARGS="--dataset-name ${DATASET_NAME} --dataset-config ${DATASET_CONFIG} --dataset-streaming --dataset-text-column ${TEXT_COLUMN} --train-split ${TRAIN_SPLIT} --validation-split ${VAL_SPLIT} --validation-skip-documents ${VAL_SKIP_DOCS} --validation-skip-tokens ${VAL_SKIP_TOKENS} --cache-dir ${TOKEN_CACHE_DIR} --output-dir ${OUTPUT_ROOT}/${task} --max-train-tokens ${MAX_TRAIN_TOKENS} --max-val-tokens ${MAX_VAL_TOKENS} --batch-size ${BATCH_SIZE} --grad-accum ${GRAD_ACCUM} ${extra_args} ${COMMON_EXTRA_ARGS}"   bash training/run_wikitext103_optimizer_sweep.sbatch
 }
 
 echo "=== real LM screen job ${SLURM_JOB_ID:-manual}; tasks=${REAL_LM_TASKS}; one job uses 4 A6000s; keep at most two active for 8-GPU cap ==="
@@ -197,6 +231,9 @@ for task in ${REAL_LM_TASKS}; do
   if [[ "${INCLUDE_MUON}" == "1" ]]; then
     run_variant "${task}" "muon_controls" "muon" "silu ${RLB_ACTIVATION}"
   fi
+  for optimizer in ${EXTRA_OPTIMIZERS}; do
+    run_variant "${task}" "${optimizer}_controls" "${optimizer}" "silu ${RLB_ACTIVATION}"
+  done
   if [[ "${INCLUDE_PLAIN_MATRIX_POLICY}" == "1" ]]; then
     run_variant       "${task}"       "matrix_policy"       "rational_matrix_policy_onpolicy"       "${RLB_ACTIVATION}"       "--rational-matrix-policy-backbone-optimizer adamw"
   fi

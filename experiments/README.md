@@ -174,43 +174,72 @@ It is not the main result because the current real-corpus gaps are larger and mo
 
 ## Launching More Runs
 
-Read `ICLR_EXACT_RUN_PLAN.md` before launching. The next launches should be new accepted-paper-style experiments:
+Read `ICLR_EXACT_RUN_PLAN.md` before launching. The corrected queue keeps FineWeb/FineWeb-Edu and adds accepted-paper anchor tasks.
+
+Supported real-LM task names now include:
 
 ```text
-1. tiny DCLM/Dolma loader validation
-2. M1 memory smoke
-3. M0 speed-to-target runs on FineWeb-Edu and DCLM at 100M/300M
-4. batch-size/overhead and memory profiling
-5. scale, transfer, long-horizon, post-training, diagnostics
-6. LR/WD landscapes as reviewer defense
-7. ablations last
+fineweb_edu
+fineweb
+c4_en
+openwebtext
+pile
+dclm
+dolma_sample
 ```
 
-Main historical real-LM launcher:
+Immediate launch order:
+
+```text
+1. smoke: c4_en + openwebtext
+2. smoke: dclm + fineweb_edu
+3. smoke: M1 on fineweb_edu
+4. main pair: c4_en 100M seed 1337 + fineweb_edu 100M seed 1337
+5. main pair: dclm 100M seed 1337 + openwebtext 100M seed 1337
+6. repeat 100M for seeds 2027/3407
+7. run 300M, then M1, then 600M if justified by loss per GPU-hour
+```
+
+Example C4-EN 100M launch:
 
 ```bash
+REAL_LM_TASKS="c4_en" \
+SEEDS="1337" \
+RUN_SUFFIX="iclr26_anchor_c4_m0_100m_seed1337" \
+OUTPUT_ROOT="experiments/runs/iclr26_anchor" \
+TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_anchor" \
+MAX_TRAIN_TOKENS=100000000 \
+MAX_VAL_TOKENS=4000000 \
+STEPS=3050 \
+EVAL_INTERVAL=50 \
+EVAL_BATCHES=10 \
+LOG_INTERVAL=10 \
+INCLUDE_MUON=1 \
+EXTRA_OPTIMIZERS="soap_adamw lion ademamix schedule_free_adamw adafactor_came" \
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
-Resource rule: each submitted GPU job uses 4 A6000 GPUs; keep at most two active jobs. Use dependencies or manual sequencing so active usage never exceeds 8 A6000s.
-
-Example M0 speed-to-target launch pattern:
+Example FineWeb-Edu 300M launch:
 
 ```bash
 REAL_LM_TASKS="fineweb_edu" \
 SEEDS="1337" \
-RUN_SUFFIX="iclr_speed_m0_100m_seed1337" \
-OUTPUT_ROOT="experiments/runs/iclr_speed_m0" \
-TOKEN_CACHE_DIR="experiments/cache/tokens_iclr_speed_m0" \
-MAX_TRAIN_TOKENS=100000000 \
+RUN_SUFFIX="iclr26_modern_fwedu_m0_300m_seed1337" \
+OUTPUT_ROOT="experiments/runs/iclr26_modern_fineweb" \
+TOKEN_CACHE_DIR="experiments/cache/tokens_iclr26_modern_fineweb" \
+MAX_TRAIN_TOKENS=300000000 \
 MAX_VAL_TOKENS=8000000 \
-VAL_SKIP_TOKENS=610000000 \
-STEPS=3050 \
+FINEWEB_EDU_VAL_SKIP_TOKENS=610000000 \
+STEPS=9150 \
 EVAL_INTERVAL=50 \
+EVAL_BATCHES=10 \
 LOG_INTERVAL=10 \
 INCLUDE_MUON=1 \
+EXTRA_OPTIMIZERS="soap_adamw lion ademamix schedule_free_adamw adafactor_came" \
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
+
+Each GPU job uses 4 A6000 GPUs; keep at most two active jobs.
 
 ## Resource And Artifact Policy
 

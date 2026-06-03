@@ -53,20 +53,22 @@ reference-aligned AdEMAMix behavior: no slow-EMA bias correction, alpha warmup, 
 
 ## Immediate TODO
 
-The exact new experiment matrix is `experiments/ICLR_EXACT_RUN_PLAN.md`. The goal is to copy accepted optimizer-paper experiment shapes with new paper-making runs.
+Use `experiments/ICLR_EXACT_RUN_PLAN.md` as the source of truth. FineWeb remains, but it is integrated as modern 2026-grade web evidence alongside accepted-paper anchors.
 
-1. Validate DCLM and Dolma data loaders with tiny 500-step M0 runs.
-2. Validate the M1-260M model on 4 A6000s with a 500-step FineWeb-Edu smoke.
-3. Run Sophia/SOAP-style speed-to-target experiments: M0 on FineWeb-Edu, FineWeb, and DCLM at 100M/300M/600M tokens.
-4. Run Fantastic-style model/data scaling: M0 and M1 across token budgets and data ratios, reporting ranking flips.
-5. Run SOAP-style batch-size and overhead experiments at 16k/32k/65k global tokens.
-6. Run Adam-mini/GaLore/CAME-style memory and throughput accounting.
-7. Run Lion/Schedule-Free-style broad transfer across FineWeb-Edu, FineWeb, DCLM, and Dolma without retuning.
-8. Run AdEMAMix-style long-horizon corpus shift and forgetting: FineWeb-Edu continuation into DCLM.
-9. Run post-training probe on selected checkpoints.
-10. Run LR/WD landscapes only as reviewer defense.
-11. Run mechanism diagnostics from logs as support.
-12. Run method ablations last, only after the main optimizer evidence exists.
+1. Run Job 0A smoke: `c4_en openwebtext`, 2M tokens, seed 1337.
+2. Run Job 0B smoke: `dclm fineweb_edu`, 2M tokens, seed 1337.
+3. Run Job 0C M1 memory smoke on `fineweb_edu`.
+4. Run C4-EN M0 100M seed 1337 and FineWeb-Edu M0 100M seed 1337 as the first real two-job pair.
+5. Run DCLM M0 100M seed 1337 and OpenWebText M0 100M seed 1337 as the second pair.
+6. Repeat the 100M matrix for seeds 2027 and 3407.
+7. Run 300M on C4-EN, FineWeb-Edu, DCLM, and OpenWebText for seeds 1337, 2027, 3407.
+8. Run M1 300M on C4-EN, FineWeb-Edu, and DCLM after M1 smoke passes.
+9. Run 600M on FineWeb-Edu, FineWeb, C4-EN, and DCLM only after 300M loss-per-GPU-hour curves justify it.
+10. Build cross-corpus evaluation from C4/FineWeb/DCLM checkpoints to C4, OpenWebText, FineWeb-Edu, FineWeb, DCLM, Dolma, and Pile if available.
+11. Run memory/throughput/batch-regime profiling.
+12. Run long-horizon corpus-shift runs.
+13. Run reviewer-defense sensitivity maps.
+14. Run ablations last.
 
 ## Mechanism Diagnostics Needed
 

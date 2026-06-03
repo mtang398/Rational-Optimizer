@@ -64,28 +64,29 @@ What is not yet claimed:
 
 ## ICLR Paper Plan
 
-The evidence blueprint is in `experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`; the exact new experiment matrix is in `experiments/ICLR_EXACT_RUN_PLAN.md`. The plan follows accepted optimizer-paper templates and is built around new paper-making experiments.
+The exact new run matrix is in `experiments/ICLR_EXACT_RUN_PLAN.md`. The corrected plan keeps FineWeb/FineWeb-Edu and adds accepted-paper anchor corpora. FineWeb is not claimed to be the dataset used by Sophia/SOAP/Fantastic; it is the modern web stress test. C4-EN, OpenWebText, Pile, and DCLM connect the paper to accepted optimizer-paper practice.
 
-The paper-making experiments are:
+The paper-making runs are now:
 
 ```text
-1. Sophia/SOAP-style LM speed-to-target across model sizes and token budgets
-2. Fantastic-style model/data scaling and ranking-flip checks
-3. SOAP-style batch-size and optimizer-overhead study
-4. Adam-mini/GaLore/CAME-style memory and throughput accounting
-5. Lion/Schedule-Free-style broad corpus transfer
-6. AdEMAMix-style long-horizon and forgetting under corpus shift
-7. AdamW-style LR/WD landscapes as reviewer defense
-8. post-training probe for checkpoint usefulness
-9. mechanism diagnostics as support, not main theory
-10. method ablations last
+1. smoke-test accepted anchors and modern corpora: c4_en, openwebtext, pile, dclm, fineweb_edu
+2. accepted-anchor speed-to-target: C4-EN and OpenWebText at M0/M1 scale
+3. modern FineWeb integration: FineWeb-Edu and FineWeb at 100M/300M/600M tokens
+4. DCLM 2026-grade corpus runs
+5. model/data-ratio scaling: M0/M1/M2 where feasible
+6. cross-corpus transfer from C4/FineWeb/DCLM checkpoints
+7. memory, throughput, and batch-regime accounting
+8. long-horizon corpus-shift and forgetting
+9. reviewer-defense sensitivity maps
+10. ablations only after the main curves exist
 ```
 
-The current FineWeb/FineWeb-Edu tables and curves remain preserved pilot evidence. They motivate the claim but do not define the final paper experiments.
+Current FineWeb/FineWeb-Edu tables and curves remain preserved pilot evidence. They motivate the modern web part of the plan, but the final paper must also include accepted-anchor and modern-transfer evidence.
 
 Implemented infrastructure that supports the plan:
 
 ```text
+real-LM launcher now supports fineweb_edu, fineweb, c4_en, openwebtext, pile, dclm, and dolma_sample
 training-loop telemetry for grad norm, clipping, timing, CUDA memory
 fixed-probe logit movement and KL telemetry
 RLB rational-activity, denominator, and matrix-spectrum telemetry
@@ -97,15 +98,15 @@ multi-seed summarizers and mean +/- std curve generation
 Still required before ICLR-level claims:
 
 ```text
-new speed-to-target curves at 100M/300M/600M tokens
-M1 scale runs and M2 stretch smoke
-DCLM/Dolma loader validation and transfer runs
-batch-size/overhead runs
-memory and optimizer-state accounting tables
+C4-EN/OpenWebText/DCLM/Pile loader smokes
+M1 memory smoke
+100M/300M/600M speed-to-target curves on accepted anchors and FineWeb
+M1 scale confirmation on C4-EN, FineWeb-Edu, and DCLM
+cross-corpus transfer evaluator
+memory/throughput/batch-regime tables
 long-horizon corpus-shift/forgetting runs
-post-training probe
-reviewer-defense LR/WD landscapes
-late-stage method ablations only after the main results exist
+reviewer-defense LR/WD sensitivity maps
+late-stage method ablations
 ```
 
 ## Method Sketch
@@ -245,12 +246,13 @@ TODO.md             research backlog and paper-readiness checklist
 
 ## Next Work
 
-The next work is the new accepted-paper-style experiment suite:
+Run the corrected queue in `experiments/ICLR_EXACT_RUN_PLAN.md`:
 
-1. Validate DCLM and Dolma loaders with tiny 500-step M0 runs.
-2. Validate M1 memory with 500-step M1 FineWeb-Edu runs.
-3. Start the Sophia/SOAP-style M0 speed-to-target runs at 100M and 300M on FineWeb-Edu and DCLM.
-4. Run batch-size/overhead and memory/throughput profiling once the first M0 curves confirm runtime.
-5. Run M1 scale, broad transfer, long-horizon forgetting, post-training probe, and diagnostics.
-6. Run LR/WD landscapes as reviewer defense, not as the center of the project.
-7. Run method ablations last.
+1. Run smoke jobs for `c4_en`, `openwebtext`, `dclm`, `fineweb_edu`, and M1.
+2. Start C4-EN M0 100M seed 1337 and FineWeb-Edu M0 100M seed 1337 as the first two active jobs.
+3. Start DCLM M0 100M seed 1337 and OpenWebText M0 100M seed 1337 next.
+4. Repeat 100M for seeds 2027 and 3407.
+5. Move to 300M on C4-EN, FineWeb-Edu, DCLM, OpenWebText.
+6. Run M1 300M only after the M1 smoke passes.
+7. Run 600M only after 300M curves show MatrixPolicy is competitive in loss per GPU-hour.
+8. Run sensitivity maps and ablations after main curves exist.

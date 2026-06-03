@@ -91,11 +91,14 @@ fineweb_edu -> HuggingFaceFW/fineweb-edu, sample-10BT
 fineweb     -> HuggingFaceFW/fineweb, sample-10BT
 ```
 
-Available but not yet paper-grade in this environment:
+Additional task keys for accepted-anchor and modern-corpus runs:
 
 ```text
-dclm         -> mlfoundations/dclm-baseline-1.0; needs zstd support
-Dolma sample -> allenai/dolma, v1_6-sample; needs loader/conversion validation
+c4_en        -> allenai/c4, en; accepted optimizer anchor for C4/C4-EN style validation
+openwebtext  -> Skylion007/openwebtext; Sophia-style GPT-2 pretraining anchor
+pile         -> EleutherAI/pile; Sophia-style large-corpus anchor, smoke first
+dclm         -> mlfoundations/dclm-baseline-1.0; modern DataComp/DCLM corpus, smoke first
+dolma_sample -> allenai/dolma, v1_6-sample; transfer/modern corpus, smoke first
 ```
 
 ## Launcher
