@@ -34,15 +34,15 @@ At this short M1 smoke scale, both RLB+AdamW and RLB+MatrixPolicy beat SiLU+Adam
 
 ## Active Continuation At Handoff
 
-Latest observed at 2026-06-03T17:59:56-04:00:
+Latest observed at 2026-06-03T18:20:30-04:00:
 
 | job | purpose | elapsed | latest observed row | latest train | latest eval | GPU use |
 | --- | --- | ---: | --- | ---: | ---: | ---: |
-| `67183` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 00:25:02 | `adamw lr=0.0001 wd=0.03 / silu` | step 1460 loss 4.9328 | step 1450 loss 5.0919 | 4 A6000 |
-| `67184` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 00:24:58 | `matrix_policy lr=0.0002 wd=0.03 adam_scale=2.0 group_gain=0.20` | step 220 loss 5.9446 | step 200 loss 6.0781 | 4 A6000 |
+| `67183` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 00:46:05 | `adamw lr=0.0001 wd=0.03 / silu complete; rlb adamw active` | RLB step 1160 loss 5.0358 | RLB eval step 1150 loss 5.1759 | 4 A6000 |
+| `67184` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 00:46:01 | `matrix_policy lr=0.0002 wd=0.03 adam_scale=2.0 group_gain=0.20` | step 460 loss 5.2513 | step 450 loss 5.3607 | 4 A6000 |
 
 No more GPU work should be submitted while both jobs are active because the 8 A6000 cap is fully used.
 
 Future summaries must prioritize curves, AUC, and trajectory behavior over final-number-only tables.
 
-Queued continuation: `69975` and `69976` are dependency-held on `afterok:67183:67184` for the next DCLM AdamW and MatrixPolicy configs 4-7.
+Queued continuation: `69975` and `69976` are dependency-held on `afterok:67183:67184` for DCLM configs 4-7; `71046`/`71047` continue DCLM configs 8+ by lineage; `71048`/`71049` start FineWeb-Edu AdamW/MatrixPolicy shards after those lineage jobs.

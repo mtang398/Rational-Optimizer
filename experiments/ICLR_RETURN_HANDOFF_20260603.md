@@ -1,17 +1,17 @@
 # ICLR Return Handoff - 2026-06-03
 
-Last updated: 2026-06-03T17:59:56-04:00
+Last updated: 2026-06-03T18:20:30-04:00
 
 This file is the live operational handoff for returning to the project. It records completed smoke results, currently running Slurm work, live progress observed from JSONL/logs, and the exact next conditions. Raw run outputs remain ignored; compact summaries and launch infrastructure are tracked.
 
 ## Current Slurm State
 
-Active jobs at 2026-06-03T17:59:56-04:00:
+Active jobs at 2026-06-03T18:20:30-04:00:
 
 | job | state | elapsed | node | purpose | GPU use |
 | --- | --- | ---: | --- | --- | ---: |
-| `67183` | RUNNING | 00:25:02 | `sun-compute-03` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 4 A6000 |
-| `67184` | RUNNING | 00:24:58 | `fang-compute-02` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 4 A6000 |
+| `67183` | RUNNING | 00:46:05 | `sun-compute-03` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 4 A6000 |
+| `67184` | RUNNING | 00:46:01 | `fang-compute-02` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 4 A6000 |
 
 Active total: 8 A6000, exactly at the cap. Do not submit another GPU job until one of these exits.
 
@@ -19,19 +19,20 @@ Useful checks when returning:
 
 ```bash
 squeue -u mt872 -o "%.18i %.9P %.40j %.8T %.10M %.6D %R"
-sacct -j 67183,67184,69975,69976 --format=JobID,JobName%30,State,ExitCode,Elapsed,NodeList
+sacct -j 67183,67184,69975,69976,71046,71047,71048,71049 --format=JobID,JobName%30,State,ExitCode,Elapsed,NodeList
 sed -n '1,260p' experiments/runs/logs/iclr-protocol-lock-67183.out
 sed -n '1,260p' experiments/runs/logs/iclr-protocol-lock-67184.out
 ```
 
 ## Live Phase 1 Protocol-Lock Progress
 
-These are not final results. They are the latest observed in-progress JSONL/log state at 2026-06-03T17:59:56-04:00.
+These are not final results. They are the latest observed in-progress JSONL/log state at 2026-06-03T18:20:30-04:00.
 
 | job | shard | current row | status | latest train step/loss | latest eval step/loss | notes |
 | --- | --- | --- | --- | ---: | ---: | --- |
-| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/silu` | running | 1460 / 4.9328 | 1450 / 5.0919 | First AdamW config is near completion; RLB companion for this config has not started yet. |
-| `67184` | DCLM MatrixPolicy configs 0-3 | `dclm_matrix_policy_as2.0_gg0.20_lr0.0002_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 220 / 5.9446 | 200 / 6.0781 | First MatrixPolicy config is running with dense evals present. |
+| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/silu` | complete | 1525 / 4.9551 | 1525 / 5.0774 | First SiLU+AdamW row complete. |
+| `67183` | DCLM AdamW control configs 0-3 | `dclm_adamw_lr0.0001_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 1160 / 5.0358 | 1150 / 5.1759 | Paired RLB+AdamW row is running. |
+| `67184` | DCLM MatrixPolicy configs 0-3 | `dclm_matrix_policy_as2.0_gg0.20_lr0.0002_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 460 / 5.2513 | 450 / 5.3607 | First MatrixPolicy config is running with dense evals present. |
 
 Submitted Phase 1 commands used the new protocol-lock launcher:
 
@@ -80,12 +81,20 @@ The next bounded shards are already queued behind both active jobs and cannot st
 | --- | --- | --- | --- | ---: |
 | `69975` | PENDING, dependency-held | `afterok:67183:67184` | DCLM AdamW control configs 4-7 | 4 A6000 |
 | `69976` | PENDING, dependency-held | `afterok:67183:67184` | DCLM MatrixPolicy configs 4-7 | 4 A6000 |
+| `71046` | PENDING, dependency-held | `afterok:69975` | DCLM AdamW control config 8 | 4 A6000 |
+| `71047` | PENDING, dependency-held | `afterok:69976` | DCLM MatrixPolicy configs 8-11 | 4 A6000 |
+| `71048` | PENDING, dependency-held | `afterok:71046` | FineWeb-Edu AdamW control configs 0-3 | 4 A6000 |
+| `71049` | PENDING, dependency-held | `afterok:71047` | FineWeb-Edu MatrixPolicy configs 0-3 | 4 A6000 |
 
 Useful dependency check:
 
 ```bash
 scontrol show job 69975
 scontrol show job 69976
+scontrol show job 71046
+scontrol show job 71047
+scontrol show job 71048
+scontrol show job 71049
 ```
 
 ## Completed Phase 0A/0B Smoke Results
@@ -146,6 +155,19 @@ final validation loss as a table column, not the whole story
 
 Do not replace curve evidence with a final-number-only summary. Do not launch future paper/protocol runs with 200-step evaluation spacing.
 
+## Rough Finish Estimate
+
+Estimates below are deliberately rough because MatrixPolicy step time changes after warmup and Slurm scheduling can delay dependency release. Current time basis: 2026-06-03T18:20:30-04:00.
+
+| item | expected window | basis |
+| --- | --- | --- |
+| `67183` active AdamW shard | about 2026-06-03 20:45-21:30 ET | first config nearly complete; three AdamW configs remain after the current paired RLB row. |
+| `67184` active MatrixPolicy shard | about 2026-06-04 03:00-04:30 ET | first MatrixPolicy config at step 460/1525 after 46 minutes; four configs total. |
+| `69975` / `69976` release | after both `67183` and `67184` complete, likely around 2026-06-04 03:00-04:30 ET | dependency is `afterok:67183:67184`. |
+| User return in ~12h | around 2026-06-04 06:20 ET | expected state: `69975` and `69976` should be running, or `71046` may have started if AdamW configs 4-7 already completed. |
+
+Do not treat these as paper timing numbers; use curve summaries and Slurm accounting after completion.
+
 ## Pending Tasks By Condition
 
 1. If either active job fails:
@@ -180,6 +202,24 @@ Do not replace curve evidence with a final-number-only summary. Do not launch fu
    - Repo below 200G.
    - No substitute dataset/toolchain path for the planned experiment.
    - Keep FineWeb and FineWeb-Edu README curves/data intact.
+
+## Self-Continuation Instructions For Next Codex Run
+
+When the user returns or the session resumes, do this in order:
+
+1. Check `squeue` and `sacct` for `67183,67184,69975,69976,71046,71047,71048,71049`.
+2. If any job failed, do not submit new GPU work. Inspect the relevant `experiments/runs/logs/iclr-protocol-lock-<job>.out`, patch the exact cause, commit, push, and rerun only the failed shard.
+3. If jobs completed, run the curve-first summarizer, not a final-number-only summary:
+
+```bash
+.venv-cu128/bin/python experiments/scripts/summarize_iclr_phase1_protocol_lock.py \
+  --run-root experiments/runs/iclr26_phase1_protocol_lock \
+  --output-dir experiments/runs/iclr26_phase1_protocol_lock/summary
+```
+
+4. Inspect `eval_curves.csv`, `train_curves.csv`, validation-loss plots, training-loss plots, AUC fields, and dense-curve checks before making any claim. Curves are primary; final validation loss is just one column.
+5. If active GPU use is below 8 and the dependency chain has stopped because a lineage finished cleanly, queue the next bounded Phase 1 shard from `experiments/ICLR_EXACT_RUN_PLAN.md`, preserving max 4 A6000 per job and max 8 active A6000 total.
+6. Update this handoff and push after any completed result summary or new queued jobs.
 
 ## Repo/Infrastructure State
 
