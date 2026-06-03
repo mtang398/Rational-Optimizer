@@ -6,7 +6,6 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{mathtools}
-\usepackage{amsthm}
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{hyperref}
@@ -22,12 +21,6 @@
 \newcommand{\relu}{\operatorname{ReLU}}
 \newcommand{\RLB}{\mathrm{RLB}}
 
-\newtheorem{theorem}{Theorem}[section]
-\newtheorem{assumption}[theorem]{Assumption}
-\newtheorem{lemma}[theorem]{Lemma}
-\newtheorem{proposition}[theorem]{Proposition}
-\newtheorem{corollary}[theorem]{Corollary}
-\newtheorem{remark}[theorem]{Remark}
 
 %\iclrfinalcopy
 \begin{document}
@@ -82,10 +75,10 @@ group has a positive scale gauge:
 \end{align}
 The represented function is unchanged because $z_{l,g}$ and $r_{l,g}$ scale
 together, $u_{l,g}$ is unchanged, and the inverse scale in $B_l$ cancels the scale
-in $h_{l,g}$.  With a nonzero RMS floor, Appendix~\ref{app:complete-opt-proof} bounds the resulting
-local gauge error under nondegenerate activations and treats the remaining implementation
-deviations through a residual model.  This matters because optimizer state is stored in
-coordinates, not in the quotient space of represented functions.
+in $h_{l,g}$.  With a nonzero RMS floor this symmetry is only approximate, so we use the
+gauge as an optimizer-design principle rather than as a formal invariance claim.  This
+matters because optimizer state is stored in coordinates, not in the quotient space of
+represented functions.
 
 At step $t$, each matrix role $r\in\{\mathrm{in},\mathrm{out}\}$ receives a
 role-depth factor $\rho_r(l)$ and an on-policy statistic factor
@@ -217,13 +210,8 @@ $\ell_g^{\star}=\frac{1}{2}(\tau_g-\gamma_g)$, while the applied bounded move is
 \end{align}
 For true RMS values, the clipped update maps $\gamma_g$ to $\gamma_g+2\ell_g$ and
 is a bounded move toward $\tau_g$ rather than exact canonicalization unless clipping and
-schedule damping are inactive.  With a quadratic RMS floor, Appendix~\ref{app:complete-opt-proof}
-bounds the active-floor log-ratio discrepancy locally by $O(\epsilon_{\rm rms})$.  The
-transform $A_{l,g}\leftarrow e^{\ell_g}A_{l,g}$ and
-$B_{l,g}\leftarrow e^{-\ell_g}B_{l,g}$ preserves the homogeneous RLB function exactly
-under the appendix gauge conditions; the remaining implementation deviations are handled
-by the residual perturbation model.
-
-\input{appendix_gauge_conditioning}
+schedule damping are inactive.  With stabilized RMS values this identity is approximate;
+the implementation uses the bounded move as a controlled representative update for the RLB
+matrices.
 
 \end{document}
