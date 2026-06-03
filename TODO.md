@@ -53,20 +53,20 @@ reference-aligned AdEMAMix behavior: no slow-EMA bias correction, alpha warmup, 
 
 ## Immediate TODO
 
-This TODO is the research standard, not a resource-budgeted shortcut. Do not weaken the paper plan because of the current cluster allocation. Also do not pretend industrial LLM pretraining is required or feasible. The target is the strongest academic version of the project: tuned fair controls, final-budget comparisons, speed-to-target, scale/token-budget trends, transfer, and mechanism evidence.
+The exact new experiment matrix is `experiments/ICLR_EXACT_RUN_PLAN.md`. The goal is to copy accepted optimizer-paper experiment shapes with new paper-making runs.
 
-Do not start with method-component ablations. Ablations explain the method after the superiority claim is established; they are not how we choose the test setting.
-
-1. Freeze the original MatrixPolicy implementation and exact group-stat configuration used by the current pilot. Any v2 optimizer must be separate and cannot be mixed into the original-method claim.
-2. Build the accepted-paper comparison table: AdamW, Muon or a reference matrix optimizer, SOAP/Shampoo-style or reference SOAP, Lion, AdEMAMix, Schedule-Free AdamW, Adafactor/CAME, Sophia-style if feasible, and MatrixPolicy. For every baseline record implementation source, deviations, hyperparameter grid, overhead, memory state, and stability policy.
-3. Design the decisive headline benchmark before running more jobs: datasets, model sizes, token budgets, seeds, validation slices, final-budget metric, target losses for speed-to-target, and exact frozen-config protocol.
-4. Freeze the headline benchmark specification before tuning: datasets, model sizes, token budgets, target losses, tuning split, final validation split, seed set, metrics, and retirement rules. Then run targeted optimizer-specific tuning only to select final configs for that fixed benchmark. Do not run an optimizer zoo without a headline purpose, and do not use ablations to discover the evaluation setting.
-5. Run final matched headline benchmarks on FineWeb-Edu, FineWeb, and at least one held-out transfer corpus/task with paired seeds and frozen configs.
-6. Report speed-to-target in tokens, steps, GPU-hours, and wall-clock time, plus optimizer-step overhead, throughput, peak memory, optimizer-state memory, clipping rate, and divergence rate.
-7. Run academic-scale scaling studies: current 123M setting, one larger setting, at least two token budgets, and transfer without retuning.
-8. Run mechanism experiments tied to the claim: gauge-equivalent initialization, mid-training gauge perturbation, optimizer-state gauge covariance, function-space movement, role-specific update geometry, denominator/pole safety, and rational activity.
-9. Run method ablations last: remove group stats, gauge rebalance, role-depth policy, early matrix-normalized branch, and individual group-policy factors only after the main optimizer result is established.
-10. Keep the current 3-seed FineWeb/FineWeb-Edu result as pilot evidence and preserve its tables/curves, but do not let it define the final paper plan or serve as the setting-selection mechanism.
+1. Validate DCLM and Dolma data loaders with tiny 500-step M0 runs.
+2. Validate the M1-260M model on 4 A6000s with a 500-step FineWeb-Edu smoke.
+3. Run Sophia/SOAP-style speed-to-target experiments: M0 on FineWeb-Edu, FineWeb, and DCLM at 100M/300M/600M tokens.
+4. Run Fantastic-style model/data scaling: M0 and M1 across token budgets and data ratios, reporting ranking flips.
+5. Run SOAP-style batch-size and overhead experiments at 16k/32k/65k global tokens.
+6. Run Adam-mini/GaLore/CAME-style memory and throughput accounting.
+7. Run Lion/Schedule-Free-style broad transfer across FineWeb-Edu, FineWeb, DCLM, and Dolma without retuning.
+8. Run AdEMAMix-style long-horizon corpus shift and forgetting: FineWeb-Edu continuation into DCLM.
+9. Run post-training probe on selected checkpoints.
+10. Run LR/WD landscapes only as reviewer defense.
+11. Run mechanism diagnostics from logs as support.
+12. Run method ablations last, only after the main optimizer evidence exists.
 
 ## Mechanism Diagnostics Needed
 
@@ -78,11 +78,11 @@ Required metrics per RLB layer:
 | group output RMS | whether features are used. |
 | derivative pressure | whether groups are saturated or active. |
 | denominator/pole margin | rational stability. |
-| `W_in`/`W_out` norm product | gauge drift. |
+| `W_in`/`W_out` norm product | role-scale drift and optimizer-induced imbalance. |
 | coefficient update norm | rational-shape movement. |
 | function probe delta | output function change on fixed probe inputs. |
 
-Pass criterion: MatrixPolicy should show better loss/AUC with better function-delta-per-parameter-delta or lower harmful gauge drift than generic optimizers.
+Pass criterion: MatrixPolicy should show better loss/AUC with better function-delta-per-parameter-delta, lower wasted role-scale drift, and acceptable optimizer overhead versus generic optimizers.
 
 ## MatrixPolicy v2 Design Target
 
@@ -96,7 +96,7 @@ matrix role: W_in, coefficients, W_out
 group activity and output use
 derivative pressure / saturation
 denominator risk
-gauge drift
+W_in/W_out scale drift
 recent gradient agreement
 ```
 
@@ -106,7 +106,7 @@ Actions:
 role-specific update rule and beta2
 per-group matrix scale from live stats
 coefficient trust radius when denominator risk is high
-gauge rebalance strength when W_in/W_out drift grows
+rebalance strength when W_in/W_out scale drift grows
 group revive/damp decisions for dead or saturated groups
 ```
 
@@ -138,4 +138,4 @@ wall-clock/tokens-to-target/GPU-hour story is not yet clean
 statistical reporting needs mean +/- std curves, CIs, divergence accounting, and exact failed-run policy
 ```
 
-Score needed before a strong ICLR submission: at least 8.7 / 10. The fastest path is a decisive tuned headline benchmark, speed-to-target/overhead accounting, scale and transfer evidence, mechanism interventions tied to RLB geometry, and only then explanatory ablations.
+Score needed before a strong ICLR submission: at least 8.7 / 10. The fastest path is a decisive tuned headline benchmark, speed-to-target/overhead accounting, scale and transfer evidence, mechanism diagnostics tied to optimizer role behavior, and only then explanatory ablations.

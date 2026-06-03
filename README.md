@@ -64,29 +64,31 @@ What is not yet claimed:
 
 ## ICLR Paper Plan
 
-The current FineWeb/FineWeb-Edu tables and curves are evidence artifacts, but the ICLR paper plan is not centered on them. They show that the claim is plausible. The paper must prove the optimizer claim with a broader accepted-paper evidence stack.
+The evidence blueprint is in `experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`; the exact new experiment matrix is in `experiments/ICLR_EXACT_RUN_PLAN.md`. The plan follows accepted optimizer-paper templates and is built around new paper-making experiments.
 
-The full plan is in `experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`. Its sequence is:
+The paper-making experiments are:
 
 ```text
-1. decisive tuned headline benchmark
-2. serious optimizer-specific tuning for strong baselines
-3. speed-to-target and compute accounting
-4. model-scale and token-budget laws
-5. mechanism tests tied to RLB gauge/rational geometry
-6. method ablations only after the main superiority claim is established
+1. Sophia/SOAP-style LM speed-to-target across model sizes and token budgets
+2. Fantastic-style model/data scaling and ranking-flip checks
+3. SOAP-style batch-size and optimizer-overhead study
+4. Adam-mini/GaLore/CAME-style memory and throughput accounting
+5. Lion/Schedule-Free-style broad corpus transfer
+6. AdEMAMix-style long-horizon and forgetting under corpus shift
+7. AdamW-style LR/WD landscapes as reviewer defense
+8. post-training probe for checkpoint usefulness
+9. mechanism diagnostics as support, not main theory
+10. method ablations last
 ```
 
-This ordering follows accepted optimizer papers: AdamW separates weight decay and LR effects; Sophia and SOAP report speed-to-target and wall-clock; Lion, Schedule-Free, AdEMAMix, CAME, GaLore, and Adam-mini report sensitivity, scale, transfer, memory/overhead, and limitations; Fantastic Pretraining Optimizers stresses tuned baselines, final-budget comparisons, model scale, data-to-model ratio, and ranking flips during LR decay.
-
-The plan must not be weakened into a small ablation program. Ablations explain a proven result; they do not choose the setting that proves superiority.
+The current FineWeb/FineWeb-Edu tables and curves remain preserved pilot evidence. They motivate the claim but do not define the final paper experiments.
 
 Implemented infrastructure that supports the plan:
 
 ```text
 training-loop telemetry for grad norm, clipping, timing, CUDA memory
 fixed-probe logit movement and KL telemetry
-RLB gauge, rational-activity, denominator, and matrix-spectrum telemetry
+RLB rational-activity, denominator, and matrix-spectrum telemetry
 MatrixPolicy role/update/group-stat telemetry
 broad baseline optimizer wiring: Lion, paper-style AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, SOAP/Shampoo-style AdamW
 multi-seed summarizers and mean +/- std curve generation
@@ -95,15 +97,15 @@ multi-seed summarizers and mean +/- std curve generation
 Still required before ICLR-level claims:
 
 ```text
-reference-matched or accurately labeled broad baselines
-tuned optimizer-specific hyperparameter surfaces
-final matched headline benchmark on frozen configs
-speed-to-target in tokens, steps, GPU-hours, and wall-clock time
-throughput, memory, and optimizer-overhead tables
-scale and token-budget studies at academic scale
-held-out corpus transfer without retuning
-mechanism interventions for gauge/function movement and role geometry
-late-stage method ablations after the headline result is established
+new speed-to-target curves at 100M/300M/600M tokens
+M1 scale runs and M2 stretch smoke
+DCLM/Dolma loader validation and transfer runs
+batch-size/overhead runs
+memory and optimizer-state accounting tables
+long-horizon corpus-shift/forgetting runs
+post-training probe
+reviewer-defense LR/WD landscapes
+late-stage method ablations only after the main results exist
 ```
 
 ## Method Sketch
@@ -243,14 +245,12 @@ TODO.md             research backlog and paper-readiness checklist
 
 ## Next Work
 
-The next phase is claim-first, not ablation-first:
+The next work is the new accepted-paper-style experiment suite:
 
-1. Freeze the original `rational_matrix_policy_onpolicy` group-stat method as the method under test.
-2. Freeze the benchmark card: datasets, model sizes, token budgets, speed-to-target thresholds, tuning split, final validation split, seed set, exact baselines, and failure policy.
-3. Build the accepted-paper comparison matrix: AdamW, Muon or a reference matrix optimizer, SOAP/Shampoo-style or reference SOAP, Lion, AdEMAMix, Schedule-Free AdamW, Adafactor/CAME, and MatrixPolicy; record exact implementation status and deviations.
-4. Run targeted optimizer tuning for the frozen headline benchmark. This is not a broad ablation queue or setting-selection process.
-5. Run final matched benchmark tables with frozen configs, paired seeds, final held-out validation slices, and no final-table retuning.
-6. Report speed-to-target, wall-clock, GPU-hours, throughput, memory, clipping, and divergence.
-7. Run academic-scale model/token-budget and transfer studies.
-8. Run mechanism tests tied to RLB gauge/rational geometry.
-9. Run method ablations last, only to explain a result that has already survived the decisive benchmark.
+1. Validate DCLM and Dolma loaders with tiny 500-step M0 runs.
+2. Validate M1 memory with 500-step M1 FineWeb-Edu runs.
+3. Start the Sophia/SOAP-style M0 speed-to-target runs at 100M and 300M on FineWeb-Edu and DCLM.
+4. Run batch-size/overhead and memory/throughput profiling once the first M0 curves confirm runtime.
+5. Run M1 scale, broad transfer, long-horizon forgetting, post-training probe, and diagnostics.
+6. Run LR/WD landscapes as reviewer defense, not as the center of the project.
+7. Run method ablations last.

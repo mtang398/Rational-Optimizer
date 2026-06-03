@@ -8,7 +8,8 @@ The current public evidence package is the 3-seed FineWeb/FineWeb-Edu pilot repl
 
 | package | role |
 | --- | --- |
-| `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md` | Full paper experiment program: locked headline benchmark, targeted optimizer tuning, scaling, speed-to-target, mechanism tests, and launch discipline. |
+| `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md` | Evidence blueprint: why the paper needs tuned baselines, final-budget comparisons, speed, scale, transfer, and mechanism. |
+| `ICLR_EXACT_RUN_PLAN.md` | Exact runnable matrix: model sizes, datasets, token budgets, seeds, grids, final rows, mechanism runs, and first Slurm commands. |
 | `results/real_lm_multiseed_2026_05_31/` | Primary current preliminary 3-seed tables, bootstrap gap CIs, curve CSVs, and multi-seed mean plots. |
 | `runs/real_lm_multiseed_20260531/` | Compact raw JSONL traces for seed 2027 and seed 3407 runs. |
 | `results/real_lm_screen_2026_05_30/` | Seed-1337 baseline summary, curves, and one-seed plot images. |
@@ -173,50 +174,43 @@ It is not the main result because the current real-corpus gaps are larger and mo
 
 ## Launching More Runs
 
-Main historical Slurm launcher:
+Read `ICLR_EXACT_RUN_PLAN.md` before launching. The next launches should be new accepted-paper-style experiments:
+
+```text
+1. tiny DCLM/Dolma loader validation
+2. M1 memory smoke
+3. M0 speed-to-target runs on FineWeb-Edu and DCLM at 100M/300M
+4. batch-size/overhead and memory profiling
+5. scale, transfer, long-horizon, post-training, diagnostics
+6. LR/WD landscapes as reviewer defense
+7. ablations last
+```
+
+Main historical real-LM launcher:
 
 ```bash
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
-Current paper-program launchers exist, but they should not be treated as the scientific plan by themselves:
+Resource rule: each submitted GPU job uses 4 A6000 GPUs; keep at most two active jobs. Use dependencies or manual sequencing so active usage never exceeds 8 A6000s.
+
+Example M0 speed-to-target launch pattern:
 
 ```bash
-sbatch experiments/scripts/run_iclr_optimizer_validation_20260602.sh
-CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="adamw muon lion soap_adamw" CONFIG_START=0 CONFIG_LIMIT=8 sbatch experiments/scripts/run_iclr_phase_a_hpo_20260602.sh
-CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="ademamix schedule_free_adamw adafactor_came rational_matrix_policy_onpolicy" CONFIG_START=0 CONFIG_LIMIT=6 sbatch experiments/scripts/run_iclr_phase_a_hpo_20260602.sh
-CONFIRM_ICLR_PHASE_A=1 experiments/scripts/submit_iclr_phase_a_chunks_20260602.sh
+REAL_LM_TASKS="fineweb_edu" \
+SEEDS="1337" \
+RUN_SUFFIX="iclr_speed_m0_100m_seed1337" \
+OUTPUT_ROOT="experiments/runs/iclr_speed_m0" \
+TOKEN_CACHE_DIR="experiments/cache/tokens_iclr_speed_m0" \
+MAX_TRAIN_TOKENS=100000000 \
+MAX_VAL_TOKENS=8000000 \
+VAL_SKIP_TOKENS=610000000 \
+STEPS=3050 \
+EVAL_INTERVAL=50 \
+LOG_INTERVAL=10 \
+INCLUDE_MUON=1 \
+sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
-
-Before launching new HPO chunks, read `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md` and freeze the headline benchmark card first: datasets, model sizes, token budgets, final metrics, speed-to-target thresholds, tuning split, final validation split, seed set, exact baselines, and failure policy. Tuning jobs should serve that benchmark. They should not become a broad ablation queue or a way to choose the test setting.
-
-The HPO launcher refuses to run unless `CONFIRM_ICLR_PHASE_A=1` is set. Each submitted HPO job uses 4 A6000 GPUs; keep at most two active jobs. It supports family-specific `*_LRS` and `*_WEIGHT_DECAYS` variables so each optimizer can be tuned fairly. It also supports `CONFIG_START` and `CONFIG_LIMIT`; wide grids must be run as bounded chunks, not monolithic jobs.
-
-Correct launch order:
-
-```text
-1. define decisive tuned headline benchmark and accepted-paper baseline matrix
-2. run targeted optimizer-specific tuning for that benchmark
-3. run final matched headline tables on frozen configs
-4. summarize speed-to-target, overhead, memory, clipping, and divergence
-5. run scale/token-budget and held-out transfer studies
-6. run mechanism tests tied to RLB geometry
-7. run method ablations last
-```
-
-Example dependent 3-seed pattern used for the completed batch:
-
-```bash
-REAL_LM_TASKS="fineweb_edu" SEEDS="2027" RUN_SUFFIX="20260531_seed2027_100m" \
-  OUTPUT_ROOT="experiments/runs/real_lm_multiseed_20260531" \
-  sbatch experiments/scripts/run_real_lm_screen_20260530.sh
-
-REAL_LM_TASKS="fineweb" SEEDS="2027" RUN_SUFFIX="20260531_seed2027_100m" \
-  OUTPUT_ROOT="experiments/runs/real_lm_multiseed_20260531" \
-  sbatch experiments/scripts/run_real_lm_screen_20260530.sh
-```
-
-Use dependencies for later seeds so active usage never exceeds two 4-GPU jobs.
 
 ## Resource And Artifact Policy
 
