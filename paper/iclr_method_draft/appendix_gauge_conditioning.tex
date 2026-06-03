@@ -86,9 +86,14 @@ Because $a$ is bounded above and below and $S_z\geq\sigma^2$,
 \begin{equation}
     \left|\sqrt{S_z+\epsilon/a^2}-\sqrt{S_z+\epsilon}\right|\leq C_1\epsilon .
 \end{equation}
-The normalized inputs differ by $O(\epsilon)$ by the same calculation applied to the
-reciprocal square-root factor.  Boundedness and Lipschitzness of $R_g$, together with the
-bounded operator norm of $B_g$, therefore give an $O(\epsilon)$ bound for the group output.
+The normalized inputs obey the corresponding bound
+\begin{equation}
+    \norm{z_g\left[(S_z+\epsilon/a^2)^{-1/2}-(S_z+\epsilon)^{-1/2}\right]}_2
+    \leq C_2\epsilon,
+\end{equation}
+because $S_z\in[\sigma^2,M^2]$ and $a$ is bounded above and below.  Boundedness and
+Lipschitzness of $R_g$, together with the bounded operator norm of $B_g$, therefore give
+an $O(\epsilon)$ bound for the group output.
 Summing over finitely many groups proves \eqref{eq:stabilized-gauge-error}.
 \end{proof}
 
@@ -136,8 +141,9 @@ For group $g$, define
 \end{equation}
 The exact identities in this subsection use true positive RMS quantities.  For the
 quadratic RMS floor $\widehat{\rms}_\epsilon(M)=\sqrt{\rms(M)^2+\epsilon}$, the active-floor
-log-ratio error is locally $O(\epsilon)$ by Proposition~\ref{prop:stabilized-rms-ratio-error}.
-Given a target log-ratio $\tau_g$, the unclipped rebalance is
+log-ratio error is locally $O(\epsilon)$, as shown in
+Proposition~\ref{prop:stabilized-rms-ratio-error} below.  Given a target log-ratio
+$\tau_g$, the unclipped rebalance is
 \begin{equation}
     \ell_g=\frac{1}{2}(\tau_g-\gamma_g),
     \qquad
@@ -248,7 +254,7 @@ Let $w>0$, $a=e^s\sqrt{w}$, $b=e^{-s}\sqrt{w}$, and
 $\varphi(w)=\frac{1}{2}(w-y)^2$.  One Euclidean gradient-descent step in $(a,b)$ with step
 size $\eta$ gives
 \begin{equation}
-    w^+=w-2\eta w\cosh(2s)(w-y)+O(\eta^2).
+    w^+=w-2\eta w\cosh(2s)(w-y)+\eta^2w(w-y)^2.
     \label{eq:scalar-gauge-step}
 \end{equation}
 \end{lemma}
@@ -258,9 +264,9 @@ Since $\partial\varphi/\partial a=(w-y)b$ and $\partial\varphi/\partial b=(w-y)a
 \begin{align}
     w^+
     &=(a-\eta(w-y)b)(b-\eta(w-y)a) \\
-    &=w-\eta(w-y)(a^2+b^2)+O(\eta^2).
+    &=w-\eta(w-y)(a^2+b^2)+\eta^2(w-y)^2ab.
 \end{align}
-Using $a^2+b^2=w(e^{2s}+e^{-2s})=2w\cosh(2s)$ gives
+Using $ab=w$ and $a^2+b^2=w(e^{2s}+e^{-2s})=2w\cosh(2s)$ gives
 \eqref{eq:scalar-gauge-step}.
 \end{proof}
 
@@ -628,7 +634,8 @@ remain in the local chart through time $T$.  Then
 \end{theorem}
 
 \begin{proof}
-The map $\kappa\mapsto(\kappa-1)/(\kappa+1)$ is strictly increasing for $\kappa>0$.
+The map $\kappa\mapsto(\kappa-1)/(\kappa+1)$ is strictly increasing on the
+condition-number domain $\kappa\geq1$.
 The strict condition-number inequality therefore gives
 $\rho(P_{\MP};H)<\rho(P_{\AW};H)$.  Lemma~\ref{lem:preconditioned-contraction} gives the
 sharp worst-case factors.  Since the quadratic ratios are invariant under scaling
@@ -683,7 +690,11 @@ By induction, as long as the implemented trajectories remain in $U$,
     \norm{q_t^{\AW,{\rm impl}}-q_t^{\AW}}
     \leq C_T\delta
 \end{equation}
-for a constant $C_T$ depending only on $T$ and $C_\Psi$.  Taking
+where one may take
+\begin{equation}
+    C_T=\sum_{j=0}^{T-1}C_\Psi^j,
+\end{equation}
+with the usual value $C_T=T$ when $C_\Psi=1$.  Taking
 $\delta\leq r_{\rm stay}/(2C_T)$ keeps the implemented trajectories in $U$ and
 closes the induction.  If $C_F$ is a Lipschitz constant for $F$ on $U$, then
 \begin{equation}
