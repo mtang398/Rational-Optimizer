@@ -13,6 +13,7 @@ import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 from datasets import load_dataset
+from huggingface_hub import hf_hub_download
 from transformers import AutoTokenizer
 
 
@@ -4059,6 +4060,13 @@ def normalize_dataset_config(config):
     return config
 
 
+DOLMA_MANIFESTS = {
+    "v1_5-sample": "urls/v1_5-sample.txt",
+    "v1_6-sample": "urls/v1_6-sample.txt",
+    "v1_6": "urls/v1_6.txt",
+}
+
+
 def actual_dataset_split(args, split):
     if split == "train":
         return args.train_split
@@ -4160,9 +4168,37 @@ def extract_texts_from_batch(batch, text_column):
     return [text for text in values if isinstance(text, str) and text.strip()]
 
 
+def load_dolma_manifest_dataset(args, dataset_config, actual_split):
+    if actual_split != "train":
+        raise ValueError("allenai/dolma manifest loading supports train split only; use train plus skip offsets for validation")
+    manifest = DOLMA_MANIFESTS.get(dataset_config)
+    if manifest is None:
+        known = ", ".join(sorted(DOLMA_MANIFESTS))
+        raise ValueError(f"unsupported allenai/dolma config {dataset_config!r}; expected one of: {known}")
+    manifest_path = hf_hub_download(
+        repo_id="allenai/dolma",
+        filename=manifest,
+        repo_type="dataset",
+        cache_dir=args.hf_cache,
+    )
+    with open(manifest_path, "r", encoding="utf-8") as handle:
+        urls = [line.strip() for line in handle if line.strip()]
+    if not urls:
+        raise ValueError(f"empty allenai/dolma URL manifest: {manifest}")
+    return load_dataset(
+        "json",
+        data_files={"train": urls},
+        split="train",
+        cache_dir=args.hf_cache,
+        streaming=args.dataset_streaming,
+    )
+
+
 def load_hf_dataset(args, split):
     dataset_config = normalize_dataset_config(args.dataset_config)
     actual_split = actual_dataset_split(args, split)
+    if args.dataset_name == "allenai/dolma" and dataset_config in DOLMA_MANIFESTS:
+        return load_dolma_manifest_dataset(args, dataset_config, actual_split)
     kwargs = {
         "split": actual_split,
         "cache_dir": args.hf_cache,
