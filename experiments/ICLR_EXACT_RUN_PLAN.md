@@ -222,6 +222,8 @@ LOG_INTERVAL=10 \
 BATCH_SIZE=8 \
 GRAD_ACCUM=4 \
 INCLUDE_MUON=0 \
+VAL_SKIP_TOKENS=10000 \
+DEFAULT_VAL_SKIP_TOKENS=10000 \
 COMMON_EXTRA_ARGS="--layers 18 --d-model 1024 --heads 16 --ffn-dim 3072" \
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
