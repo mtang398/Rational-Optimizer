@@ -25,6 +25,7 @@ experiments/cache/
 # Generated experiment logs and raw transport probes
 experiments/runs/logs/*.out
 experiments/runs/logs/ract-wt103-opt-*.out
+experiments/runs/iclr26_smoke/
 experiments/runs/wikitext103/rational_transport_*/
 experiments/runs/wikitext103/adamw_lr5e4_controls_*/
 experiments/runs/wikitext103/rlb_conservative_stage_factored_probe_*/
