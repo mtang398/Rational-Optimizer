@@ -71,7 +71,7 @@ RLB gauge      -> exact post-step rebalance
 Let normalized depth be:
 
 ```text
-d_l = l / (L - 1)
+d_l = (l - 1) / (L - 1)
 ```
 
 MatrixPolicy assigns different depth factors to input selectors and output recombiners:

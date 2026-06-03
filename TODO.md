@@ -10,14 +10,14 @@ A result is paper-level only if it beats the strongest `SiLU/SwiGLU+AdamW`, `RLB
 
 ## Current Evidence Read
 
-### 3-Seed Real-Corpus LM
+### 3-Seed Real-Corpus LM Pilot
 
 | task | MatrixPolicy mean | SiLU+AdamW mean | best non-MatrixPolicy mean | gap vs SiLU+AdamW | gap vs best control |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | FineWeb | 4.369701 loss / 79.04 PPL | 4.528963 loss / 92.69 PPL | 4.522311 loss / 92.08 PPL | 0.159263 | 0.152302 |
 | FineWeb-Edu | 4.069422 loss / 58.52 PPL | 4.223572 loss / 68.28 PPL | 4.223572 loss / 68.28 PPL | 0.154149 | 0.153402 |
 
-This is now the main evidence. It replicated across seeds `1337`, `2027`, and `3407` on both datasets.
+This is the current pilot evidence. It replicated across seeds `1337`, `2027`, and `3407` on both datasets, but it must not define the final paper plan or the final test setting.
 
 Important caveat: FineWeb-Edu `RLB+AdamW` has one divergent seed, so its aggregate is poor. This should be reported, not hidden. It supports the optimizer-specific story.
 
@@ -47,22 +47,26 @@ full ICLR optimizer experiment blueprint
 optimizer telemetry instrumentation for gradient, timing, CUDA memory, probe movement, RLB stats, MatrixPolicy role stats, and SVD entropy
 broad baseline optimizer wiring for Lion, paper-style AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, and SOAP/Shampoo-style AdamW
 CUDA/DDP telemetry validation launcher/checker and completed validation summary
-Phase A HPO launcher and summarizer scaffolding
+bounded tuning launcher and summarizer scaffolding
 reference-aligned AdEMAMix behavior: no slow-EMA bias correction, alpha warmup, beta3 half-life warmup
 ```
 
 ## Immediate TODO
 
-This TODO is the research standard, not a resource-budgeted shortcut. Do not weaken the paper plan because of the current cluster allocation. Also do not pretend industrial LLM pretraining is required or feasible. The target is the strongest academic version of the project: scalable proxy evidence, tuned fair controls, enough model/token scaling to show the law of motion, transfer tests, and mechanism evidence. Operational partitioning belongs in launch scripts and `experiments/README.md`, not in this evidence checklist.
+This TODO is the research standard, not a resource-budgeted shortcut. Do not weaken the paper plan because of the current cluster allocation. Also do not pretend industrial LLM pretraining is required or feasible. The target is the strongest academic version of the project: tuned fair controls, final-budget comparisons, speed-to-target, scale/token-budget trends, transfer, and mechanism evidence.
 
-1. Build the accepted-paper comparison table: AdamW, Muon, Lion, AdEMAMix, Schedule-Free AdamW, SOAP/Shampoo, Adafactor/CAME, Sophia-style second-order where feasible, and MatrixPolicy; for every baseline record exact implementation source, deviations, hyperparameter grid, overhead, and stability.
-2. Run fair Phase A HPO on FineWeb-Edu and FineWeb with dense LR/WD/beta/clip/eps surfaces, not single points; plot mean +/- std validation curves and heatmaps for every optimizer family.
-3. Select tuned configs only from Phase A, then run final benchmarks on FineWeb-Edu, FineWeb, DCLM, and one additional transfer corpus/task with enough seeds for confidence intervals.
-4. Report speed-to-target in tokens, steps, GPU-hours, and wall-clock time, plus optimizer memory and throughput overhead.
-5. Run academic-scale scaling studies: current 123M setting, a larger model, a longer token budget, and a transfer setting where HPO-selected configs are not retuned; do not frame this as industrial pretraining.
-6. Run mechanism experiments after tuned configs exist: gauge-equivalent initialization, mid-training gauge intervention, optimizer-state gauge covariance, rational function movement, role-specific update geometry, denominator/pole safety, and group activity pressure.
-7. Treat divergent runs as data: report divergence rate, clipping behavior, nonfinite policy, and excluded PPL rows explicitly.
-8. Keep the current 3-seed FineWeb/FineWeb-Edu result as preliminary evidence only, not the final paper benchmark.
+Do not start with method-component ablations. Ablations explain the method after the superiority claim is established; they are not how we choose the test setting.
+
+1. Freeze the original MatrixPolicy implementation and exact group-stat configuration used by the current pilot. Any v2 optimizer must be separate and cannot be mixed into the original-method claim.
+2. Build the accepted-paper comparison table: AdamW, Muon or a reference matrix optimizer, SOAP/Shampoo-style or reference SOAP, Lion, AdEMAMix, Schedule-Free AdamW, Adafactor/CAME, Sophia-style if feasible, and MatrixPolicy. For every baseline record implementation source, deviations, hyperparameter grid, overhead, memory state, and stability policy.
+3. Design the decisive headline benchmark before running more jobs: datasets, model sizes, token budgets, seeds, validation slices, final-budget metric, target losses for speed-to-target, and exact frozen-config protocol.
+4. Freeze the headline benchmark specification before tuning: datasets, model sizes, token budgets, target losses, tuning split, final validation split, seed set, metrics, and retirement rules. Then run targeted optimizer-specific tuning only to select final configs for that fixed benchmark. Do not run an optimizer zoo without a headline purpose, and do not use ablations to discover the evaluation setting.
+5. Run final matched headline benchmarks on FineWeb-Edu, FineWeb, and at least one held-out transfer corpus/task with paired seeds and frozen configs.
+6. Report speed-to-target in tokens, steps, GPU-hours, and wall-clock time, plus optimizer-step overhead, throughput, peak memory, optimizer-state memory, clipping rate, and divergence rate.
+7. Run academic-scale scaling studies: current 123M setting, one larger setting, at least two token budgets, and transfer without retuning.
+8. Run mechanism experiments tied to the claim: gauge-equivalent initialization, mid-training gauge perturbation, optimizer-state gauge covariance, function-space movement, role-specific update geometry, denominator/pole safety, and rational activity.
+9. Run method ablations last: remove group stats, gauge rebalance, role-depth policy, early matrix-normalized branch, and individual group-policy factors only after the main optimizer result is established.
+10. Keep the current 3-seed FineWeb/FineWeb-Edu result as pilot evidence and preserve its tables/curves, but do not let it define the final paper plan or serve as the setting-selection mechanism.
 
 ## Mechanism Diagnostics Needed
 
@@ -134,4 +138,4 @@ wall-clock/tokens-to-target/GPU-hour story is not yet clean
 statistical reporting needs mean +/- std curves, CIs, divergence accounting, and exact failed-run policy
 ```
 
-Score needed before a strong ICLR submission: at least 8.7 / 10. The fastest path is telemetry validation, broad tuned baselines, Phase A HPO, speed-to-target, scale, and then mechanism interventions/ablations.
+Score needed before a strong ICLR submission: at least 8.7 / 10. The fastest path is a decisive tuned headline benchmark, speed-to-target/overhead accounting, scale and transfer evidence, mechanism interventions tied to RLB geometry, and only then explanatory ablations.

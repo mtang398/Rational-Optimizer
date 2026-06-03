@@ -2,13 +2,13 @@
 
 This directory contains launchers, summarizers, compact result artifacts, and raw JSONL traces for the current real-LM evidence.
 
-The current public evidence is centered on the 3-seed FineWeb/FineWeb-Edu replication. Older one-seed plots and the WikiText anchor are retained as supporting artifacts, not as the main claim.
+The current public evidence package is the 3-seed FineWeb/FineWeb-Edu pilot replication. Older one-seed plots and the WikiText anchor are retained as supporting artifacts. The final paper plan is not centered on this pilot; it must be driven by the locked headline benchmark in `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`.
 
 ## Result Packages
 
 | package | role |
 | --- | --- |
-| `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md` | Full paper experiment program: broad optimizer baselines, two-corpus HPO, scaling, speed-to-target, mechanism tests, and launch discipline. |
+| `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md` | Full paper experiment program: locked headline benchmark, targeted optimizer tuning, scaling, speed-to-target, mechanism tests, and launch discipline. |
 | `results/real_lm_multiseed_2026_05_31/` | Primary current preliminary 3-seed tables, bootstrap gap CIs, curve CSVs, and multi-seed mean plots. |
 | `runs/real_lm_multiseed_20260531/` | Compact raw JSONL traces for seed 2027 and seed 3407 runs. |
 | `results/real_lm_screen_2026_05_30/` | Seed-1337 baseline summary, curves, and one-seed plot images. |
@@ -179,7 +179,7 @@ Main historical Slurm launcher:
 sbatch experiments/scripts/run_real_lm_screen_20260530.sh
 ```
 
-Current paper-program launchers:
+Current paper-program launchers exist, but they should not be treated as the scientific plan by themselves:
 
 ```bash
 sbatch experiments/scripts/run_iclr_optimizer_validation_20260602.sh
@@ -188,20 +188,20 @@ CONFIRM_ICLR_PHASE_A=1 HPO_FAMILIES="ademamix schedule_free_adamw adafactor_came
 CONFIRM_ICLR_PHASE_A=1 experiments/scripts/submit_iclr_phase_a_chunks_20260602.sh
 ```
 
-The HPO launcher refuses to run unless `CONFIRM_ICLR_PHASE_A=1` is set. Each submitted HPO job uses 4 A6000 GPUs; keep at most two active jobs. It supports family-specific `*_LRS` and `*_WEIGHT_DECAYS` variables so Lion and AdEMAMix are not forced onto the AdamW grid. It also supports `CONFIG_START` and `CONFIG_LIMIT`; wide grids must be run as bounded chunks, not 7-day monolithic jobs. AdEMAMix HPO rows should use paper-style betas with `beta2=0.999`, default alpha/beta3 warmups, and conservative LR/alpha ranges; older partial rows with inherited `beta2=0.95` are invalid. Phase A jobs use conservative eval-time early-stop markers after warmup for clearly failed HPO rows, and the summarizer reports those rows separately instead of treating them as successful full-horizon runs.
+Before launching new HPO chunks, read `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md` and freeze the headline benchmark card first: datasets, model sizes, token budgets, final metrics, speed-to-target thresholds, tuning split, final validation split, seed set, exact baselines, and failure policy. Tuning jobs should serve that benchmark. They should not become a broad ablation queue or a way to choose the test setting.
 
-The current launch sequence has passed tiny CUDA/DDP telemetry and broad-optimizer validation. The active work is Phase A HPO on FineWeb-Edu and FineWeb. Do not run MatrixPolicy component ablations before tuned configs exist from that HPO phase.
+The HPO launcher refuses to run unless `CONFIRM_ICLR_PHASE_A=1` is set. Each submitted HPO job uses 4 A6000 GPUs; keep at most two active jobs. It supports family-specific `*_LRS` and `*_WEIGHT_DECAYS` variables so each optimizer can be tuned fairly. It also supports `CONFIG_START` and `CONFIG_LIMIT`; wide grids must be run as bounded chunks, not monolithic jobs.
 
-Chunking rule: submit chunks of roughly 6-8 configs per job for the adaptive lane and 8-10 configs per job for the core lane. Chain chunks with `afterok` dependencies. This keeps wall times bounded while preserving the 4-GPU-per-job and 8-active-GPU limits. The corrected adaptive lane runs MatrixPolicy, schedule-free AdamW, and CAME before the conservative AdEMAMix sweep so useful RLB optimizer evidence is not blocked behind unstable broad-optimizer rows. The launcher stores token caches under `TOKEN_CACHE_DIR/<task>` so FineWeb and FineWeb-Edu never share tokenized data. This is operational discipline only; the paper TODO remains the academically strongest evidence plan, not a list cut down to today's queue.
-
-Current launch order:
+Correct launch order:
 
 ```text
-1. tiny CUDA/DDP telemetry and broad-optimizer validation - done
-2. broad optimizer-family HPO on FineWeb-Edu and FineWeb - in progress
-3. Phase A summarization and tuned-config selection
-4. final tuned benchmark
-5. mechanism interventions and method-component ablations
+1. define decisive tuned headline benchmark and accepted-paper baseline matrix
+2. run targeted optimizer-specific tuning for that benchmark
+3. run final matched headline tables on frozen configs
+4. summarize speed-to-target, overhead, memory, clipping, and divergence
+5. run scale/token-budget and held-out transfer studies
+6. run mechanism tests tied to RLB geometry
+7. run method ablations last
 ```
 
 Example dependent 3-seed pattern used for the completed batch:

@@ -8,9 +8,9 @@ Can a no-GLU rational FFN outperform SiLU/SwiGLU because its optimizer uses rati
 
 A comparison is valid only under the same base protocol: model size, token budget, seed set, batch shape, sequence length, base LR schedule, weight decay, dataset slice, and evaluation cadence.
 
-## Current Claim Boundary
+## Current Pilot Claim Boundary
 
-The main supported claim is now from 3-seed real-corpus language modeling:
+The current pilot signal is from 3-seed real-corpus language modeling:
 
 ```text
 FineWeb:     RLB+MatrixPolicy (group-stat) beats SiLU+AdamW by 0.159263 mean loss.
@@ -87,16 +87,17 @@ repo size below 200G
 
 ## Evidence Standard
 
-A result should be treated as paper-relevant only if it has:
+The current FineWeb/FineWeb-Edu result is a pilot signal. A paper-relevant claim requires the accepted optimizer-paper evidence stack:
 
 ```text
-same base LR schedule across controls
-step-1 training and validation curves
-strong tuned AdamW, Muon, SOAP/Shampoo-style, Lion, AdEMAMix, Schedule-Free AdamW, and Adafactor/CAME controls where stable
-multi-seed real-corpus LM evidence
-non-saturated task or real LM loss scale
-reported divergent/nonfinite rows
-mechanism readouts for gauge drift, function-space movement, role-specific updates, denominator margins, and matrix spectra
+seriously tuned AdamW and accepted optimizer-family baselines
+final-budget comparisons, not intermediate-checkpoint wins
+speed-to-target in tokens, steps, GPU-hours, and wall-clock time
+optimizer overhead, throughput, memory, clipping, and divergence accounting
+model-scale and token-budget variation at academic scale
+held-out corpus/task transfer without retuning
+mechanism tests tied to RLB gauge/rational geometry
+method ablations only after the main result is established
 ```
 
-The current real-corpus screen satisfies the preliminary multi-seed evidence requirement for two corpora. Telemetry, broad-baseline optimizer code, CUDA/DDP validation, and Phase A HPO scaffolding are implemented; the active missing pieces are completing Phase A HPO over tuned broad baselines, scale/budget tests, mechanism-intervention experiments, downstream checks, and only then method-component ablations. AdEMAMix baselines must use the paper-style warmup/no-slow-bias-correction implementation.
+The paper plan is in `experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`. It should be read before launching new jobs. The ordering is deliberate: decisive tuned benchmark first, mechanism and scale next, ablations last.

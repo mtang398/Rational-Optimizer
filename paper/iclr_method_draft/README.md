@@ -1,6 +1,6 @@
 # ICLR Method Draft
 
-This folder contains an Overleaf-ready ICLR-style method draft for RationalOPT. The draft should now be written around the 3-seed FineWeb/FineWeb-Edu result, not the older one-seed screen.
+This folder contains an Overleaf-ready ICLR-style method draft for RationalOPT. The current 3-seed FineWeb/FineWeb-Edu result should be treated as pilot evidence, not as the final paper center. The final paper should be written around the locked headline benchmark, speed-to-target results, scale/transfer evidence, and mechanism tests described in `../../experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`.
 
 ## Current Paper Position
 
@@ -13,10 +13,9 @@ Rational FFNs expose optimizer-visible geometry, and an on-policy matrix optimiz
 Current source state:
 
 ```text
-abstract, introduction, experiments, discussion, and conclusion are intentionally empty placeholders
+abstract, introduction, background/related work, experiments, discussion, and conclusion remain intentionally empty
 method section is retained
-conditional quotient-optimization theorem is retained in the appendix
-appendix proof is organized as quotient geometry, canonicalized preconditioning, and contraction/stability
+proof appendix has been removed for now; theory will be reintroduced only after the empirical claim and mechanism story are stable
 ```
 
 ## Template Status
@@ -58,7 +57,6 @@ Appendix should contain:
 ```text
 full optimizer pseudocode
 all hyperparameters and launch commands
-conditional quotient-optimization separation proof
 all per-seed tables
 all curves and AUC metrics
 nonfinite/divergent rows

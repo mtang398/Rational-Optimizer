@@ -94,6 +94,10 @@ RLB+Muon
 RLB+MatrixPolicy (group-stat)
 ```
 
+## Paper Use
+
+This README defines the RLB layer and its optimizer-visible handles. It should not be used to make a standalone activation claim. The paper plan lives in `../experiments/ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`; component ablations of activation or optimizer pieces are late-stage explanatory experiments, not the way to choose the main benchmark setting.
+
 ## Implementation Layout
 
 ```text

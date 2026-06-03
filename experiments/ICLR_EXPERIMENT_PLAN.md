@@ -1,5 +1,7 @@
 # ICLR Experiment Plan
 
+This file keeps the historical 3-seed replication record below. The active paper plan is no longer ablation-first and is not centered on the pilot result. The active plan is the claim-first optimizer-paper blueprint in `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`: decisive tuned benchmark first, speed/scale/transfer/mechanism next, ablations last.
+
 This plan treats the claim as optimizer-specific: RLB exposes useful optimizer-visible geometry, and MatrixPolicy uses that geometry better than generic AdamW or Muon under the same base training protocol.
 
 ## Hard Resource Rules
@@ -86,7 +88,9 @@ ICLR guidance and recent optimizer literature imply the next bar:
 
 Operational consequence: the paper should not rely on one short 100M-token budget and untuned controls. The next phase must test whether the gap survives better baselines, larger budgets/scales, and method ablations.
 
-## ICLR-Grade Next Plan
+## Historical Next Plan Superseded
+
+The older phase list below is retained as historical context. It is superseded by `ICLR_OPTIMIZER_EXPERIMENT_BLUEPRINT.md`, which does not start with ablations.
 
 Phase 1: lock the current claim and make it reproducible.
 
@@ -147,9 +151,9 @@ Paper-level mechanism criterion:
 
 - MatrixPolicy should show better validation loss/AUC while spending less update magnitude on pure gauge drift, or more update magnitude on measured function change per parameter change.
 
-## Ablations
+## Historical Ablation Note
 
-Now that the 3-seed replication is complete, the first ablation launcher is `experiments/scripts/run_real_lm_matrix_policy_ablation_20260601.sh`. It prioritizes these 1000-step FineWeb-Edu probes:
+This section is retained as historical context only. Ablations should not be run before the decisive tuned headline benchmark, scale/transfer evidence, and mechanism tests. The existing ablation launcher is `experiments/scripts/run_real_lm_matrix_policy_ablation_20260601.sh`. It prioritizes these 1000-step FineWeb-Edu probes:
 
 1. MatrixPolicy without group-stat scaling.
 2. MatrixPolicy without early Muon phase.

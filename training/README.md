@@ -152,7 +152,7 @@ MatrixPolicy role update, weight, LR-scale, Muon-mix, pressure, activity, and gr
 SVD entropy for attention and RLB matrices at configured intervals
 ```
 
-Before launching Phase A HPO, run a tiny CUDA/DDP validation and verify these fields appear in JSONL on rank 0. Also verify at least one smoke row for each new broad optimizer name because the CPU checks do not exercise CUDA/DDP interaction.
+Before launching new headline-benchmark or tuning jobs, run a tiny CUDA/DDP validation and verify these fields appear in JSONL on rank 0. Also verify at least one smoke row for each optimizer name used by the benchmark because CPU checks do not exercise CUDA/DDP interaction.
 
 ## Runtime Rules
 
