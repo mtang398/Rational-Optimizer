@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-04 16:47:50 EDT  
+Updated: 2026-06-04 17:04:06 EDT  
 Commit: `3a3b415`  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
@@ -59,3 +59,24 @@ E1 uses whole matched 15-row cells. The first two cells are running:
 | `155412` | 30 | 15 | E1 dclm seed 2027, all 15 methods | running | 4 A6000 | `bala-compute-02` |
 
 Active allocation at update: 8 A6000 total.
+
+## E1 Live Timing
+
+Current check: 2026-06-04 17:04:06 EDT.
+
+| Job | Current row | Method | Elapsed | Latest train step | Latest eval | Latest val loss | Recent step time | Recent tokens/s |
+| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `155411` | 15 | silu_adamw | 00:17:12 | 520 / 3050 | 500 | 5.384848 | 0.6214 s | 52729.29 |
+| `155412` | 30 | silu_adamw | 00:16:55 | 490 / 3050 | 450 | 5.454983 | 0.6245 s | 52471.73 |
+
+Finish estimate for the two running E1 cells: 2026-06-05 03:00-07:00 EDT. The first row is running at about 52k tokens/s, but the 15-row cells include optimizer families with different per-step costs.
+
+## Parameter Counts
+
+M0 parameter counts from the run config records:
+
+| Row family | Activation family | Parameter count |
+| --- | --- | ---: |
+| `silu_*` | SiLU FFN | 123,551,232 |
+| `rlb_*` | RLB FFN | 123,553,824 |
+| `rlb_matrixpolicy_original` | RLB FFN with MatrixPolicy optimizer | 123,553,824 |
