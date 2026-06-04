@@ -34,15 +34,15 @@ At this short M1 smoke scale, both RLB+AdamW and RLB+MatrixPolicy beat SiLU+Adam
 
 ## Active Continuation At Handoff
 
-Latest observed at 2026-06-03T18:26:15-04:00:
+Latest observed at 2026-06-04T14:19:04-04:00:
 
 | job | purpose | elapsed | latest observed row | latest train | latest eval | GPU use |
 | --- | --- | ---: | --- | ---: | ---: | ---: |
-| `67183` | Phase 1 protocol-lock DCLM AdamW control shard, configs 0-3 | 00:50:15 | `adamw lr=0.0001 wd=0.03 pair complete; wd=0.10 active` | current SiLU step 20 loss 10.5233 | latest eval step 1 loss 11.0157 | 4 A6000 |
-| `67184` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 0-3 | 00:50:11 | `matrix_policy lr=0.0002 wd=0.03 adam_scale=2.0 group_gain=0.20` | step 550 loss 5.1224 | eval step 550 loss 5.2261 | 4 A6000 |
+| `71047` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 8-11 | 03:49:24+ | `matrix_policy lr=0.0002 wd=0.10 adam_scale=4.0 group_gain=0.20` | step 330 loss 5.5522 | eval step 300 loss 5.6774 | 4 A6000 |
+| `71048` | Phase 1 protocol-lock FineWeb-Edu AdamW control shard, configs 0-3 | 00:01:39 after restart | `adamw lr=0.0001 wd=0.03 / silu` | step 1 loss 11.0197 | eval step 1 loss 11.0267 | 4 A6000 |
 
-No more GPU work should be submitted while both jobs are active because the 8 A6000 cap is fully used.
+No immediate-start GPU work should be submitted while both jobs are active because the 8 A6000 cap is fully used; dependency-held continuation is already queued.
 
 Future summaries must prioritize curves, AUC, and trajectory behavior over final-number-only tables.
 
-Queued continuation: `69975` and `69976` are dependency-held on `afterok:67183:67184` for DCLM configs 4-7; `71046`/`71047` continue DCLM configs 8+ by lineage; `71048`/`71049` start FineWeb-Edu AdamW/MatrixPolicy shards after those lineage jobs.
+Queued continuation: `71049` is dependency-held on `afterok:71047`; `143550` and `143584` continue FineWeb-Edu AdamW after restarted `71048`; `143591` and `143611` continue FineWeb-Edu MatrixPolicy after `71049`.

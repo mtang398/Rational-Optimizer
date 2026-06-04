@@ -122,7 +122,7 @@ M1 DCLM smoke final validation loss:
 | RLB+AdamW | 6.7335 | 24243.2 |
 | RLB+MatrixPolicy group-stat | 6.7349 | 25005.4 |
 
-Active continuation as of 2026-06-03T18:26:15-04:00: jobs `67183` and `67184` are the first two Phase 1 protocol-lock DCLM shards, using 8 A6000 total. Do not submit more GPU work until one exits. Latest observed progress: `67183` completed the first SiLU+AdamW and RLB+AdamW pair and moved to the next AdamW control config; `67184` was on the first MatrixPolicy row at train/eval step 550. Jobs `69975`, `69976`, `71046`, `71047`, `71048`, and `71049` are dependency-queued as bounded continuation shards. For all future result updates, curves and AUC are primary; final validation loss alone is not enough.
+Active continuation as of 2026-06-04T14:19:04-04:00: Phase 1 protocol-lock artifacts are now tracked in `experiments/results/iclr26_phase1_protocol_lock_20260604/` with dense eval curves, train curves, rankings, and plots. Completed DCLM AdamW controls show RLB+AdamW ahead of SiLU+AdamW at the strongest AdamW settings: best RLB+AdamW final val loss `4.4516` with full-run AUC `5.1528`, versus best SiLU+AdamW final val loss `4.4691` and best SiLU full-run AUC `5.1813`. DCLM MatrixPolicy is still finishing its last config and, among completed rows so far, is not the headline Phase 1 winner; treat this as protocol-lock evidence, not the main paper claim. Running now: `71047` DCLM MatrixPolicy configs 8-11 and requeued `71048` FineWeb-Edu AdamW configs 0-3, using 8 A6000 total. Queued continuation: `71049`, `143550`, `143584`, `143591`, and `143611`. For all future result updates, curves and AUC are primary; final validation loss alone is not enough.
 
 ## Method Sketch
 
