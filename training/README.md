@@ -34,7 +34,7 @@ RLB + rational_matrix_policy_onpolicy
 
 The current public tables use `silu` and `rlb_fused_fixed_strong_ffn` as the two activation rows.
 
-The harness now exposes these additional broad baselines for tuned paper runs:
+The harness now exposes these additional broad baselines for matched paper runs:
 
 ```text
 --optimizer soap_adamw              # SOAP/Shampoo-style AdamW eigenbasis baseline
@@ -103,23 +103,21 @@ dolma_sample -> allenai/dolma, v1_6-sample; transfer/modern corpus, smoke first
 
 ## Launcher
 
-Main launcher:
+Main paper runs use manifest rows:
 
 ```bash
-sbatch experiments/scripts/run_real_lm_screen_20260530.sh
+python3 experiments/scripts/build_iclr26_main_manifest.py \
+  --output experiments/manifests/iclr26_main_manifest.csv \
+  --print-summary
+
+CONFIRM_ICLR26_MANIFEST=1 \
+MANIFEST=experiments/manifests/iclr26_main_manifest.csv \
+ROW_START=0 \
+ROW_LIMIT=1 \
+sbatch experiments/scripts/run_iclr26_manifest_job.sh
 ```
 
-Useful environment overrides:
-
-```bash
-REAL_LM_TASKS="fineweb fineweb_edu" \
-SEEDS="2027" \
-RUN_SUFFIX="20260531_seed2027_100m" \
-OUTPUT_ROOT="experiments/runs/real_lm_multiseed_20260531" \
-sbatch experiments/scripts/run_real_lm_screen_20260530.sh
-```
-
-The launcher skips completed activation JSONL files and archives only incomplete activation JSONL files on rerun/requeue. This prevents a requeue from discarding already completed rows.
+The manifest launcher skips completed JSONL files and archives incomplete JSONL files on rerun/requeue. This prevents a requeue from discarding already completed rows.
 
 ## Logging And Analysis Standard
 
@@ -155,7 +153,7 @@ MatrixPolicy role update, weight, LR-scale, Muon-mix, pressure, activity, and gr
 SVD entropy for attention and RLB matrices at configured intervals
 ```
 
-Before launching new headline-benchmark or tuning jobs, run a tiny CUDA/DDP validation and verify these fields appear in JSONL on rank 0. Also verify at least one smoke row for each optimizer name used by the benchmark because CPU checks do not exercise CUDA/DDP interaction.
+Before launching new headline-benchmark jobs, run manifest preflight rows and verify these fields appear in JSONL on rank 0. Also verify at least one smoke row for each optimizer name used by the benchmark because CPU checks do not exercise CUDA/DDP interaction.
 
 ## Runtime Rules
 
