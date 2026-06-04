@@ -34,12 +34,12 @@ At this short M1 smoke scale, both RLB+AdamW and RLB+MatrixPolicy beat SiLU+Adam
 
 ## Active Continuation At Handoff
 
-Latest observed at 2026-06-04T14:19:04-04:00:
+Latest observed at 2026-06-04T14:57:20-04:00:19:04-04:00:
 
 | job | purpose | elapsed | latest observed row | latest train | latest eval | GPU use |
 | --- | --- | ---: | --- | ---: | ---: | ---: |
-| `71047` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 8-11 | 03:49:24+ | `matrix_policy lr=0.0002 wd=0.10 adam_scale=4.0 group_gain=0.20` | step 330 loss 5.5522 | eval step 300 loss 5.6774 | 4 A6000 |
-| `71048` | Phase 1 protocol-lock FineWeb-Edu AdamW control shard, configs 0-3 | 00:01:39 after restart | `adamw lr=0.0001 wd=0.03 / silu` | step 1 loss 11.0197 | eval step 1 loss 11.0267 | 4 A6000 |
+| `71047` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 8-11 | 04:30:38+ | `matrix_policy lr=0.0002 wd=0.10 adam_scale=4.0 group_gain=0.20` | step 870 loss 4.7419 | eval step 850 loss 4.9356 | 4 A6000 |
+| `71048` | Phase 1 protocol-lock FineWeb-Edu AdamW control shard, configs 0-3 | 00:38:49+ after restart | `adamw lr=0.0001 wd=0.03 / rlb active` | RLB step 90 loss 7.7851 | RLB eval step 50 loss 8.8326 | 4 A6000 |
 
 No immediate-start GPU work should be submitted while both jobs are active because the 8 A6000 cap is fully used; dependency-held continuation is already queued.
 

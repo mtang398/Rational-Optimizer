@@ -14,6 +14,7 @@ dclm_validation_loss_curves_zoom_step250.png
 fineweb_edu_validation_loss_curves.png
 fineweb_edu_validation_ppl_curves.png
 fineweb_edu_training_loss_curves.png
+fineweb_edu_validation_loss_curves_zoom_step250.png
 ```
 
 ## DCLM
@@ -48,10 +49,11 @@ fineweb_edu_training_loss_curves.png
 | 26 | adamw | silu | 0.0001 | 0.1 | 1 | 0 | 0 | 1 | 32 | 5.076860 | 5.076860 | 5.765555 | 6.784475 | 0.7316 |  |
 | 27 | adamw | silu | 0.0001 | 0.03 | 1 | 0 | 0 | 1 | 32 | 5.077363 | 5.077363 | 5.766011 | 6.785434 | 0.7286 |  |
 | 28 | adamw | silu | 0.0001 | 0.2 | 1 | 0 | 0 | 1 | 32 | 5.076833 | 5.076833 | 5.766079 | 6.785757 | 0.7333 |  |
-| 29 | rational_matrix_policy_onpolicy | rlb_fused_fixed_strong_ffn | 0.0002 | 0.1 | 1 | 1 | 0 | 1 | 8 | 5.546152 | 5.546152 | 6.737960 | 6.737960 |  | muon_momentum=0.95, muon_ns_steps=5, rational_matrix_policy_adam_lr_scale=4.0, rational_matrix_policy_group_gain_strength=0.2, rational_matrix_policy_group_pressure_strength=0.1, rational_matrix_policy_group_activity_damping=0.2 |
+| 29 | rational_matrix_policy_onpolicy | rlb_fused_fixed_strong_ffn | 0.0002 | 0.1 | 1 | 1 | 0 | 1 | 18 | 4.935619 | 4.935619 | 5.827775 | 6.339412 |  | muon_momentum=0.95, muon_ns_steps=5, rational_matrix_policy_adam_lr_scale=4.0, rational_matrix_policy_group_gain_strength=0.2, rational_matrix_policy_group_pressure_strength=0.1, rational_matrix_policy_group_activity_damping=0.2 |
 
 ## FineWeb-Edu
 
 | rank | optimizer | activation | lr | wd | n | running | div | dense | eval pts | final loss | best loss | auc full | auc 500 | sec/step | key knobs |
 | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 1 | adamw | silu | 0.0001 | 0.03 | 1 | 1 | 0 | 1 | 1 | 11.026684 | 11.026684 |  |  |  |  |
+| 1 | adamw | silu | 0.0001 | 0.03 | 1 | 0 | 0 | 1 | 32 | 5.071486 | 5.071486 | 5.844844 | 6.942446 | 1.3938 |  |
+| 2 | adamw | rlb_fused_fixed_strong_ffn | 0.0001 | 0.03 | 1 | 1 | 0 | 1 | 2 | 8.832563 | 8.832563 | 9.949679 | 9.949679 |  |  |

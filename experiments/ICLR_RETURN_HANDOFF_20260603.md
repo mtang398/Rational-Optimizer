@@ -1,17 +1,17 @@
 # ICLR Return Handoff - 2026-06-03
 
-Last updated: 2026-06-04T14:19:04-04:00
+Last updated: 2026-06-04T14:57:20-04:00
 
 This file is the live operational handoff for returning to the project. It records completed smoke results, currently running Slurm work, live progress observed from JSONL/logs, and the exact next conditions. Raw run outputs remain ignored; compact summaries and launch infrastructure are tracked.
 
 ## Current Slurm State
 
-Active jobs at 2026-06-04T14:19:04-04:00:
+Active jobs at 2026-06-04T14:57:20-04:00:
 
 | job | state | elapsed | node | purpose | GPU use |
 | --- | --- | ---: | --- | --- | ---: |
-| `71047` | RUNNING | 03:49:24 | `monakhova-compute-01` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 8-11 | 4 A6000 |
-| `71048` | RUNNING | 00:01:39 after restart | `ma-compute-02` | Phase 1 protocol-lock FineWeb-Edu AdamW control shard, configs 0-3 | 4 A6000 |
+| `71047` | RUNNING | 04:30:38+ | `monakhova-compute-01` | Phase 1 protocol-lock DCLM MatrixPolicy shard, configs 8-11 | 4 A6000 |
+| `71048` | RUNNING | 00:38:49+ after restart | `ma-compute-02` | Phase 1 protocol-lock FineWeb-Edu AdamW control shard, configs 0-3 | 4 A6000 |
 
 Active total: 8 A6000, exactly at the cap. Do not submit another GPU job until one exits.
 
@@ -36,14 +36,14 @@ Completed Phase 1 jobs so far:
 
 ## Live Phase 1 Protocol-Lock Progress
 
-These are not final Phase 1 results. They are the latest observed in-progress JSONL/log state at 2026-06-04T14:19:04-04:00.
+These are not final Phase 1 results. They are the latest observed in-progress JSONL/log state at 2026-06-04T14:57:20-04:00.
 
 | job | shard | current row | status | latest train step/loss | latest eval step/loss | notes |
 | --- | --- | --- | --- | ---: | ---: | --- |
-| `71047` | DCLM MatrixPolicy configs 8-11 | `dclm_matrix_policy_as4.0_gg0.20_lr0.0002_wd0.10_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 330 / 5.5522 | 300 / 5.6774 | Two configs in this shard completed; current row is still early. |
-| `71048` | FineWeb-Edu AdamW configs 0-3 | `fineweb_edu_adamw_lr0.0001_wd0.03_phase1_protocol_lock/silu` | running after one Slurm restart | 1 / 11.0197 | 1 / 11.0267 | The earlier partial `silu` trace was archived as incomplete after `Restarts=1`; current live trace restarted cleanly with dense evals. |
+| `71047` | DCLM MatrixPolicy configs 8-11 | `dclm_matrix_policy_as4.0_gg0.20_lr0.0002_wd0.10_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running | 870 / 4.7419 | 850 / 4.9356 | Two configs in this shard completed; current row is past halfway. |
+| `71048` | FineWeb-Edu AdamW configs 0-3 | `fineweb_edu_adamw_lr0.0001_wd0.03_phase1_protocol_lock/rlb_fused_fixed_strong_ffn` | running after one Slurm restart | 90 / 7.7851 | 50 / 8.8326 | SiLU row completed after restart; paired RLB row is now active with dense evals. |
 
-The curve-first summarizer was run at 2026-06-04T14:19:04-04:00. Tracked artifacts now live under:
+The curve-first summarizer was run at 2026-06-04T14:57:20-04:00. Tracked artifacts now live under:
 
 ```text
 experiments/results/iclr26_phase1_protocol_lock_20260604/
@@ -53,10 +53,10 @@ Summary artifact counts from the latest summarizer run:
 
 | artifact | count |
 | --- | ---: |
-| runs/groups detected | 30 |
-| validation curve points | 905 |
-| training curve points | 4353 |
-| plots | 7 |
+| runs/groups detected | 31 |
+| validation curve points | 948 |
+| training curve points | 4560 |
+| plots | 8 |
 
 DCLM partial protocol-lock signal from completed rows:
 
@@ -67,6 +67,13 @@ DCLM partial protocol-lock signal from completed rows:
 | best SiLU+AdamW AUC row | 4.4720 | 5.1813 | complete DCLM AdamW grid |
 | best completed MatrixPolicy final-loss row | 4.6385 | 5.3518 | DCLM MatrixPolicy has one config still running |
 | best completed MatrixPolicy AUC row | 4.6406 | 5.3505 | DCLM MatrixPolicy has one config still running |
+
+FineWeb-Edu partial protocol-lock signal from current rows:
+
+| comparison | latest/best val loss | full-run val-loss AUC | status |
+| --- | ---: | ---: | --- |
+| SiLU+AdamW lr=1e-4 wd=0.03 | 5.0715 | 5.8448 | complete after one Slurm restart |
+| RLB+AdamW lr=1e-4 wd=0.03 | 8.8326 | 9.9497 | running, only two eval points so far |
 
 Interpretation for internal planning: the completed DCLM AdamW protocol grid supports the RLB architecture under AdamW, but the current MatrixPolicy grid is not a headline win on DCLM. Treat Phase 1 as protocol-lock evidence and wait for the full FineWeb-Edu half before freezing any main-suite settings.
 
@@ -156,8 +163,8 @@ Estimates below are deliberately rough because MatrixPolicy step time changes af
 
 | item | expected window | basis |
 | --- | --- | --- |
-| `71048` active FineWeb-Edu AdamW shard | about 2026-06-04 late evening or later | job requeued once at 14:17 ET and restarted the first SiLU row from step 1; this shard contains four AdamW configs, each with SiLU and RLB rows. |
-| `71047` active DCLM MatrixPolicy shard | about 2026-06-04 17:30-18:45 ET | two configs complete; current row is at step 330/1525 and one config should remain after it. |
+| `71048` active FineWeb-Edu AdamW shard | about 2026-06-04 late evening or later | job requeued once at 14:17 ET; first SiLU row completed after restart and the paired RLB row is active. This shard contains four AdamW configs, each with SiLU and RLB rows. |
+| `71047` active DCLM MatrixPolicy shard | about 2026-06-04 17:30-18:45 ET | two configs complete; current row is at step 870/1525 and one config should remain after it. |
 | `71049` release | after `71047` completes, likely evening 2026-06-04 | dependency is `afterok:71047`. |
 | `143550` release | after restarted `71048` completes | dependency is `afterok:71048`; timing shifted later because of the restart. |
 | all currently queued FineWeb-Edu Phase 1 shards | likely 2026-06-05 morning to afternoon | depends on MatrixPolicy row speed and Slurm backfill. |
