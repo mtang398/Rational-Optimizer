@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-04 17:08:33 EDT  
+Updated: 2026-06-04 17:22:11 EDT  
 Commit: `3a3b415`  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
@@ -62,14 +62,36 @@ E1 uses whole matched 15-row cells. The first two cells are running:
 
 Active allocation at update: 8 A6000 total.
 
+## E1 Continuation Queue
+
+The remaining E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Dependencies are chained in pairs so the queue advances at most two jobs at a time.
+
+| Wave | Dependency | Job | Rows | Cell |
+| ---: | --- | --- | --- | --- |
+| 0 | running now | `155411` | 15-29 | dclm seed 1337 |
+| 0 | running now | `155412` | 30-44 | dclm seed 2027 |
+| 1 | afterok:`155411`:`155412` | `158114` | 45-59 | dclm seed 3407 |
+| 1 | afterok:`155411`:`155412` | `158115` | 60-74 | fineweb_edu seed 1337 |
+| 2 | afterok:`158114`:`158115` | `158117` | 75-89 | fineweb_edu seed 2027 |
+| 2 | afterok:`158114`:`158115` | `158118` | 90-104 | fineweb_edu seed 3407 |
+| 3 | afterok:`158117`:`158118` | `158155` | 105-119 | fineweb seed 1337 |
+| 3 | afterok:`158117`:`158118` | `158156` | 120-134 | fineweb seed 2027 |
+| 4 | afterok:`158155`:`158156` | `158163` | 135-149 | fineweb seed 3407 |
+| 4 | afterok:`158155`:`158156` | `158164` | 150-164 | dolma_sample seed 1337 |
+| 5 | afterok:`158163`:`158164` | `158166` | 165-179 | dolma_sample seed 2027 |
+| 5 | afterok:`158163`:`158164` | `158165` | 180-194 | dolma_sample seed 3407 |
+| 6 | afterok:`158166`:`158165` | `158168` | 195-209 | c4_en seed 1337 |
+| 6 | afterok:`158166`:`158165` | `158167` | 210-224 | c4_en seed 2027 |
+| 7 | afterok:`158168`:`158167` | `158169` | 225-239 | c4_en seed 3407 |
+
 ## E1 Live Timing
 
-Current check: 2026-06-04 17:04:06 EDT.
+Current check: 2026-06-04 17:22:11 EDT.
 
 | Job | Current row | Method | Elapsed | Latest train step | Latest eval | Latest val loss | Recent step time | Recent tokens/s |
 | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| `155411` | 15 | silu_adamw | 00:17:12 | 520 / 3050 | 500 | 5.384848 | 0.6214 s | 52729.29 |
-| `155412` | 30 | silu_adamw | 00:16:55 | 490 / 3050 | 450 | 5.454983 | 0.6245 s | 52471.73 |
+| `155411` | 15 | silu_adamw | 00:35:17 | 2170 / 3050 | 2150 | 4.488902 | 0.6244 s | 52482.49 |
+| `155412` | 30 | silu_adamw | 00:35:00 | 2140 / 3050 | 2100 | 4.514518 | 0.6216 s | 52718.29 |
 
 Finish estimate for the two running E1 cells: 2026-06-05 03:00-07:00 EDT. The first row is running at about 52k tokens/s, but the 15-row cells include optimizer families with different per-step costs.
 
