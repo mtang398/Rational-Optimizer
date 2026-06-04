@@ -1,6 +1,6 @@
 """Generic optimizer baselines for RationalOPT language-model experiments.
 
-These implementations are intentionally self-contained so the protocol-lock runner can
+These implementations are intentionally self-contained so manifest-run experiments can
 run without relying on external optimizer packages. SOAP/Shampoo and CAME are
 labeled as style baselines unless they are later matched line-by-line to a
 specific reference implementation.

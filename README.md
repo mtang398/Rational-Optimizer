@@ -1,14 +1,24 @@
 # RationalOPT
 
-RationalOPT is a research artifact for one question:
+RationalOPT studies Rational Local Basis (RLB) feed-forward blocks and the `rational_matrix_policy_onpolicy` optimizer for language-model pretraining.
 
-Can a no-GLU Rational Local Basis FFN train better than a SiLU/SwiGLU FFN when the optimizer uses the rational block's own geometry?
+The existing FineWeb/FineWeb-Edu and WikiText results stay in the repo. Future paper evidence must follow the manifest-first plan in `experiments/ICLR_EXACT_RUN_PLAN.md`.
 
-The current answer is empirical and optimizer-specific. The public claim is not "RLB alone is better." Plain RLB with generic optimizers is inconsistent. The supported claim is that RLB exposes useful optimizer-visible structure, and `rational_matrix_policy_onpolicy` uses that structure better than AdamW or Muon under the same base training protocol.
+## Existing Results
 
-## Current Claim
+Existing result packages:
 
-The strongest current evidence is a 3-seed real-corpus language-model screen on FineWeb and FineWeb-Edu. Each row uses the same model size, tokenizer, token budget, validation slice, seed set, global batch, base LR schedule, weight decay, and evaluation cadence.
+```text
+experiments/results/real_lm_multiseed_2026_05_31/
+experiments/results/real_lm_screen_2026_05_30/
+experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
+experiments/runs/real_lm_multiseed_20260531/
+experiments/runs/wikitext103/
+```
+
+
+
+## FineWeb And FineWeb-Edu Results
 
 Protocol summary:
 
@@ -44,154 +54,9 @@ hardware rule: 4 A6000 GPUs per job; at most 8 A6000 GPUs active total
 | RLB+Muon | 3 | 0 | 4.263744 | 0.008026 | 71.08 | -0.040173 | -0.040920 |
 | RLB+MatrixPolicy (group-stat) | 3 | 0 | 4.069422 | 0.002281 | 58.52 | 0.154149 | 0.153402 |
 
-Positive gaps mean lower validation loss than the comparison row. The full per-seed table is in `experiments/results/real_lm_multiseed_2026_05_31/summary.md`.
+Positive gaps mean lower validation loss than the comparison row. Full tables and CSVs are in `experiments/results/real_lm_multiseed_2026_05_31/`.
 
-## Interpretation
-
-What is supported:
-
-- `RLB+MatrixPolicy (group-stat)` replicated on both real corpora across 3 seeds.
-- The gain is about 0.15 validation loss over `SiLU+AdamW` and the best non-MatrixPolicy control on both datasets.
-- Generic Muon is not the explanation; both `SiLU+Muon` and `RLB+Muon` are worse than AdamW controls in these runs.
-- Plain `RLB+AdamW` is not the explanation; it is marginal on FineWeb and diverges for one FineWeb-Edu seed.
-
-What is not yet claimed:
-
-- This is not yet an ICLR-ready optimizer paper by itself.
-- The baselines are same-protocol but have not yet passed the baseline protocol lock and sensitivity-map checks.
-- Mechanism telemetry is implemented, but paper-grade mechanism result tables and figures have not yet been run.
-- The result has not yet been stress-tested at a larger model size, longer token budget, or third corpus.
-
-## ICLR Paper Plan
-
-The exact new run matrix is in `experiments/ICLR_EXACT_RUN_PLAN.md`. The corrected plan keeps FineWeb/FineWeb-Edu and adds benchmark comparability corpora, but it is not a minimal continuation of the pilot. FineWeb is not claimed to be the dataset used by Sophia/SOAP/Fantastic; it is the modern web stress test. C4-EN, OpenWebText/Pile loader checks, and DCLM connect the paper to accepted optimizer-paper practice.
-
-The paper-making runs are now:
-
-```text
-0. loader/model smokes for the benchmark suite
-1. baseline protocol lock on representative datasets
-2. main M0 loss-vs-compute benchmark suite
-3. 600M long-horizon frontier
-4. M1/M2 model-scale study
-5. batch, throughput, memory, and optimizer-state accounting
-6. cross-corpus transfer
-7. corpus-shift continued training
-8. sensitivity maps for reviewer defense
-9. mechanism diagnostics from main logs
-10. method ablations after the main evidence exists
-```
-
-Current FineWeb/FineWeb-Edu tables and curves remain preserved pilot evidence. They motivate the modern web part of the plan, but the final paper must also include benchmark-comparability and modern-transfer evidence.
-
-Implemented infrastructure that supports the plan:
-
-```text
-real-LM launcher now supports fineweb_edu, fineweb, c4_en, openwebtext, pile, dclm, and dolma_sample
-training-loop telemetry for grad norm, clipping, timing, CUDA memory
-fixed-probe logit movement and KL telemetry
-RLB rational-activity, denominator, and matrix-spectrum telemetry
-MatrixPolicy role/update/group-stat telemetry
-broad baseline optimizer wiring: Lion, paper-style AdEMAMix, Schedule-Free AdamW-style, Adafactor/CAME-style, SOAP/Shampoo-style AdamW
-multi-seed summarizers and mean +/- std curve generation
-```
-
-Still required before ICLR-level claims:
-
-```text
-finish Phase 1 protocol lock on dclm and fineweb_edu
-100M/300M main suite across dclm, fineweb_edu, fineweb, dolma_sample, and c4_en
-600M frontier on decisive rows
-M1 scale confirmation beyond the completed short smoke and optional M2 stretch
-batch/throughput/memory profiling
-cross-corpus evaluation of 300M checkpoints
-corpus-shift continued training
-sensitivity maps
-mechanism diagnostics and late-stage ablations
-```
-
-## Current 2026 ICLR Run Status
-
-Phase 0 loader/model smokes have completed for `dclm`, `fineweb_edu`, `dolma_sample`, `c4_en`, and the M1 DCLM smoke. The compact tracked summary is `experiments/results/iclr26_smoke_20260603/summary.md`. Raw JSONL remains under ignored `experiments/runs/iclr26_smoke/`.
-
-M1 DCLM smoke final validation loss:
-
-| row | final val loss | tokens/s |
-| --- | ---: | ---: |
-| SiLU+AdamW | 6.8513 | 30607.3 |
-| RLB+AdamW | 6.7335 | 24243.2 |
-| RLB+MatrixPolicy group-stat | 6.7349 | 25005.4 |
-
-Active continuation as of 2026-06-04T14:57:20-04:00: Phase 1 protocol-lock artifacts are refreshed in `experiments/results/iclr26_phase1_protocol_lock_20260604/` with dense eval curves, train curves, rankings, and plots. Current artifact set contains 31 runs/groups, 948 validation curve points, 4560 training curve points, and 8 plots. Completed DCLM AdamW controls show RLB+AdamW ahead of SiLU+AdamW at the strongest AdamW settings: best RLB+AdamW final val loss `4.4516` with full-run AUC `5.1528`, versus best SiLU+AdamW final val loss `4.4691` and best SiLU full-run AUC `5.1813`. DCLM MatrixPolicy is still finishing its last config and, among completed rows so far, is not the headline Phase 1 winner; treat this as protocol-lock evidence, not the main paper claim. FineWeb-Edu AdamW has one completed SiLU row and its paired RLB row is now running. Running now: `71047` DCLM MatrixPolicy configs 8-11 and `71048` FineWeb-Edu AdamW configs 0-3, using 8 A6000 total. Queued continuation: `71049`, `143550`, `143584`, `143591`, and `143611`. For all future result updates, curves and AUC are primary; final validation loss alone is not enough.
-
-## Method Sketch
-
-RLB replaces the FFN nonlinearity with grouped normalized rational functions:
-
-```text
-z = W_in x
-z_g = group_g(z)
-r_g = sqrt(mean(z_g^2) + eps)
-u_g = z_g / r_g
-h_g = r_g R_g(u_g)
-y = W_out concat_g(h_g)
-```
-
-This creates a positive group gauge. For any `a_g > 0`:
-
-```text
-W_in[g]  <- a_g W_in[g]
-W_out[g] <- W_out[g] / a_g
-```
-
-The represented function is unchanged, but generic optimizers see different norms and conditioning. MatrixPolicy exploits this structure by partitioning parameters into backbone weights, rational coefficients, `W_in`, and `W_out`; applying role/depth/time-aware matrix updates; using mild on-policy group-stat scaling; and applying an exact post-step gauge rebalance.
-
-The best current row is:
-
-```text
-activation: rlb_fused_fixed_strong_ffn
-optimizer: rational_matrix_policy_onpolicy
-variant: MatrixPolicy with group-stat scaling
-backbone: AdamW
-base LR schedule: same as controls, optimizer_lr=3e-4 to optimizer_min_lr=3e-5
-```
-
-## Reproducing The Tables
-
-Regenerate the current multi-seed summary from committed JSONL traces plus the seed-1337 baseline summary:
-
-```bash
-.venv-cu128/bin/python experiments/scripts/summarize_real_lm_multiseed.py \
-  --run-root experiments/runs/real_lm_multiseed_20260531 \
-  --baseline-summary-csv experiments/results/real_lm_screen_2026_05_30/summary.csv \
-  --baseline-seed 1337
-```
-
-Primary result artifacts:
-
-```text
-experiments/results/real_lm_multiseed_2026_05_31/summary.md
-experiments/results/real_lm_multiseed_2026_05_31/per_seed_summary.csv
-experiments/results/real_lm_multiseed_2026_05_31/aggregate_summary.csv
-experiments/results/real_lm_multiseed_2026_05_31/matrix_policy_gap_bootstrap_ci.csv
-experiments/results/real_lm_multiseed_2026_05_31/eval_curves.csv
-experiments/results/real_lm_multiseed_2026_05_31/train_curves.csv
-experiments/results/real_lm_multiseed_2026_05_31/*_mean*.png
-experiments/runs/real_lm_multiseed_20260531/
-```
-
-The older one-seed result package still contains plot images and curve CSVs:
-
-```text
-experiments/results/real_lm_screen_2026_05_30/
-```
-
-
-## Curves
-
-These are the primary visual diagnostics. Each line is the mean across seeds `1337`, `2027`, and `3407`; the shaded band is +/- 1 standard deviation. PPL plots follow the earlier plotting rule and omit divergent/nonfinite seed-method rows so one failed `RLB+AdamW` run does not destroy the axis.
-
-### FineWeb
+### FineWeb Curves
 
 Mean validation loss:
 
@@ -213,7 +78,7 @@ Mean training loss:
 
 ![FineWeb mean training loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_training_loss_mean.png)
 
-### FineWeb-Edu
+### FineWeb-Edu Curves
 
 Mean validation loss:
 
@@ -235,37 +100,103 @@ Mean training loss:
 
 ![FineWeb-Edu mean training loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_training_loss_mean.png)
 
-## Resource Rules
+## WikiText Result
 
-These are hard operational constraints for this repo:
+| method | final loss | final PPL |
+| --- | ---: | ---: |
+| RLB MatrixPolicy-Muon | 3.476232 | 32.34 |
+| RLB Smooth-MatrixPolicy | 3.493210 | 32.89 |
+| SiLU/SwiGLU+AdamW beta2=0.999 | 3.549346 | 34.79 |
+| RLB+AdamW beta2=0.999 | 3.550018 | 34.81 |
+| RLB+AdamW | 3.617501 | 37.24 |
+| SiLU/SwiGLU+AdamW | 3.621982 | 37.41 |
+| SiLU/SwiGLU+Muon | 3.644921 | 38.28 |
+| RLB+Muon | 3.657877 | 38.78 |
+
+Validation loss:
+
+![WikiText validation loss](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_loss.png)
+
+Validation PPL:
+
+![WikiText validation PPL](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_validation_ppl.png)
+
+Training loss from step 1:
+
+![WikiText training loss](experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/same_lr_training_loss_from_step1.png)
+
+## Main Rule
+
+Every comparison must match outer optimizer configs.
 
 ```text
-max 4 A6000 GPUs per task/job
-max 8 A6000 GPUs active at the same time
-keep repository size below 200G
+If AdamW uses lr/min_lr/weight_decay = X in a matched cell, MatrixPolicy must also use lr/min_lr/weight_decay = X in that same cell.
 ```
 
-The real-LM launcher refuses to run above its configured repository-size guard and is written for 4-GPU A6000 jobs. Submit at most two active jobs at once; dependency-queued jobs are acceptable if they cannot increase active usage beyond 8 GPUs.
+A matched cell means the same dataset, model, token budget, seed, validation slice, sequence length, global batch, evaluation cadence, and run phase. Partial grids stay out of paper tables. A baseline grid cannot be compared against a non-grid MatrixPolicy row.
 
-## Repository Map
+## Hard Resource Rules
 
 ```text
-activation/         RLB activation implementation and math notes
-optimizer_design/   MatrixPolicy optimizer implementation and design notes
-training/           LM harness, dataset streaming, and optimizer wiring
-experiments/        launchers, summarizers, result summaries, compact JSONL traces
-paper/              Overleaf-ready ICLR method draft
-READ_FIRST.md       short reading order and claim boundary
-TODO.md             research backlog and paper-readiness checklist
+max 4 A6000 GPUs per job
+max 8 A6000 GPUs active total
+repo must stay below 200G
+eval interval <= 50 for paper/protocol curves
+curves and AUC are primary; final validation loss is only one table column
 ```
 
-## Next Work
+## Current Forward Plan
 
-Run the queue in `experiments/ICLR_EXACT_RUN_PLAN.md`:
+The exact plan is in `experiments/ICLR_EXACT_RUN_PLAN.md`. It is now ordered as:
 
-1. Monitor active Phase 1 jobs `67183` and `67184`; summarize them when they finish.
-2. Continue the next Phase 1 protocol-lock shards on `dclm` and `fineweb_edu` while keeping at most 8 A6000 active.
-3. Run Phase 2 M0 100M main suite for seeds 1337, 2027, 3407.
-4. Move Phase 2 to 300M after 100M summaries are generated.
-5. Start M1 and 600M only after 300M loss-per-GPU-hour curves are summarized.
-6. Run batch/memory, transfer, corpus-shift, sensitivity maps, diagnostics, and ablations in that order.
+```text
+0. manifest/loader preflight only
+1. fixed-config M0 100M main evidence
+2. fixed-config M0 300M main evidence
+3. M1 scale check
+4. 600M long-horizon frontier
+5. throughput, memory, and equal-GPU-hour accounting
+6. cross-corpus evaluation
+7. corpus-shift continued training
+8. sensitivity maps only after main evidence
+9. method ablations last
+```
+
+No sensitivity map or method ablation should start before fixed-config main curves exist.
+
+## Manifest Workflow
+
+Generate and inspect the manifest before any GPU launch:
+
+```bash
+python3 experiments/scripts/build_iclr26_main_manifest.py \
+  --output experiments/manifests/iclr26_main_manifest.csv \
+  --print-summary
+```
+
+Launch a bounded manifest chunk:
+
+```bash
+CONFIRM_ICLR26_MANIFEST=1 \
+MANIFEST=experiments/manifests/iclr26_main_manifest.csv \
+ROW_START=0 \
+ROW_LIMIT=1 \
+sbatch experiments/scripts/run_iclr26_manifest_job.sh
+```
+
+The manifest generator verifies that every main cell has the required method rows and that AdamW and MatrixPolicy share the same outer `lr`, `min_lr`, and `weight_decay` config set.
+
+## Method Sketch
+
+RLB replaces the FFN nonlinearity with grouped normalized rational functions:
+
+```text
+z = W_in x
+z_g = group_g(z)
+r_g = sqrt(mean(z_g^2) + eps)
+u_g = z_g / r_g
+h_g = r_g R_g(u_g)
+y = W_out concat_g(h_g)
+```
+
+MatrixPolicy partitions backbone weights, rational coefficients, `W_in`, and `W_out`; applies role-aware matrix updates; uses group statistics in the original group-stat recipe; and applies a gauge rebalance. Future claims use matched configs and complete curves.
