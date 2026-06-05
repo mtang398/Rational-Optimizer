@@ -1,7 +1,7 @@
 # ICLR Run Status
 
-Updated: 2026-06-04 17:22:11 EDT  
-Commit: `3a3b415`  
+Updated: 2026-06-05 14:06:57 EDT  
+Commit: `f0b8c5a`  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -86,14 +86,44 @@ The remaining E1 cells are queued in whole 15-row matched blocks. Each job uses 
 
 ## E1 Live Timing
 
-Current check: 2026-06-04 17:22:11 EDT.
+Current check: 2026-06-05 14:06:57 EDT.
 
-| Job | Current row | Method | Elapsed | Latest train step | Latest eval | Latest val loss | Recent step time | Recent tokens/s |
-| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| `155411` | 15 | silu_adamw | 00:35:17 | 2170 / 3050 | 2150 | 4.488902 | 0.6244 s | 52482.49 |
-| `155412` | 30 | silu_adamw | 00:35:00 | 2140 / 3050 | 2100 | 4.514518 | 0.6216 s | 52718.29 |
+| Job | Current row | Method | Elapsed | Latest eval | Latest val loss | State |
+| --- | ---: | --- | --- | ---: | ---: | --- |
+| `158117` | 78 | rlb_muon | 02:26:31 | 2900 / 3050 | 4.276503 | running |
+| `158118` | 94 | silu_lion | 02:26:25 | 100 / 3050 | 8.031038 | running |
 
-Finish estimate for the two running E1 cells: 2026-06-05 03:00-07:00 EDT. The first row is running at about 52k tokens/s, but the 15-row cells include optimizer families with different per-step costs.
+Completed E1 rows: 67. Running rows: 2. Remaining rows: 156. Active allocation at check: 8 A6000 total.
+
+## E1 Results Snapshot
+
+DCLM is complete for all three E1 seeds. Final validation loss, mean and sample std over seeds:
+
+| Method | Mean | Std | Seed values |
+| --- | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 4.256224 | 0.004972 | 4.251434, 4.261359, 4.255877 |
+| rlb_lion | 4.305728 | 0.005836 | 4.307827, 4.310225, 4.299133 |
+| silu_lion | 4.318333 | 0.006893 | 4.310379, 4.322079, 4.322542 |
+| rlb_adamw | 4.404748 | 0.004551 | 4.401357, 4.409920, 4.402967 |
+| silu_adamw | 4.405574 | 0.009903 | 4.394192, 4.412221, 4.410308 |
+| silu_soap | 4.415980 | 0.003818 | 4.412983, 4.420279, 4.414679 |
+| rlb_soap | 4.435091 | 0.021706 | 4.458359, 4.431526, 4.415388 |
+| silu_muon | 4.457165 | 0.012562 | 4.442778, 4.465955, 4.462763 |
+| rlb_muon | 4.474236 | 0.004136 | 4.477408, 4.475743, 4.469558 |
+| rlb_schedulefree | 4.878139 | 0.005538 | 4.872795, 4.877769, 4.883852 |
+| silu_schedulefree | 4.902321 | 0.011067 | 4.891297, 4.902236, 4.913431 |
+| rlb_came | 5.007375 | 0.008213 | 5.005087, 5.000548, 5.016489 |
+| silu_came | 5.010657 | 0.014306 | 5.000495, 5.004458, 5.027017 |
+| silu_ademamix | 48.645454 | 13.725481 | 34.271767, 61.614742, 50.049854 |
+| rlb_ademamix | 246105152.000000 | 0.000000 | non-finite, non-finite, 246105152.000000 |
+
+FineWeb-Edu status at check:
+
+| Seed | Complete rows | Running row | Notes |
+| ---: | ---: | --- | --- |
+| 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.092051 |
+| 2027 | 3 / 15 | row 78 rlb_muon | latest eval 2900, val 4.276503 |
+| 3407 | 4 / 15 | row 94 silu_lion | latest eval 100, val 8.031038 |
 
 ## Parameter Counts
 
