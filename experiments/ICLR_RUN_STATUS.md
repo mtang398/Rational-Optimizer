@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-05 14:17:14 EDT  
+Updated: 2026-06-05 15:26:10 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -60,8 +60,8 @@ E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependen
 | `155412` | 30-44 | dclm seed 2027 | completed | 4 A6000 | 09:15:36 | `bala-compute-02` |
 | `158114` | 45-59 | dclm seed 3407 | completed | 4 A6000 | 09:28:58 | `ma-compute-02` |
 | `158115` | 60-74 | fineweb_edu seed 1337 | completed | 4 A6000 | 09:11:18 | `bala-compute-02` |
-| `158117` | 75-89 | fineweb_edu seed 2027 | running after preemption restart | 4 A6000 | 00:01:26 | `monakhova-compute-01` |
-| `158118` | 90-104 | fineweb_edu seed 3407 | running | 4 A6000 | 02:37:26 | `bala-compute-02` |
+| `158117` | 75-89 | fineweb_edu seed 2027 | running after second preemption restart | 4 A6000 | 00:40:41 | `nikola-compute-17` |
+| `158118` | 90-104 | fineweb_edu seed 3407 | running | 4 A6000 | 03:46:22 | `bala-compute-02` |
 
 Active allocation at update: 8 A6000 total.
 
@@ -89,14 +89,14 @@ The remaining E1 cells are queued in whole 15-row matched blocks. Each job uses 
 
 ## E1 Live Timing
 
-Current check: 2026-06-05 14:17:14 EDT. Job `158117` was preempted at 2026-06-05 14:13:44 EDT, automatically requeued, and restarted at 2026-06-05 14:15:49 EDT with `Restarts=1`.
+Current check: 2026-06-05 15:26:10 EDT. Job `158117` has now restarted twice (`Restarts=2`) and is running on `nikola-compute-17`.
 
 | Job | Current row | Method | Elapsed | Latest eval | Latest val loss | State |
 | --- | ---: | --- | --- | ---: | ---: | --- |
-| `158117` | 79 | silu_lion | 00:01:26 | 1 / 3050 | 10.984035 | running after restart |
-| `158118` | 94 | silu_lion | 02:37:26 | 1200 / 3050 | 4.623763 | running |
+| `158117` | 80 | rlb_lion | 00:40:41 | 1 / 3050 | 10.967180 | running after restart |
+| `158118` | 96 | silu_soap | 03:46:22 | 1000 / 3050 | 5.228726 | running |
 
-Completed E1 rows: 68. Running rows: 2. Remaining rows: 155. Active allocation at check: 8 A6000 total.
+Completed E1 rows: 71. Running rows: 2. Remaining rows: 152. Active allocation at check: 8 A6000 total.
 
 ## E1 Results Snapshot
 
@@ -125,8 +125,8 @@ FineWeb-Edu status at check:
 | Seed | Complete rows | Running row | Notes |
 | ---: | ---: | --- | --- |
 | 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.092051 |
-| 2027 | 4 / 15 | row 79 silu_lion | row 78 rlb_muon finished at 4.266931; row 79 restarted after preemption, latest eval 1, val 10.984035 |
-| 3407 | 4 / 15 | row 94 silu_lion | latest eval 1200, val 4.623763 |
+| 2027 | 5 / 15 | row 80 rlb_lion | row 79 silu_lion finished at 4.138771; current latest eval 1, val 10.967180 |
+| 3407 | 6 / 15 | row 96 silu_soap | rows 94-95 finished; current latest eval 1000, val 5.228726 |
 
 ## Parameter Counts
 
