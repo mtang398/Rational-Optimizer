@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-05 15:26:10 EDT  
+Updated: 2026-06-05 15:34:16 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -67,34 +67,34 @@ Active allocation at update: 8 A6000 total.
 
 ## E1 Continuation Queue
 
-The remaining E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Dependencies are chained in pairs so the queue advances at most two jobs at a time.
+E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Dependencies are chained in pairs so the queue advances at most two jobs at a time.
 
-| Wave | Dependency | Job | Rows | Cell |
-| ---: | --- | --- | --- | --- |
-| 0 | running now | `155411` | 15-29 | dclm seed 1337 |
-| 0 | running now | `155412` | 30-44 | dclm seed 2027 |
-| 1 | afterok:`155411`:`155412` | `158114` | 45-59 | dclm seed 3407 |
-| 1 | afterok:`155411`:`155412` | `158115` | 60-74 | fineweb_edu seed 1337 |
-| 2 | afterok:`158114`:`158115` | `158117` | 75-89 | fineweb_edu seed 2027 |
-| 2 | afterok:`158114`:`158115` | `158118` | 90-104 | fineweb_edu seed 3407 |
-| 3 | afterok:`158117`:`158118` | `158155` | 105-119 | fineweb seed 1337 |
-| 3 | afterok:`158117`:`158118` | `158156` | 120-134 | fineweb seed 2027 |
-| 4 | afterok:`158155`:`158156` | `158163` | 135-149 | fineweb seed 3407 |
-| 4 | afterok:`158155`:`158156` | `158164` | 150-164 | dolma_sample seed 1337 |
-| 5 | afterok:`158163`:`158164` | `158166` | 165-179 | dolma_sample seed 2027 |
-| 5 | afterok:`158163`:`158164` | `158165` | 180-194 | dolma_sample seed 3407 |
-| 6 | afterok:`158166`:`158165` | `158168` | 195-209 | c4_en seed 1337 |
-| 6 | afterok:`158166`:`158165` | `158167` | 210-224 | c4_en seed 2027 |
-| 7 | afterok:`158168`:`158167` | `158169` | 225-239 | c4_en seed 3407 |
+| Wave | Dependency | Job | Rows | Cell | State at update |
+| ---: | --- | --- | --- | --- | --- |
+| 0 | none | `155411` | 15-29 | dclm seed 1337 | completed |
+| 0 | none | `155412` | 30-44 | dclm seed 2027 | completed |
+| 1 | afterok:`155411`:`155412` | `158114` | 45-59 | dclm seed 3407 | completed |
+| 1 | afterok:`155411`:`155412` | `158115` | 60-74 | fineweb_edu seed 1337 | completed |
+| 2 | afterok:`158114`:`158115` | `158117` | 75-89 | fineweb_edu seed 2027 | running, `Restarts=2` |
+| 2 | afterok:`158114`:`158115` | `158118` | 90-104 | fineweb_edu seed 3407 | running |
+| 3 | afterok:`158117`:`158118` | `158155` | 105-119 | fineweb seed 1337 | pending dependency |
+| 3 | afterok:`158117`:`158118` | `158156` | 120-134 | fineweb seed 2027 | pending dependency |
+| 4 | afterok:`158155`:`158156` | `158163` | 135-149 | fineweb seed 3407 | pending dependency |
+| 4 | afterok:`158155`:`158156` | `158164` | 150-164 | dolma_sample seed 1337 | pending dependency |
+| 5 | afterok:`158163`:`158164` | `158166` | 165-179 | dolma_sample seed 2027 | pending dependency |
+| 5 | afterok:`158163`:`158164` | `158165` | 180-194 | dolma_sample seed 3407 | pending dependency |
+| 6 | afterok:`158166`:`158165` | `158168` | 195-209 | c4_en seed 1337 | pending dependency |
+| 6 | afterok:`158166`:`158165` | `158167` | 210-224 | c4_en seed 2027 | pending dependency |
+| 7 | afterok:`158168`:`158167` | `158169` | 225-239 | c4_en seed 3407 | pending dependency |
 
 ## E1 Live Timing
 
-Current check: 2026-06-05 15:26:10 EDT. Job `158117` has now restarted twice (`Restarts=2`) and is running on `nikola-compute-17`.
+Current check: 2026-06-05 15:34:16 EDT. Job `158117` has now restarted twice (`Restarts=2`) and is running on `nikola-compute-17`.
 
 | Job | Current row | Method | Elapsed | Latest eval | Latest val loss | State |
 | --- | ---: | --- | --- | ---: | ---: | --- |
-| `158117` | 80 | rlb_lion | 00:40:41 | 1 / 3050 | 10.967180 | running after restart |
-| `158118` | 96 | silu_soap | 03:46:22 | 1000 / 3050 | 5.228726 | running |
+| `158117` | 80 | rlb_lion | 00:48:47 | 1 / 3050 | 10.967180 | running after restart |
+| `158118` | 96 | silu_soap | 03:54:28 | 1000 / 3050 | 5.228726 | running |
 
 Completed E1 rows: 71. Running rows: 2. Remaining rows: 152. Active allocation at check: 8 A6000 total.
 
