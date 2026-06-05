@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-05 14:11:53 EDT  
+Updated: 2026-06-05 14:17:14 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -60,8 +60,8 @@ E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependen
 | `155412` | 30-44 | dclm seed 2027 | completed | 4 A6000 | 09:15:36 | `bala-compute-02` |
 | `158114` | 45-59 | dclm seed 3407 | completed | 4 A6000 | 09:28:58 | `ma-compute-02` |
 | `158115` | 60-74 | fineweb_edu seed 1337 | completed | 4 A6000 | 09:11:18 | `bala-compute-02` |
-| `158117` | 75-89 | fineweb_edu seed 2027 | running | 4 A6000 | 02:32:10 | `ma-compute-02` |
-| `158118` | 90-104 | fineweb_edu seed 3407 | running | 4 A6000 | 02:32:04 | `bala-compute-02` |
+| `158117` | 75-89 | fineweb_edu seed 2027 | running after preemption restart | 4 A6000 | 00:01:26 | `monakhova-compute-01` |
+| `158118` | 90-104 | fineweb_edu seed 3407 | running | 4 A6000 | 02:37:26 | `bala-compute-02` |
 
 Active allocation at update: 8 A6000 total.
 
@@ -89,12 +89,12 @@ The remaining E1 cells are queued in whole 15-row matched blocks. Each job uses 
 
 ## E1 Live Timing
 
-Current check: 2026-06-05 14:11:53 EDT.
+Current check: 2026-06-05 14:17:14 EDT. Job `158117` was preempted at 2026-06-05 14:13:44 EDT, automatically requeued, and restarted at 2026-06-05 14:15:49 EDT with `Restarts=1`.
 
 | Job | Current row | Method | Elapsed | Latest eval | Latest val loss | State |
 | --- | ---: | --- | --- | ---: | ---: | --- |
-| `158117` | 79 | silu_lion | 02:32:10 | 250 / 3050 | 6.460394 | running |
-| `158118` | 94 | silu_lion | 02:32:04 | 600 / 3050 | 5.293416 | running |
+| `158117` | 79 | silu_lion | 00:01:26 | 1 / 3050 | 10.984035 | running after restart |
+| `158118` | 94 | silu_lion | 02:37:26 | 1200 / 3050 | 4.623763 | running |
 
 Completed E1 rows: 68. Running rows: 2. Remaining rows: 155. Active allocation at check: 8 A6000 total.
 
@@ -125,8 +125,8 @@ FineWeb-Edu status at check:
 | Seed | Complete rows | Running row | Notes |
 | ---: | ---: | --- | --- |
 | 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.092051 |
-| 2027 | 4 / 15 | row 79 silu_lion | row 78 rlb_muon finished at 4.266931; current latest eval 250, val 6.460394 |
-| 3407 | 4 / 15 | row 94 silu_lion | latest eval 600, val 5.293416 |
+| 2027 | 4 / 15 | row 79 silu_lion | row 78 rlb_muon finished at 4.266931; row 79 restarted after preemption, latest eval 1, val 10.984035 |
+| 3407 | 4 / 15 | row 94 silu_lion | latest eval 1200, val 4.623763 |
 
 ## Parameter Counts
 
