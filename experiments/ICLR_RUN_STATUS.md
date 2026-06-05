@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-05 15:34:16 EDT  
+Updated: 2026-06-05 18:40:14 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -60,8 +60,8 @@ E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependen
 | `155412` | 30-44 | dclm seed 2027 | completed | 4 A6000 | 09:15:36 | `bala-compute-02` |
 | `158114` | 45-59 | dclm seed 3407 | completed | 4 A6000 | 09:28:58 | `ma-compute-02` |
 | `158115` | 60-74 | fineweb_edu seed 1337 | completed | 4 A6000 | 09:11:18 | `bala-compute-02` |
-| `158117` | 75-89 | fineweb_edu seed 2027 | running after second preemption restart | 4 A6000 | 00:40:41 | `nikola-compute-17` |
-| `158118` | 90-104 | fineweb_edu seed 3407 | running | 4 A6000 | 03:46:22 | `bala-compute-02` |
+| `158117` | 75-89 | fineweb_edu seed 2027 | running after preemption restarts | 4 A6000 | 01:48:51 | `monakhova-compute-01` |
+| `158118` | 90-104 | fineweb_edu seed 3407 | running | 4 A6000 | 07:00:25 | `bala-compute-02` |
 
 Active allocation at update: 8 A6000 total.
 
@@ -75,7 +75,7 @@ E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Depen
 | 0 | none | `155412` | 30-44 | dclm seed 2027 | completed |
 | 1 | afterok:`155411`:`155412` | `158114` | 45-59 | dclm seed 3407 | completed |
 | 1 | afterok:`155411`:`155412` | `158115` | 60-74 | fineweb_edu seed 1337 | completed |
-| 2 | afterok:`158114`:`158115` | `158117` | 75-89 | fineweb_edu seed 2027 | running, `Restarts=2` |
+| 2 | afterok:`158114`:`158115` | `158117` | 75-89 | fineweb_edu seed 2027 | running, `Restarts=6` |
 | 2 | afterok:`158114`:`158115` | `158118` | 90-104 | fineweb_edu seed 3407 | running |
 | 3 | afterok:`158117`:`158118` | `158155` | 105-119 | fineweb seed 1337 | pending dependency |
 | 3 | afterok:`158117`:`158118` | `158156` | 120-134 | fineweb seed 2027 | pending dependency |
@@ -89,14 +89,14 @@ E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Depen
 
 ## E1 Live Timing
 
-Current check: 2026-06-05 15:34:16 EDT. Job `158117` has now restarted twice (`Restarts=2`) and is running on `nikola-compute-17`.
+Current check: 2026-06-05 18:40:14 EDT. Job `158117` has restarted six times (`Restarts=6`) and is running on `monakhova-compute-01`.
 
 | Job | Current row | Method | Elapsed | Latest eval | Latest val loss | State |
 | --- | ---: | --- | --- | ---: | ---: | --- |
-| `158117` | 80 | rlb_lion | 00:48:47 | 1 / 3050 | 10.967180 | running after restart |
-| `158118` | 96 | silu_soap | 03:54:28 | 1000 / 3050 | 5.228726 | running |
+| `158117` | 82 | rlb_soap | 01:48:51 | 1 / 3050 | 10.955369 | running after restart |
+| `158118` | 101 | rlb_came | 07:00:25 | 2000 / 3050 | 5.034568 | running |
 
-Completed E1 rows: 71. Running rows: 2. Remaining rows: 152. Active allocation at check: 8 A6000 total.
+Completed E1 rows: 78. Running rows: 2. Remaining rows: 145. Active allocation at check: 8 A6000 total.
 
 ## E1 Results Snapshot
 
@@ -125,8 +125,8 @@ FineWeb-Edu status at check:
 | Seed | Complete rows | Running row | Notes |
 | ---: | ---: | --- | --- |
 | 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.092051 |
-| 2027 | 5 / 15 | row 80 rlb_lion | row 79 silu_lion finished at 4.138771; current latest eval 1, val 10.967180 |
-| 3407 | 6 / 15 | row 96 silu_soap | rows 94-95 finished; current latest eval 1000, val 5.228726 |
+| 2027 | 7 / 15 | row 82 rlb_soap | rows 80-81 finished; current latest eval 1, val 10.955369 |
+| 3407 | 11 / 15 | row 101 rlb_came | rows 96-100 finished; current latest eval 2000, val 5.034568 |
 
 ## Parameter Counts
 
