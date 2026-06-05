@@ -63,24 +63,16 @@ If AdamW appears with an outer config in a matched cell, MatrixPolicy must appea
 
 ## Immediate Tasks
 
-1. Use `experiments/ICLR_EXACT_RUN_PLAN.md` as the source of truth.
-2. Generate the main manifest before any GPU launch:
-
-```bash
-python3 experiments/scripts/build_iclr26_main_manifest.py \
-  --output experiments/manifests/iclr26_main_manifest.csv \
-  --print-summary
-```
-
-3. Confirm `squeue -u mt872` shows fewer than two active 4-GPU jobs before launching.
-4. Run manifest rows only through `experiments/scripts/run_iclr26_manifest_job.sh`.
-5. Start with E0 preflight rows, then E1 M0 100M fixed-config main rows.
-6. Keep eval interval at 50 or denser.
-7. Summaries must report dense validation curves, training curves, AUC, timing, divergence markers, and exact manifest row IDs.
-8. Run E2 M0 300M after E1 summaries.
-9. Run E3 M1 scale, E4 600M horizon, throughput/memory, cross-corpus evaluation, and corpus-shift runs in that order.
-10. Run sensitivity maps only after main M0 curves exist.
-11. Run method ablations last.
+1. Use `experiments/ICLR_RUN_STATUS.md` for the live E1 state and `experiments/ICLR_EXACT_RUN_PLAN.md` as the experiment contract.
+2. Keep the active allocation at no more than two 4-GPU jobs; do not submit additional GPU jobs while the E1 dependency chain is already occupying 8 A6000.
+3. Let the queued E1 whole-cell jobs continue through `experiments/scripts/run_iclr26_manifest_job.sh`; if Slurm preempts a job, confirm the automatic requeue resumes and completed rows are skipped.
+4. Update `experiments/ICLR_RUN_STATUS.md` whenever a job changes state, a row block completes, or a preemption/restart occurs.
+5. After each complete matched cell, summarize dense validation curves, training curves, AUC, timing, divergence markers, and exact manifest row IDs.
+6. After E1 finishes, build the full E1 summary tables and mean-plus-std curves before launching E2.
+7. Run E2 M0 300M after E1 summaries.
+8. Run E3 M1 scale, E4 600M horizon, throughput/memory, cross-corpus evaluation, and corpus-shift runs in that order.
+9. Run sensitivity maps only after main M0 curves exist.
+10. Run method ablations last.
 
 ## Mechanism Diagnostics Needed
 
