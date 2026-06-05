@@ -1,7 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-05 14:06:57 EDT  
-Commit: `f0b8c5a`  
+Updated: 2026-06-05 14:11:53 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -51,14 +50,18 @@ All rows have three eval points: step 1, step 40, and step 80.
 | 13 | c4_en | rlb_adamw | 123,553,824 | 60.63 | 0.6931 | 7.278966 | 47277.57 | 1:10.567333, 40:7.533151, 80:7.278966 |
 | 14 | c4_en | rlb_matrixpolicy_original | 123,553,824 | 60.86 | 0.6994 | 7.207716 | 46848.39 | 1:10.340908, 40:7.446258, 80:7.207716 |
 
-## E1 Launch Status
+## E1 Scheduler State
 
-E1 uses whole matched 15-row cells. The first two cells are running:
+E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependency-chained in pairs, so at most two jobs run at the same time.
 
-| Job | Row start | Row limit | Cell | State at update | GPUs | Node |
-| --- | ---: | ---: | --- | --- | --- | --- |
-| `155411` | 15 | 15 | E1 dclm seed 1337, all 15 methods | running | 4 A6000 | `ma-compute-02` |
-| `155412` | 30 | 15 | E1 dclm seed 2027, all 15 methods | running | 4 A6000 | `bala-compute-02` |
+| Job | Rows | Cell | State at update | GPUs | Elapsed | Node |
+| --- | --- | --- | --- | --- | --- | --- |
+| `155411` | 15-29 | dclm seed 1337 | completed | 4 A6000 | 09:23:24 | `ma-compute-02` |
+| `155412` | 30-44 | dclm seed 2027 | completed | 4 A6000 | 09:15:36 | `bala-compute-02` |
+| `158114` | 45-59 | dclm seed 3407 | completed | 4 A6000 | 09:28:58 | `ma-compute-02` |
+| `158115` | 60-74 | fineweb_edu seed 1337 | completed | 4 A6000 | 09:11:18 | `bala-compute-02` |
+| `158117` | 75-89 | fineweb_edu seed 2027 | running | 4 A6000 | 02:32:10 | `ma-compute-02` |
+| `158118` | 90-104 | fineweb_edu seed 3407 | running | 4 A6000 | 02:32:04 | `bala-compute-02` |
 
 Active allocation at update: 8 A6000 total.
 
@@ -86,14 +89,14 @@ The remaining E1 cells are queued in whole 15-row matched blocks. Each job uses 
 
 ## E1 Live Timing
 
-Current check: 2026-06-05 14:06:57 EDT.
+Current check: 2026-06-05 14:11:53 EDT.
 
 | Job | Current row | Method | Elapsed | Latest eval | Latest val loss | State |
 | --- | ---: | --- | --- | ---: | ---: | --- |
-| `158117` | 78 | rlb_muon | 02:26:31 | 2900 / 3050 | 4.276503 | running |
-| `158118` | 94 | silu_lion | 02:26:25 | 100 / 3050 | 8.031038 | running |
+| `158117` | 79 | silu_lion | 02:32:10 | 250 / 3050 | 6.460394 | running |
+| `158118` | 94 | silu_lion | 02:32:04 | 600 / 3050 | 5.293416 | running |
 
-Completed E1 rows: 67. Running rows: 2. Remaining rows: 156. Active allocation at check: 8 A6000 total.
+Completed E1 rows: 68. Running rows: 2. Remaining rows: 155. Active allocation at check: 8 A6000 total.
 
 ## E1 Results Snapshot
 
@@ -122,8 +125,8 @@ FineWeb-Edu status at check:
 | Seed | Complete rows | Running row | Notes |
 | ---: | ---: | --- | --- |
 | 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.092051 |
-| 2027 | 3 / 15 | row 78 rlb_muon | latest eval 2900, val 4.276503 |
-| 3407 | 4 / 15 | row 94 silu_lion | latest eval 100, val 8.031038 |
+| 2027 | 4 / 15 | row 79 silu_lion | row 78 rlb_muon finished at 4.266931; current latest eval 250, val 6.460394 |
+| 3407 | 4 / 15 | row 94 silu_lion | latest eval 600, val 5.293416 |
 
 ## Parameter Counts
 
