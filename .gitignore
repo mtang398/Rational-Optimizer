@@ -26,18 +26,4 @@ experiments/cache/
 experiments/runs/logs/*.out
 experiments/runs/logs/ract-wt103-opt-*.out
 experiments/runs/iclr26_main/
-experiments/runs/wikitext103/rational_transport_*/
-experiments/runs/wikitext103/adamw_lr5e4_controls_*/
-experiments/runs/wikitext103/rlb_conservative_stage_factored_probe_*/
-experiments/runs/wikitext103/rlb_factored_jacobian_probe_*/
-experiments/runs/wikitext103/rlb_jacobian_lr5e4*_probe_*/
-experiments/runs/wikitext103/rlb_layerwise_asam_probe_*/
-experiments/runs/wikitext103/rlb_stagewise_optimizer_probe_*/
-# Local RLB optimizer probe runs (compact summaries/plots live under experiments/results/)
-experiments/runs/wikitext103/rlb_*_probe*/
-experiments/runs/wikitext103/rlb_*_full_probe*/
-experiments/runs/wikitext103/rlb_1250_same_schedule_controls_*/
-experiments/runs/wikitext103/beta2_*_controls_full_*/
-experiments/runs/wikitext103/rlb_matrix_policy_*_full_*/
-experiments/runs/wikitext103/rlb_group_*_probe*/
-experiments/runs/wikitext103/rlb_matrix_policy_*_control_*/
+experiments/runs/wikitext103/

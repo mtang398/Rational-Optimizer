@@ -25,7 +25,7 @@ export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-1}"
 RUN_NAME="${RUN_NAME:-optimizer_sweep_${SLURM_JOB_ID}}"
 PYTHON="${PWD}/.venv-cu128/bin/python"
 ACTIVATIONS="${ACTIVATIONS:-silu rlb_fused_fixed_strong_ffn rlb_fused_fixed_strong_h2880_ffn}"
-OPTIMIZERS="${OPTIMIZERS:-adamw muon rational_onpolicy_balance rational_quotient_onpolicy rational_jacobian_onpolicy rational_quotient_jacobian_onpolicy rational_adaptive_metric_onpolicy}"
+OPTIMIZERS="${OPTIMIZERS:-adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_matrix_policy_onpolicy}"
 SEEDS="${SEEDS:-1337}"
 STEPS="${STEPS:-500}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-250}"
@@ -36,7 +36,7 @@ BUILD_EXT_ARGS="${BUILD_EXT_ARGS:-}"
 SKIP_BUILD_EXT="${SKIP_BUILD_EXT:-0}"
 SKIP_PREPARE="${SKIP_PREPARE:-0}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
-ACTIVE_OPTIMIZERS="adamw factored_adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_onpolicy_balance rational_quotient_onpolicy rational_jacobian_onpolicy rational_jacobian_factored_onpolicy rational_layerwise_switch_onpolicy rational_layerwise_factored_switch_onpolicy rational_quotient_jacobian_onpolicy rational_adaptive_metric_onpolicy rational_transport_onpolicy rational_functional_trust_onpolicy rational_matrix_policy_onpolicy"
+ACTIVE_OPTIMIZERS="adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_matrix_policy_onpolicy"
 
 for optimizer in ${OPTIMIZERS}; do
   case " ${ACTIVE_OPTIMIZERS} " in

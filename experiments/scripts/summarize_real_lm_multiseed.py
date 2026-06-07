@@ -2,7 +2,7 @@
 """Summarize real-LM MatrixPolicy runs across seeds.
 
 This script accepts a mix of raw JSONL run roots and prior summary CSV files.
-The latter is useful for older runs where only paper-ready summaries were kept.
+The latter is useful when a result folder already contains paper-ready summaries.
 """
 
 from __future__ import annotations

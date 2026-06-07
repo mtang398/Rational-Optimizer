@@ -1,6 +1,6 @@
 # WikiText-103 Same-LR MatrixPolicy Result
 
-This artifact keeps the useful WikiText-103 anchor from May 28. The older toy synthetic arithmetic and optimizer-probe plots from this package were removed from the tracked result set because the current public story is real-LM evidence.
+This artifact keeps the useful WikiText-103 anchor from May 28. The tracked evidence in this folder is the same-LR real-LM comparison: summary tables, dense validation curves, perplexity curves, and training-loss curves.
 
 ## Current Best Row
 

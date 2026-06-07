@@ -9,7 +9,6 @@ results/real_lm_multiseed_2026_05_31/
 results/real_lm_screen_2026_05_30/
 results/rlb_matrix_policy_muon_switch_2026_05_28/
 runs/real_lm_multiseed_20260531/
-runs/wikitext103/
 ```
 
 New paper runs follow the manifest rule below.
@@ -82,6 +81,33 @@ same weight_decay
 ```
 
 Do not launch one-sided AdamW grids. Do not launch MatrixPolicy sensitivity rows unless the corresponding AdamW/RLB control rows with the same outer config are in the same manifest cell. Sensitivity maps and method ablations come after main evidence.
+
+## Reproducibility Map
+
+Current paper runs are reproduced from these files:
+
+```text
+experiments/scripts/build_iclr26_main_manifest.py
+experiments/manifests/iclr26_main_manifest.csv
+experiments/scripts/run_iclr26_manifest_job.sh
+training/run_wikitext103_optimizer_sweep.sbatch
+training/transformer_wikitext103_compare.py
+optimizer_design/matrix_policy_optimizer.py
+optimizer_design/transport_onpolicy_optimizer.py
+optimizer_design/baseline_optimizers.py
+activation/rational_opt/rational.py
+```
+
+Regenerate paper figures and tables from raw JSONL with:
+
+```bash
+python3 experiments/scripts/plot_iclr26_e1_curves.py
+python3 experiments/scripts/summarize_real_lm_multiseed.py \
+  --run-root experiments/runs/real_lm_multiseed_20260531 \
+  --result-dir experiments/results/real_lm_multiseed_2026_05_31
+```
+
+The curated WikiText anchor is tracked under `results/rlb_matrix_policy_muon_switch_2026_05_28/`; raw WikiText launcher output is local run data and is ignored.
 
 ## Commands
 

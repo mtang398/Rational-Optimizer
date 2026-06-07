@@ -244,6 +244,36 @@ component removals: no group-stat scaling, no role-depth policy, no matrix branc
 
 These are explanatory appendices. They are not allowed to define the headline setting.
 
+## Experiment Code Map
+
+The exact experiment code path is:
+
+```text
+experiments/scripts/build_iclr26_main_manifest.py
+  -> experiments/manifests/iclr26_main_manifest.csv
+  -> experiments/scripts/run_iclr26_manifest_job.sh
+  -> training/run_wikitext103_optimizer_sweep.sbatch
+  -> training/transformer_wikitext103_compare.py
+```
+
+The optimizer and activation implementation files used by those rows are:
+
+```text
+optimizer_design/matrix_policy_optimizer.py
+optimizer_design/transport_onpolicy_optimizer.py
+optimizer_design/function_space_rational_optimizer.py
+optimizer_design/baseline_optimizers.py
+activation/rational_opt/rational.py
+activation/csrc/rational_ext.cpp
+activation/csrc/rational_cuda_kernel.cu
+```
+
+Tracked E1 figures and checkpoint tables are regenerated from completed JSONL files by:
+
+```text
+experiments/scripts/plot_iclr26_e1_curves.py
+```
+
 ## Manifest Workflow
 
 Generate the manifest:
