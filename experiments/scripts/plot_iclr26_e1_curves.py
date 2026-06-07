@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
-"""Generate dense E1 mean/std curve figures from ICLR26 manifest logs."""
+"""Generate dense E1 mean/std curve figures from E1 run JSONL files."""
 
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
-import re
 from collections import defaultdict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROW_RE = re.compile(
-    r"^=== row=(?P<row>\d+); id=(?P<row_id>[^;]+); phase=(?P<phase>[^;]+); "
-    r"dataset=(?P<dataset>[^;]+); method=(?P<method>[^;]+); seed=(?P<seed>\d+);"
-)
+PHASE = "E1_m0_100m"
 
 DATASETS = [
     ("dclm", "DCLM"),
@@ -46,64 +43,84 @@ CLEAN_METHODS = [
     if spec[0] not in {"rlb_soap", "silu_soap"}
 ]
 
+TABLE_METHODS = [
+    ("rlb_matrixpolicy_original", "MatrixPolicy"),
+    ("rlb_adamw", "RLB+AdamW"),
+    ("silu_adamw", "SiLU+AdamW"),
+    ("rlb_lion", "RLB+Lion"),
+    ("silu_lion", "SiLU+Lion"),
+    ("rlb_soap", "RLB+SOAP"),
+    ("silu_soap", "SiLU+SOAP"),
+    ("rlb_muon", "RLB+Muon"),
+    ("silu_muon", "SiLU+Muon"),
+    ("rlb_schedulefree", "RLB+ScheduleFree"),
+    ("silu_schedulefree", "SiLU+ScheduleFree"),
+    ("rlb_came", "RLB+CAME"),
+    ("silu_came", "SiLU+CAME"),
+    ("rlb_ademamix", "RLB+ADeMaMix"),
+    ("silu_ademamix", "SiLU+ADeMaMix"),
+]
+
 START_STEP = 500
 END_STEP = 3050
 XTICKS = [500, 1000, 1500, 2000, 2500, 3000]
+CHECKPOINT_STEPS = [500, 1000, 1500, 2000, 2500, 3050]
 
 
-def parse_logs(log_dir: Path):
+def parse_jsonl_runs(manifest_path: Path, run_root: Path):
     curves = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"train": {}, "eval": {}})))
-    for log_path in sorted(log_dir.glob("iclr26-main-*.out")):
-        current = None
-        with log_path.open("r", errors="replace") as handle:
-            for raw in handle:
-                line = raw.strip()
-                if not line:
+    wanted_datasets = {dataset for dataset, _ in DATASETS}
+    wanted_methods = {method for method, *_ in ALL_METHODS} | {method for method, _ in TABLE_METHODS}
+    with manifest_path.open(newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("phase") != PHASE:
+                continue
+            dataset = row.get("dataset", "")
+            method = row.get("method", "")
+            if dataset not in wanted_datasets or method not in wanted_methods:
+                continue
+            seed = int(row["seed"])
+            run_dir = run_root / dataset / row["row_id"]
+            jsonl_path = run_dir / f"{row['activation']}.jsonl"
+            if not jsonl_path.exists():
+                matches = sorted(run_dir.glob("*.jsonl"))
+                if not matches:
                     continue
-                match = ROW_RE.match(line)
-                if match:
-                    current = {
-                        "dataset": match.group("dataset"),
-                        "method": match.group("method"),
-                        "seed": int(match.group("seed")),
-                    }
-                    continue
-                if current is None or not line.startswith("{"):
-                    continue
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                event = record.get("event")
-                step = record.get("step")
-                if event not in {"train", "eval"} or not isinstance(step, int):
-                    continue
-                if step < START_STEP or step > END_STEP:
-                    continue
-                dataset = current["dataset"]
-                method = current["method"]
-                seed = current["seed"]
-                if event == "train":
-                    value = record.get("loss")
-                    if isinstance(value, (int, float)) and math.isfinite(value):
-                        curves[dataset][method][seed]["train"][step] = float(value)
-                elif event == "eval":
-                    loss = record.get("val_loss")
-                    ppl = record.get("val_ppl")
-                    if isinstance(loss, (int, float)) and math.isfinite(loss):
-                        curves[dataset][method][seed]["eval"].setdefault(step, {})["val_loss"] = float(loss)
-                    if isinstance(ppl, (int, float)) and math.isfinite(ppl):
-                        curves[dataset][method][seed]["eval"].setdefault(step, {})["val_ppl"] = float(ppl)
+                jsonl_path = matches[0]
+            with jsonl_path.open("r", errors="replace") as jsonl:
+                for raw in jsonl:
+                    if not raw.startswith("{"):
+                        continue
+                    try:
+                        record = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    event = record.get("event")
+                    step = record.get("step")
+                    if event not in {"train", "eval"} or not isinstance(step, int):
+                        continue
+                    if step < START_STEP or step > END_STEP:
+                        continue
+                    if event == "train":
+                        value = record.get("loss")
+                        if isinstance(value, (int, float)) and math.isfinite(value):
+                            curves[dataset][method][seed]["train"][step] = float(value)
+                    elif event == "eval":
+                        loss = record.get("val_loss")
+                        ppl = record.get("val_ppl")
+                        if isinstance(loss, (int, float)) and math.isfinite(loss):
+                            curves[dataset][method][seed]["eval"].setdefault(step, {})["val_loss"] = float(loss)
+                        if isinstance(ppl, (int, float)) and math.isfinite(ppl):
+                            curves[dataset][method][seed]["eval"].setdefault(step, {})["val_ppl"] = float(ppl)
     return curves
 
 
-def aggregate(curves, dataset: str, method: str, metric: str):
+def aggregate_values(curves, dataset: str, method: str, metric: str):
     seed_data = curves.get(dataset, {}).get(method, {})
     by_step = defaultdict(list)
-    for seed, events in seed_data.items():
+    for events in seed_data.values():
         if metric == "train_loss":
-            source = events["train"]
-            for step, value in source.items():
+            for step, value in events["train"].items():
                 by_step[step].append(value)
         else:
             key = "val_loss" if metric == "val_loss" else "val_ppl"
@@ -111,16 +128,65 @@ def aggregate(curves, dataset: str, method: str, metric: str):
                 value = values.get(key)
                 if value is not None and math.isfinite(value):
                     by_step[step].append(value)
+    return by_step
+
+
+def aggregate(curves, dataset: str, method: str, metric: str):
+    by_step = aggregate_values(curves, dataset, method, metric)
     steps, means, stds = [], [], []
     for step in sorted(by_step):
         vals = np.asarray(by_step[step], dtype=float)
-        # Plot only true multi-seed aggregates for finished cells.
         if vals.size < 3:
             continue
         steps.append(step)
         means.append(float(vals.mean()))
         stds.append(float(vals.std(ddof=1)))
     return np.asarray(steps), np.asarray(means), np.asarray(stds)
+
+
+def checkpoint_cell(values) -> str:
+    vals = np.asarray([value for value in values if math.isfinite(value)], dtype=float)
+    if vals.size == 0:
+        return "--"
+    mean = float(vals.mean())
+    std = float(vals.std(ddof=1)) if vals.size > 1 else 0.0
+    suffix = f" (n={vals.size})" if vals.size < 3 else ""
+    return f"{mean:.4f} +/- {std:.4f}{suffix}"
+
+
+def checkpoint_table(curves, dataset: str, dataset_label: str) -> str:
+    lines = [
+        f"{dataset_label} validation-loss checkpoint table, mean +/- sample std:",
+        "",
+        "| Method | " + " | ".join(str(step) for step in CHECKPOINT_STEPS) + " |",
+        "| --- | " + " | ".join("---:" for _ in CHECKPOINT_STEPS) + " |",
+    ]
+    for method, label in TABLE_METHODS:
+        by_step = aggregate_values(curves, dataset, method, "val_loss")
+        cells = [checkpoint_cell(by_step.get(step, [])) for step in CHECKPOINT_STEPS]
+        lines.append("| " + label + " | " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
+def update_status_tables(status_path: Path, curves) -> None:
+    text = status_path.read_text()
+    for dataset, label in DATASETS:
+        heading = f"{label} validation-loss checkpoint table, mean +/- sample std:"
+        start = text.index(heading)
+        table_start = text.index("\n\n|", start)
+        next_section_candidates = [
+            idx for idx in (
+                text.find("\n### ", table_start + 1),
+                text.find("\n## E1 Results Snapshot", table_start + 1),
+            )
+            if idx != -1
+        ]
+        if not next_section_candidates:
+            raise RuntimeError(f"could not find end of checkpoint table for {label}")
+        end = min(next_section_candidates)
+        replacement = checkpoint_table(curves, dataset, label).rstrip() + "\n"
+        text = text[:start] + replacement + text[end:]
+    status_path.write_text(text)
 
 
 def plot_dataset(curves, dataset: str, dataset_label: str, metric: str, out_path: Path, methods, variant_label: str):
@@ -181,11 +247,16 @@ def plot_dataset(curves, dataset: str, dataset_label: str, metric: str, out_path
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--log-dir", type=Path, default=Path("experiments/runs/logs"))
+    parser.add_argument("--manifest", type=Path, default=Path("experiments/manifests/iclr26_main_manifest.csv"))
+    parser.add_argument("--run-root", type=Path, default=Path("experiments/runs/iclr26_main/E1_m0_100m"))
     parser.add_argument("--out-dir", type=Path, default=Path("experiments/results/iclr26_e1_figures"))
+    parser.add_argument("--status-md", type=Path, default=None)
     args = parser.parse_args()
 
-    curves = parse_logs(args.log_dir)
+    curves = parse_jsonl_runs(args.manifest, args.run_root)
+    if args.status_md is not None:
+        update_status_tables(args.status_md, curves)
+
     suffixes = {
         "val_loss": "validation_loss_mean_std.svg",
         "val_ppl": "validation_ppl_mean_std.svg",
