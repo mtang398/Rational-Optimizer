@@ -25,7 +25,7 @@ DATASETS = [
     ("dolma_sample", "Dolma-sample"),
 ]
 
-METHODS = [
+ALL_METHODS = [
     ("rlb_matrixpolicy_original", "MatrixPolicy", "#111111", "-", 2.3, 0.16),
     ("rlb_adamw", "RLB+AdamW", "#1f77b4", "-", 1.45, 0.10),
     ("silu_adamw", "SiLU+AdamW", "#1f77b4", "--", 1.45, 0.08),
@@ -39,6 +39,11 @@ METHODS = [
     ("silu_schedulefree", "SiLU+ScheduleFree", "#8c564b", "--", 1.25, 0.06),
     ("rlb_came", "RLB+CAME", "#17becf", "-", 1.25, 0.06),
     ("silu_came", "SiLU+CAME", "#17becf", "--", 1.25, 0.06),
+]
+
+CLEAN_METHODS = [
+    spec for spec in ALL_METHODS
+    if spec[0] not in {"rlb_soap", "silu_soap"}
 ]
 
 START_STEP = 500
@@ -118,10 +123,10 @@ def aggregate(curves, dataset: str, method: str, metric: str):
     return np.asarray(steps), np.asarray(means), np.asarray(stds)
 
 
-def plot_dataset(curves, dataset: str, dataset_label: str, metric: str, out_path: Path):
+def plot_dataset(curves, dataset: str, dataset_label: str, metric: str, out_path: Path, methods, variant_label: str):
     fig, ax = plt.subplots(figsize=(9.4, 5.4), dpi=140)
     plotted = 0
-    for method, label, color, linestyle, linewidth, alpha in METHODS:
+    for method, label, color, linestyle, linewidth, alpha in methods:
         steps, means, stds = aggregate(curves, dataset, method, metric)
         if steps.size == 0:
             continue
@@ -145,7 +150,7 @@ def plot_dataset(curves, dataset: str, dataset_label: str, metric: str, out_path
         "val_ppl": "validation PPL",
         "train_loss": "training loss",
     }[metric]
-    ax.set_title(f"{dataset_label} E1 {metric_label}, mean +/- std", fontsize=12, pad=9)
+    ax.set_title(f"{dataset_label} E1 {metric_label}, {variant_label}, mean +/- std", fontsize=12, pad=9)
     ax.set_xlabel("step")
     ax.set_ylabel(metric_label)
     ax.set_xlim(START_STEP, END_STEP)
@@ -182,16 +187,21 @@ def main() -> int:
 
     curves = parse_logs(args.log_dir)
     suffixes = {
-        "val_loss": "core_validation_loss_mean_std.svg",
-        "val_ppl": "core_validation_ppl_mean_std.svg",
-        "train_loss": "core_training_loss_mean_std.svg",
+        "val_loss": "validation_loss_mean_std.svg",
+        "val_ppl": "validation_ppl_mean_std.svg",
+        "train_loss": "training_loss_mean_std.svg",
     }
+    variants = [
+        ("core", "all methods", ALL_METHODS),
+        ("clean", "clean comparison", CLEAN_METHODS),
+    ]
     made = []
-    for dataset, label in DATASETS:
-        for metric, suffix in suffixes.items():
-            out_path = args.out_dir / f"{dataset}_{suffix}"
-            if plot_dataset(curves, dataset, label, metric, out_path):
-                made.append(out_path)
+    for variant, variant_label, methods in variants:
+        for dataset, label in DATASETS:
+            for metric, suffix in suffixes.items():
+                out_path = args.out_dir / f"{dataset}_{variant}_{suffix}"
+                if plot_dataset(curves, dataset, label, metric, out_path, methods, variant_label):
+                    made.append(out_path)
     for path in made:
         print(path)
     return 0

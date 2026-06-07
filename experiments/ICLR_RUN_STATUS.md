@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-07 16:35:00 EDT  
+Updated: 2026-06-07 16:53:07 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -68,9 +68,9 @@ E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependen
 | `158164` | 150-164 | dolma_sample seed 1337 | completed | 4 A6000 | 08:12:23 | `ellis-compute-02` |
 | `158166` | 165-179 | dolma_sample seed 2027 | completed | 4 A6000 | 07:44:29 | `ellis-compute-02` |
 | `158165` | 180-194 | dolma_sample seed 3407 | completed | 4 A6000 | 06:15:00 | `damle-compute-01` |
-| `158168` | 195-209 | c4_en seed 1337 | running | 4 A6000 | 7:31:26 | `ellis-compute-02` |
+| `158168` | 195-209 | c4_en seed 1337 | completed | 4 A6000 | 07:50:14 | `ellis-compute-02` |
 | `158167` | 210-224 | c4_en seed 2027 | completed | 4 A6000 | 06:16:59 | `damle-compute-01` |
-| `158169` | 225-239 | c4_en seed 3407 | pending dependency | 4 A6000 | 0:00 | `(Dependency)` |
+| `158169` | 225-239 | c4_en seed 3407 | running | 4 A6000 | 00:06:45 | `damle-compute-01` |
 
 Active allocation at update: 4 A6000 total.
 
@@ -92,33 +92,43 @@ E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Depen
 | 4 | afterok:`158155`:`158156` | `158164` | 150-164 | dolma_sample seed 1337 | completed |
 | 5 | afterok:`158163`:`158164` | `158166` | 165-179 | dolma_sample seed 2027 | completed |
 | 5 | afterok:`158163`:`158164` | `158165` | 180-194 | dolma_sample seed 3407 | completed |
-| 6 | afterok:`158166`:`158165` | `158168` | 195-209 | c4_en seed 1337 | running |
+| 6 | afterok:`158166`:`158165` | `158168` | 195-209 | c4_en seed 1337 | completed |
 | 6 | afterok:`158166`:`158165` | `158167` | 210-224 | c4_en seed 2027 | completed |
-| 7 | afterok:`158168`:`158167` | `158169` | 225-239 | c4_en seed 3407 | pending dependency |
+| 7 | afterok:`158168`:`158167` | `158169` | 225-239 | c4_en seed 3407 | running |
 
 ## E1 Live Timing
 
-Current check: 2026-06-07 16:27:24 EDT. Running job(s): `158168`.
+Current check: 2026-06-07 16:53:07 EDT. Running job(s): `158169`.
 
 | Job | Current row | Dataset/seed | Method | Elapsed | Latest progress | Latest val loss | State |
 | --- | ---: | --- | --- | --- | ---: | ---: | --- |
-| `158168` | 209 | c4_en / 1337 | rlb_matrixpolicy_original | 7:31:26 | train 1270, eval 1250 / 3050 | 4.703349 | running |
+| `158169` | 225 | c4_en / 3407 | silu_adamw | 00:06:45 | train 930, eval 900 / 3050 | 5.126665 | running |
 
-Completed E1 rows: 209. Running rows: 1. Remaining rows: 16. Active allocation at check: 4 A6000 total.
+Completed E1 rows: 210. Running rows: 1. Remaining rows including the running row: 15. Active allocation at check: 4 A6000 total.
 
-At this check, C4 seed 1337 is on row 209 of 209 and C4 seed 3407 is still dependency-pending. If the current node speed holds and there is no preemption, E1 should finish in roughly 5-7 hours after this update.
+At this check, C4 seeds 1337 and 2027 are complete, and C4 seed 3407 is running row 225 of 239. If the current node speed holds and there is no preemption, E1 should finish in roughly 6-8 hours after this update.
 
 ## E1 Dense Curve Figures
 
-The SVG figures below use completed E1 runs at their native logging cadence. Validation curves use every 50-step eval from step 500 through 3050; training-loss curves use every 10-step train log over the same range. The curves remain densely sampled; only the x-axis tick labels are sparse. Each plot has its legend inside the figure, and the shaded region is mean +/- 1 sample std over the three seeds. The plotted methods are MatrixPolicy, RLB/SiLU AdamW, RLB/SiLU Lion, RLB/SiLU SOAP, RLB/SiLU Muon, RLB/SiLU ScheduleFree, and RLB/SiLU CAME. ADeMaMix remains in the final-score tables; the figures focus on the interpretable loss range.
+The SVG figures below use completed E1 runs at their native logging cadence. Validation curves use every 50-step eval from step 500 through 3050; training-loss curves use every 10-step train log over the same range. The curves remain densely sampled; only the x-axis tick labels are sparse. Each plot has its legend inside the figure, and the shaded region is mean +/- 1 sample std over the three seeds. Two versions are shown: the all-method view keeps MatrixPolicy, RLB/SiLU AdamW, RLB/SiLU Lion, RLB/SiLU SOAP, RLB/SiLU Muon, RLB/SiLU ScheduleFree, and RLB/SiLU CAME; the clean comparison view uses the same style but omits SOAP from the figures. ADeMaMix remains in the final-score tables; the figures focus on the interpretable loss range.
 
 ### DCLM
 
-![DCLM E1 validation loss mean +/- std](results/iclr26_e1_figures/dclm_core_validation_loss_mean_std.svg)
+All-method view:
 
-![DCLM E1 validation PPL mean +/- std](results/iclr26_e1_figures/dclm_core_validation_ppl_mean_std.svg)
+![DCLM E1 validation loss mean +/- std, all methods](results/iclr26_e1_figures/dclm_core_validation_loss_mean_std.svg)
 
-![DCLM E1 training loss mean +/- std](results/iclr26_e1_figures/dclm_core_training_loss_mean_std.svg)
+![DCLM E1 validation PPL mean +/- std, all methods](results/iclr26_e1_figures/dclm_core_validation_ppl_mean_std.svg)
+
+![DCLM E1 training loss mean +/- std, all methods](results/iclr26_e1_figures/dclm_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![DCLM E1 validation loss mean +/- std, clean comparison](results/iclr26_e1_figures/dclm_clean_validation_loss_mean_std.svg)
+
+![DCLM E1 validation PPL mean +/- std, clean comparison](results/iclr26_e1_figures/dclm_clean_validation_ppl_mean_std.svg)
+
+![DCLM E1 training loss mean +/- std, clean comparison](results/iclr26_e1_figures/dclm_clean_training_loss_mean_std.svg)
 
 DCLM validation-loss checkpoint table, mean +/- sample std:
 
@@ -133,11 +143,21 @@ DCLM validation-loss checkpoint table, mean +/- sample std:
 
 ### FineWeb-Edu
 
-![FineWeb-Edu E1 validation loss mean +/- std](results/iclr26_e1_figures/fineweb_edu_core_validation_loss_mean_std.svg)
+All-method view:
 
-![FineWeb-Edu E1 validation PPL mean +/- std](results/iclr26_e1_figures/fineweb_edu_core_validation_ppl_mean_std.svg)
+![FineWeb-Edu E1 validation loss mean +/- std, all methods](results/iclr26_e1_figures/fineweb_edu_core_validation_loss_mean_std.svg)
 
-![FineWeb-Edu E1 training loss mean +/- std](results/iclr26_e1_figures/fineweb_edu_core_training_loss_mean_std.svg)
+![FineWeb-Edu E1 validation PPL mean +/- std, all methods](results/iclr26_e1_figures/fineweb_edu_core_validation_ppl_mean_std.svg)
+
+![FineWeb-Edu E1 training loss mean +/- std, all methods](results/iclr26_e1_figures/fineweb_edu_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![FineWeb-Edu E1 validation loss mean +/- std, clean comparison](results/iclr26_e1_figures/fineweb_edu_clean_validation_loss_mean_std.svg)
+
+![FineWeb-Edu E1 validation PPL mean +/- std, clean comparison](results/iclr26_e1_figures/fineweb_edu_clean_validation_ppl_mean_std.svg)
+
+![FineWeb-Edu E1 training loss mean +/- std, clean comparison](results/iclr26_e1_figures/fineweb_edu_clean_training_loss_mean_std.svg)
 
 FineWeb-Edu validation-loss checkpoint table, mean +/- sample std:
 
@@ -152,11 +172,21 @@ FineWeb-Edu validation-loss checkpoint table, mean +/- sample std:
 
 ### FineWeb
 
-![FineWeb E1 validation loss mean +/- std](results/iclr26_e1_figures/fineweb_core_validation_loss_mean_std.svg)
+All-method view:
 
-![FineWeb E1 validation PPL mean +/- std](results/iclr26_e1_figures/fineweb_core_validation_ppl_mean_std.svg)
+![FineWeb E1 validation loss mean +/- std, all methods](results/iclr26_e1_figures/fineweb_core_validation_loss_mean_std.svg)
 
-![FineWeb E1 training loss mean +/- std](results/iclr26_e1_figures/fineweb_core_training_loss_mean_std.svg)
+![FineWeb E1 validation PPL mean +/- std, all methods](results/iclr26_e1_figures/fineweb_core_validation_ppl_mean_std.svg)
+
+![FineWeb E1 training loss mean +/- std, all methods](results/iclr26_e1_figures/fineweb_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![FineWeb E1 validation loss mean +/- std, clean comparison](results/iclr26_e1_figures/fineweb_clean_validation_loss_mean_std.svg)
+
+![FineWeb E1 validation PPL mean +/- std, clean comparison](results/iclr26_e1_figures/fineweb_clean_validation_ppl_mean_std.svg)
+
+![FineWeb E1 training loss mean +/- std, clean comparison](results/iclr26_e1_figures/fineweb_clean_training_loss_mean_std.svg)
 
 FineWeb validation-loss checkpoint table, mean +/- sample std:
 
@@ -171,11 +201,21 @@ FineWeb validation-loss checkpoint table, mean +/- sample std:
 
 ### Dolma-sample
 
-![Dolma-sample E1 validation loss mean +/- std](results/iclr26_e1_figures/dolma_sample_core_validation_loss_mean_std.svg)
+All-method view:
 
-![Dolma-sample E1 validation PPL mean +/- std](results/iclr26_e1_figures/dolma_sample_core_validation_ppl_mean_std.svg)
+![Dolma-sample E1 validation loss mean +/- std, all methods](results/iclr26_e1_figures/dolma_sample_core_validation_loss_mean_std.svg)
 
-![Dolma-sample E1 training loss mean +/- std](results/iclr26_e1_figures/dolma_sample_core_training_loss_mean_std.svg)
+![Dolma-sample E1 validation PPL mean +/- std, all methods](results/iclr26_e1_figures/dolma_sample_core_validation_ppl_mean_std.svg)
+
+![Dolma-sample E1 training loss mean +/- std, all methods](results/iclr26_e1_figures/dolma_sample_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![Dolma-sample E1 validation loss mean +/- std, clean comparison](results/iclr26_e1_figures/dolma_sample_clean_validation_loss_mean_std.svg)
+
+![Dolma-sample E1 validation PPL mean +/- std, clean comparison](results/iclr26_e1_figures/dolma_sample_clean_validation_ppl_mean_std.svg)
+
+![Dolma-sample E1 training loss mean +/- std, clean comparison](results/iclr26_e1_figures/dolma_sample_clean_training_loss_mean_std.svg)
 
 Dolma-sample validation-loss checkpoint table, mean +/- sample std:
 
@@ -194,7 +234,7 @@ Final validation-loss overview across all optimizers. Lower is better. Completed
 
 | Method | DCLM final | FineWeb-Edu final | FineWeb final | Dolma-sample final | C4 partial final |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| rlb_matrixpolicy_original | 4.256224 +/- 0.004972 | 4.088240 +/- 0.009434 | 4.318581 +/- 0.010914 | 4.323851 +/- 0.004565 | 4.301276 +/- 0.000000 (n=1) |
+| rlb_matrixpolicy_original | 4.256224 +/- 0.004972 | 4.088240 +/- 0.009434 | 4.318581 +/- 0.010914 | 4.323851 +/- 0.004565 | 4.281546 +/- 0.027902 (n=2) |
 | rlb_lion | 4.305728 +/- 0.005836 | 4.142669 +/- 0.006812 | 4.367062 +/- 0.007532 | 4.369254 +/- 0.005561 | 4.334202 +/- 0.029364 (n=2) |
 | silu_lion | 4.318333 +/- 0.006893 | 4.149366 +/- 0.009180 | 4.382518 +/- 0.008308 | 4.387783 +/- 0.004605 | 4.352276 +/- 0.021835 (n=2) |
 | rlb_adamw | 4.404748 +/- 0.004551 | 4.237991 +/- 0.006110 | 4.470531 +/- 0.013305 | 4.488137 +/- 0.000894 | 4.436585 +/- 0.023792 (n=2) |
@@ -294,15 +334,15 @@ C4 status at check:
 
 | Seed | Complete rows | Running row | Notes |
 | ---: | ---: | --- | --- |
-| 1337 | 14 / 15 | row 209 rlb_matrixpolicy_original | latest train 1270, eval 1250, val 4.703349 |
+| 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.261817 |
 | 2027 | 15 / 15 | none | MatrixPolicy final val loss 4.301276 |
-| 3407 | 0 / 15 | none | pending dependency |
+| 3407 | 0 / 15 | row 225 silu_adamw | latest train 930, eval 900, val 5.126665 |
 
 C4 partial aggregate from completed rows only:
 
 | Method | Complete seeds | Mean | Std | Seed values |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 1 | 4.301276 | 0.000000 | 4.301276 |
+| rlb_matrixpolicy_original | 2 | 4.281546 | 0.027902 | 4.261817, 4.301276 |
 | rlb_lion | 2 | 4.334202 | 0.029364 | 4.313438, 4.354966 |
 | silu_lion | 2 | 4.352276 | 0.021835 | 4.336836, 4.367715 |
 | rlb_adamw | 2 | 4.436585 | 0.023792 | 4.419761, 4.453408 |
