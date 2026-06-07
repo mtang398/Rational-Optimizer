@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-06 21:03:11 EDT  
+Updated: 2026-06-07 15:51:56 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -52,7 +52,7 @@ All rows have three eval points: step 1, step 40, and step 80.
 
 ## E1 Scheduler State
 
-E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependency-chained in pairs, so at most two jobs run at the same time.
+E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependency-chained in pairs, except the final single C4 cell.
 
 | Job | Rows | Cell | State at update | GPUs | Elapsed | Node |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -60,18 +60,23 @@ E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependen
 | `155412` | 30-44 | dclm seed 2027 | completed | 4 A6000 | 09:15:36 | `bala-compute-02` |
 | `158114` | 45-59 | dclm seed 3407 | completed | 4 A6000 | 09:28:58 | `ma-compute-02` |
 | `158115` | 60-74 | fineweb_edu seed 1337 | completed | 4 A6000 | 09:11:18 | `bala-compute-02` |
-| `158117` | 75-89 | fineweb_edu seed 2027 | completed after preemption restarts | 4 A6000 | 16:04:13 | `monakhova-compute-01` |
+| `158117` | 75-89 | fineweb_edu seed 2027 | completed, `Restarts=6` | 4 A6000 | 16:04:13 | `monakhova-compute-01` |
 | `158118` | 90-104 | fineweb_edu seed 3407 | completed | 4 A6000 | 09:02:26 | `bala-compute-02` |
 | `158155` | 105-119 | fineweb seed 1337 | completed | 4 A6000 | 05:52:37 | `elor-compute-01` |
 | `158156` | 120-134 | fineweb seed 2027 | completed | 4 A6000 | 08:02:33 | `lil-compute-04` |
-| `158163` | 135-149 | fineweb seed 3407 | running | 4 A6000 | 04:04:35 | `ellis-compute-02` |
-| `158164` | 150-164 | dolma_sample seed 1337 | running | 4 A6000 | 04:04:35 | `ellis-compute-02` |
+| `158163` | 135-149 | fineweb seed 3407 | completed | 4 A6000 | 07:53:18 | `ellis-compute-02` |
+| `158164` | 150-164 | dolma_sample seed 1337 | completed | 4 A6000 | 08:12:23 | `ellis-compute-02` |
+| `158166` | 165-179 | dolma_sample seed 2027 | completed | 4 A6000 | 07:44:29 | `ellis-compute-02` |
+| `158165` | 180-194 | dolma_sample seed 3407 | completed | 4 A6000 | 06:15:00 | `damle-compute-01` |
+| `158168` | 195-209 | c4_en seed 1337 | running | 4 A6000 | 6:55:57 | `ellis-compute-02` |
+| `158167` | 210-224 | c4_en seed 2027 | completed | 4 A6000 | 06:16:59 | `damle-compute-01` |
+| `158169` | 225-239 | c4_en seed 3407 | pending dependency | 4 A6000 | 0:00 | `(Dependency)` |
 
-Active allocation at update: 8 A6000 total.
+Active allocation at update: 4 A6000 total.
 
 ## E1 Continuation Queue
 
-E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Dependencies are chained in pairs so the queue advances at most two jobs at a time.
+E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Dependencies advance in pairs until the final single C4 seed.
 
 | Wave | Dependency | Job | Rows | Cell | State at update |
 | ---: | --- | --- | --- | --- | --- |
@@ -83,82 +88,135 @@ E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Depen
 | 2 | afterok:`158114`:`158115` | `158118` | 90-104 | fineweb_edu seed 3407 | completed |
 | 3 | afterok:`158117`:`158118` | `158155` | 105-119 | fineweb seed 1337 | completed |
 | 3 | afterok:`158117`:`158118` | `158156` | 120-134 | fineweb seed 2027 | completed |
-| 4 | afterok:`158155`:`158156` | `158163` | 135-149 | fineweb seed 3407 | running |
-| 4 | afterok:`158155`:`158156` | `158164` | 150-164 | dolma_sample seed 1337 | running |
-| 5 | afterok:`158163`:`158164` | `158166` | 165-179 | dolma_sample seed 2027 | pending dependency |
-| 5 | afterok:`158163`:`158164` | `158165` | 180-194 | dolma_sample seed 3407 | pending dependency |
-| 6 | afterok:`158166`:`158165` | `158168` | 195-209 | c4_en seed 1337 | pending dependency |
-| 6 | afterok:`158166`:`158165` | `158167` | 210-224 | c4_en seed 2027 | pending dependency |
+| 4 | afterok:`158155`:`158156` | `158163` | 135-149 | fineweb seed 3407 | completed |
+| 4 | afterok:`158155`:`158156` | `158164` | 150-164 | dolma_sample seed 1337 | completed |
+| 5 | afterok:`158163`:`158164` | `158166` | 165-179 | dolma_sample seed 2027 | completed |
+| 5 | afterok:`158163`:`158164` | `158165` | 180-194 | dolma_sample seed 3407 | completed |
+| 6 | afterok:`158166`:`158165` | `158168` | 195-209 | c4_en seed 1337 | running |
+| 6 | afterok:`158166`:`158165` | `158167` | 210-224 | c4_en seed 2027 | completed |
 | 7 | afterok:`158168`:`158167` | `158169` | 225-239 | c4_en seed 3407 | pending dependency |
 
 ## E1 Live Timing
 
-Current check: 2026-06-06 21:03:11 EDT. Jobs `158163` and `158164` are running with no restarts so far.
+Current check: 2026-06-07 15:51:56 EDT. Running job(s): `158168`.
 
-| Job | Current row | Dataset/seed | Method | Elapsed | Latest eval | Latest val loss | State |
+| Job | Current row | Dataset/seed | Method | Elapsed | Latest progress | Latest val loss | State |
 | --- | ---: | --- | --- | --- | ---: | ---: | --- |
-| `158163` | 142 | fineweb / 3407 | rlb_soap | 04:04:35 | 2250 / 3050 | 4.556294 | running |
-| `158164` | 157 | dolma_sample / 1337 | rlb_soap | 04:04:35 | 250 / 3050 | 6.222547 | running |
+| `158168` | 208 | c4_en / 1337 | rlb_schedulefree | 6:55:57 | train 990, eval 950 / 3050 | 5.556767 | running |
 
-Completed E1 rows: 134. Running rows: 2. Remaining rows: 89. Active allocation at check: 8 A6000 total.
+Completed E1 rows: 208. Running rows: 1. Remaining rows: 17. Active allocation at check: 4 A6000 total.
+
+At this check, C4 seed 1337 is on row 208 of 209 and C4 seed 3407 is still dependency-pending. If the current node speed holds and there is no preemption, E1 should finish in roughly 7-9 hours after this update.
 
 ## E1 Results Snapshot
 
 DCLM is complete for all three E1 seeds. Final validation loss, mean and sample std over seeds:
 
-| Method | Mean | Std | Seed values |
-| --- | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 4.256224 | 0.004972 | 4.251434, 4.261359, 4.255877 |
-| rlb_lion | 4.305728 | 0.005836 | 4.307827, 4.310225, 4.299133 |
-| silu_lion | 4.318333 | 0.006893 | 4.310379, 4.322079, 4.322542 |
-| rlb_adamw | 4.404748 | 0.004551 | 4.401357, 4.409920, 4.402967 |
-| silu_adamw | 4.405574 | 0.009903 | 4.394192, 4.412221, 4.410308 |
-| silu_soap | 4.415980 | 0.003818 | 4.412983, 4.420279, 4.414679 |
-| rlb_soap | 4.435091 | 0.021706 | 4.458359, 4.431526, 4.415388 |
-| silu_muon | 4.457165 | 0.012562 | 4.442778, 4.465955, 4.462763 |
-| rlb_muon | 4.474236 | 0.004136 | 4.477408, 4.475743, 4.469558 |
-| rlb_schedulefree | 4.878139 | 0.005538 | 4.872795, 4.877769, 4.883852 |
-| silu_schedulefree | 4.902321 | 0.011067 | 4.891297, 4.902236, 4.913431 |
-| rlb_came | 5.007375 | 0.008213 | 5.005087, 5.000548, 5.016489 |
-| silu_came | 5.010657 | 0.014306 | 5.000495, 5.004458, 5.027017 |
-| silu_ademamix | 48.645454 | 13.725481 | 34.271767, 61.614742, 50.049854 |
-| rlb_ademamix | 246105152.000000 | 0.000000 | non-finite, non-finite, 246105152.000000 |
+| Method | Complete seeds | Mean | Std | Seed values |
+| --- | ---: | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 3 | 4.256224 | 0.004972 | 4.251434, 4.261359, 4.255877 |
+| rlb_lion | 3 | 4.305728 | 0.005836 | 4.307827, 4.310225, 4.299133 |
+| silu_lion | 3 | 4.318333 | 0.006893 | 4.310379, 4.322079, 4.322542 |
+| rlb_adamw | 3 | 4.404748 | 0.004551 | 4.401357, 4.409920, 4.402967 |
+| silu_adamw | 3 | 4.405574 | 0.009903 | 4.394192, 4.412221, 4.410308 |
+| silu_soap | 3 | 4.415980 | 0.003818 | 4.412983, 4.420279, 4.414679 |
+| rlb_soap | 3 | 4.435091 | 0.021706 | 4.458359, 4.431526, 4.415388 |
+| silu_muon | 3 | 4.457165 | 0.012562 | 4.442778, 4.465955, 4.462763 |
+| rlb_muon | 3 | 4.474236 | 0.004136 | 4.477408, 4.475743, 4.469558 |
+| rlb_schedulefree | 3 | 4.878139 | 0.005538 | 4.872795, 4.877769, 4.883852 |
+| silu_schedulefree | 3 | 4.902321 | 0.011067 | 4.891297, 4.902236, 4.913431 |
+| rlb_came | 3 | 5.007375 | 0.008213 | 5.005087, 5.000548, 5.016489 |
+| silu_came | 3 | 5.010657 | 0.014306 | 5.000495, 5.004458, 5.027017 |
+| silu_ademamix | 3 | 48.645454 | 13.725481 | 34.271767, 61.614742, 50.049854 |
+| rlb_ademamix | 1 | 246105152.000000 | 0.000000 | 246105152.000000, non-finite, non-finite |
 
 FineWeb-Edu is complete for all three E1 seeds. Final validation loss, mean and sample std over seeds:
 
-| Method | Mean | Std | Seed values |
-| --- | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 4.088240 | 0.009434 | 4.092051, 4.077497, 4.095173 |
-| rlb_lion | 4.142669 | 0.006812 | 4.144132, 4.135244, 4.148631 |
-| silu_lion | 4.149366 | 0.009180 | 4.154374, 4.138771, 4.154952 |
-| silu_adamw | 4.237481 | 0.008644 | 4.242263, 4.227503, 4.242677 |
-| rlb_adamw | 4.237991 | 0.006110 | 4.240171, 4.231090, 4.242713 |
-| rlb_soap | 4.262287 | 0.013054 | 4.260798, 4.276021, 4.250041 |
-| silu_soap | 4.263003 | 0.022048 | 4.262650, 4.241133, 4.285225 |
-| silu_muon | 4.278738 | 0.024267 | 4.280360, 4.253700, 4.302153 |
-| rlb_muon | 4.287684 | 0.019926 | 4.306664, 4.266931, 4.289457 |
-| rlb_schedulefree | 4.779696 | 0.011289 | 4.792676, 4.774242, 4.772171 |
-| silu_schedulefree | 4.825844 | 0.007242 | 4.834194, 4.822071, 4.821268 |
-| rlb_came | 4.904335 | 0.004631 | 4.909057, 4.899800, 4.904150 |
-| silu_came | 4.920688 | 0.012317 | 4.929064, 4.906546, 4.926455 |
-| silu_ademamix | 242.853696 | 242.012155 | 104.331055, 522.301819, 101.928215 |
-| rlb_ademamix | 7880.511495 | 12045.656859 | 1178.819824, 676.105286, 21786.609375 |
+| Method | Complete seeds | Mean | Std | Seed values |
+| --- | ---: | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 3 | 4.088240 | 0.009434 | 4.092051, 4.077497, 4.095173 |
+| rlb_lion | 3 | 4.142669 | 0.006812 | 4.144132, 4.135244, 4.148631 |
+| silu_lion | 3 | 4.149366 | 0.009180 | 4.154374, 4.138771, 4.154952 |
+| silu_adamw | 3 | 4.237481 | 0.008644 | 4.242263, 4.227503, 4.242677 |
+| rlb_adamw | 3 | 4.237991 | 0.006110 | 4.240171, 4.231090, 4.242713 |
+| rlb_soap | 3 | 4.262287 | 0.013054 | 4.260798, 4.276021, 4.250041 |
+| silu_soap | 3 | 4.263003 | 0.022048 | 4.262650, 4.241133, 4.285225 |
+| silu_muon | 3 | 4.278738 | 0.024267 | 4.280360, 4.253700, 4.302153 |
+| rlb_muon | 3 | 4.287684 | 0.019926 | 4.306664, 4.266931, 4.289457 |
+| rlb_schedulefree | 3 | 4.779696 | 0.011289 | 4.792676, 4.774242, 4.772171 |
+| silu_schedulefree | 3 | 4.825844 | 0.007242 | 4.834194, 4.822071, 4.821268 |
+| rlb_came | 3 | 4.904335 | 0.004631 | 4.909057, 4.899800, 4.904150 |
+| silu_came | 3 | 4.920688 | 0.012317 | 4.929064, 4.906546, 4.926455 |
+| silu_ademamix | 3 | 242.853696 | 242.012155 | 104.331055, 522.301819, 101.928215 |
+| rlb_ademamix | 3 | 7880.511495 | 12045.656859 | 1178.819824, 676.105286, 21786.609375 |
 
-FineWeb status at check:
+FineWeb is complete for all three E1 seeds. Final validation loss, mean and sample std over seeds:
+
+| Method | Complete seeds | Mean | Std | Seed values |
+| --- | ---: | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 3 | 4.318581 | 0.010914 | 4.306077, 4.323467, 4.326198 |
+| rlb_lion | 3 | 4.367062 | 0.007532 | 4.358393, 4.370788, 4.372005 |
+| silu_lion | 3 | 4.382518 | 0.008308 | 4.373947, 4.390535, 4.383072 |
+| rlb_adamw | 3 | 4.470531 | 0.013305 | 4.455188, 4.478891, 4.477512 |
+| silu_adamw | 3 | 4.475841 | 0.009656 | 4.464763, 4.480283, 4.482476 |
+| silu_soap | 3 | 4.484025 | 0.011241 | 4.472078, 4.485604, 4.494392 |
+| rlb_soap | 3 | 4.484953 | 0.025544 | 4.462595, 4.512793, 4.479470 |
+| silu_muon | 3 | 4.516342 | 0.026358 | 4.490554, 4.515236, 4.543236 |
+| rlb_muon | 3 | 4.521560 | 0.011976 | 4.508226, 4.525053, 4.531402 |
+| rlb_schedulefree | 3 | 4.987660 | 0.019623 | 4.965375, 5.002351, 4.995253 |
+| silu_schedulefree | 3 | 5.014212 | 0.018820 | 4.993041, 5.029044, 5.020551 |
+| rlb_came | 3 | 5.125061 | 0.017257 | 5.105318, 5.137263, 5.132603 |
+| silu_came | 3 | 5.132548 | 0.012598 | 5.118973, 5.143862, 5.134809 |
+| silu_ademamix | 3 | 51.996538 | 15.132243 | 51.005760, 67.599823, 37.384029 |
+| rlb_ademamix | 1 | 3022914304.000000 | 0.000000 | 3022914304.000000, non-finite, non-finite |
+
+Dolma-sample is complete for all three E1 seeds. Final validation loss, mean and sample std over seeds:
+
+| Method | Complete seeds | Mean | Std | Seed values |
+| --- | ---: | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 3 | 4.323851 | 0.004565 | 4.319835, 4.328816, 4.322902 |
+| rlb_lion | 3 | 4.369254 | 0.005561 | 4.374695, 4.369488, 4.363580 |
+| silu_lion | 3 | 4.387783 | 0.004605 | 4.382976, 4.392156, 4.388218 |
+| silu_adamw | 3 | 4.486162 | 0.001204 | 4.487082, 4.486603, 4.484799 |
+| rlb_adamw | 3 | 4.488137 | 0.000894 | 4.487473, 4.487784, 4.489154 |
+| silu_soap | 3 | 4.498726 | 0.003535 | 4.498732, 4.502258, 4.495188 |
+| rlb_soap | 3 | 4.502910 | 0.015749 | 4.489188, 4.499438, 4.520106 |
+| silu_muon | 3 | 4.544263 | 0.010821 | 4.536290, 4.539918, 4.556581 |
+| rlb_muon | 3 | 4.558568 | 0.009268 | 4.549397, 4.567930, 4.558376 |
+| rlb_schedulefree | 3 | 5.024134 | 0.013642 | 5.039133, 5.020803, 5.012465 |
+| silu_schedulefree | 3 | 5.049396 | 0.014883 | 5.066480, 5.039243, 5.042466 |
+| rlb_came | 3 | 5.142537 | 0.016354 | 5.159671, 5.140844, 5.127095 |
+| silu_came | 3 | 5.164954 | 0.018870 | 5.184652, 5.163172, 5.147038 |
+| silu_ademamix | 3 | 28427.185402 | 40987.716727 | 9786.633789, 75422.257812, 72.664604 |
+| rlb_ademamix | 2 | 1775543041.717896 | 2510996321.238340 | 515.435791, 3551085568.000000, non-finite |
+
+C4 status at check:
 
 | Seed | Complete rows | Running row | Notes |
 | ---: | ---: | --- | --- |
-| 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.306077 |
-| 2027 | 15 / 15 | none | MatrixPolicy final val loss 4.323467 |
-| 3407 | 7 / 15 | row 142 rlb_soap | latest eval 2250, val 4.556294 |
-
-Dolma-sample status at check:
-
-| Seed | Complete rows | Running row | Notes |
-| ---: | ---: | --- | --- |
-| 1337 | 7 / 15 | row 157 rlb_soap | latest eval 250, val 6.222547 |
-| 2027 | 0 / 15 | none | pending dependency |
+| 1337 | 13 / 15 | row 208 rlb_schedulefree | latest train 990, eval 950, val 5.556767 |
+| 2027 | 15 / 15 | none | MatrixPolicy final val loss 4.301276 |
 | 3407 | 0 / 15 | none | pending dependency |
+
+C4 partial aggregate from completed rows only:
+
+| Method | Complete seeds | Mean | Std | Seed values |
+| --- | ---: | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 1 | 4.301276 | 0.000000 | 4.301276 |
+| rlb_lion | 2 | 4.334202 | 0.029364 | 4.313438, 4.354966 |
+| silu_lion | 2 | 4.352276 | 0.021835 | 4.336836, 4.367715 |
+| rlb_adamw | 2 | 4.436585 | 0.023792 | 4.419761, 4.453408 |
+| silu_adamw | 2 | 4.442621 | 0.020000 | 4.428479, 4.456763 |
+| rlb_soap | 2 | 4.451351 | 0.002696 | 4.449445, 4.453258 |
+| silu_soap | 2 | 4.452748 | 0.015767 | 4.441599, 4.463897 |
+| silu_muon | 2 | 4.471201 | 0.018488 | 4.458128, 4.484274 |
+| rlb_muon | 2 | 4.482270 | 0.008022 | 4.476597, 4.487942 |
+| rlb_schedulefree | 1 | 4.982551 | 0.000000 | 4.982551 |
+| silu_schedulefree | 2 | 5.002830 | 0.020899 | 4.988052, 5.017608 |
+| rlb_came | 2 | 5.098529 | 0.021289 | 5.083476, 5.113583 |
+| silu_came | 2 | 5.121805 | 0.025034 | 5.104103, 5.139506 |
+| silu_ademamix | 2 | 466.353416 | 435.129243 | 158.670578, 774.036255 |
+| rlb_ademamix | 2 | 17684.628784 | 20105.625797 | 31901.453125, 3467.804443 |
 
 ## Parameter Counts
 
