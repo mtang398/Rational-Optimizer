@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-07 16:27:24 EDT  
+Updated: 2026-06-07 16:35:00 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -110,7 +110,7 @@ At this check, C4 seed 1337 is on row 209 of 209 and C4 seed 3407 is still depen
 
 ## E1 Dense Curve Figures
 
-The SVG figures below use completed E1 runs at their native logging cadence. Validation curves use every 50-step eval from step 500 through 3050; training-loss curves use every 10-step train log over the same range. The curves remain densely sampled; only the x-axis tick labels are sparse. Each plot has its legend inside the figure, and the shaded region is mean +/- 1 sample std over the three seeds.
+The SVG figures below use completed E1 runs at their native logging cadence. Validation curves use every 50-step eval from step 500 through 3050; training-loss curves use every 10-step train log over the same range. The curves remain densely sampled; only the x-axis tick labels are sparse. Each plot has its legend inside the figure, and the shaded region is mean +/- 1 sample std over the three seeds. The plotted methods are MatrixPolicy, RLB/SiLU AdamW, RLB/SiLU Lion, RLB/SiLU SOAP, RLB/SiLU Muon, RLB/SiLU ScheduleFree, and RLB/SiLU CAME. ADeMaMix remains in the final-score tables; the figures focus on the interpretable loss range.
 
 ### DCLM
 
@@ -189,6 +189,26 @@ Dolma-sample validation-loss checkpoint table, mean +/- sample std:
 | 3050 | 4.3239 +/- 0.0046 | 4.3693 +/- 0.0056 | 4.3878 +/- 0.0046 | 4.4881 +/- 0.0009 | 4.4862 +/- 0.0012 |
 
 ## E1 Results Snapshot
+
+Final validation-loss overview across all optimizers. Lower is better. Completed E1 dataset cells use mean +/- sample std over three seeds. C4 is still in progress, so the C4 column uses completed rows only and shows the current completed-seed count in parentheses.
+
+| Method | DCLM final | FineWeb-Edu final | FineWeb final | Dolma-sample final | C4 partial final |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| rlb_matrixpolicy_original | 4.256224 +/- 0.004972 | 4.088240 +/- 0.009434 | 4.318581 +/- 0.010914 | 4.323851 +/- 0.004565 | 4.301276 +/- 0.000000 (n=1) |
+| rlb_lion | 4.305728 +/- 0.005836 | 4.142669 +/- 0.006812 | 4.367062 +/- 0.007532 | 4.369254 +/- 0.005561 | 4.334202 +/- 0.029364 (n=2) |
+| silu_lion | 4.318333 +/- 0.006893 | 4.149366 +/- 0.009180 | 4.382518 +/- 0.008308 | 4.387783 +/- 0.004605 | 4.352276 +/- 0.021835 (n=2) |
+| rlb_adamw | 4.404748 +/- 0.004551 | 4.237991 +/- 0.006110 | 4.470531 +/- 0.013305 | 4.488137 +/- 0.000894 | 4.436585 +/- 0.023792 (n=2) |
+| silu_adamw | 4.405574 +/- 0.009903 | 4.237481 +/- 0.008644 | 4.475841 +/- 0.009656 | 4.486162 +/- 0.001204 | 4.442621 +/- 0.020000 (n=2) |
+| silu_soap | 4.415980 +/- 0.003818 | 4.263003 +/- 0.022048 | 4.484025 +/- 0.011241 | 4.498726 +/- 0.003535 | 4.452748 +/- 0.015767 (n=2) |
+| rlb_soap | 4.435091 +/- 0.021706 | 4.262287 +/- 0.013054 | 4.484953 +/- 0.025544 | 4.502910 +/- 0.015749 | 4.451351 +/- 0.002696 (n=2) |
+| silu_muon | 4.457165 +/- 0.012562 | 4.278738 +/- 0.024267 | 4.516342 +/- 0.026358 | 4.544263 +/- 0.010821 | 4.471201 +/- 0.018488 (n=2) |
+| rlb_muon | 4.474236 +/- 0.004136 | 4.287684 +/- 0.019926 | 4.521560 +/- 0.011976 | 4.558568 +/- 0.009268 | 4.482270 +/- 0.008022 (n=2) |
+| rlb_schedulefree | 4.878139 +/- 0.005538 | 4.779696 +/- 0.011289 | 4.987660 +/- 0.019623 | 5.024134 +/- 0.013642 | 4.968041 +/- 0.020520 (n=2) |
+| silu_schedulefree | 4.902321 +/- 0.011067 | 4.825844 +/- 0.007242 | 5.014212 +/- 0.018820 | 5.049396 +/- 0.014883 | 5.002830 +/- 0.020899 (n=2) |
+| rlb_came | 5.007375 +/- 0.008213 | 4.904335 +/- 0.004631 | 5.125061 +/- 0.017257 | 5.142537 +/- 0.016354 | 5.098529 +/- 0.021289 (n=2) |
+| silu_came | 5.010657 +/- 0.014306 | 4.920688 +/- 0.012317 | 5.132548 +/- 0.012598 | 5.164954 +/- 0.018870 | 5.121805 +/- 0.025034 (n=2) |
+| silu_ademamix | 48.645454 +/- 13.725481 | 242.853696 +/- 242.012155 | 51.996538 +/- 15.132243 | 28427.185402 +/- 40987.716727 | 466.353416 +/- 435.129243 (n=2) |
+| rlb_ademamix | 246105152.000000 +/- 0.000000 (n=1) | 7880.511495 +/- 12045.656859 | 3022914304.000000 +/- 0.000000 (n=1) | 1775543041.717896 +/- 2510996321.238340 (n=2) | 17684.628784 +/- 20105.625797 (n=2) |
 
 DCLM is complete for all three E1 seeds. Final validation loss, mean and sample std over seeds:
 
