@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-05 18:40:14 EDT  
+Updated: 2026-06-06 21:03:11 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -60,8 +60,12 @@ E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependen
 | `155412` | 30-44 | dclm seed 2027 | completed | 4 A6000 | 09:15:36 | `bala-compute-02` |
 | `158114` | 45-59 | dclm seed 3407 | completed | 4 A6000 | 09:28:58 | `ma-compute-02` |
 | `158115` | 60-74 | fineweb_edu seed 1337 | completed | 4 A6000 | 09:11:18 | `bala-compute-02` |
-| `158117` | 75-89 | fineweb_edu seed 2027 | running after preemption restarts | 4 A6000 | 01:48:51 | `monakhova-compute-01` |
-| `158118` | 90-104 | fineweb_edu seed 3407 | running | 4 A6000 | 07:00:25 | `bala-compute-02` |
+| `158117` | 75-89 | fineweb_edu seed 2027 | completed after preemption restarts | 4 A6000 | 16:04:13 | `monakhova-compute-01` |
+| `158118` | 90-104 | fineweb_edu seed 3407 | completed | 4 A6000 | 09:02:26 | `bala-compute-02` |
+| `158155` | 105-119 | fineweb seed 1337 | completed | 4 A6000 | 05:52:37 | `elor-compute-01` |
+| `158156` | 120-134 | fineweb seed 2027 | completed | 4 A6000 | 08:02:33 | `lil-compute-04` |
+| `158163` | 135-149 | fineweb seed 3407 | running | 4 A6000 | 04:04:35 | `ellis-compute-02` |
+| `158164` | 150-164 | dolma_sample seed 1337 | running | 4 A6000 | 04:04:35 | `ellis-compute-02` |
 
 Active allocation at update: 8 A6000 total.
 
@@ -75,12 +79,12 @@ E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Depen
 | 0 | none | `155412` | 30-44 | dclm seed 2027 | completed |
 | 1 | afterok:`155411`:`155412` | `158114` | 45-59 | dclm seed 3407 | completed |
 | 1 | afterok:`155411`:`155412` | `158115` | 60-74 | fineweb_edu seed 1337 | completed |
-| 2 | afterok:`158114`:`158115` | `158117` | 75-89 | fineweb_edu seed 2027 | running, `Restarts=6` |
-| 2 | afterok:`158114`:`158115` | `158118` | 90-104 | fineweb_edu seed 3407 | running |
-| 3 | afterok:`158117`:`158118` | `158155` | 105-119 | fineweb seed 1337 | pending dependency |
-| 3 | afterok:`158117`:`158118` | `158156` | 120-134 | fineweb seed 2027 | pending dependency |
-| 4 | afterok:`158155`:`158156` | `158163` | 135-149 | fineweb seed 3407 | pending dependency |
-| 4 | afterok:`158155`:`158156` | `158164` | 150-164 | dolma_sample seed 1337 | pending dependency |
+| 2 | afterok:`158114`:`158115` | `158117` | 75-89 | fineweb_edu seed 2027 | completed, `Restarts=6` |
+| 2 | afterok:`158114`:`158115` | `158118` | 90-104 | fineweb_edu seed 3407 | completed |
+| 3 | afterok:`158117`:`158118` | `158155` | 105-119 | fineweb seed 1337 | completed |
+| 3 | afterok:`158117`:`158118` | `158156` | 120-134 | fineweb seed 2027 | completed |
+| 4 | afterok:`158155`:`158156` | `158163` | 135-149 | fineweb seed 3407 | running |
+| 4 | afterok:`158155`:`158156` | `158164` | 150-164 | dolma_sample seed 1337 | running |
 | 5 | afterok:`158163`:`158164` | `158166` | 165-179 | dolma_sample seed 2027 | pending dependency |
 | 5 | afterok:`158163`:`158164` | `158165` | 180-194 | dolma_sample seed 3407 | pending dependency |
 | 6 | afterok:`158166`:`158165` | `158168` | 195-209 | c4_en seed 1337 | pending dependency |
@@ -89,14 +93,14 @@ E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Depen
 
 ## E1 Live Timing
 
-Current check: 2026-06-05 18:40:14 EDT. Job `158117` has restarted six times (`Restarts=6`) and is running on `monakhova-compute-01`.
+Current check: 2026-06-06 21:03:11 EDT. Jobs `158163` and `158164` are running with no restarts so far.
 
-| Job | Current row | Method | Elapsed | Latest eval | Latest val loss | State |
-| --- | ---: | --- | --- | ---: | ---: | --- |
-| `158117` | 82 | rlb_soap | 01:48:51 | 1 / 3050 | 10.955369 | running after restart |
-| `158118` | 101 | rlb_came | 07:00:25 | 2000 / 3050 | 5.034568 | running |
+| Job | Current row | Dataset/seed | Method | Elapsed | Latest eval | Latest val loss | State |
+| --- | ---: | --- | --- | --- | ---: | ---: | --- |
+| `158163` | 142 | fineweb / 3407 | rlb_soap | 04:04:35 | 2250 / 3050 | 4.556294 | running |
+| `158164` | 157 | dolma_sample / 1337 | rlb_soap | 04:04:35 | 250 / 3050 | 6.222547 | running |
 
-Completed E1 rows: 78. Running rows: 2. Remaining rows: 145. Active allocation at check: 8 A6000 total.
+Completed E1 rows: 134. Running rows: 2. Remaining rows: 89. Active allocation at check: 8 A6000 total.
 
 ## E1 Results Snapshot
 
@@ -120,13 +124,41 @@ DCLM is complete for all three E1 seeds. Final validation loss, mean and sample 
 | silu_ademamix | 48.645454 | 13.725481 | 34.271767, 61.614742, 50.049854 |
 | rlb_ademamix | 246105152.000000 | 0.000000 | non-finite, non-finite, 246105152.000000 |
 
-FineWeb-Edu status at check:
+FineWeb-Edu is complete for all three E1 seeds. Final validation loss, mean and sample std over seeds:
+
+| Method | Mean | Std | Seed values |
+| --- | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 4.088240 | 0.009434 | 4.092051, 4.077497, 4.095173 |
+| rlb_lion | 4.142669 | 0.006812 | 4.144132, 4.135244, 4.148631 |
+| silu_lion | 4.149366 | 0.009180 | 4.154374, 4.138771, 4.154952 |
+| silu_adamw | 4.237481 | 0.008644 | 4.242263, 4.227503, 4.242677 |
+| rlb_adamw | 4.237991 | 0.006110 | 4.240171, 4.231090, 4.242713 |
+| rlb_soap | 4.262287 | 0.013054 | 4.260798, 4.276021, 4.250041 |
+| silu_soap | 4.263003 | 0.022048 | 4.262650, 4.241133, 4.285225 |
+| silu_muon | 4.278738 | 0.024267 | 4.280360, 4.253700, 4.302153 |
+| rlb_muon | 4.287684 | 0.019926 | 4.306664, 4.266931, 4.289457 |
+| rlb_schedulefree | 4.779696 | 0.011289 | 4.792676, 4.774242, 4.772171 |
+| silu_schedulefree | 4.825844 | 0.007242 | 4.834194, 4.822071, 4.821268 |
+| rlb_came | 4.904335 | 0.004631 | 4.909057, 4.899800, 4.904150 |
+| silu_came | 4.920688 | 0.012317 | 4.929064, 4.906546, 4.926455 |
+| silu_ademamix | 242.853696 | 242.012155 | 104.331055, 522.301819, 101.928215 |
+| rlb_ademamix | 7880.511495 | 12045.656859 | 1178.819824, 676.105286, 21786.609375 |
+
+FineWeb status at check:
 
 | Seed | Complete rows | Running row | Notes |
 | ---: | ---: | --- | --- |
-| 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.092051 |
-| 2027 | 7 / 15 | row 82 rlb_soap | rows 80-81 finished; current latest eval 1, val 10.955369 |
-| 3407 | 11 / 15 | row 101 rlb_came | rows 96-100 finished; current latest eval 2000, val 5.034568 |
+| 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.306077 |
+| 2027 | 15 / 15 | none | MatrixPolicy final val loss 4.323467 |
+| 3407 | 7 / 15 | row 142 rlb_soap | latest eval 2250, val 4.556294 |
+
+Dolma-sample status at check:
+
+| Seed | Complete rows | Running row | Notes |
+| ---: | ---: | --- | --- |
+| 1337 | 7 / 15 | row 157 rlb_soap | latest eval 250, val 6.222547 |
+| 2027 | 0 / 15 | none | pending dependency |
+| 3407 | 0 / 15 | none | pending dependency |
 
 ## Parameter Counts
 
