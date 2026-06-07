@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-07 16:20:15 EDT  
+Updated: 2026-06-07 16:27:24 EDT  
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Scheduler State
@@ -68,7 +68,7 @@ E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependen
 | `158164` | 150-164 | dolma_sample seed 1337 | completed | 4 A6000 | 08:12:23 | `ellis-compute-02` |
 | `158166` | 165-179 | dolma_sample seed 2027 | completed | 4 A6000 | 07:44:29 | `ellis-compute-02` |
 | `158165` | 180-194 | dolma_sample seed 3407 | completed | 4 A6000 | 06:15:00 | `damle-compute-01` |
-| `158168` | 195-209 | c4_en seed 1337 | running | 4 A6000 | 7:24:16 | `ellis-compute-02` |
+| `158168` | 195-209 | c4_en seed 1337 | running | 4 A6000 | 7:31:26 | `ellis-compute-02` |
 | `158167` | 210-224 | c4_en seed 2027 | completed | 4 A6000 | 06:16:59 | `damle-compute-01` |
 | `158169` | 225-239 | c4_en seed 3407 | pending dependency | 4 A6000 | 0:00 | `(Dependency)` |
 
@@ -98,27 +98,95 @@ E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Depen
 
 ## E1 Live Timing
 
-Current check: 2026-06-07 16:20:15 EDT. Running job(s): `158168`.
+Current check: 2026-06-07 16:27:24 EDT. Running job(s): `158168`.
 
 | Job | Current row | Dataset/seed | Method | Elapsed | Latest progress | Latest val loss | State |
 | --- | ---: | --- | --- | --- | ---: | ---: | --- |
-| `158168` | 209 | c4_en / 1337 | rlb_matrixpolicy_original | 7:24:16 | train 590, eval 550 / 3050 | 5.323230 | running |
+| `158168` | 209 | c4_en / 1337 | rlb_matrixpolicy_original | 7:31:26 | train 1270, eval 1250 / 3050 | 4.703349 | running |
 
 Completed E1 rows: 209. Running rows: 1. Remaining rows: 16. Active allocation at check: 4 A6000 total.
 
-At this check, C4 seed 1337 is on row 209 of 209 and C4 seed 3407 is still dependency-pending. If the current node speed holds and there is no preemption, E1 should finish in roughly 5.5-7.5 hours after this update.
+At this check, C4 seed 1337 is on row 209 of 209 and C4 seed 3407 is still dependency-pending. If the current node speed holds and there is no preemption, E1 should finish in roughly 5-7 hours after this update.
 
 ## E1 Dense Curve Figures
 
-The SVG figures below use every completed E1 validation event at the native 50-step cadence from step 500 through 3050. The curves remain densely sampled; only the x-axis tick labels are sparse. Each plot has its legend inside the figure, and the shaded region is mean +/- 1 sample std over the three seeds.
+The SVG figures below use completed E1 runs at their native logging cadence. Validation curves use every 50-step eval from step 500 through 3050; training-loss curves use every 10-step train log over the same range. The curves remain densely sampled; only the x-axis tick labels are sparse. Each plot has its legend inside the figure, and the shaded region is mean +/- 1 sample std over the three seeds.
+
+### DCLM
 
 ![DCLM E1 validation loss mean +/- std](results/iclr26_e1_figures/dclm_core_validation_loss_mean_std.svg)
 
+![DCLM E1 validation PPL mean +/- std](results/iclr26_e1_figures/dclm_core_validation_ppl_mean_std.svg)
+
+![DCLM E1 training loss mean +/- std](results/iclr26_e1_figures/dclm_core_training_loss_mean_std.svg)
+
+DCLM validation-loss checkpoint table, mean +/- sample std:
+
+| Step | MatrixPolicy | RLB+Lion | SiLU+Lion | RLB+AdamW | SiLU+AdamW |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 | 5.2560 +/- 0.0048 | 5.4021 +/- 0.0175 | 5.4593 +/- 0.0049 | 5.3672 +/- 0.0076 | 5.3838 +/- 0.0115 |
+| 1000 | 4.8276 +/- 0.0062 | 4.8664 +/- 0.0063 | 4.8989 +/- 0.0070 | 4.9292 +/- 0.0045 | 4.9398 +/- 0.0091 |
+| 1500 | 4.5517 +/- 0.0016 | 4.5860 +/- 0.0085 | 4.6081 +/- 0.0038 | 4.6748 +/- 0.0011 | 4.6788 +/- 0.0083 |
+| 2000 | 4.3970 +/- 0.0043 | 4.4348 +/- 0.0049 | 4.4516 +/- 0.0063 | 4.5270 +/- 0.0048 | 4.5306 +/- 0.0101 |
+| 2500 | 4.3061 +/- 0.0039 | 4.3511 +/- 0.0078 | 4.3649 +/- 0.0049 | 4.4464 +/- 0.0037 | 4.4489 +/- 0.0086 |
+| 3050 | 4.2562 +/- 0.0050 | 4.3057 +/- 0.0058 | 4.3183 +/- 0.0069 | 4.4047 +/- 0.0046 | 4.4056 +/- 0.0099 |
+
+### FineWeb-Edu
+
 ![FineWeb-Edu E1 validation loss mean +/- std](results/iclr26_e1_figures/fineweb_edu_core_validation_loss_mean_std.svg)
+
+![FineWeb-Edu E1 validation PPL mean +/- std](results/iclr26_e1_figures/fineweb_edu_core_validation_ppl_mean_std.svg)
+
+![FineWeb-Edu E1 training loss mean +/- std](results/iclr26_e1_figures/fineweb_edu_core_training_loss_mean_std.svg)
+
+FineWeb-Edu validation-loss checkpoint table, mean +/- sample std:
+
+| Step | MatrixPolicy | RLB+Lion | SiLU+Lion | RLB+AdamW | SiLU+AdamW |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 | 5.2423 +/- 0.0158 | 5.4528 +/- 0.0239 | 5.5121 +/- 0.0186 | 5.3781 +/- 0.0151 | 5.4084 +/- 0.0172 |
+| 1000 | 4.7105 +/- 0.0118 | 4.7506 +/- 0.0088 | 4.7814 +/- 0.0167 | 4.8164 +/- 0.0076 | 4.8348 +/- 0.0049 |
+| 1500 | 4.3976 +/- 0.0107 | 4.4331 +/- 0.0041 | 4.4520 +/- 0.0124 | 4.5191 +/- 0.0025 | 4.5281 +/- 0.0072 |
+| 2000 | 4.2359 +/- 0.0109 | 4.2754 +/- 0.0061 | 4.2870 +/- 0.0101 | 4.3651 +/- 0.0057 | 4.3683 +/- 0.0072 |
+| 2500 | 4.1387 +/- 0.0090 | 4.1875 +/- 0.0057 | 4.1964 +/- 0.0086 | 4.2795 +/- 0.0055 | 4.2811 +/- 0.0074 |
+| 3050 | 4.0882 +/- 0.0094 | 4.1427 +/- 0.0068 | 4.1494 +/- 0.0092 | 4.2380 +/- 0.0061 | 4.2375 +/- 0.0086 |
+
+### FineWeb
 
 ![FineWeb E1 validation loss mean +/- std](results/iclr26_e1_figures/fineweb_core_validation_loss_mean_std.svg)
 
+![FineWeb E1 validation PPL mean +/- std](results/iclr26_e1_figures/fineweb_core_validation_ppl_mean_std.svg)
+
+![FineWeb E1 training loss mean +/- std](results/iclr26_e1_figures/fineweb_core_training_loss_mean_std.svg)
+
+FineWeb validation-loss checkpoint table, mean +/- sample std:
+
+| Step | MatrixPolicy | RLB+Lion | SiLU+Lion | RLB+AdamW | SiLU+AdamW |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 | 5.4031 +/- 0.0146 | 5.5608 +/- 0.0036 | 5.6186 +/- 0.0104 | 5.5178 +/- 0.0196 | 5.5394 +/- 0.0181 |
+| 1000 | 4.9239 +/- 0.0140 | 4.9461 +/- 0.0228 | 4.9885 +/- 0.0180 | 5.0226 +/- 0.0213 | 5.0366 +/- 0.0139 |
+| 1500 | 4.6275 +/- 0.0145 | 4.6521 +/- 0.0108 | 4.6808 +/- 0.0122 | 4.7466 +/- 0.0175 | 4.7579 +/- 0.0118 |
+| 2000 | 4.4674 +/- 0.0114 | 4.4989 +/- 0.0078 | 4.5218 +/- 0.0101 | 4.5966 +/- 0.0132 | 4.6047 +/- 0.0092 |
+| 2500 | 4.3718 +/- 0.0105 | 4.4130 +/- 0.0078 | 4.4307 +/- 0.0075 | 4.5147 +/- 0.0129 | 4.5202 +/- 0.0087 |
+| 3050 | 4.3186 +/- 0.0109 | 4.3671 +/- 0.0075 | 4.3825 +/- 0.0083 | 4.4705 +/- 0.0133 | 4.4758 +/- 0.0097 |
+
+### Dolma-sample
+
 ![Dolma-sample E1 validation loss mean +/- std](results/iclr26_e1_figures/dolma_sample_core_validation_loss_mean_std.svg)
+
+![Dolma-sample E1 validation PPL mean +/- std](results/iclr26_e1_figures/dolma_sample_core_validation_ppl_mean_std.svg)
+
+![Dolma-sample E1 training loss mean +/- std](results/iclr26_e1_figures/dolma_sample_core_training_loss_mean_std.svg)
+
+Dolma-sample validation-loss checkpoint table, mean +/- sample std:
+
+| Step | MatrixPolicy | RLB+Lion | SiLU+Lion | RLB+AdamW | SiLU+AdamW |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 | 5.4561 +/- 0.0192 | 5.5929 +/- 0.0339 | 5.6628 +/- 0.0202 | 5.5707 +/- 0.0183 | 5.5934 +/- 0.0195 |
+| 1000 | 4.9542 +/- 0.0159 | 4.9824 +/- 0.0271 | 5.0312 +/- 0.0103 | 5.0703 +/- 0.0112 | 5.0809 +/- 0.0222 |
+| 1500 | 4.6426 +/- 0.0020 | 4.6652 +/- 0.0129 | 4.6966 +/- 0.0021 | 4.7756 +/- 0.0054 | 4.7821 +/- 0.0118 |
+| 2000 | 4.4758 +/- 0.0039 | 4.5053 +/- 0.0076 | 4.5289 +/- 0.0051 | 4.6177 +/- 0.0004 | 4.6197 +/- 0.0050 |
+| 2500 | 4.3776 +/- 0.0037 | 4.4155 +/- 0.0075 | 4.4359 +/- 0.0042 | 4.5315 +/- 0.0014 | 4.5310 +/- 0.0031 |
+| 3050 | 4.3239 +/- 0.0046 | 4.3693 +/- 0.0056 | 4.3878 +/- 0.0046 | 4.4881 +/- 0.0009 | 4.4862 +/- 0.0012 |
 
 ## E1 Results Snapshot
 
@@ -206,7 +274,7 @@ C4 status at check:
 
 | Seed | Complete rows | Running row | Notes |
 | ---: | ---: | --- | --- |
-| 1337 | 14 / 15 | row 209 rlb_matrixpolicy_original | latest train 590, eval 550, val 5.323230 |
+| 1337 | 14 / 15 | row 209 rlb_matrixpolicy_original | latest train 1270, eval 1250, val 4.703349 |
 | 2027 | 15 / 15 | none | MatrixPolicy final val loss 4.301276 |
 | 3407 | 0 / 15 | none | pending dependency |
 
