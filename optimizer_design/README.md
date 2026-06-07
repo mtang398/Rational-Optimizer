@@ -202,7 +202,7 @@ AdEMAMix now follows the paper/reference implementation details that matter for 
 6. apply exact W_in/W_out gauge rebalance
 ```
 
-Jacobian, quotient, coefficient-only, transport, and global scheduler variants are ablations. They are not the baseline optimizer claim.
+Retained source files are limited to the current training surface: `matrix_policy_optimizer.py` for RLB matrices, `transport_onpolicy_optimizer.py` plus its internal base classes for live statistics and gauge rebalance, `function_space_rational_optimizer.py` for optional coefficient updates, and `baseline_optimizers.py` for matched broad optimizer controls.
 
 ## Empirical Readout
 
