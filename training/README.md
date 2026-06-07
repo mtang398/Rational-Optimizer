@@ -2,6 +2,14 @@
 
 This directory contains the LM benchmark harness, dataset streaming support, synthetic generators, and optimizer wiring. Its job is to enforce fair comparisons between activation/optimizer pairs.
 
+## Primary Files
+
+```text
+training/transformer_lm_compare.py       main LM training/eval harness
+training/run_lm_optimizer_sweep.sbatch   per-row Slurm/DDP wrapper used by the manifest launcher
+training/aggregate_lm_multiseed.py       JSONL aggregation helper for LM sweeps
+```
+
 ## Fair Comparison Contract
 
 Rows are comparable only when these are fixed:
@@ -103,7 +111,7 @@ dolma_sample -> allenai/dolma, v1_6-sample; transfer/modern corpus, smoke first
 
 ## Launcher
 
-Main paper runs use manifest rows:
+Main paper runs use manifest rows. The complete E0/E1 command log is `../experiments/ICLR_RUN_COMMANDS.md`:
 
 ```bash
 python3 experiments/scripts/build_iclr26_main_manifest.py \

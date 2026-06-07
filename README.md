@@ -13,10 +13,25 @@ experiments/results/real_lm_multiseed_2026_05_31/
 experiments/results/real_lm_screen_2026_05_30/
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
 experiments/runs/real_lm_multiseed_20260531/
-experiments/runs/wikitext103/
+experiments/results/iclr26_e1_figures/
+experiments/runs/iclr26_main/        # local raw JSONL, ignored
 ```
 
 
+
+## Current E1 Main-Suite Results
+
+Current E1 M0/100M results are tracked in `experiments/ICLR_RUN_STATUS.md` and figures are under `experiments/results/iclr26_e1_figures/`. E1 uses five corpora, three seeds, 15 matched methods per dataset/seed cell, 4 A6000 GPUs per job, and dense validation every 50 steps. C4 seed 3407 is still running, so C4 is partial.
+
+| Dataset | MatrixPolicy final val loss | next best current method | gap |
+| --- | ---: | ---: | ---: |
+| DCLM | 4.256224 +/- 0.004972 | rlb_lion 4.305728 +/- 0.005836 | 0.049504 |
+| FineWeb-Edu | 4.088240 +/- 0.009434 | rlb_lion 4.142669 +/- 0.006812 | 0.054429 |
+| FineWeb | 4.318581 +/- 0.010914 | rlb_lion 4.367062 +/- 0.007532 | 0.048481 |
+| Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
+| C4 partial, n=2 | 4.281546 +/- 0.027902 | rlb_lion 4.334202 +/- 0.029364 | 0.052656 |
+
+Full E1 command history is recorded in `experiments/ICLR_RUN_COMMANDS.md`.
 
 ## FineWeb And FineWeb-Edu Results
 
@@ -147,7 +162,7 @@ curves and AUC are primary; final validation loss is only one table column
 
 ## Current Forward Plan
 
-The exact plan is in `experiments/ICLR_EXACT_RUN_PLAN.md`. It is now ordered as:
+The exact plan is in `experiments/ICLR_EXACT_RUN_PLAN.md`; executed commands are recorded in `experiments/ICLR_RUN_COMMANDS.md`. It is now ordered as:
 
 ```text
 0. manifest/loader preflight only

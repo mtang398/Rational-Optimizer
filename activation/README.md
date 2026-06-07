@@ -84,6 +84,8 @@ The current 3-seed evidence should be read as activation plus optimizer, not act
 | FineWeb | 0.159263 mean validation loss | slight mean gain, not enough to explain MatrixPolicy. |
 | FineWeb-Edu | 0.154149 mean validation loss | one seed diverges; surviving seeds are near AdamW. |
 
+The current manifest-based E1 suite extends this readout to DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and partial C4. Full E1 curves and tables are in `../experiments/ICLR_RUN_STATUS.md`; this remains evidence for RLB plus MatrixPolicy, not an activation-only claim.
+
 This is why RLB changes should be evaluated with the full control set:
 
 ```text

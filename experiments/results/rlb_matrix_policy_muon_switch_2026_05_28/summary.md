@@ -56,6 +56,6 @@ env RATIONAL_OPT_TORCH_FALLBACK=1 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:Tr
   OPTIMIZERS=rational_matrix_policy_onpolicy \
   ACTIVATIONS=rlb_fused_fixed_strong_ffn \
   EVAL_INTERVAL=250 EVAL_BATCHES=20 LOG_INTERVAL=100 \
-  EXTRA_ARGS="--batch-size 16 --grad-accum 2" \
-  sbatch --gres=gpu:nvidia_rtx_a6000:4 training/run_wikitext103_optimizer_sweep.sbatch
+  EXTRA_ARGS="--dataset-name Salesforce/wikitext --dataset-config wikitext-103-raw-v1 --batch-size 16 --grad-accum 2" \
+  sbatch --gres=gpu:nvidia_rtx_a6000:4 training/run_lm_optimizer_sweep.sbatch
 ```

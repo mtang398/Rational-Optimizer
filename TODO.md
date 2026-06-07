@@ -10,6 +10,18 @@ RLB exposes optimizer-visible structure, and MatrixPolicy uses that structure to
 
 ## Current Results
 
+### E1 M0/100M Main Suite
+
+Full tables, live row status, and dense mean +/- std curves are in `experiments/ICLR_RUN_STATUS.md`; exact submitted commands are in `experiments/ICLR_RUN_COMMANDS.md`. Current completed cells show MatrixPolicy as the lowest-loss method on DCLM, FineWeb-Edu, FineWeb, and Dolma-sample, with C4 still partial.
+
+| Dataset | MatrixPolicy final val loss | next best current method | gap |
+| --- | ---: | ---: | ---: |
+| DCLM | 4.256224 +/- 0.004972 | rlb_lion 4.305728 +/- 0.005836 | 0.049504 |
+| FineWeb-Edu | 4.088240 +/- 0.009434 | rlb_lion 4.142669 +/- 0.006812 | 0.054429 |
+| FineWeb | 4.318581 +/- 0.010914 | rlb_lion 4.367062 +/- 0.007532 | 0.048481 |
+| Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
+| C4 partial, n=2 | 4.281546 +/- 0.027902 | rlb_lion 4.334202 +/- 0.029364 | 0.052656 |
+
 ### FineWeb And FineWeb-Edu
 
 | task | MatrixPolicy mean | SiLU+AdamW mean | best non-MatrixPolicy mean | gap vs SiLU+AdamW | gap vs best control |
@@ -37,7 +49,6 @@ Artifacts:
 
 ```text
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
-experiments/runs/wikitext103/
 ```
 
 ## Required Experiment Rule

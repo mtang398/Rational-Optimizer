@@ -251,9 +251,10 @@ The exact experiment code path is:
 ```text
 experiments/scripts/build_iclr26_main_manifest.py
   -> experiments/manifests/iclr26_main_manifest.csv
+  -> experiments/ICLR_RUN_COMMANDS.md
   -> experiments/scripts/run_iclr26_manifest_job.sh
-  -> training/run_wikitext103_optimizer_sweep.sbatch
-  -> training/transformer_wikitext103_compare.py
+  -> training/run_lm_optimizer_sweep.sbatch
+  -> training/transformer_lm_compare.py
 ```
 
 The optimizer and activation implementation files used by those rows are:

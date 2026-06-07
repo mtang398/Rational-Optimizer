@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate WikiText-103 JSONL files by optimizer, activation, and seed."""
+"""Aggregate language-model JSONL files by optimizer, activation, and seed."""
 
 from __future__ import annotations
 
@@ -275,7 +275,7 @@ def write_readme(
     ]
 
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    text = f"""# WikiText-103 Benchmark Summary
+    text = f"""# Language-Model Benchmark Summary
 
 Generated: {generated}
 

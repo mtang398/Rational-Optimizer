@@ -26,4 +26,4 @@ experiments/cache/
 experiments/runs/logs/*.out
 experiments/runs/logs/ract-wt103-opt-*.out
 experiments/runs/iclr26_main/
-experiments/runs/wikitext103/
+experiments/runs/lm_optimizer_sweep/

@@ -5610,9 +5610,9 @@ def parse_args():
         ],
         default="silu",
     )
-    parser.add_argument("--run-name", default="wikitext103")
-    parser.add_argument("--dataset-name", default="Salesforce/wikitext")
-    parser.add_argument("--dataset-config", default="wikitext-103-raw-v1")
+    parser.add_argument("--run-name", default="lm_optimizer_sweep")
+    parser.add_argument("--dataset-name", default="HuggingFaceFW/fineweb")
+    parser.add_argument("--dataset-config", default="sample-10BT")
     parser.add_argument("--dataset-streaming", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--dataset-text-column", default="text")
     parser.add_argument("--train-split", default="train")
@@ -5625,7 +5625,7 @@ def parse_args():
     parser.add_argument("--tokenizer", default="gpt2")
     parser.add_argument("--hf-cache", default="experiments/cache/huggingface")
     parser.add_argument("--cache-dir", default="experiments/cache/tokens")
-    parser.add_argument("--output-dir", default="experiments/runs/wikitext103")
+    parser.add_argument("--output-dir", default="experiments/runs/lm_optimizer_sweep")
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--refresh-cache", action="store_true")
     parser.add_argument("--max-train-tokens", type=int, default=100_000_000)

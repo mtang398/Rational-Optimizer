@@ -11,8 +11,22 @@ results/rlb_matrix_policy_muon_switch_2026_05_28/
 runs/real_lm_multiseed_20260531/
 ```
 
-New paper runs follow the manifest rule below.
+New paper runs follow the manifest rule below. Exact submitted commands are recorded in `ICLR_RUN_COMMANDS.md`.
 
+
+## Current E1 Main-Suite Results
+
+Current E1 M0/100M results are tracked in `ICLR_RUN_STATUS.md` and figures are under `results/iclr26_e1_figures/`. E1 uses five corpora, three seeds, 15 matched methods per dataset/seed cell, 4 A6000 GPUs per job, and dense validation every 50 steps. C4 seed 3407 is still running, so C4 is partial.
+
+| Dataset | MatrixPolicy final val loss | next best current method | gap |
+| --- | ---: | ---: | ---: |
+| DCLM | 4.256224 +/- 0.004972 | rlb_lion 4.305728 +/- 0.005836 | 0.049504 |
+| FineWeb-Edu | 4.088240 +/- 0.009434 | rlb_lion 4.142669 +/- 0.006812 | 0.054429 |
+| FineWeb | 4.318581 +/- 0.010914 | rlb_lion 4.367062 +/- 0.007532 | 0.048481 |
+| Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
+| C4 partial, n=2 | 4.281546 +/- 0.027902 | rlb_lion 4.334202 +/- 0.029364 | 0.052656 |
+
+Full E1 command history is recorded in `ICLR_RUN_COMMANDS.md`.
 
 ## FineWeb And FineWeb-Edu Results
 
@@ -90,8 +104,8 @@ Current paper runs are reproduced from these files:
 experiments/scripts/build_iclr26_main_manifest.py
 experiments/manifests/iclr26_main_manifest.csv
 experiments/scripts/run_iclr26_manifest_job.sh
-training/run_wikitext103_optimizer_sweep.sbatch
-training/transformer_wikitext103_compare.py
+training/run_lm_optimizer_sweep.sbatch
+training/transformer_lm_compare.py
 optimizer_design/matrix_policy_optimizer.py
 optimizer_design/transport_onpolicy_optimizer.py
 optimizer_design/baseline_optimizers.py
@@ -101,7 +115,7 @@ activation/rational_opt/rational.py
 Regenerate paper figures and tables from raw JSONL with:
 
 ```bash
-python3 experiments/scripts/plot_iclr26_e1_curves.py
+python3 experiments/scripts/plot_iclr26_e1_curves.py --status-md experiments/ICLR_RUN_STATUS.md
 python3 experiments/scripts/summarize_real_lm_multiseed.py \
   --run-root experiments/runs/real_lm_multiseed_20260531 \
   --result-dir experiments/results/real_lm_multiseed_2026_05_31

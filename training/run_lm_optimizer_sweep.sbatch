@@ -54,7 +54,7 @@ if [[ "${SKIP_BUILD_EXT}" != "1" ]]; then
   "${PYTHON}" setup.py build_ext --inplace --build-temp "${BUILD_EXT_ROOT}/temp" --build-lib "${BUILD_EXT_ROOT}/lib" ${BUILD_EXT_ARGS}
 fi
 if [[ "${SKIP_PREPARE}" != "1" ]]; then
-  "${PYTHON}" training/transformer_wikitext103_compare.py \
+  "${PYTHON}" training/transformer_lm_compare.py \
     --prepare-only \
     --run-name "${RUN_NAME}" \
     ${EXTRA_ARGS}
@@ -69,7 +69,7 @@ for seed in ${SEEDS}; do
       "${PYTHON}" -m torch.distributed.run \
         --standalone \
         --nproc_per_node="${NPROC_PER_NODE}" \
-        training/transformer_wikitext103_compare.py \
+        training/transformer_lm_compare.py \
         --activation "${activation}" \
         --optimizer "${optimizer}" \
         --run-name "${RUN_NAME}" \

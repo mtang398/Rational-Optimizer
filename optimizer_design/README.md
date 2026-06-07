@@ -213,6 +213,8 @@ Current 3-seed aggregate:
 | FineWeb | 4.528963 / 92.69 | 4.522311 / 92.08 | 4.369701 / 79.04 | 0.152302 loss |
 | FineWeb-Edu | 4.223572 / 68.28 | 4.223572 / 68.28 | 4.069422 / 58.52 | 0.153402 loss |
 
+The current E1 M0/100M manifest suite also shows MatrixPolicy as the lowest-loss method on completed DCLM, FineWeb-Edu, FineWeb, and Dolma-sample cells, with C4 still partial. Full mean +/- std tables and curves are in `../experiments/ICLR_RUN_STATUS.md` and `../experiments/results/iclr26_e1_figures/`.
+
 The paper story should be: RLB creates optimizer-visible geometry, and MatrixPolicy uses it. It should not be sold as an activation-only result or a generic Muon result.
 
 ## Telemetry Status
