@@ -30,7 +30,7 @@ Changing the global LR schedule is an LR ablation, not evidence for an RLB-speci
 
 ## Required Control Rows
 
-The completed preliminary screen includes:
+The manifest control rows include:
 
 ```text
 SiLU/SwiGLU + AdamW
@@ -62,7 +62,7 @@ B_l = W_out,l -> matrix_role = out
 R_l           -> rational coefficient parameters
 ```
 
-Current best group-stat flags:
+Current MatrixPolicy manifest flags:
 
 ```text
 --rational-matrix-policy-backbone-optimizer adamw
@@ -77,7 +77,7 @@ Current best group-stat flags:
 
 ## Real-Corpus Protocol
 
-The main screen streams Hugging Face datasets and builds bounded token caches:
+The main screen streams Hugging Face datasets and builds bounded token caches. Dataset source, config, token budgets, and validation slice come from `../experiments/manifests/iclr26_main_manifest.csv`; E1 M0/100M uses this shape:
 
 ```text
 --dataset-streaming
@@ -85,28 +85,28 @@ The main screen streams Hugging Face datasets and builds bounded token caches:
 --train-split train
 --validation-split train
 --validation-skip-documents 0
---validation-skip-tokens 110000000
+--validation-skip-tokens 210000000
 --max-train-tokens 100000000
 --max-val-tokens 4000000
 ```
 
 `validation-skip-tokens` is the preferred way to make a disjoint validation token cache when the dataset has only a `train` split. Cache filenames include split, stream/map mode, text column, document skip, token skip, tokenizer, and token budget so corpus slices do not collide.
 
-Current completed task keys:
+Current E1 task keys:
 
 ```text
-fineweb_edu -> HuggingFaceFW/fineweb-edu, sample-10BT
-fineweb     -> HuggingFaceFW/fineweb, sample-10BT
+dclm         -> mlfoundations/dclm-baseline-1.0, none
+fineweb_edu  -> HuggingFaceFW/fineweb-edu, sample-10BT
+fineweb      -> HuggingFaceFW/fineweb, sample-10BT
+dolma_sample -> allenai/dolma, v1_6-sample
+c4_en        -> allenai/c4, en
 ```
 
-Additional task keys for accepted-anchor and modern-corpus runs:
+Additional candidate keys for later manifest phases:
 
 ```text
-c4_en        -> allenai/c4, en; accepted optimizer anchor for C4/C4-EN style validation
-openwebtext  -> Skylion007/openwebtext; Sophia-style GPT-2 pretraining anchor
-pile         -> EleutherAI/pile; Sophia-style large-corpus anchor, smoke first
-dclm         -> mlfoundations/dclm-baseline-1.0; modern DataComp/DCLM corpus, smoke first
-dolma_sample -> allenai/dolma, v1_6-sample; transfer/modern corpus, smoke first
+openwebtext -> Skylion007/openwebtext
+pile        -> EleutherAI/pile
 ```
 
 ## Launcher

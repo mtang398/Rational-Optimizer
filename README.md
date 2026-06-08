@@ -2,22 +2,16 @@
 
 RationalOPT studies Rational Local Basis (RLB) feed-forward blocks and the `rational_matrix_policy_onpolicy` optimizer for language-model pretraining.
 
-The existing FineWeb/FineWeb-Edu and WikiText results stay in the repo. Future paper evidence must follow the manifest-first plan in `experiments/ICLR_EXACT_RUN_PLAN.md`.
+Paper-facing results in this README are the E1 matched main-suite results. WikiText is kept as a small demo anchor.
 
-## Existing Results
-
-Existing result packages:
+## Result Pointers
 
 ```text
-experiments/results/real_lm_multiseed_2026_05_31/
-experiments/results/real_lm_screen_2026_05_30/
-experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/
-experiments/runs/real_lm_multiseed_20260531/
+experiments/ICLR_RUN_STATUS.md
 experiments/results/iclr26_e1_figures/
 experiments/runs/iclr26_main/        # local raw JSONL, ignored
+experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo anchor
 ```
-
-
 
 ## Current E1 Main-Suite Results
 
@@ -108,88 +102,6 @@ Clean comparison view:
 ![Dolma-sample E1 training loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/dolma_sample_clean_training_loss_mean_std.svg)
 
 Full E1 command history is recorded in `experiments/ICLR_RUN_COMMANDS.md`.
-
-## FineWeb And FineWeb-Edu Results
-
-Protocol summary:
-
-```text
-model: 12-layer GPT-style Transformer, d_model=768, heads=12, 123.6M params
-tokenizer: GPT-2
-train budget: 100M tokens
-validation budget: 4M tokens after a 110M-token stream offset
-sequence length: 256
-global tokens per step: 32,768
-steps: 3,050
-seeds: 1337, 2027, 3407
-hardware rule: 4 A6000 GPUs per job; at most 8 A6000 GPUs active total
-```
-
-### FineWeb, 3 Seeds
-
-| method | n | mean val loss | std | mean PPL | gap vs SiLU+AdamW | gap vs best control |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| SiLU+AdamW | 3 | 4.528963 | 0.029611 | 92.69 | 0.000000 | -0.006960 |
-| RLB+AdamW | 3 | 4.522311 | 0.029832 | 92.08 | 0.006653 | -0.000308 |
-| SiLU+Muon | 3 | 4.566661 | 0.041469 | 96.28 | -0.037698 | -0.044658 |
-| RLB+Muon | 3 | 4.571341 | 0.027720 | 96.70 | -0.042377 | -0.049337 |
-| RLB+MatrixPolicy (group-stat) | 3 | 4.369701 | 0.026358 | 79.04 | 0.159263 | 0.152302 |
-
-### FineWeb-Edu, 3 Seeds
-
-| method | n | div | mean val loss | std | mean PPL | gap vs SiLU+AdamW | gap vs best control |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| SiLU+AdamW | 3 | 0 | 4.223572 | 0.001635 | 68.28 | 0.000000 | -0.000748 |
-| RLB+AdamW | 3 | 1 | 5.618928 | 2.418773 | 1545.54 | -1.395356 | -1.396103 |
-| SiLU+Muon | 3 | 0 | 4.258871 | 0.014706 | 70.74 | -0.035300 | -0.036047 |
-| RLB+Muon | 3 | 0 | 4.263744 | 0.008026 | 71.08 | -0.040173 | -0.040920 |
-| RLB+MatrixPolicy (group-stat) | 3 | 0 | 4.069422 | 0.002281 | 58.52 | 0.154149 | 0.153402 |
-
-Positive gaps mean lower validation loss than the comparison row. Full tables and CSVs are in `experiments/results/real_lm_multiseed_2026_05_31/`.
-
-### FineWeb Curves
-
-Mean validation loss:
-
-![FineWeb mean validation loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean.png)
-
-Mean validation loss, zoomed from step 1000:
-
-![FineWeb mean validation loss zoom](experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean_zoom_step1000.png)
-
-Mean validation PPL:
-
-![FineWeb mean validation PPL](experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_ppl_mean.png)
-
-Mean validation PPL, zoomed from step 1000:
-
-![FineWeb mean validation PPL zoom](experiments/results/real_lm_multiseed_2026_05_31/fineweb_validation_ppl_mean_zoom_step1000.png)
-
-Mean training loss:
-
-![FineWeb mean training loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_training_loss_mean.png)
-
-### FineWeb-Edu Curves
-
-Mean validation loss:
-
-![FineWeb-Edu mean validation loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean.png)
-
-Mean validation loss, zoomed from step 1000:
-
-![FineWeb-Edu mean validation loss zoom](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean_zoom_step1000.png)
-
-Mean validation PPL:
-
-![FineWeb-Edu mean validation PPL](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_ppl_mean.png)
-
-Mean validation PPL, zoomed from step 1000:
-
-![FineWeb-Edu mean validation PPL zoom](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_ppl_mean_zoom_step1000.png)
-
-Mean training loss:
-
-![FineWeb-Edu mean training loss](experiments/results/real_lm_multiseed_2026_05_31/fineweb_edu_training_loss_mean.png)
 
 ## WikiText Result
 

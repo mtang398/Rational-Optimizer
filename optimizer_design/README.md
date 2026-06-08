@@ -206,14 +206,17 @@ Retained source files are limited to the current training surface: `matrix_polic
 
 ## Empirical Readout
 
-Current 3-seed aggregate:
+Current E1 M0/100M manifest-suite readout:
 
-| task | SiLU+AdamW mean loss/PPL | best non-MatrixPolicy mean loss/PPL | MatrixPolicy mean loss/PPL | MatrixPolicy gap vs best control |
-| --- | ---: | ---: | ---: | ---: |
-| FineWeb | 4.528963 / 92.69 | 4.522311 / 92.08 | 4.369701 / 79.04 | 0.152302 loss |
-| FineWeb-Edu | 4.223572 / 68.28 | 4.223572 / 68.28 | 4.069422 / 58.52 | 0.153402 loss |
+| Dataset | MatrixPolicy final val loss | next best current method | gap |
+| --- | ---: | ---: | ---: |
+| DCLM | 4.256224 +/- 0.004972 | rlb_lion 4.305728 +/- 0.005836 | 0.049504 |
+| FineWeb-Edu | 4.088240 +/- 0.009434 | rlb_lion 4.142669 +/- 0.006812 | 0.054429 |
+| FineWeb | 4.318581 +/- 0.010914 | rlb_lion 4.367062 +/- 0.007532 | 0.048481 |
+| Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
+| C4 partial, n=2 | 4.281546 +/- 0.027902 | rlb_lion 4.334202 +/- 0.029364 | 0.052656 |
 
-The current E1 M0/100M manifest suite also shows MatrixPolicy as the lowest-loss method on completed DCLM, FineWeb-Edu, FineWeb, and Dolma-sample cells, with C4 still partial. Full mean +/- std tables and curves are in `../experiments/ICLR_RUN_STATUS.md` and `../experiments/results/iclr26_e1_figures/`.
+Full mean +/- std tables and curves are in `../experiments/ICLR_RUN_STATUS.md` and `../experiments/results/iclr26_e1_figures/`.
 
 The paper story should be: RLB creates optimizer-visible geometry, and MatrixPolicy uses it. It should not be sold as an activation-only result or a generic Muon result.
 

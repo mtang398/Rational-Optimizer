@@ -1,18 +1,17 @@
 # Experiments
 
-This directory keeps the existing FineWeb/FineWeb-Edu and WikiText results. New paper experiments use the manifest workflow below.
+This directory keeps E1 matched main-suite results and the WikiText demo anchor. New paper experiments use the manifest workflow below.
 
-## Existing Results
+## Result Pointers
 
 ```text
-results/real_lm_multiseed_2026_05_31/
-results/real_lm_screen_2026_05_30/
-results/rlb_matrix_policy_muon_switch_2026_05_28/
-runs/real_lm_multiseed_20260531/
+ICLR_RUN_STATUS.md
+results/iclr26_e1_figures/
+runs/iclr26_main/        # local raw JSONL, ignored
+results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo anchor
 ```
 
-New paper runs follow the manifest rule below. Exact submitted commands are recorded in `ICLR_RUN_COMMANDS.md`.
-
+Paper runs follow the manifest rule below. Exact submitted commands are recorded in `ICLR_RUN_COMMANDS.md`.
 
 ## Current E1 Main-Suite Results
 
@@ -104,35 +103,6 @@ Clean comparison view:
 
 Full E1 command history is recorded in `ICLR_RUN_COMMANDS.md`.
 
-## FineWeb And FineWeb-Edu Results
-
-| task | MatrixPolicy mean | SiLU+AdamW mean | best non-MatrixPolicy mean | gap vs SiLU+AdamW | gap vs best control |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| FineWeb | 4.369701 loss / 79.04 PPL | 4.528963 loss / 92.69 PPL | 4.522311 loss / 92.08 PPL | 0.159263 | 0.152302 |
-| FineWeb-Edu | 4.069422 loss / 58.52 PPL | 4.223572 loss / 68.28 PPL | 4.223572 loss / 68.28 PPL | 0.154149 | 0.153402 |
-
-Full CSVs and summaries live in `results/real_lm_multiseed_2026_05_31/`.
-
-FineWeb curves:
-
-![FineWeb mean validation loss](results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean.png)
-
-![FineWeb mean validation loss zoom](results/real_lm_multiseed_2026_05_31/fineweb_validation_loss_mean_zoom_step1000.png)
-
-![FineWeb mean validation PPL](results/real_lm_multiseed_2026_05_31/fineweb_validation_ppl_mean.png)
-
-![FineWeb training loss](results/real_lm_multiseed_2026_05_31/fineweb_training_loss_mean.png)
-
-FineWeb-Edu curves:
-
-![FineWeb-Edu mean validation loss](results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean.png)
-
-![FineWeb-Edu mean validation loss zoom](results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_loss_mean_zoom_step1000.png)
-
-![FineWeb-Edu mean validation PPL](results/real_lm_multiseed_2026_05_31/fineweb_edu_validation_ppl_mean.png)
-
-![FineWeb-Edu training loss](results/real_lm_multiseed_2026_05_31/fineweb_edu_training_loss_mean.png)
-
 ## WikiText Result
 
 | method | final loss | final PPL |
@@ -192,9 +162,6 @@ Regenerate paper figures and tables from raw JSONL with:
 
 ```bash
 python3 experiments/scripts/plot_iclr26_e1_curves.py --status-md experiments/ICLR_RUN_STATUS.md
-python3 experiments/scripts/summarize_real_lm_multiseed.py \
-  --run-root experiments/runs/real_lm_multiseed_20260531 \
-  --result-dir experiments/results/real_lm_multiseed_2026_05_31
 ```
 
 The curated WikiText anchor is tracked under `results/rlb_matrix_policy_muon_switch_2026_05_28/`; raw WikiText launcher output is local run data and is ignored.
