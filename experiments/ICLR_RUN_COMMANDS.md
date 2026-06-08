@@ -180,6 +180,30 @@ sbatch --dependency=afterok:158168:158167 experiments/scripts/run_iclr26_manifes
 
 E1 completion note: all jobs `155411`, `155412`, `158114`, `158115`, `158117`, `158118`, `158155`, `158156`, `158163`, `158164`, `158166`, `158165`, `158168`, `158167`, and `158169` completed. The final job `158169` covered rows 225-239 for `c4_en` seed 3407 and completed with exit `0:0` in 06:09:38.
 
+## E2 Main 300M Submissions
+
+Rows `240-464` are E2. E2 is submitted in whole 15-row matched cells. The first running window starts two DCLM cells, using at most 8 requested A6000 if both run at once.
+
+```bash
+# Returned job 294600: rows 240-254, dclm seed 1337.
+CONFIRM_ICLR26_MANIFEST=1 \
+MANIFEST=experiments/manifests/iclr26_main_manifest.csv \
+ROW_START=240 \
+ROW_LIMIT=15 \
+sbatch experiments/scripts/run_iclr26_manifest_job.sh
+```
+
+```bash
+# Returned job 294599: rows 255-269, dclm seed 2027.
+CONFIRM_ICLR26_MANIFEST=1 \
+MANIFEST=experiments/manifests/iclr26_main_manifest.csv \
+ROW_START=255 \
+ROW_LIMIT=15 \
+sbatch experiments/scripts/run_iclr26_manifest_job.sh
+```
+
+Status after launch check: both jobs started around `2026-06-08T15:38:00`; `294600` ran on `fang-compute-02` and `294599` ran on `lancer-compute-01`. Expected runtime after launch is about 30-36 hours for each DCLM E2 whole-cell job.
+
 ## Internal Per-Row Command Shape
 
 The manifest launcher converts each CSV row into environment variables and executes this

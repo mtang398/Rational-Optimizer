@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-07 23:25:42 EDT
+Updated: 2026-06-08 15:39:05 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -121,6 +121,26 @@ E1 cells were queued in whole 15-row matched blocks. Each job used 4 A6000. Depe
 Current check: 2026-06-07 23:25:42 EDT. Running job(s): none.
 
 E1 M0/100M is complete: all 225 manifest rows for rows 15-239 finished, including all three C4 seeds. Active allocation at check: 0 A6000 total. The last job was `158169` for c4_en seed 3407; it completed with exit `0:0` in 06:09:38 on `damle-compute-01`.
+
+## E2 Scheduler State
+
+E2 M0/300M has started from whole matched 15-row cells. Each submitted job uses 4 A6000 and contains all 15 fixed methods for one dataset/seed cell. At this update, two DCLM E2 cells are running, for 8 active A6000 total.
+
+| Job | Rows | Cell | State at update | GPUs | Slurm start estimate | Runtime estimate once started |
+| --- | --- | --- | --- | --- | --- | --- |
+| `294600` | 240-254 | dclm seed 1337 | running on `fang-compute-02`, elapsed 00:00:24 | 4 A6000 | started 2026-06-08 15:38 EDT | about 30-36 h |
+| `294599` | 255-269 | dclm seed 2027 | running on `lancer-compute-01`, elapsed 00:00:54 | 4 A6000 | started 2026-06-08 15:38 EDT | about 30-36 h |
+
+E2 DCLM runtime estimate is based on E1 DCLM whole-cell wall times of about 9.2-9.5 h for 100M tokens, scaled to 300M tokens plus the larger 8M validation slice. Expected finish window is roughly 2026-06-09 evening to late night EDT if node speed matches E1 DCLM scaling and there is no preemption.
+
+## E2 Continuation Queue
+
+No dependent E2 chain has been submitted yet. The current running work intentionally stops at two whole cells so active allocation stays at 8 A6000 and the window remains near the requested 36-hour scale.
+
+| Wave | Dependency | Job | Rows | Cell | State at update |
+| ---: | --- | --- | --- | --- | --- |
+| 0 | none | `294600` | 240-254 | dclm seed 1337 | running on `fang-compute-02` |
+| 0 | none | `294599` | 255-269 | dclm seed 2027 | running on `lancer-compute-01` |
 
 ## E1 Dense Curve Figures
 

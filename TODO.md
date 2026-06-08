@@ -62,7 +62,7 @@ If AdamW appears with an outer config in a matched cell, MatrixPolicy must appea
 1. Keep `experiments/ICLR_RUN_STATUS.md`, README files, and `TODO.md` synchronized whenever result summaries change.
 2. Finish the E1 derived analyses: validation AUC, early/mid/late AUC, paired seed gaps, ranks, timing, throughput, GPU-hour accounting, and divergence/failure-adjusted summaries.
 3. Before launching E2, verify the manifest rows still satisfy the matched-cell rule and that no stale partial-result language remains in Markdown.
-4. Run E2 M0 300M after E1 derived summaries are committed.
+4. Monitor the running E2 M0/300M DCLM whole-cell jobs (`294600` rows 240-254, `294599` rows 255-269), then summarize complete matched cells before launching the next E2 wave.
 5. Run E3 M1 scale, E4 600M horizon, throughput/memory, cross-corpus evaluation, and corpus-shift runs in that order.
 6. Run sensitivity maps only after main M0/E2 curves exist.
 7. Run method ablations last.
