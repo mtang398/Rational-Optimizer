@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-07 18:36:05 EDT
+Updated: 2026-06-07 23:25:42 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -30,7 +30,7 @@ Raw row outputs are JSONL files under `experiments/runs/iclr26_main/<phase>/<dat
 | `151609` | E0 rows 0-8 | completed | `0:0` | 4 A6000 | 00:38:17 | `ma-compute-02` |
 | `151610` | E0 rows 9-14 | completed | `0:0` | 4 A6000 | 00:17:14 | `bala-compute-02` |
 
-E0 is complete. E1 has started from whole matched 15-row cells.
+E0 is complete. E1 M0/100M is complete for all whole matched 15-row cells.
 
 ## E0 Preflight
 
@@ -72,7 +72,7 @@ All rows have three eval points: step 1, step 40, and step 80.
 
 ## E1 Scheduler State
 
-E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependency-chained in pairs, except the final single C4 cell.
+E1 used whole matched 15-row cells. Each job used 4 A6000. The dependency chain completed through the final single C4 cell.
 
 | Job | Rows | Cell | State at update | GPUs | Elapsed | Node |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -90,13 +90,13 @@ E1 uses whole matched 15-row cells. Each job uses 4 A6000. The queue is dependen
 | `158165` | 180-194 | dolma_sample seed 3407 | completed | 4 A6000 | 06:15:00 | `damle-compute-01` |
 | `158168` | 195-209 | c4_en seed 1337 | completed | 4 A6000 | 07:50:14 | `ellis-compute-02` |
 | `158167` | 210-224 | c4_en seed 2027 | completed | 4 A6000 | 06:16:59 | `damle-compute-01` |
-| `158169` | 225-239 | c4_en seed 3407 | running | 4 A6000 | 01:49:18 | `damle-compute-01` |
+| `158169` | 225-239 | c4_en seed 3407 | completed | 4 A6000 | 06:09:38 | `damle-compute-01` |
 
-Active allocation at update: 4 A6000 total.
+Active allocation at update: 0 A6000 total.
 
 ## E1 Continuation Queue
 
-E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Dependencies advance in pairs until the final single C4 seed.
+E1 cells were queued in whole 15-row matched blocks. Each job used 4 A6000. Dependencies advanced in pairs until the final single C4 seed, which is now complete.
 
 | Wave | Dependency | Job | Rows | Cell | State at update |
 | ---: | --- | --- | --- | --- | --- |
@@ -114,19 +114,13 @@ E1 cells are queued in whole 15-row matched blocks. Each job uses 4 A6000. Depen
 | 5 | afterok:`158163`:`158164` | `158165` | 180-194 | dolma_sample seed 3407 | completed |
 | 6 | afterok:`158166`:`158165` | `158168` | 195-209 | c4_en seed 1337 | completed |
 | 6 | afterok:`158166`:`158165` | `158167` | 210-224 | c4_en seed 2027 | completed |
-| 7 | afterok:`158168`:`158167` | `158169` | 225-239 | c4_en seed 3407 | running |
+| 7 | afterok:`158168`:`158167` | `158169` | 225-239 | c4_en seed 3407 | completed |
 
 ## E1 Live Timing
 
-Current check: 2026-06-07 18:36:05 EDT. Running job(s): `158169`.
+Current check: 2026-06-07 23:25:42 EDT. Running job(s): none.
 
-| Job | Current row | Dataset/seed | Method | Elapsed | Latest progress | Latest val loss | State |
-| --- | ---: | --- | --- | --- | ---: | ---: | --- |
-| `158169` | 226 | c4_en / 3407 | rlb_adamw | 00:24:02 | train 270, eval 250 / 3050 | 6.147571 | running |
-
-Completed E1 rows: 211. Running rows: 1. Remaining rows including the running row: 14. Active allocation at check: 4 A6000 total.
-
-At this check, C4 seeds 1337 and 2027 are complete, and C4 seed 3407 is running row 226 of 239 after completing row 225. If the current node speed holds and there is no preemption, E1 should finish in roughly 5-7 hours after this update.
+E1 M0/100M is complete: all 225 manifest rows for rows 15-239 finished, including all three C4 seeds. Active allocation at check: 0 A6000 total. The last job was `158169` for c4_en seed 3407; it completed with exit `0:0` in 06:09:38 on `damle-compute-01`.
 
 ## E1 Dense Curve Figures
 
@@ -284,27 +278,65 @@ Dolma-sample validation-loss checkpoint table, mean +/- sample std:
 | RLB+ADeMaMix | 12.7395 +/- 3.3039 | 84.8182 +/- 36.9919 | 27552.1354 +/- 46889.3594 | 10779257.3654 +/- 18662299.4102 | 570914604.1487 +/- 624651995.0860 | 1775543041.7179 +/- 2510996321.2383 (n=2) |
 | SiLU+ADeMaMix | 6.4467 +/- 0.1480 | 168.0197 +/- 131.3544 | 5706.2408 +/- 5051.5183 | 10605.0472 +/- 10104.8045 | 30618.4067 +/- 44187.0559 | 28427.1854 +/- 40987.7167 |
 
+### C4
+
+All-method view:
+
+![C4 E1 validation loss mean +/- std, all methods](results/iclr26_e1_figures/c4_en_core_validation_loss_mean_std.svg)
+
+![C4 E1 validation PPL mean +/- std, all methods](results/iclr26_e1_figures/c4_en_core_validation_ppl_mean_std.svg)
+
+![C4 E1 training loss mean +/- std, all methods](results/iclr26_e1_figures/c4_en_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![C4 E1 validation loss mean +/- std, clean comparison](results/iclr26_e1_figures/c4_en_clean_validation_loss_mean_std.svg)
+
+![C4 E1 validation PPL mean +/- std, clean comparison](results/iclr26_e1_figures/c4_en_clean_validation_ppl_mean_std.svg)
+
+![C4 E1 training loss mean +/- std, clean comparison](results/iclr26_e1_figures/c4_en_clean_training_loss_mean_std.svg)
+
+C4 validation-loss checkpoint table, mean +/- sample std:
+
+| Method | 500 | 1000 | 1500 | 2000 | 2500 | 3050 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| MatrixPolicy | 5.4129 +/- 0.0078 | 4.8935 +/- 0.0112 | 4.5935 +/- 0.0142 | 4.4334 +/- 0.0162 | 4.3365 +/- 0.0190 | 4.2851 +/- 0.0207 |
+| RLB+AdamW | 5.5330 +/- 0.0118 | 5.0084 +/- 0.0302 | 4.7194 +/- 0.0216 | 4.5692 +/- 0.0192 | 4.4856 +/- 0.0202 | 4.4426 +/- 0.0198 |
+| SiLU+AdamW | 5.5616 +/- 0.0107 | 5.0231 +/- 0.0277 | 4.7320 +/- 0.0184 | 4.5768 +/- 0.0160 | 4.4906 +/- 0.0152 | 4.4469 +/- 0.0160 |
+| RLB+Lion | 5.5873 +/- 0.0133 | 4.9229 +/- 0.0351 | 4.6203 +/- 0.0214 | 4.4674 +/- 0.0203 | 4.3807 +/- 0.0205 | 4.3357 +/- 0.0209 |
+| SiLU+Lion | 5.6375 +/- 0.0126 | 4.9687 +/- 0.0115 | 4.6536 +/- 0.0128 | 4.4926 +/- 0.0136 | 4.4011 +/- 0.0144 | 4.3536 +/- 0.0156 |
+| RLB+SOAP | 5.6443 +/- 0.0198 | 5.8223 +/- 1.3681 | 4.7627 +/- 0.0155 | 4.5935 +/- 0.0112 | 4.5049 +/- 0.0106 | 4.4572 +/- 0.0104 |
+| SiLU+SOAP | 5.8159 +/- 0.1176 | 5.2260 +/- 0.1436 | 4.8170 +/- 0.0138 | 4.6212 +/- 0.0160 | 4.5109 +/- 0.0162 | 4.4582 +/- 0.0146 |
+| RLB+Muon | 5.9708 +/- 0.0186 | 5.1843 +/- 0.0141 | 4.8502 +/- 0.0156 | 4.6540 +/- 0.0238 | 4.5479 +/- 0.0229 | 4.4945 +/- 0.0220 |
+| SiLU+Muon | 6.0187 +/- 0.0276 | 5.1896 +/- 0.0198 | 4.8377 +/- 0.0242 | 4.6374 +/- 0.0268 | 4.5341 +/- 0.0244 | 4.4824 +/- 0.0233 |
+| RLB+ScheduleFree | 6.0659 +/- 0.0184 | 5.5375 +/- 0.0151 | 5.2736 +/- 0.0142 | 5.1194 +/- 0.0127 | 5.0285 +/- 0.0139 | 4.9701 +/- 0.0149 |
+| SiLU+ScheduleFree | 6.1120 +/- 0.0195 | 5.5750 +/- 0.0171 | 5.3125 +/- 0.0171 | 5.1580 +/- 0.0157 | 5.0659 +/- 0.0156 | 5.0064 +/- 0.0160 |
+| RLB+CAME | 6.0983 +/- 0.0098 | 5.6122 +/- 0.0075 | 5.3640 +/- 0.0117 | 5.2218 +/- 0.0131 | 5.1413 +/- 0.0141 | 5.1000 +/- 0.0153 |
+| SiLU+CAME | 6.1693 +/- 0.0157 | 5.6365 +/- 0.0144 | 5.3864 +/- 0.0149 | 5.2439 +/- 0.0156 | 5.1645 +/- 0.0170 | 5.1230 +/- 0.0178 |
+| RLB+ADeMaMix | 38.4298 +/- 25.9135 | 1775.8338 +/- 2904.0404 | 5460.5850 +/- 8375.8913 | 677978.0837 +/- 1152345.9869 | 538384685.3267 +/- 932479138.1133 | 449788003.0859 +/- 779025043.4338 |
+| SiLU+ADeMaMix | 6.6677 +/- 0.2286 | 718.5009 +/- 821.5844 | 579.6937 +/- 406.8724 | 377.1749 +/- 304.4101 | 351.8885 +/- 347.3860 | 344.9990 +/- 372.6250 |
+
 ## E1 Results Snapshot
 
-Final validation-loss overview across all optimizers. Lower is better. Completed E1 dataset cells use mean +/- sample std over three seeds. C4 is still in progress, so the C4 column uses completed rows only and shows the current completed-seed count in parentheses.
+Final validation-loss overview across all optimizers. Lower is better. All E1 dataset cells use mean +/- sample std over three seeds.
 
-| Method | DCLM final | FineWeb-Edu final | FineWeb final | Dolma-sample final | C4 partial final |
+| Method | DCLM final | FineWeb-Edu final | FineWeb final | Dolma-sample final | C4 final |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| rlb_matrixpolicy_original | 4.256224 +/- 0.004972 | 4.088240 +/- 0.009434 | 4.318581 +/- 0.010914 | 4.323851 +/- 0.004565 | 4.281546 +/- 0.027902 (n=2) |
-| rlb_lion | 4.305728 +/- 0.005836 | 4.142669 +/- 0.006812 | 4.367062 +/- 0.007532 | 4.369254 +/- 0.005561 | 4.334202 +/- 0.029364 (n=2) |
-| silu_lion | 4.318333 +/- 0.006893 | 4.149366 +/- 0.009180 | 4.382518 +/- 0.008308 | 4.387783 +/- 0.004605 | 4.352276 +/- 0.021835 (n=2) |
-| rlb_adamw | 4.404748 +/- 0.004551 | 4.237991 +/- 0.006110 | 4.470531 +/- 0.013305 | 4.488137 +/- 0.000894 | 4.436585 +/- 0.023792 (n=2) |
-| silu_adamw | 4.405574 +/- 0.009903 | 4.237481 +/- 0.008644 | 4.475841 +/- 0.009656 | 4.486162 +/- 0.001204 | 4.442621 +/- 0.020000 (n=2) |
-| silu_soap | 4.415980 +/- 0.003818 | 4.263003 +/- 0.022048 | 4.484025 +/- 0.011241 | 4.498726 +/- 0.003535 | 4.452748 +/- 0.015767 (n=2) |
-| rlb_soap | 4.435091 +/- 0.021706 | 4.262287 +/- 0.013054 | 4.484953 +/- 0.025544 | 4.502910 +/- 0.015749 | 4.451351 +/- 0.002696 (n=2) |
-| silu_muon | 4.457165 +/- 0.012562 | 4.278738 +/- 0.024267 | 4.516342 +/- 0.026358 | 4.544263 +/- 0.010821 | 4.471201 +/- 0.018488 (n=2) |
-| rlb_muon | 4.474236 +/- 0.004136 | 4.287684 +/- 0.019926 | 4.521560 +/- 0.011976 | 4.558568 +/- 0.009268 | 4.482270 +/- 0.008022 (n=2) |
-| rlb_schedulefree | 4.878139 +/- 0.005538 | 4.779696 +/- 0.011289 | 4.987660 +/- 0.019623 | 5.024134 +/- 0.013642 | 4.968041 +/- 0.020520 (n=2) |
-| silu_schedulefree | 4.902321 +/- 0.011067 | 4.825844 +/- 0.007242 | 5.014212 +/- 0.018820 | 5.049396 +/- 0.014883 | 5.002830 +/- 0.020899 (n=2) |
-| rlb_came | 5.007375 +/- 0.008213 | 4.904335 +/- 0.004631 | 5.125061 +/- 0.017257 | 5.142537 +/- 0.016354 | 5.098529 +/- 0.021289 (n=2) |
-| silu_came | 5.010657 +/- 0.014306 | 4.920688 +/- 0.012317 | 5.132548 +/- 0.012598 | 5.164954 +/- 0.018870 | 5.121805 +/- 0.025034 (n=2) |
-| silu_ademamix | 48.645454 +/- 13.725481 | 242.853696 +/- 242.012155 | 51.996538 +/- 15.132243 | 28427.185402 +/- 40987.716727 | 466.353416 +/- 435.129243 (n=2) |
-| rlb_ademamix | 246105152.000000 +/- 0.000000 (n=1) | 7880.511495 +/- 12045.656859 | 3022914304.000000 +/- 0.000000 (n=1) | 1775543041.717896 +/- 2510996321.238340 (n=2) | 17684.628784 +/- 20105.625797 (n=2) |
+| rlb_matrixpolicy_original | 4.256224 +/- 0.004972 | 4.088240 +/- 0.009434 | 4.318581 +/- 0.010914 | 4.323851 +/- 0.004565 | 4.285119 +/- 0.020677 |
+| rlb_lion | 4.305728 +/- 0.005836 | 4.142669 +/- 0.006812 | 4.367062 +/- 0.007532 | 4.369254 +/- 0.005561 | 4.335663 +/- 0.020917 |
+| silu_lion | 4.318333 +/- 0.006893 | 4.149366 +/- 0.009180 | 4.382518 +/- 0.008308 | 4.387783 +/- 0.004605 | 4.353582 +/- 0.015605 |
+| rlb_adamw | 4.404748 +/- 0.004551 | 4.237991 +/- 0.006110 | 4.470531 +/- 0.013305 | 4.488137 +/- 0.000894 | 4.442616 +/- 0.019803 |
+| silu_adamw | 4.405574 +/- 0.009903 | 4.237481 +/- 0.008644 | 4.475841 +/- 0.009656 | 4.486162 +/- 0.001204 | 4.446912 +/- 0.015976 |
+| silu_soap | 4.415980 +/- 0.003818 | 4.263003 +/- 0.022048 | 4.484025 +/- 0.011241 | 4.498726 +/- 0.003535 | 4.458163 +/- 0.014570 |
+| rlb_soap | 4.435091 +/- 0.021706 | 4.262287 +/- 0.013054 | 4.484953 +/- 0.025544 | 4.502910 +/- 0.015749 | 4.457249 +/- 0.010391 |
+| silu_muon | 4.457165 +/- 0.012562 | 4.278738 +/- 0.024267 | 4.516342 +/- 0.026358 | 4.544263 +/- 0.010821 | 4.482364 +/- 0.023340 |
+| rlb_muon | 4.474236 +/- 0.004136 | 4.287684 +/- 0.019926 | 4.521560 +/- 0.011976 | 4.558568 +/- 0.009268 | 4.494524 +/- 0.021970 |
+| rlb_schedulefree | 4.878139 +/- 0.005538 | 4.779696 +/- 0.011289 | 4.987660 +/- 0.019623 | 5.024134 +/- 0.013642 | 4.970094 +/- 0.014939 |
+| silu_schedulefree | 4.902321 +/- 0.011067 | 4.825844 +/- 0.007242 | 5.014212 +/- 0.018820 | 5.049396 +/- 0.014883 | 5.006385 +/- 0.016010 |
+| rlb_came | 5.007375 +/- 0.008213 | 4.904335 +/- 0.004631 | 5.125061 +/- 0.017257 | 5.142537 +/- 0.016354 | 5.099954 +/- 0.015254 |
+| silu_came | 5.010657 +/- 0.014306 | 4.920688 +/- 0.012317 | 5.132548 +/- 0.012598 | 5.164954 +/- 0.018870 | 5.122958 +/- 0.017814 |
+| silu_ademamix | 48.645454 +/- 13.725481 | 242.853696 +/- 242.012155 | 51.996538 +/- 15.132243 | 28427.185402 +/- 40987.716727 | 344.998985 +/- 372.625043 |
+| rlb_ademamix | 246105152.000000 +/- 0.000000 (n=1) | 7880.511495 +/- 12045.656859 | 3022914304.000000 +/- 0.000000 (n=1) | 1775543041.717896 +/- 2510996321.238340 (n=2) | 449788003.085856 +/- 779025043.433808 |
 
 DCLM is complete for all three E1 seeds. Final validation loss, mean and sample std over seeds:
 
@@ -386,33 +418,25 @@ Dolma-sample is complete for all three E1 seeds. Final validation loss, mean and
 | silu_ademamix | 3 | 28427.185402 | 40987.716727 | 9786.633789, 75422.257812, 72.664604 |
 | rlb_ademamix | 2 | 1775543041.717896 | 2510996321.238340 | 515.435791, 3551085568.000000, non-finite |
 
-C4 status at check:
-
-| Seed | Complete rows | Running row | Notes |
-| ---: | ---: | --- | --- |
-| 1337 | 15 / 15 | none | MatrixPolicy final val loss 4.261817 |
-| 2027 | 15 / 15 | none | MatrixPolicy final val loss 4.301276 |
-| 3407 | 0 / 15 | row 225 silu_adamw | latest train 930, eval 900, val 5.126665 |
-
-C4 partial aggregate from completed rows only:
+C4 is complete for all three E1 seeds. Final validation loss, mean and sample std over seeds:
 
 | Method | Complete seeds | Mean | Std | Seed values |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 2 | 4.281546 | 0.027902 | 4.261817, 4.301276 |
-| rlb_lion | 2 | 4.334202 | 0.029364 | 4.313438, 4.354966 |
-| silu_lion | 2 | 4.352276 | 0.021835 | 4.336836, 4.367715 |
-| rlb_adamw | 2 | 4.436585 | 0.023792 | 4.419761, 4.453408 |
-| silu_adamw | 2 | 4.442621 | 0.020000 | 4.428479, 4.456763 |
-| rlb_soap | 2 | 4.451351 | 0.002696 | 4.449445, 4.453258 |
-| silu_soap | 2 | 4.452748 | 0.015767 | 4.441599, 4.463897 |
-| silu_muon | 2 | 4.471201 | 0.018488 | 4.458128, 4.484274 |
-| rlb_muon | 2 | 4.482270 | 0.008022 | 4.476597, 4.487942 |
-| rlb_schedulefree | 2 | 4.968041 | 0.020520 | 4.953531, 4.982551 |
-| silu_schedulefree | 2 | 5.002830 | 0.020899 | 4.988052, 5.017608 |
-| rlb_came | 2 | 5.098529 | 0.021289 | 5.083476, 5.113583 |
-| silu_came | 2 | 5.121805 | 0.025034 | 5.104103, 5.139506 |
-| silu_ademamix | 2 | 466.353416 | 435.129243 | 158.670578, 774.036255 |
-| rlb_ademamix | 2 | 17684.628784 | 20105.625797 | 31901.453125, 3467.804443 |
+| rlb_matrixpolicy_original | 3 | 4.285119 | 0.020677 | 4.261817, 4.301276, 4.292263 |
+| rlb_lion | 3 | 4.335663 | 0.020917 | 4.313438, 4.354966, 4.338583 |
+| silu_lion | 3 | 4.353582 | 0.015605 | 4.336836, 4.367715, 4.356194 |
+| rlb_adamw | 3 | 4.442616 | 0.019803 | 4.419761, 4.453408, 4.454679 |
+| silu_adamw | 3 | 4.446912 | 0.015976 | 4.428479, 4.456763, 4.455494 |
+| silu_soap | 3 | 4.458163 | 0.014570 | 4.441599, 4.463897, 4.468994 |
+| rlb_soap | 3 | 4.457249 | 0.010391 | 4.449445, 4.453258, 4.469043 |
+| silu_muon | 3 | 4.482364 | 0.023340 | 4.458128, 4.484274, 4.504690 |
+| rlb_muon | 3 | 4.494524 | 0.021970 | 4.476597, 4.487942, 4.519032 |
+| rlb_schedulefree | 3 | 4.970094 | 0.014939 | 4.953531, 4.982551, 4.974200 |
+| silu_schedulefree | 3 | 5.006385 | 0.016010 | 4.988052, 5.017608, 5.013495 |
+| rlb_came | 3 | 5.099954 | 0.015254 | 5.083476, 5.113583, 5.102804 |
+| silu_came | 3 | 5.122958 | 0.017814 | 5.104103, 5.139506, 5.125265 |
+| silu_ademamix | 3 | 344.998985 | 372.625043 | 158.670578, 774.036255, 102.290123 |
+| rlb_ademamix | 3 | 449788003.085856 | 779025043.433808 | 31901.453125, 3467.804443, 1349328640.000000 |
 
 ## Parameter Counts
 

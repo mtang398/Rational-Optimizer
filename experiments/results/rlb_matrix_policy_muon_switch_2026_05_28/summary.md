@@ -35,7 +35,7 @@ vs SiLU+Muon:              0.168689 loss / 5.94 PPL
 vs RLB+Muon:               0.181645 loss / 6.44 PPL
 ```
 
-The result is a same-LR optimizer win, but the strongest current evidence is now the May 30 FineWeb/FineWeb-Edu screen because those gaps are larger on modern real-corpus data.
+This remains a small same-LR WikiText demo anchor. The current paper-facing evidence is the completed E1 manifest suite recorded in `../../ICLR_RUN_STATUS.md`.
 
 ## Plots
 

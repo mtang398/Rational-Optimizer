@@ -177,6 +177,9 @@ ROW_LIMIT=15 \
 sbatch --dependency=afterok:158168:158167 experiments/scripts/run_iclr26_manifest_job.sh
 ```
 
+
+E1 completion note: all jobs `155411`, `155412`, `158114`, `158115`, `158117`, `158118`, `158155`, `158156`, `158163`, `158164`, `158166`, `158165`, `158168`, `158167`, and `158169` completed. The final job `158169` covered rows 225-239 for `c4_en` seed 3407 and completed with exit `0:0` in 06:09:38.
+
 ## Internal Per-Row Command Shape
 
 The manifest launcher converts each CSV row into environment variables and executes this
@@ -204,12 +207,4 @@ E1 figures and checkpoint tables:
 ```bash
 python3 experiments/scripts/plot_iclr26_e1_curves.py \
   --status-md experiments/ICLR_RUN_STATUS.md
-```
-
-FineWeb/FineWeb-Edu retained real-LM summaries:
-
-```bash
-python3 experiments/scripts/summarize_real_lm_multiseed.py \
-  --run-root experiments/runs/real_lm_multiseed_20260531 \
-  --result-dir experiments/results/real_lm_multiseed_2026_05_31
 ```

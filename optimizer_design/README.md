@@ -42,9 +42,9 @@ A_l' = D_l(a) A_l
 B_l' = B_l D_l(a)^(-1)
 ```
 
-The represented RLB function is unchanged. The normalized coordinate `u_g` is unchanged, `r_g` and `h_g` scale by `a_g`, and `B_l` cancels that scale.
+In the homogeneous radius, the represented RLB function is unchanged. The normalized coordinate `u_g` is unchanged, `r_g` and `h_g` scale by `a_g`, and `B_l` cancels that scale. With the stabilizing RMS floor, this is the same local scale structure up to the floor-induced discrepancy measured by the matched run behavior.
 
-The optimizer goal is therefore not merely to move parameters. It should move the represented function while avoiding arbitrary gauge drift.
+The optimizer goal is therefore not merely to move parameters. It should move the represented function while controlling arbitrary scale drift in the RLB matrix representative.
 
 ## Parameter Partition
 
@@ -175,7 +175,10 @@ A_{l,g} <- s_g A_{l,g}
 B_{l,g} <- B_{l,g} / s_g
 ```
 
-This changes the parameterization but preserves the represented function up to floating-point error.
+With the homogeneous RLB radius and inactive floors, this changes only the parameterization.
+With the stabilized radius and clipped bounded moves used in training, the same operation is
+treated as a bounded move along the positive scale gauge, with any floor-induced discrepancy
+handled empirically by the matched run curves.
 
 ## Generic Baseline Optimizers
 
@@ -199,7 +202,7 @@ AdEMAMix now follows the paper/reference implementation details that matter for 
 3. step backbone AdamW parameters
 4. step rational coefficient parameters
 5. step RLB matrices with the role/depth AdamW-Muon matrix policy
-6. apply exact W_in/W_out gauge rebalance
+6. apply bounded W_in/W_out gauge rebalance
 ```
 
 Retained source files are limited to the current training surface: `matrix_policy_optimizer.py` for RLB matrices, `transport_onpolicy_optimizer.py` for private MatrixPolicy wrapper mechanics, `function_space_rational_optimizer.py` for optional coefficient updates, and `baseline_optimizers.py` for matched broad optimizer controls. The on-policy balance, matrix-metric, and adaptive-stat code is private support inside the wrapper, not a separate optimizer surface.
@@ -210,11 +213,11 @@ Current E1 M0/100M manifest-suite readout:
 
 | Dataset | MatrixPolicy final val loss | next best current method | gap |
 | --- | ---: | ---: | ---: |
-| DCLM | 4.256224 +/- 0.004972 | rlb_lion 4.305728 +/- 0.005836 | 0.049504 |
+| DCLM | 4.256224 +/- 0.004972 | rlb_lion 4.305728 +/- 0.005836 | 0.049505 |
 | FineWeb-Edu | 4.088240 +/- 0.009434 | rlb_lion 4.142669 +/- 0.006812 | 0.054429 |
 | FineWeb | 4.318581 +/- 0.010914 | rlb_lion 4.367062 +/- 0.007532 | 0.048481 |
 | Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
-| C4 partial, n=2 | 4.281546 +/- 0.027902 | rlb_lion 4.334202 +/- 0.029364 | 0.052656 |
+| C4 | 4.285119 +/- 0.020677 | rlb_lion 4.335663 +/- 0.020917 | 0.050544 |
 
 Full mean +/- std tables and curves are in `../experiments/ICLR_RUN_STATUS.md` and `../experiments/results/iclr26_e1_figures/`.
 

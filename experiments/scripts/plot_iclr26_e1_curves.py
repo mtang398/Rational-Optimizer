@@ -20,6 +20,7 @@ DATASETS = [
     ("fineweb_edu", "FineWeb-Edu"),
     ("fineweb", "FineWeb"),
     ("dolma_sample", "Dolma-sample"),
+    ("c4_en", "C4"),
 ]
 
 ALL_METHODS = [

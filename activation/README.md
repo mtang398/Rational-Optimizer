@@ -2,7 +2,7 @@
 
 This directory implements the rational activation blocks used by RationalOPT. The research activation is the Rational Local Basis FFN, abbreviated RLB.
 
-RLB is not presented as a standalone activation improvement. Its purpose is to expose structure that an optimizer can use: group normalization, rational curve coefficients, per-group activity statistics, and an exact positive gauge between `W_in` and `W_out`.
+RLB is not presented as a standalone activation improvement. Its purpose is to expose structure that an optimizer can use: group normalization, rational curve coefficients, per-group activity statistics, and a positive `W_in`/`W_out` scale gauge that is exact in the homogeneous radius and approximate under the stabilizing RMS floor.
 
 ## RLB Definition
 
@@ -29,7 +29,7 @@ no SwiGLU-style value/gate split
 
 ## Positive Homogeneity And Gauge
 
-The group normalization makes RLB positively homogeneous. If `a_g > 0`:
+With the homogeneous radius, or when the stabilizing floor is inactive, the group normalization makes RLB positively homogeneous. If `a_g > 0`:
 
 ```text
 z_g' = a_g z_g
@@ -38,14 +38,14 @@ u_g' = u_g
 h_g' = a_g h_g
 ```
 
-Therefore this matrix transform preserves the represented function:
+Therefore this matrix transform preserves the represented function in that homogeneous setting:
 
 ```text
 W_in[g]  <- a_g W_in[g]
 W_out[g] <- W_out[g] / a_g
 ```
 
-Generic optimizers still see different parameter norms, update scales, and conditioning. MatrixPolicy uses this gauge explicitly; AdamW and Muon do not.
+With the stabilized radius used in training, the same transform is a controlled approximate gauge on nondegenerate activations. Generic optimizers still see different parameter norms, update scales, and conditioning. MatrixPolicy uses this structure explicitly; AdamW and Muon do not.
 
 ## Optimizer-Visible Handles
 
@@ -58,7 +58,7 @@ RLB exposes these handles to the optimizer:
 | local basis coefficients | add local shape corrections. |
 | `W_out` group columns | recombine rational features into the residual stream. |
 | group RMS and derivative statistics | reveal active, saturated, and underused groups. |
-| `W_in`/`W_out` gauge | can be rebalanced without changing the represented function. |
+| `W_in`/`W_out` gauge | can be rebalanced exactly in the homogeneous setting and approximately under the RMS floor. |
 
 The activation code supports the forward path and the statistics needed by the optimizer wrapper.
 
@@ -77,7 +77,7 @@ These are optimizer-diagnostic fields. They do not change the activation claim b
 
 ## Evidence Boundary
 
-The current paper-facing evidence is the manifest-based E1 suite on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and partial C4. Full E1 curves and tables are in `../experiments/ICLR_RUN_STATUS.md`; this remains evidence for RLB plus MatrixPolicy, not an activation-only claim.
+The current paper-facing evidence is the manifest-based E1 suite on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. Full E1 curves and tables are in `../experiments/ICLR_RUN_STATUS.md`; this remains evidence for RLB plus MatrixPolicy, not an activation-only claim.
 
 This is why RLB changes should be evaluated with the full control set:
 

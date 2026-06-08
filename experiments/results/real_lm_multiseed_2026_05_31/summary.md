@@ -1,5 +1,7 @@
 # Real-LM Multi-Seed Summary
 
+Archived pre-E1 provenance artifact. Current paper-facing tables and figures are the completed E1 manifest suite in `../../ICLR_RUN_STATUS.md`.
+
 Positive gaps mean the method has lower validation loss than the comparison row.
 
 ## MatrixPolicy Gap Bootstrap CIs

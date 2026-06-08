@@ -1,6 +1,6 @@
 # Exact ICLR Experiment Plan
 
-This plan is the forward experiment contract for a publishable MatrixPolicy optimizer paper. Existing FineWeb/FineWeb-Edu and WikiText results remain in the repo, and the next paper evidence must also come from fixed-config, manifest-declared, matched language-model pretraining runs.
+This plan is the forward experiment contract for a publishable MatrixPolicy optimizer paper. Current paper-facing evidence starts from the completed E1 fixed-config, manifest-declared, matched language-model pretraining suite; WikiText remains only a small demo anchor.
 
 ## Principle
 
@@ -120,6 +120,8 @@ eval_interval: 40
 ```
 
 ### E1: M0 100M Fixed Main Suite
+
+Status: complete for all five datasets, three seeds, and 15 fixed methods. Full tables and curves are in `ICLR_RUN_STATUS.md`.
 
 ```text
 datasets: dclm, fineweb_edu, fineweb, dolma_sample, c4_en
