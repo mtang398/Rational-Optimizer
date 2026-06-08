@@ -31,6 +31,82 @@ Current E1 M0/100M results are tracked in `experiments/ICLR_RUN_STATUS.md` and f
 | Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
 | C4 partial, n=2 | 4.281546 +/- 0.027902 | rlb_lion 4.334202 +/- 0.029364 | 0.052656 |
 
+### E1 Dense Curve Figures
+
+These are the same E1 figure panels embedded in `experiments/ICLR_RUN_STATUS.md`. The curves use completed E1 runs at native logging cadence: validation every 50 steps and training loss every 10 steps. Shaded bands are mean +/- 1 sample std over seeds. The all-method view includes MatrixPolicy, AdamW, Lion, SOAP, Muon, ScheduleFree, and CAME rows; the clean view omits SOAP from the plotted comparison.
+
+#### DCLM
+
+All-method view:
+
+![DCLM E1 validation loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/dclm_core_validation_loss_mean_std.svg)
+
+![DCLM E1 validation PPL mean +/- std, all methods](experiments/results/iclr26_e1_figures/dclm_core_validation_ppl_mean_std.svg)
+
+![DCLM E1 training loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/dclm_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![DCLM E1 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/dclm_clean_validation_loss_mean_std.svg)
+
+![DCLM E1 validation PPL mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/dclm_clean_validation_ppl_mean_std.svg)
+
+![DCLM E1 training loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/dclm_clean_training_loss_mean_std.svg)
+
+#### FineWeb-Edu
+
+All-method view:
+
+![FineWeb-Edu E1 validation loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_edu_core_validation_loss_mean_std.svg)
+
+![FineWeb-Edu E1 validation PPL mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_edu_core_validation_ppl_mean_std.svg)
+
+![FineWeb-Edu E1 training loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_edu_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![FineWeb-Edu E1 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/fineweb_edu_clean_validation_loss_mean_std.svg)
+
+![FineWeb-Edu E1 validation PPL mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/fineweb_edu_clean_validation_ppl_mean_std.svg)
+
+![FineWeb-Edu E1 training loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/fineweb_edu_clean_training_loss_mean_std.svg)
+
+#### FineWeb
+
+All-method view:
+
+![FineWeb E1 validation loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_core_validation_loss_mean_std.svg)
+
+![FineWeb E1 validation PPL mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_core_validation_ppl_mean_std.svg)
+
+![FineWeb E1 training loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![FineWeb E1 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/fineweb_clean_validation_loss_mean_std.svg)
+
+![FineWeb E1 validation PPL mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/fineweb_clean_validation_ppl_mean_std.svg)
+
+![FineWeb E1 training loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/fineweb_clean_training_loss_mean_std.svg)
+
+#### Dolma-sample
+
+All-method view:
+
+![Dolma-sample E1 validation loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/dolma_sample_core_validation_loss_mean_std.svg)
+
+![Dolma-sample E1 validation PPL mean +/- std, all methods](experiments/results/iclr26_e1_figures/dolma_sample_core_validation_ppl_mean_std.svg)
+
+![Dolma-sample E1 training loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/dolma_sample_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![Dolma-sample E1 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/dolma_sample_clean_validation_loss_mean_std.svg)
+
+![Dolma-sample E1 validation PPL mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/dolma_sample_clean_validation_ppl_mean_std.svg)
+
+![Dolma-sample E1 training loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/dolma_sample_clean_training_loss_mean_std.svg)
+
 Full E1 command history is recorded in `experiments/ICLR_RUN_COMMANDS.md`.
 
 ## FineWeb And FineWeb-Edu Results
