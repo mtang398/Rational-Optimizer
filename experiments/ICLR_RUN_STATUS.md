@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-10 13:44:07 EDT
+Updated: 2026-06-10 14:37:31 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -124,9 +124,11 @@ E1 M0/100M is complete: all 225 manifest rows for rows 15-239 finished, includin
 
 ## E2 Scheduler State
 
-Current check: 2026-06-10 13:44:07 EDT. Running job(s): none for `iclr26-main`; `squeue -u mt872 -n iclr26-main` returned only the scheduler header. Active allocation at update: 0 A6000.
+Current check: 2026-06-10 14:37:31 EDT. Running job(s): `316996` for `iclr26-main` row `285`; chain-head job `317024` for row `286` is pending on scheduler priority. All later FineWeb-Edu jobs are dependency-pending. Active allocation at update: 4 A6000; the submitted dependencies allow at most two 4-A6000 jobs active when the scheduler starts both chains.
 
 E2 M0/300M DCLM rows `240-284` are complete. This is the full DCLM E2 matched cell: three seeds times 15 fixed methods, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per row. The tracked result package is `experiments/results/iclr26_e2_dclm_2026_06_10/`.
+
+E2 M0/300M FineWeb-Edu rows `285-329` are now queued as the next dataset window. This is FineWeb-Edu only: three seeds times 15 fixed methods, one manifest row per job, split into two dependency chains.
 
 | Job(s) | Row(s) | Cell/methods | Final state | Notes |
 | --- | --- | --- | --- | --- |
@@ -137,9 +139,18 @@ E2 M0/300M DCLM rows `240-284` are complete. This is the full DCLM E2 matched ce
 | `306122`,`306123`,`306124`,`306137`-`306140` | 272,274,276,278,280,282,284 | dclm seed 3407 even tail chain | completed | all exit `0:0` |
 | `306116`-`306121` | 273,275,277,279,281,283 | dclm seed 3407 odd tail chain | completed | all exit `0:0` |
 | `301073`-`301085` | 272-284 old serial tail | cancelled before start | replaced by the two DCLM-only chains above |
-| `301086`-`301100` | 285-299 fineweb_edu seed 1337 | cancelled before start | no non-DCLM E2 work is active or queued |
+| `301086`-`301100` | 285-299 fineweb_edu seed 1337 | cancelled before start | earlier accidental cross-boundary submission; superseded by current FineWeb-Edu queue below |
 
-Future E2 dataset windows should be submitted one dataset at a time, split into one-row chains, with at most two 4-A6000 jobs active. Do not mix the next dataset into the DCLM submission wave.
+## E2 FineWeb-Edu Queue
+
+Rows `285-329` were submitted on `2026-06-10 14:37 EDT` as two one-row dependency chains. The row range stops at the FineWeb-Edu boundary; rows `330+` are FineWeb and were not submitted.
+
+| Chain | Rows | Jobs | Dependency pattern | State at update |
+| --- | --- | --- | --- | --- |
+| FineWeb-Edu odd rows | 285,287,289,...,329 | `316996`,`316997`,`316998`,`316999`,`317000`, `317006`-`317023` | first job has no dependency; each later job is `afterok` previous row in chain | row 285 job `316996` running |
+| FineWeb-Edu even rows | 286,288,290,...,328 | `317024`-`317034`, `317039`-`317049` | first job has no dependency; each later job is `afterok` previous row in chain | row 286 job `317024` pending on priority |
+
+Do not submit rows `330+` until FineWeb-Edu E2 rows `285-329` complete and the tracked result summaries/status files are updated.
 
 ## E2 DCLM Final Results
 

@@ -308,6 +308,65 @@ DCLM-only chains:
 
 Completion note: by `2026-06-10 13:44 EDT`, all DCLM E2 rows `240-284` had completed at final eval step `9150`. The final result package is `experiments/results/iclr26_e2_dclm_2026_06_10/`. No non-DCLM E2 jobs are active or queued; the accidental FineWeb-Edu rows `285-299` remained cancelled before start.
 
+FineWeb-Edu E2 split submission on `2026-06-10 14:37 EDT`: after DCLM E2 rows `240-284` completed and the queue was empty, the next dataset window was submitted. This submission is FineWeb-Edu only: rows `285-329`, one manifest row per job, split into two dependency chains to keep at most two 4-A6000 jobs active.
+
+Odd-row chain:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 285 | `316996` | none |
+| 287 | `316997` | afterok:`316996` |
+| 289 | `316998` | afterok:`316997` |
+| 291 | `316999` | afterok:`316998` |
+| 293 | `317000` | afterok:`316999` |
+| 295 | `317006` | afterok:`317000` |
+| 297 | `317007` | afterok:`317006` |
+| 299 | `317008` | afterok:`317007` |
+| 301 | `317009` | afterok:`317008` |
+| 303 | `317010` | afterok:`317009` |
+| 305 | `317011` | afterok:`317010` |
+| 307 | `317012` | afterok:`317011` |
+| 309 | `317013` | afterok:`317012` |
+| 311 | `317014` | afterok:`317013` |
+| 313 | `317015` | afterok:`317014` |
+| 315 | `317016` | afterok:`317015` |
+| 317 | `317017` | afterok:`317016` |
+| 319 | `317018` | afterok:`317017` |
+| 321 | `317019` | afterok:`317018` |
+| 323 | `317020` | afterok:`317019` |
+| 325 | `317021` | afterok:`317020` |
+| 327 | `317022` | afterok:`317021` |
+| 329 | `317023` | afterok:`317022` |
+
+Even-row chain:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 286 | `317024` | none |
+| 288 | `317025` | afterok:`317024` |
+| 290 | `317026` | afterok:`317025` |
+| 292 | `317027` | afterok:`317026` |
+| 294 | `317028` | afterok:`317027` |
+| 296 | `317029` | afterok:`317028` |
+| 298 | `317030` | afterok:`317029` |
+| 300 | `317031` | afterok:`317030` |
+| 302 | `317032` | afterok:`317031` |
+| 304 | `317033` | afterok:`317032` |
+| 306 | `317034` | afterok:`317033` |
+| 308 | `317039` | afterok:`317034` |
+| 310 | `317040` | afterok:`317039` |
+| 312 | `317041` | afterok:`317040` |
+| 314 | `317042` | afterok:`317041` |
+| 316 | `317043` | afterok:`317042` |
+| 318 | `317044` | afterok:`317043` |
+| 320 | `317045` | afterok:`317044` |
+| 322 | `317046` | afterok:`317045` |
+| 324 | `317047` | afterok:`317046` |
+| 326 | `317048` | afterok:`317047` |
+| 328 | `317049` | afterok:`317048` |
+
+Do not submit rows `330+` until FineWeb-Edu E2 rows `285-329` complete and the tracked result summaries/status files are updated.
+
 ## Internal Per-Row Command Shape
 
 The manifest launcher converts each CSV row into environment variables and executes this
