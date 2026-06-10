@@ -2,16 +2,34 @@
 
 RationalOPT studies Rational Local Basis (RLB) feed-forward blocks and the `rational_matrix_policy_onpolicy` optimizer for language-model pretraining.
 
-Paper-facing results in this README are the E1 matched main-suite results. WikiText is kept as a small demo anchor.
+Paper-facing results in this README include the completed E1 matched main suite and the completed E2 DCLM M0/300M cell. WikiText is kept as a small demo anchor.
 
 ## Result Pointers
 
 ```text
 experiments/ICLR_RUN_STATUS.md
+experiments/results/iclr26_e2_dclm_2026_06_10/
 experiments/results/iclr26_e1_figures/
 experiments/runs/iclr26_main/        # local raw JSONL, ignored
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo anchor
 ```
+
+## Current E2 DCLM 300M Result
+
+E2 M0/300M DCLM is complete for manifest rows `240-284`: three seeds, 15 fixed methods per seed, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per run. The tracked result package is `experiments/results/iclr26_e2_dclm_2026_06_10/`.
+
+MatrixPolicy is best on all three seeds. Mean final validation loss is `3.957627 +/- 0.030713`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, and `rlb_lion` at `3.994293 +/- 0.030088`. ADeMaMix diverged/non-finite for all E2 DCLM seeds.
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 4.40 | 74.3M | 74.3M -> 80.8M (3/3) | 6.6M | 8.1% | 74.3M -> 93.4M (3/3) | 19.1M | 20.5% |
+| 4.30 | 101.0M | 101.0M -> 104.9M (3/3) | 3.8M | 3.6% | 101.0M -> 120.7M (3/3) | 19.7M | 16.3% |
+| 4.20 | 133.3M | 133.3M -> 139.3M (3/3) | 6.0M | 4.3% | 133.3M -> 161.1M (3/3) | 27.9M | 17.3% |
+| 4.10 | 176.4M | 176.4M -> 187.9M (3/3) | 11.5M | 6.1% | 176.4M -> 227.7M (3/3) | 51.3M | 22.5% |
+| 4.05 | 205.3M | 205.3M -> 222.8M (3/3) | 17.5M | 7.8% | 185.1M -> 244.1M (1/3) | 59.0M | 24.2% |
+| 4.00 | 244.7M | 232.7M -> 267.9M (2/3) | 35.2M | 13.1% | not reached (0/3) | not reached | n/a |
+
+Full per-method and per-seed tables are in `experiments/results/iclr26_e2_dclm_2026_06_10/README.md`.
 
 ## Current E1 Main-Suite Results
 

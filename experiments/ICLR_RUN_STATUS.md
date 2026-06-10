@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-08 15:39:05 EDT
+Updated: 2026-06-10 13:44:07 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -124,23 +124,65 @@ E1 M0/100M is complete: all 225 manifest rows for rows 15-239 finished, includin
 
 ## E2 Scheduler State
 
-E2 M0/300M has started from whole matched 15-row cells. Each submitted job uses 4 A6000 and contains all 15 fixed methods for one dataset/seed cell. At this update, two DCLM E2 cells are running, for 8 active A6000 total.
+Current check: 2026-06-10 13:44:07 EDT. Running job(s): none for `iclr26-main`; `squeue -u mt872 -n iclr26-main` returned only the scheduler header. Active allocation at update: 0 A6000.
 
-| Job | Rows | Cell | State at update | GPUs | Slurm start estimate | Runtime estimate once started |
-| --- | --- | --- | --- | --- | --- | --- |
-| `294600` | 240-254 | dclm seed 1337 | running on `fang-compute-02`, elapsed 00:00:24 | 4 A6000 | started 2026-06-08 15:38 EDT | about 30-36 h |
-| `294599` | 255-269 | dclm seed 2027 | running on `lancer-compute-01`, elapsed 00:00:54 | 4 A6000 | started 2026-06-08 15:38 EDT | about 30-36 h |
+E2 M0/300M DCLM rows `240-284` are complete. This is the full DCLM E2 matched cell: three seeds times 15 fixed methods, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per row. The tracked result package is `experiments/results/iclr26_e2_dclm_2026_06_10/`.
 
-E2 DCLM runtime estimate is based on E1 DCLM whole-cell wall times of about 9.2-9.5 h for 100M tokens, scaled to 300M tokens plus the larger 8M validation slice. Expected finish window is roughly 2026-06-09 evening to late night EDT if node speed matches E1 DCLM scaling and there is no preemption.
+| Job(s) | Row(s) | Cell/methods | Final state | Notes |
+| --- | --- | --- | --- | --- |
+| `294899`-`294913` | 240-254 | dclm seed 1337 split one-row jobs | completed | all exit `0:0` |
+| `294914`-`294928` | 255-269 | dclm seed 2027 split one-row jobs | completed | all exit `0:0` |
+| `301071` | 270 | dclm seed 3407 `silu_adamw` | completed | final val loss 4.018327 |
+| `301072` | 271 | dclm seed 3407 `rlb_adamw` | completed | final val loss 4.021017 |
+| `306122`,`306123`,`306124`,`306137`-`306140` | 272,274,276,278,280,282,284 | dclm seed 3407 even tail chain | completed | all exit `0:0` |
+| `306116`-`306121` | 273,275,277,279,281,283 | dclm seed 3407 odd tail chain | completed | all exit `0:0` |
+| `301073`-`301085` | 272-284 old serial tail | cancelled before start | replaced by the two DCLM-only chains above |
+| `301086`-`301100` | 285-299 fineweb_edu seed 1337 | cancelled before start | no non-DCLM E2 work is active or queued |
 
-## E2 Continuation Queue
+Future E2 dataset windows should be submitted one dataset at a time, split into one-row chains, with at most two 4-A6000 jobs active. Do not mix the next dataset into the DCLM submission wave.
 
-No dependent E2 chain has been submitted yet. The current running work intentionally stops at two whole cells so active allocation stays at 8 A6000 and the window remains near the requested 36-hour scale.
+## E2 DCLM Final Results
 
-| Wave | Dependency | Job | Rows | Cell | State at update |
-| ---: | --- | --- | --- | --- | --- |
-| 0 | none | `294600` | 240-254 | dclm seed 1337 | running on `fang-compute-02` |
-| 0 | none | `294599` | 255-269 | dclm seed 2027 | running on `lancer-compute-01` |
+| Method | Final val loss mean +/- sample std | Min | Max | Notes |
+| --- | ---: | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 3.957627 +/- 0.030713 | 3.923688 | 3.983507 |  |
+| silu_lion | 3.993430 +/- 0.023038 | 3.968264 | 4.013479 |  |
+| rlb_muon | 3.993489 +/- 0.029634 | 3.961723 | 4.020390 |  |
+| rlb_lion | 3.994293 +/- 0.030088 | 3.960352 | 4.017691 |  |
+| silu_muon | 3.997266 +/- 0.030472 | 3.964678 | 4.025052 |  |
+| silu_adamw | 4.049337 +/- 0.027469 | 4.018327 | 4.070612 |  |
+| rlb_adamw | 4.052915 +/- 0.028179 | 4.021017 | 4.074428 |  |
+| rlb_soap | 4.076804 +/- 0.040305 | 4.034326 | 4.114511 |  |
+| silu_soap | 4.096430 +/- 0.029988 | 4.062710 | 4.120108 |  |
+| rlb_schedulefree | 4.356261 +/- 0.033232 | 4.318152 | 4.379206 |  |
+| silu_schedulefree | 4.365672 +/- 0.029805 | 4.332936 | 4.391239 |  |
+| silu_came | 4.368189 +/- 0.022586 | 4.344955 | 4.390067 |  |
+| rlb_came | 4.450294 +/- 0.034021 | 4.428269 | 4.489478 |  |
+| silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
+| rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
+
+MatrixPolicy is best on all three DCLM E2 seeds. Mean final validation loss is `3.957627 +/- 0.030713`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, and `rlb_lion` at `3.994293 +/- 0.030088`.
+
+## E2 DCLM Per-Seed MatrixPolicy Gap
+
+| Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
+| ---: | ---: | --- | ---: | ---: |
+| 1337 | 3.965684 | rlb_muon | 3.998354 | 0.032670 |
+| 2027 | 3.983507 | silu_lion | 4.013479 | 0.029972 |
+| 3407 | 3.923688 | rlb_lion | 3.960352 | 0.036664 |
+
+## E2 DCLM Token-To-Target Savings
+
+This is an early-stop/speed-to-target readout from the completed fixed-budget runs. All rows still trained to about `299.8M` tokens. `Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target.
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 4.40 | 74.3M | 74.3M -> 80.8M (3/3) | 6.6M | 8.1% | 74.3M -> 93.4M (3/3) | 19.1M | 20.5% |
+| 4.30 | 101.0M | 101.0M -> 104.9M (3/3) | 3.8M | 3.6% | 101.0M -> 120.7M (3/3) | 19.7M | 16.3% |
+| 4.20 | 133.3M | 133.3M -> 139.3M (3/3) | 6.0M | 4.3% | 133.3M -> 161.1M (3/3) | 27.9M | 17.3% |
+| 4.10 | 176.4M | 176.4M -> 187.9M (3/3) | 11.5M | 6.1% | 176.4M -> 227.7M (3/3) | 51.3M | 22.5% |
+| 4.05 | 205.3M | 205.3M -> 222.8M (3/3) | 17.5M | 7.8% | 185.1M -> 244.1M (1/3) | 59.0M | 24.2% |
+| 4.00 | 244.7M | 232.7M -> 267.9M (2/3) | 35.2M | 13.1% | not reached (0/3) | not reached | n/a |
 
 ## E1 Dense Curve Figures
 

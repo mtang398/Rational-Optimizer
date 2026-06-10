@@ -2,6 +2,10 @@
 
 This directory contains the LM benchmark harness, dataset streaming support, synthetic generators, and optimizer wiring. Its job is to enforce fair comparisons between activation/optimizer pairs.
 
+## Current Result Anchor
+
+The completed paper-facing results are tracked in `../experiments/ICLR_RUN_STATUS.md`. E2 DCLM M0/300M rows `240-284` are complete, with per-method summaries and token-to-target savings under `../experiments/results/iclr26_e2_dclm_2026_06_10/`.
+
 ## Primary Files
 
 ```text

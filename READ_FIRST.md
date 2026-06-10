@@ -10,7 +10,7 @@ Every comparison must keep the base protocol matched: model size, token budget, 
 
 ## Current Result Boundary
 
-The paper-facing result is the completed E1 M0/100M matched main suite. All five datasets have three seeds, matched outer configs, dense validation every 50 steps, and full mean +/- sample std curves in `experiments/ICLR_RUN_STATUS.md`.
+The paper-facing result boundary now has two completed pieces: E1 M0/100M across all five matched datasets, and E2 M0/300M for the full DCLM cell. E1 has three seeds per dataset with matched outer configs, dense validation every 50 steps, and full mean +/- sample std curves in `experiments/ICLR_RUN_STATUS.md`. E2 DCLM rows `240-284` are complete and summarized in `experiments/results/iclr26_e2_dclm_2026_06_10/`.
 
 | Dataset | MatrixPolicy final val loss | next best current method | gap |
 | --- | ---: | ---: | ---: |
@@ -19,6 +19,17 @@ The paper-facing result is the completed E1 M0/100M matched main suite. All five
 | FineWeb | 4.318581 +/- 0.010914 | rlb_lion 4.367062 +/- 0.007532 | 0.048481 |
 | Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
 | C4 | 4.285119 +/- 0.020677 | rlb_lion 4.335663 +/- 0.020917 | 0.050544 |
+
+E2 DCLM M0/300M summary: MatrixPolicy final validation loss is `3.957627 +/- 0.030713`; the next-best aggregate method is `silu_lion` at `3.993430 +/- 0.023038`. MatrixPolicy is best on all three seeds, with the token-to-target savings below.
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 4.40 | 74.3M | 74.3M -> 80.8M (3/3) | 6.6M | 8.1% | 74.3M -> 93.4M (3/3) | 19.1M | 20.5% |
+| 4.30 | 101.0M | 101.0M -> 104.9M (3/3) | 3.8M | 3.6% | 101.0M -> 120.7M (3/3) | 19.7M | 16.3% |
+| 4.20 | 133.3M | 133.3M -> 139.3M (3/3) | 6.0M | 4.3% | 133.3M -> 161.1M (3/3) | 27.9M | 17.3% |
+| 4.10 | 176.4M | 176.4M -> 187.9M (3/3) | 11.5M | 6.1% | 176.4M -> 227.7M (3/3) | 51.3M | 22.5% |
+| 4.05 | 205.3M | 205.3M -> 222.8M (3/3) | 17.5M | 7.8% | 185.1M -> 244.1M (1/3) | 59.0M | 24.2% |
+| 4.00 | 244.7M | 232.7M -> 267.9M (2/3) | 35.2M | 13.1% | not reached (0/3) | not reached | n/a |
 
 This should be read as an optimizer result, not an RLB-only activation comparison. WikiText remains only a small demo anchor.
 
