@@ -613,6 +613,6 @@ M0 parameter counts from the run config records:
 
 | Row family | Activation family | Parameter count |
 | --- | --- | ---: |
-| `silu_*` | SiLU FFN | 123,551,232 |
-| `rlb_*` | RLB FFN | 123,553,824 |
-| `rlb_matrixpolicy_original` | RLB FFN with MatrixPolicy optimizer | 123,553,824 |
+| `silu_*` | SwiGLU-style SiLU gated MLP | 123,551,232 |
+| `rlb_*` | RLB single-branch MLP | 123,553,824 |
+| `rlb_matrixpolicy_original` | RLB single-branch MLP with MatrixPolicy optimizer | 123,553,824 |

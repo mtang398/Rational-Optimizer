@@ -4,7 +4,7 @@ This repository is an optimizer research artifact. Read it as a method plus resu
 
 ## Core Question
 
-Can a no-GLU rational FFN outperform SiLU/SwiGLU because its optimizer uses rational structure?
+Can a single-branch rational Transformer MLP sublayer outperform the standard SiLU/SwiGLU MLP sublayer because its optimizer uses rational structure?
 
 Every comparison must keep the base protocol matched: model size, token budget, seed set, batch shape, sequence length, base LR schedule, weight decay, dataset slice, and evaluation cadence.
 
@@ -59,7 +59,7 @@ A rational optimizer result is meaningful only if the outer optimizer config is 
 
 ## Method Summary
 
-RLB maps each FFN hidden group through a normalized rational function:
+RLB maps each Transformer MLP hidden group through a normalized rational function:
 
 ```text
 z_g = group_g(W_in x)

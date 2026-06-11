@@ -1,4 +1,4 @@
-"""Layerwise matrix-policy optimizer for RLB FFN matrices."""
+"""Layerwise matrix-policy optimizer for RLB Transformer MLP matrices."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ def _smoothstep(edge0: float, edge1: float, x: float) -> float:
 
 
 class RationalMatrixPolicyOptimizer:
-    """Layer/side-specific AdamW policy for RLB FFN matrices.
+    """Layer/side-specific AdamW policy for RLB Transformer MLP matrices.
 
     The verified default uses a short early Muon phase on RLB matrices,
     then switches back to the RLB-specific AdamW matrix policy.

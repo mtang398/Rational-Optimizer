@@ -1,6 +1,6 @@
 # Activation
 
-This directory implements the rational activation blocks used by RationalOPT. The research activation is the Rational Local Basis FFN, abbreviated RLB.
+This directory implements rational activation blocks used inside Transformer MLP sublayers. The research activation is Rational Local Basis, abbreviated RLB.
 
 RLB is not presented as a standalone activation improvement. Its purpose is to expose structure that an optimizer can use: group normalization, rational curve coefficients, per-group activity statistics, and a positive `W_in`/`W_out` scale gauge that is exact in the homogeneous radius and approximate under the stabilizing RMS floor.
 
@@ -19,7 +19,7 @@ y = W_out concat_g(h_g)
 
 `R_g` is a learned rational function. The local-basis variants use a base rational curve plus trainable local odd/bump atoms around fixed centers.
 
-RLB is a single-branch FFN:
+RLB is single-branch inside the Transformer MLP sublayer:
 
 ```text
 no GLU gate branch

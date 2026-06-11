@@ -1369,7 +1369,7 @@ def rmb_settings(activation, ffn_dim, group_size, max_groups):
 
 
 class RationalMomentBasisFFN(nn.Module):
-    """No-GLU rational basis FFN with matched SwiGLU matrix budget.
+    """Single-branch rational basis MLP with matched SwiGLU matrix budget.
 
     One projection creates v. The activation normalizes v by channel group and
     emits rational basis features directly. There is no gate projection, no up
@@ -1795,7 +1795,7 @@ class RationalMomentAdaptiveActivation(nn.Module):
 
 
 class RationalMomentAdaptiveFFN(nn.Module):
-    """Matched-budget no-GLU FFN using only a moment-adaptive rational activation."""
+    """Matched-budget single-branch MLP using only a moment-adaptive rational activation."""
 
     def __init__(self, dim, ffn_dim, activation, rational_group_size, rational_max_groups, eps=1e-6):
         super().__init__()
@@ -2012,7 +2012,7 @@ class RationalDynamicA5_4Activation(nn.Module):
 
 
 class RationalDynamicA5_4FFN(nn.Module):
-    """Matched-budget no-GLU FFN using dynamic rational A5/4 coefficients."""
+    """Matched-budget single-branch MLP using dynamic rational A5/4 coefficients."""
 
     def __init__(self, dim, ffn_dim, activation, rational_group_size, rational_max_groups, eps=1e-6):
         super().__init__()
@@ -2177,7 +2177,7 @@ class RationalLocalBasisExpansionActivation(nn.Module):
 
 
 class RationalLocalBasisExpansionFFN(nn.Module):
-    """Matched-budget no-GLU FFN using separate base and local rational features."""
+    """Matched-budget single-branch MLP using separate base and local rational features."""
 
     def __init__(self, dim, ffn_dim, activation, rational_group_size, rational_max_groups, eps=1e-6):
         super().__init__()
@@ -2552,7 +2552,7 @@ class RationalLocalBasisActivation(nn.Module):
 
 
 class RationalLocalBasisFFN(nn.Module):
-    """Matched-budget no-GLU FFN using local rational basis activations."""
+    """Matched-budget single-branch MLP using local rational basis activations."""
 
     def __init__(self, dim, ffn_dim, activation, rational_group_size, rational_max_groups, eps=1e-6):
         super().__init__()
@@ -2604,7 +2604,7 @@ class RationalLocalBasisFFN(nn.Module):
 
 
 def apply_rlb_positive_gauge(model: nn.Module, log_scale: float, seed: int) -> int:
-    """Apply a function-preserving positive gauge to RLB FFN matrices.
+    """Apply a function-preserving positive gauge to RLB Transformer MLP matrices.
 
     Scaling one group of W_in by a > 0 and the matching W_out columns by 1/a
     leaves the represented RLB block function unchanged at initialization, but it
@@ -2767,7 +2767,7 @@ class RationalComplexQuadraticActivation(nn.Module):
 
 
 class RationalComplexQuadraticFFN(nn.Module):
-    """Matched-budget no-GLU FFN using pairwise complex rational quadratic activation."""
+    """Matched-budget single-branch MLP using pairwise complex rational quadratic activation."""
 
     def __init__(self, dim, ffn_dim, activation, rational_group_size, rational_max_groups, eps=1e-6):
         super().__init__()
@@ -2945,7 +2945,7 @@ class RationalGroupCompetitiveActivation(nn.Module):
 
 
 class RationalGroupCompetitiveFFN(nn.Module):
-    """Matched-budget no-GLU FFN using rational group competition."""
+    """Matched-budget single-branch MLP using rational group competition."""
 
     def __init__(self, dim, ffn_dim, activation, rational_group_size, rational_max_groups, eps=1e-6):
         super().__init__()
@@ -3005,7 +3005,7 @@ def rsm_settings(activation, ffn_dim, group_size, max_groups):
 
 
 class RationalSelfModulatedFFN(nn.Module):
-    """Single-branch rational FFN with no GLU gate/up split.
+    """Single-branch rational MLP sublayer with no GLU gate/up split.
 
     The matrix budget is matched to SwiGLU by using hidden_dim = 1.5 * d_ff:
     W_in and W_out then contain 2 * d_model * hidden_dim = 3 * d_model * d_ff

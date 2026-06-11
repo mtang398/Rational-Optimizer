@@ -8,7 +8,7 @@ The current paper-facing optimizer evidence is the completed E1 matched main sui
 
 ## Problem Setup
 
-For RLB layer `l`, write the FFN block as:
+For RLB layer `l`, write the Transformer MLP sublayer as:
 
 ```text
 x -> A_l x -> grouped rational functions -> B_l h

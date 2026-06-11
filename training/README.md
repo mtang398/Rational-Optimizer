@@ -19,7 +19,7 @@ training/aggregate_lm_multiseed.py       JSONL aggregation helper for LM sweeps
 Rows are comparable only when these are fixed:
 
 ```text
-model width, depth, head count, and FFN parameter budget
+model width, depth, head count, and MLP sublayer parameter budget
 token budget
 seed set
 batch size and gradient accumulation

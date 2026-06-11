@@ -1,6 +1,6 @@
 # RationalOPT
 
-RationalOPT studies Rational Local Basis (RLB) feed-forward blocks and the `rational_matrix_policy_onpolicy` optimizer for language-model pretraining.
+RationalOPT studies Rational Local Basis (RLB) variants inside causal Transformer language models and the `rational_matrix_policy_onpolicy` optimizer for pretraining.
 
 Paper-facing results in this README include the completed E1 matched main suite and the completed E2 DCLM M0/300M cell. WikiText is kept as a small demo anchor.
 
@@ -236,7 +236,7 @@ The manifest generator verifies that every main cell has the required method row
 
 ## Method Sketch
 
-RLB replaces the FFN nonlinearity with grouped normalized rational functions:
+RLB changes the Transformer MLP sublayer nonlinearity to grouped normalized rational functions:
 
 ```text
 z = W_in x
