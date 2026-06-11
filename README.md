@@ -8,11 +8,18 @@ Paper-facing results in this README include the completed E1 matched main suite 
 
 ```text
 experiments/ICLR_RUN_STATUS.md
+experiments/results/iclr26_runtime_summary_2026_06_11/
 experiments/results/iclr26_e2_dclm_2026_06_10/
 experiments/results/iclr26_e1_figures/
 experiments/runs/iclr26_main/        # local raw JSONL, ignored
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo anchor
 ```
+
+## Completed Runtime Summary
+
+Per optimizer/activation-combo runtimes for completed paper cells are tracked in `experiments/results/iclr26_runtime_summary_2026_06_11/`. The package covers all completed E1 M0/100M rows and the completed E2 DCLM M0/300M rows. It deliberately excludes E2 FineWeb-Edu rows `285-329` because that dataset cell is still in progress.
+
+The runtime metric is the JSONL `summary.total_seconds` training-harness wall time per manifest row. This is the comparable per-combo number for E1 because each E1 Slurm job ran a whole 15-row matched cell.
 
 ## Current E2 DCLM 300M Result
 
