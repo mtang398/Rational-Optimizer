@@ -16,6 +16,12 @@ DEFAULT_OUTPUT = Path("experiments/results/iclr26_runtime_summary_2026_06_11")
 MANIFEST = Path("experiments/manifests/iclr26_main_manifest.csv")
 RUN_ROOT = Path("experiments/runs/iclr26_main")
 
+# E1 FineWeb-Edu seed 2027 ran as Slurm job 158117 with Restarts=6.
+# The final JSONLs do not append duplicate attempts, but rows in this matched
+# cell are contaminated by restart/node effects and should not be used as the
+# default clean throughput estimate.
+RESTART_AFFECTED_ROWS = set(range(75, 90))
+
 METHOD_ORDER = [
     "rlb_matrixpolicy_original",
     "silu_adamw",
@@ -152,7 +158,7 @@ def aggregate(rows: list[dict[str, object]], keys: tuple[str, ...]) -> list[dict
 
 def write_csv(path: Path, rows: list[dict[str, object]], fieldnames: list[str]) -> None:
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({field: row.get(field, "") for field in fieldnames})
@@ -180,9 +186,15 @@ def markdown_table(rows: list[dict[str, object]], scope: str) -> str:
     return "\n".join(lines)
 
 
-def write_readme(output_dir: Path, scope_rows: list[dict[str, object]], per_row_count: int) -> None:
-    e1_rows = [row for row in scope_rows if row["scope"] == "E1_m0_100m_all_datasets"]
-    e2_rows = [row for row in scope_rows if row["scope"] == "E2_m0_300m_dclm"]
+def write_readme(
+    output_dir: Path,
+    raw_scope_rows: list[dict[str, object]],
+    clean_scope_rows: list[dict[str, object]],
+    per_row_count: int,
+    clean_row_count: int,
+) -> None:
+    e1_rows = [row for row in raw_scope_rows if row["scope"] == "E1_m0_100m_all_datasets"]
+    e2_rows = [row for row in raw_scope_rows if row["scope"] == "E2_m0_300m_dclm"]
     e1_total = sum(int(row["runs"]) for row in e1_rows)
     e2_total = sum(int(row["runs"]) for row in e2_rows)
     text = f"""# ICLR26 Runtime Summary
@@ -201,21 +213,37 @@ Excluded:
 - E2 FineWeb-Edu rows `285-329`, because that dataset cell is still in progress.
 - E2 rows `330+`, because they have not been queued/completed yet.
 
-## E1 M0/100M All Datasets
+## Runtime Quality Note
 
-{markdown_table(scope_rows, "E1_m0_100m_all_datasets")}
+E1 FineWeb-Edu seed `2027` rows `75-89` ran in Slurm job `158117`, which completed with `Restarts=6`. The final JSONL files for those rows have one config record, one summary record, and no duplicate train steps, so `summary.total_seconds` is not directly summing archived requeue attempts. However, that matched cell is restart/node contaminated and produces pathological throughput outliers, especially rows `81-89`.
 
-## E2 M0/300M DCLM
+The clean tables below therefore exclude rows `75-89` from E1 runtime aggregates. Raw all-completed tables are still written to CSV for provenance.
 
-{markdown_table(scope_rows, "E2_m0_300m_dclm")}
+Clean rows summarized: `{clean_row_count}`. Raw completed rows summarized: `{per_row_count}`.
+
+## Clean E1 M0/100M All Datasets
+
+{markdown_table(clean_scope_rows, "E1_m0_100m_all_datasets")}
+
+## Clean E2 M0/300M DCLM
+
+{markdown_table(clean_scope_rows, "E2_m0_300m_dclm")}
+
+## Raw All-Completed E1 M0/100M All Datasets
+
+{markdown_table(raw_scope_rows, "E1_m0_100m_all_datasets")}
+
+## Raw All-Completed E2 M0/300M DCLM
+
+{markdown_table(raw_scope_rows, "E2_m0_300m_dclm")}
 
 ## Files
 
-- `runtime_by_scope_method.csv`: per-combo aggregate for E1-all-datasets and E2-DCLM scopes.
-- `runtime_by_dataset_method.csv`: per-combo aggregate split by dataset.
+- `runtime_by_scope_method_clean.csv`: default clean per-combo aggregate.
+- `runtime_by_dataset_method_clean.csv`: default clean per-combo aggregate split by dataset.
+- `runtime_by_scope_method.csv`: raw all-completed per-combo aggregate.
+- `runtime_by_dataset_method.csv`: raw all-completed per-combo aggregate split by dataset.
 - `runtime_per_row.csv`: one record per included completed manifest row.
-
-Rows summarized: `{per_row_count}`.
 """
     (output_dir / "README.md").write_text(text)
 
@@ -254,6 +282,8 @@ def main() -> None:
                     "mean_seconds_per_step": float(summary["mean_seconds_per_step"]),
                     "tokens_per_second": float(summary["tokens_per_second"]),
                     "stopped_early": bool(summary.get("stopped_early", False)),
+                    "restart_affected": int(row["row_index"]) in RESTART_AFFECTED_ROWS,
+                    "include_in_clean_runtime": int(row["row_index"]) not in RESTART_AFFECTED_ROWS,
                     "jsonl": str(jsonl_path),
                 }
             )
@@ -262,6 +292,9 @@ def main() -> None:
     per_row = sorted(per_row, key=lambda r: (str(r["scope"]), str(r["dataset"]), int(r["row_index"])))
     by_scope = aggregate(per_row, ("scope", "method"))
     by_dataset = aggregate(per_row, ("scope", "phase", "dataset", "method"))
+    clean_per_row = [row for row in per_row if row["include_in_clean_runtime"]]
+    clean_by_scope = aggregate(clean_per_row, ("scope", "method"))
+    clean_by_dataset = aggregate(clean_per_row, ("scope", "phase", "dataset", "method"))
 
     write_csv(
         args.output_dir / "runtime_per_row.csv",
@@ -286,6 +319,8 @@ def main() -> None:
             "mean_seconds_per_step",
             "tokens_per_second",
             "stopped_early",
+            "restart_affected",
+            "include_in_clean_runtime",
             "jsonl",
         ],
     )
@@ -311,7 +346,9 @@ def main() -> None:
     ]
     write_csv(args.output_dir / "runtime_by_scope_method.csv", by_scope, [f for f in aggregate_fields if f not in {"phase", "dataset"}])
     write_csv(args.output_dir / "runtime_by_dataset_method.csv", by_dataset, aggregate_fields)
-    write_readme(args.output_dir, by_scope, len(per_row))
+    write_csv(args.output_dir / "runtime_by_scope_method_clean.csv", clean_by_scope, [f for f in aggregate_fields if f not in {"phase", "dataset"}])
+    write_csv(args.output_dir / "runtime_by_dataset_method_clean.csv", clean_by_dataset, aggregate_fields)
+    write_readme(args.output_dir, by_scope, clean_by_scope, len(per_row), len(clean_per_row))
 
 
 if __name__ == "__main__":
