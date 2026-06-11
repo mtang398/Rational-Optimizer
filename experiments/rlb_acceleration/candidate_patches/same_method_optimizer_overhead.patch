@@ -1,0 +1,73 @@
+diff --git a/activation/rational_opt/rational.py b/activation/rational_opt/rational.py
+index d58c3c3..f66bac2 100644
+--- a/activation/rational_opt/rational.py
++++ b/activation/rational_opt/rational.py
+@@ -529,8 +529,13 @@ class RationalFusedLocalBasisA5_4(nn.Module):
+         flat = x.detach().reshape(-1, self.hidden_dim)
+         max_samples = int(getattr(self, "_rlb_optimizer_stat_samples", 512))
+         if max_samples > 0 and flat.size(0) > max_samples:
+-            index = torch.linspace(0, flat.size(0) - 1, max_samples, device=flat.device).long()
+-            flat = flat.index_select(0, index)
++            cache_key = (flat.size(0), max_samples, flat.device.type, flat.device.index)
++            cached = getattr(self, "_rlb_optimizer_sample_index_cache", None)
++            if cached is None or cached[0] != cache_key:
++                index = torch.linspace(0, flat.size(0) - 1, max_samples, device=flat.device).long()
++                cached = (cache_key, index)
++                self._rlb_optimizer_sample_index_cache = cached
++            flat = flat.index_select(0, cached[1])
+         grouped = flat.float().view(-1, self.groups, self.hidden_dim // self.groups)
+         rms = torch.sqrt(grouped.square().mean(dim=-1, keepdim=True) + self.eps)
+         t = grouped / rms
+diff --git a/optimizer_design/matrix_policy_optimizer.py b/optimizer_design/matrix_policy_optimizer.py
+index 359ab72..0da5c1b 100644
+--- a/optimizer_design/matrix_policy_optimizer.py
++++ b/optimizer_design/matrix_policy_optimizer.py
+@@ -406,7 +406,7 @@ class RationalMatrixPolicyOptimizer:
+         return scale.to(device=device, dtype=dtype)
+ 
+     def _apply_group_policy_to_gradients(self):
+-        if not self._group_policy_enabled():
++        if not self._group_policy_enabled() or self._group_policy_phase() <= 0.0:
+             return
+         for group in self.adam.param_groups:
+             role = str(group.get("matrix_role", "matrix"))
+@@ -483,7 +483,12 @@ class RationalMatrixPolicyOptimizer:
+         off_phase = _smoothstep(decay_start, decay_end, progress)
+         base_strength = self.muon_strength * (1.0 - off_phase) + self.final_muon * off_phase
+         base = base_strength * on_phase
+-        value = base * self._role_depth_factor(group) * self._stat_factor(group)
++        if base == 0.0 and self.min_muon <= 0.0:
++            return 0.0
++        role_scaled = base * self._role_depth_factor(group)
++        if role_scaled == 0.0 and self.min_muon <= 0.0:
++            return 0.0
++        value = role_scaled * self._stat_factor(group)
+         return min(self.max_muon, max(self.min_muon, value))
+ 
+     def _maybe_reset_adam_after_muon(self, group: dict, fraction: float):
+@@ -624,22 +629,23 @@ class RationalMatrixPolicyOptimizer:
+ 
+         saved_adam_lrs = []
+         saved_adam_betas = []
++        muon_fractions = []
+         for group in self.adam.param_groups:
+             lr = float(group["lr"])
+             saved_adam_lrs.append(lr)
+             saved_adam_betas.append(group["betas"])
+             self._maybe_reset_adam_state(group)
+             fraction = self._muon_fraction(group) if self.muon is not None else 0.0
++            muon_fractions.append(fraction)
+             self._maybe_reset_adam_after_muon(group, fraction)
+             group["lr"] = lr * self._adam_lr_scale(group) * (1.0 - fraction)
+             group["betas"] = self._adam_betas(group)
+ 
+         saved_muon_lrs = []
+         if self.muon is not None:
+-            for group in self.muon.param_groups:
++            for group, fraction in zip(self.muon.param_groups, muon_fractions):
+                 lr = float(group["lr"])
+                 saved_muon_lrs.append(lr)
+-                fraction = self._muon_fraction(group)
+                 group["lr"] = lr * self.muon_lr_scale * fraction
+ 
+         self.adam.step()

@@ -14,6 +14,14 @@ Candidate same-method ideas to revisit later:
 
 None of these candidate implementation changes are active in the main method code right now.
 
+The isolated candidate patch is:
+
+```text
+experiments/rlb_acceleration/candidate_patches/same_method_optimizer_overhead.patch
+```
+
+That patch is for future review/A-B testing only. Do not apply it to paper runs unless a GPU benchmark first verifies correctness and speed.
+
 ## Verification Status
 
 No real throughput speedup is verified yet because no GPU benchmark was run. The existing runtime table is the trustworthy average-step source: clean E2 DCLM has `RLB+MatrixPolicy` at `0.5293 s/step` and `RLB+AdamW` at `0.5188 s/step`, about `+2.0%`. Clean E1 has `RLB+MatrixPolicy` at `0.6032 s/step` and `RLB+AdamW` at `0.5945 s/step`, about `+1.5%`.
