@@ -3,6 +3,11 @@
 
 This does not import torch and does not touch GPUs. It only reads manifest rows and
 train events that already contain timing telemetry from completed/in-progress runs.
+
+Important: the phase timing fields are logged-step diagnostics. For MatrixPolicy,
+logged optimizer timing includes telemetry capture on log steps, so it is not the
+average non-logging optimizer-step overhead. Use runtime summary CSVs for average
+seconds/step.
 """
 
 from __future__ import annotations
@@ -101,10 +106,10 @@ def aggregate(rows: list[dict[str, object]], keys: tuple[str, ...]) -> list[dict
             {
                 "rows": len({row["row_index"] for row in group_rows}),
                 "train_events": len(group_rows),
-                "forward_backward_seconds_mean": mean([row["forward_backward_seconds"] for row in group_rows]),
-                "forward_backward_seconds_std": sample_std([row["forward_backward_seconds"] for row in group_rows]),
-                "optimizer_step_seconds_mean": mean([row["optimizer_step_seconds"] for row in group_rows]),
-                "optimizer_step_seconds_std": sample_std([row["optimizer_step_seconds"] for row in group_rows]),
+                "logged_forward_backward_seconds_mean": mean([row["forward_backward_seconds"] for row in group_rows]),
+                "logged_forward_backward_seconds_std": sample_std([row["forward_backward_seconds"] for row in group_rows]),
+                "logged_optimizer_step_seconds_mean": mean([row["optimizer_step_seconds"] for row in group_rows]),
+                "logged_optimizer_step_seconds_std": sample_std([row["optimizer_step_seconds"] for row in group_rows]),
                 "seconds_per_step_mean": mean([row["seconds_per_step"] for row in group_rows]),
                 "tokens_per_second_mean": mean([row["tokens_per_second"] for row in group_rows]),
                 "method_label": first["method_label"],
@@ -112,11 +117,11 @@ def aggregate(rows: list[dict[str, object]], keys: tuple[str, ...]) -> list[dict
                 "optimizer": first["optimizer"],
             }
         )
-        fb = out["forward_backward_seconds_mean"]
-        opt = out["optimizer_step_seconds_mean"]
+        fb = out["logged_forward_backward_seconds_mean"]
+        opt = out["logged_optimizer_step_seconds_mean"]
         step = out["seconds_per_step_mean"]
-        out["optimizer_fraction_of_step"] = (opt / step) if opt is not None and step not in (None, 0.0) else None
-        out["forward_backward_fraction_of_step"] = (fb / step) if fb is not None and step not in (None, 0.0) else None
+        out["logged_optimizer_fraction_of_recent_step"] = (opt / step) if opt is not None and step not in (None, 0.0) else None
+        out["logged_forward_backward_fraction_of_recent_step"] = (fb / step) if fb is not None and step not in (None, 0.0) else None
         output.append(out)
     return output
 
@@ -183,14 +188,14 @@ def main():
         "optimizer",
         "rows",
         "train_events",
-        "forward_backward_seconds_mean",
-        "forward_backward_seconds_std",
-        "optimizer_step_seconds_mean",
-        "optimizer_step_seconds_std",
+        "logged_forward_backward_seconds_mean",
+        "logged_forward_backward_seconds_std",
+        "logged_optimizer_step_seconds_mean",
+        "logged_optimizer_step_seconds_std",
         "seconds_per_step_mean",
         "tokens_per_second_mean",
-        "forward_backward_fraction_of_step",
-        "optimizer_fraction_of_step",
+        "logged_forward_backward_fraction_of_recent_step",
+        "logged_optimizer_fraction_of_recent_step",
     ]
     write_csv(args.output, rows, fieldnames)
     print(f"wrote {len(rows)} rows to {args.output}")

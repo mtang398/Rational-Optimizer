@@ -10,6 +10,12 @@ This folder tracks same-method acceleration work for `RLB+MatrixPolicy`. The con
 
 These are implementation optimizations only. They do not change the RLB activation, MatrixPolicy formulas, LR schedule, or manifest rows.
 
+## Verification Status
+
+No real throughput speedup is verified yet because no GPU benchmark was run. The existing runtime table is the trustworthy average-step source: clean E2 DCLM has `RLB+MatrixPolicy` at `0.5293 s/step` and `RLB+AdamW` at `0.5188 s/step`, about `+2.0%`. Clean E1 has `RLB+MatrixPolicy` at `0.6032 s/step` and `RLB+AdamW` at `0.5945 s/step`, about `+1.5%`.
+
+The larger `~0.09-0.10s` optimizer-step values in `phase_timing_summary.csv` are logged-step diagnostics. On log steps the training loop enables MatrixPolicy telemetry, and `optimizer_step_seconds` includes pre-step telemetry, weight snapshots, optimizer stepping, and post-step update telemetry. That field is useful for identifying telemetry/log-step cost, but it should not be read as average MatrixPolicy overhead.
+
 ## CPU-Only Profiling Helper
 
 `summarize_phase_timing.py` reads existing JSONL train events and writes a phase timing CSV. It does not import torch and does not touch GPUs.
@@ -29,6 +35,6 @@ experiments/rlb_acceleration/phase_timing_summary.csv
 ## Next GPU Checks When GPUs Free
 
 1. Run a short fixed-seed CPU/GPU parity smoke if a GPU is available: one RLB+MatrixPolicy row for a tiny token budget, comparing pre/post loss curves and optimizer telemetry.
-2. Profile CUDA time by phase with synchronized timers already logged as `forward_backward_seconds` and `optimizer_step_seconds`.
+2. Profile CUDA time by phase with non-telemetry microbenchmarks, because the existing logged `optimizer_step_seconds` field includes log-step telemetry overhead.
 3. If optimizer overhead remains high, inspect MatrixPolicy for additional CPU/GPU syncs from `.item()` calls in active policy paths.
 4. If forward/backward dominates, profile the fused local-basis CUDA kernel and consider kernel-level changes behind a parity test.

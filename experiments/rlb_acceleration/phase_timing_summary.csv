@@ -1,4 +1,4 @@
-phase,dataset,method,method_label,activation,optimizer,rows,train_events,forward_backward_seconds_mean,forward_backward_seconds_std,optimizer_step_seconds_mean,optimizer_step_seconds_std,seconds_per_step_mean,tokens_per_second_mean,forward_backward_fraction_of_step,optimizer_fraction_of_step
+phase,dataset,method,method_label,activation,optimizer,rows,train_events,logged_forward_backward_seconds_mean,logged_forward_backward_seconds_std,logged_optimizer_step_seconds_mean,logged_optimizer_step_seconds_std,seconds_per_step_mean,tokens_per_second_mean,logged_forward_backward_fraction_of_recent_step,logged_optimizer_fraction_of_recent_step
 E1_m0_100m,c4_en,rlb_adamw,RLB+AdamW,rlb_fused_fixed_strong_ffn,adamw,3,918,0.49643972,0.091876361,0.015281944,0.0020709599,0.51601964,64216.576,0.96205585,0.029615043
 E1_m0_100m,c4_en,rlb_ademamix,RLB+ADeMaMix,rlb_fused_fixed_strong_ffn,ademamix,3,918,0.49584606,0.094686486,0.026832434,0.00090771483,0.52691488,62964.754,0.94103636,0.050923659
 E1_m0_100m,c4_en,rlb_came,RLB+CAME,rlb_fused_fixed_strong_ffn,adafactor_came,3,918,0.49537909,0.092980604,0.057688849,0.0018289848,0.55735124,59391.591,0.88880953,0.10350538
@@ -89,11 +89,11 @@ E2_m0_300m,dclm,silu_lion,SiLU+Lion,silu,lion,3,2748,0.41115934,0.066300275,0.01
 E2_m0_300m,dclm,silu_muon,SiLU+Muon,silu,muon,3,2748,0.39632341,0.079536535,0.051115524,0.0060216942,0.45042249,74886.26,0.87989259,0.11348351
 E2_m0_300m,dclm,silu_schedulefree,SiLU+ScheduleFree,silu,schedule_free_adamw,3,2748,0.41299697,0.090401339,0.020174396,0.013373684,0.43623959,76873.752,0.94672051,0.046246138
 E2_m0_300m,dclm,silu_soap,SiLU+SOAP,silu,soap_adamw,3,2748,0.45751127,0.065788348,0.44309432,0.78504233,0.55166952,61633.037,0.82932128,0.80318797
-E2_m0_300m,fineweb_edu,rlb_adamw,RLB+AdamW,rlb_fused_fixed_strong_ffn,adamw,2,1832,0.62859946,0.09022487,0.015096689,0.0011112935,0.64715966,50946.67,0.97132052,0.023327612
+E2_m0_300m,fineweb_edu,rlb_adamw,RLB+AdamW,rlb_fused_fixed_strong_ffn,adamw,3,1835,0.62868713,0.090778518,0.015116335,0.0013916556,0.64739222,50937.387,0.97110703,0.023349578
 E2_m0_300m,fineweb_edu,rlb_ademamix,RLB+ADeMaMix,rlb_fused_fixed_strong_ffn,ademamix,2,1832,0.53486408,0.11304496,0.026837132,0.00055257904,0.56504546,59401.85,0.94658592,0.047495527
 E2_m0_300m,fineweb_edu,rlb_came,RLB+CAME,rlb_fused_fixed_strong_ffn,adafactor_came,2,1832,0.54385286,0.11103245,0.058761098,0.0038521908,0.6061112,55167.759,0.89728231,0.096947718
 E2_m0_300m,fineweb_edu,rlb_lion,RLB+Lion,rlb_fused_fixed_strong_ffn,lion,2,1832,0.53949508,0.11655575,0.013449424,3.7508937e-05,0.55641583,60241.493,0.96958974,0.024171533
-E2_m0_300m,fineweb_edu,rlb_matrixpolicy_original,RLB+MatrixPolicy,rlb_fused_fixed_strong_ffn,rational_matrix_policy_onpolicy,2,1774,0.54464724,0.068356062,0.10256167,0.0077706039,0.61202497,53592.151,0.88991017,0.16757759
+E2_m0_300m,fineweb_edu,rlb_matrixpolicy_original,RLB+MatrixPolicy,rlb_fused_fixed_strong_ffn,rational_matrix_policy_onpolicy,2,1832,0.54451712,0.068273556,0.10256198,0.0076571183,0.61193006,53599.149,0.88983556,0.16760409
 E2_m0_300m,fineweb_edu,rlb_muon,RLB+Muon,rlb_fused_fixed_strong_ffn,muon,2,1832,0.60093256,0.078016301,0.046130409,0.0068903865,0.65030861,50466.965,0.9240729,0.07093618
 E2_m0_300m,fineweb_edu,rlb_schedulefree,RLB+ScheduleFree,rlb_fused_fixed_strong_ffn,schedule_free_adamw,2,1832,0.54218927,0.11007849,0.021157947,0.0013589676,0.56676744,59085.947,0.95663448,0.037330916
 E2_m0_300m,fineweb_edu,rlb_soap,RLB+SOAP,rlb_fused_fixed_strong_ffn,soap_adamw,2,1832,0.53879405,0.10801603,0.064744278,0.083494905,0.57030141,58680.316,0.94475315,0.11352642
@@ -103,4 +103,4 @@ E2_m0_300m,fineweb_edu,silu_came,SiLU+CAME,silu,adafactor_came,2,1832,0.49915957
 E2_m0_300m,fineweb_edu,silu_lion,SiLU+Lion,silu,lion,3,2748,0.45557791,0.063714346,0.01303374,5.4159632e-05,0.4715569,70876.052,0.96611441,0.027639804
 E2_m0_300m,fineweb_edu,silu_muon,SiLU+Muon,silu,muon,3,2748,0.40396179,0.070903343,0.052350804,0.012390069,0.45945012,72861.608,0.87922882,0.1139423
 E2_m0_300m,fineweb_edu,silu_schedulefree,SiLU+ScheduleFree,silu,schedule_free_adamw,2,1832,0.50078096,0.012637026,0.019878072,0.0006306397,0.5235086,62622.314,0.95658594,0.03797086
-E2_m0_300m,fineweb_edu,silu_soap,SiLU+SOAP,silu,soap_adamw,3,2102,0.48359999,0.047971702,0.44181325,0.78317064,0.57809604,58296.682,0.83653919,0.7642558
+E2_m0_300m,fineweb_edu,silu_soap,SiLU+SOAP,silu,soap_adamw,3,2208,0.47794705,0.053151316,0.44291021,0.78447721,0.57244649,59001.137,0.83492006,0.77371461
