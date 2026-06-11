@@ -2,13 +2,17 @@
 
 This folder tracks same-method acceleration work for `RLB+MatrixPolicy`. The constraint is that changes should preserve the training rule: same Transformer, same RLB forward function, same MatrixPolicy update, same telemetry semantics unless a run explicitly changes a telemetry interval.
 
-## CPU-Only Changes Started
+## Candidate Ideas Only
 
-- MatrixPolicy now skips stat-factor work when the scheduled Muon mix is exactly zero. This preserves the update because the old value was `0 * stat_factor`, but avoids needless policy/stat computations outside the active Muon window.
-- MatrixPolicy reuses the Adam-side Muon fraction when setting the matching Muon optimizer group LR. The Adam and Muon group lists are constructed from the same parameter groups in the same order, so this avoids recomputing the same schedule/stat value.
-- RLB optimizer-stat collection now caches the deterministic sample index for a fixed activation batch shape and sample count instead of rebuilding the same `torch.linspace(...).long()` index every stat pass.
+The production activation and optimizer code has been restored. This folder is only a scratch area for analysis, timing summaries, and future candidate patches until a GPU A/B benchmark proves a change is safe and useful.
 
-These are implementation optimizations only. They do not change the RLB activation, MatrixPolicy formulas, LR schedule, or manifest rows.
+Candidate same-method ideas to revisit later:
+
+- Skip MatrixPolicy stat-factor work only when the scheduled Muon mix is exactly zero.
+- Reuse the Adam-side Muon fraction when setting the matching Muon optimizer group LR, if group ordering is explicitly asserted.
+- Cache deterministic RLB optimizer-stat sample indices for fixed activation batch shapes.
+
+None of these candidate implementation changes are active in the main method code right now.
 
 ## Verification Status
 

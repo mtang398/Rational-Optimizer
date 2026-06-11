@@ -529,13 +529,8 @@ class RationalFusedLocalBasisA5_4(nn.Module):
         flat = x.detach().reshape(-1, self.hidden_dim)
         max_samples = int(getattr(self, "_rlb_optimizer_stat_samples", 512))
         if max_samples > 0 and flat.size(0) > max_samples:
-            cache_key = (flat.size(0), max_samples, flat.device.type, flat.device.index)
-            cached = getattr(self, "_rlb_optimizer_sample_index_cache", None)
-            if cached is None or cached[0] != cache_key:
-                index = torch.linspace(0, flat.size(0) - 1, max_samples, device=flat.device).long()
-                cached = (cache_key, index)
-                self._rlb_optimizer_sample_index_cache = cached
-            flat = flat.index_select(0, cached[1])
+            index = torch.linspace(0, flat.size(0) - 1, max_samples, device=flat.device).long()
+            flat = flat.index_select(0, index)
         grouped = flat.float().view(-1, self.groups, self.hidden_dim // self.groups)
         rms = torch.sqrt(grouped.square().mean(dim=-1, keepdim=True) + self.eps)
         t = grouped / rms

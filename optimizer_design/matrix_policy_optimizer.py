@@ -406,7 +406,7 @@ class RationalMatrixPolicyOptimizer:
         return scale.to(device=device, dtype=dtype)
 
     def _apply_group_policy_to_gradients(self):
-        if not self._group_policy_enabled() or self._group_policy_phase() <= 0.0:
+        if not self._group_policy_enabled():
             return
         for group in self.adam.param_groups:
             role = str(group.get("matrix_role", "matrix"))
@@ -483,12 +483,7 @@ class RationalMatrixPolicyOptimizer:
         off_phase = _smoothstep(decay_start, decay_end, progress)
         base_strength = self.muon_strength * (1.0 - off_phase) + self.final_muon * off_phase
         base = base_strength * on_phase
-        if base == 0.0 and self.min_muon <= 0.0:
-            return 0.0
-        role_scaled = base * self._role_depth_factor(group)
-        if role_scaled == 0.0 and self.min_muon <= 0.0:
-            return 0.0
-        value = role_scaled * self._stat_factor(group)
+        value = base * self._role_depth_factor(group) * self._stat_factor(group)
         return min(self.max_muon, max(self.min_muon, value))
 
     def _maybe_reset_adam_after_muon(self, group: dict, fraction: float):
@@ -629,23 +624,22 @@ class RationalMatrixPolicyOptimizer:
 
         saved_adam_lrs = []
         saved_adam_betas = []
-        muon_fractions = []
         for group in self.adam.param_groups:
             lr = float(group["lr"])
             saved_adam_lrs.append(lr)
             saved_adam_betas.append(group["betas"])
             self._maybe_reset_adam_state(group)
             fraction = self._muon_fraction(group) if self.muon is not None else 0.0
-            muon_fractions.append(fraction)
             self._maybe_reset_adam_after_muon(group, fraction)
             group["lr"] = lr * self._adam_lr_scale(group) * (1.0 - fraction)
             group["betas"] = self._adam_betas(group)
 
         saved_muon_lrs = []
         if self.muon is not None:
-            for group, fraction in zip(self.muon.param_groups, muon_fractions):
+            for group in self.muon.param_groups:
                 lr = float(group["lr"])
                 saved_muon_lrs.append(lr)
+                fraction = self._muon_fraction(group)
                 group["lr"] = lr * self.muon_lr_scale * fraction
 
         self.adam.step()
