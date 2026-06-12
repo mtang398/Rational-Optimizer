@@ -174,6 +174,37 @@ def final_summary(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     )
 
 
+def runtime_summary(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    grouped: dict[str, list[dict[str, object]]] = defaultdict(list)
+    for row in rows:
+        grouped[str(row["method"])].append(row)
+
+    out: list[dict[str, object]] = []
+    for method, group in grouped.items():
+        summaries = [row["summary"] for row in group if row.get("summary") is not None]
+        totals = [float(summary["total_seconds"]) for summary in summaries]  # type: ignore[index]
+        sps = [float(summary["mean_seconds_per_step"]) for summary in summaries]  # type: ignore[index]
+        tps = [float(summary["tokens_per_second"]) for summary in summaries]  # type: ignore[index]
+        if not totals:
+            continue
+        first = group[0]
+        out.append(
+            {
+                "method": method,
+                "activation": first["activation"],
+                "optimizer": first["optimizer"],
+                "runs": len(totals),
+                "total_seconds_mean": mean(totals),
+                "total_seconds_std": sample_std(totals),
+                "total_seconds_min": min(totals),
+                "total_seconds_max": max(totals),
+                "mean_seconds_per_step": mean(sps),
+                "tokens_per_second_mean": mean(tps),
+            }
+        )
+    return sorted(out, key=lambda row: (float(row["total_seconds_mean"]), str(row["method"])))
+
+
 def first_hit_tokens(row: dict[str, object], target: float) -> tuple[int | None, int | None]:
     tokens_per_step = int(row["global_tokens_per_step"])
     for record in row["evals"]:  # type: ignore[union-attr]
@@ -341,6 +372,27 @@ def per_seed_gap_markdown(rows: list[dict[str, object]]) -> tuple[str, bool]:
     return "\n".join(lines), all_best
 
 
+def runtime_summary_markdown(rows: list[dict[str, object]]) -> str:
+    lines = [
+        "| Method | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in rows:
+        lines.append(
+            "| {method} | {runs} | {mean:.1f} min | {std:.1f} min | {minv:.1f}-{maxv:.1f} min | {sps:.4f} | {tps:.1f} |".format(
+                method=row["method"],
+                runs=row["runs"],
+                mean=float(row["total_seconds_mean"]) / 60.0,
+                std=float(row["total_seconds_std"]) / 60.0,
+                minv=float(row["total_seconds_min"]) / 60.0,
+                maxv=float(row["total_seconds_max"]) / 60.0,
+                sps=float(row["mean_seconds_per_step"]),
+                tps=float(row["tokens_per_second_mean"]),
+            )
+        )
+    return "\n".join(lines)
+
+
 def token_savings_markdown(rows: list[dict[str, object]], seed_count: int) -> str:
     lines = [
         "| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |",
@@ -378,12 +430,35 @@ def token_savings_markdown(rows: list[dict[str, object]], seed_count: int) -> st
     return "\n".join(lines)
 
 
+def curve_figures_markdown(dataset: str, label: str) -> str:
+    fig_dir = "../iclr26_e2_figures"
+    return f"""## Dense Curve Figures
+
+All-method view:
+
+![{label} E2 validation loss mean +/- std, all methods]({fig_dir}/{dataset}_core_validation_loss_mean_std.svg)
+
+![{label} E2 validation PPL mean +/- std, all methods]({fig_dir}/{dataset}_core_validation_ppl_mean_std.svg)
+
+![{label} E2 training loss mean +/- std, all methods]({fig_dir}/{dataset}_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![{label} E2 validation loss mean +/- std, clean comparison]({fig_dir}/{dataset}_clean_validation_loss_mean_std.svg)
+
+![{label} E2 validation PPL mean +/- std, clean comparison]({fig_dir}/{dataset}_clean_validation_ppl_mean_std.svg)
+
+![{label} E2 training loss mean +/- std, clean comparison]({fig_dir}/{dataset}_clean_training_loss_mean_std.svg)
+"""
+
+
 def write_readme(
     output_dir: Path,
     dataset: str,
     completed_date: str,
     rows: list[dict[str, object]],
     final_rows: list[dict[str, object]],
+    runtime_rows: list[dict[str, object]],
     token_rows: list[dict[str, object]],
 ) -> None:
     label = DATASET_LABEL.get(dataset, dataset)
@@ -423,6 +498,13 @@ Each row uses `{tokens_per_step}` global tokens/step for about `{total_tokens / 
 
 {gap_table}
 
+## Runtime Summary
+
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+
+{runtime_summary_markdown(runtime_rows)}
+
+{curve_figures_markdown(dataset, label)}
 ## Token-To-Target Savings
 
 This table asks how many training tokens were needed to first reach a validation-loss threshold. It does not change the fixed-budget protocol; all completed runs still trained to about `{total_tokens / 1_000_000:.1f}M` tokens. The readout uses the native eval cadence of {eval_interval} steps, or `{tokens_per_step * eval_interval / 1_000_000:.2f}M` tokens.
@@ -435,6 +517,7 @@ This table asks how many training tokens were needed to first reach a validation
 
 - `final_summary.csv`: aggregate final validation losses by method.
 - `per_seed_summary.csv`: per-row final results and JSONL provenance paths.
+- `runtime_summary.csv`: aggregate runtime by method.
 - `token_savings.csv`: aggregate token-to-target savings.
 - `token_savings_per_seed.csv`: per-seed threshold hits and comparator identities.
 """
@@ -457,6 +540,7 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     final_rows = final_summary(rows)
+    runtime_rows = runtime_summary(rows)
     token_rows, token_seed_rows = token_savings(rows, list(targets))
 
     write_csv(
@@ -489,6 +573,22 @@ def main() -> None:
             "max_final_val_loss",
             "finite_seeds",
             "diverged_seeds",
+        ],
+    )
+    write_csv(
+        args.output_dir / "runtime_summary.csv",
+        runtime_rows,
+        [
+            "method",
+            "activation",
+            "optimizer",
+            "runs",
+            "total_seconds_mean",
+            "total_seconds_std",
+            "total_seconds_min",
+            "total_seconds_max",
+            "mean_seconds_per_step",
+            "tokens_per_second_mean",
         ],
     )
     write_csv(
@@ -525,7 +625,7 @@ def main() -> None:
             "silu_adamw_tokens",
         ],
     )
-    write_readme(args.output_dir, args.dataset, args.completed_date, rows, final_rows, token_rows)
+    write_readme(args.output_dir, args.dataset, args.completed_date, rows, final_rows, runtime_rows, token_rows)
 
 
 if __name__ == "__main__":

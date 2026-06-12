@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Summarize completed ICLR run runtimes from JSONL summary records."""
+"""Summarize clean completed ICLR run runtimes from JSONL summary records."""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import json
-import math
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -18,9 +17,9 @@ MANIFEST = Path("experiments/manifests/iclr26_main_manifest.csv")
 RUN_ROOT = Path("experiments/runs/iclr26_main")
 
 # E1 FineWeb-Edu seed 2027 ran as Slurm job 158117 with Restarts=6.
-# The final JSONLs do not append duplicate attempts, but rows in this matched
-# cell are contaminated by restart/node effects and should not be used as the
-# default clean throughput estimate.
+# Those rows are excluded from all tracked runtime aggregates and per-row
+# runtime CSVs; keeping contaminated timing as a headline or raw aggregate is
+# misleading for optimizer/activation throughput comparisons.
 RESTART_AFFECTED_ROWS = set(range(75, 90))
 
 COMPLETED_E2_DATASET_SCOPES = {
@@ -105,16 +104,8 @@ def read_summary(path: Path) -> dict[str, float | int | str | bool] | None:
     return None
 
 
-def fmt_seconds(value: float) -> str:
-    return f"{value:.1f}s"
-
-
 def fmt_minutes(value: float) -> str:
     return f"{value / 60.0:.1f} min"
-
-
-def fmt_hours(value: float) -> str:
-    return f"{value / 3600.0:.2f} h"
 
 
 def fmt_number(value: float, digits: int = 3) -> str:
@@ -200,15 +191,13 @@ def markdown_table(rows: list[dict[str, object]], scope: str) -> str:
 
 def write_readme(
     output_dir: Path,
-    raw_scope_rows: list[dict[str, object]],
-    clean_scope_rows: list[dict[str, object]],
-    per_row_count: int,
+    scope_rows: list[dict[str, object]],
     clean_row_count: int,
+    excluded_row_count: int,
 ) -> None:
-    e1_rows = [row for row in raw_scope_rows if row["scope"] == "E1_m0_100m_all_datasets"]
-    e1_total = sum(int(row["runs"]) for row in e1_rows)
+    e1_total = sum(int(row["runs"]) for row in scope_rows if row["scope"] == "E1_m0_100m_all_datasets")
     e2_totals = {
-        scope: sum(int(row["runs"]) for row in raw_scope_rows if row["scope"] == scope)
+        scope: sum(int(row["runs"]) for row in scope_rows if row["scope"] == scope)
         for scope in COMPLETED_E2_DATASET_SCOPES.values()
     }
     generated = datetime.now().strftime("%Y-%m-%d")
@@ -217,49 +206,38 @@ def write_readme(
         for scope, total in e2_totals.items()
         if total
     )
-    clean_sections = "\n\n".join(
-        f"## Clean {SCOPE_LABEL[scope]}\n\n{markdown_table(clean_scope_rows, scope)}"
-        for scope in ["E1_m0_100m_all_datasets", *COMPLETED_E2_DATASET_SCOPES.values()]
-    )
-    raw_sections = "\n\n".join(
-        f"## Raw All-Completed {SCOPE_LABEL[scope]}\n\n{markdown_table(raw_scope_rows, scope)}"
+    sections = "\n\n".join(
+        f"## {SCOPE_LABEL[scope]}\n\n{markdown_table(scope_rows, scope)}"
         for scope in ["E1_m0_100m_all_datasets", *COMPLETED_E2_DATASET_SCOPES.values()]
     )
     text = f"""# ICLR26 Runtime Summary
 
 Generated: {generated}.
 
-This package summarizes per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and other launcher overhead. That is the comparable per-combo runtime because E1 jobs ran whole 15-row cells inside one Slurm allocation.
+This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
 
-Included:
+Included in tracked runtime aggregates:
 
-- E1 M0/100M all completed datasets: `{e1_total}` rows, five datasets x three seeds x 15 methods.
+- E1 M0/100M clean rows: `{e1_total}` rows. E1 FineWeb-Edu seed `2027` rows `75-89` are excluded because Slurm job `158117` completed with `Restarts=6` and produced restart/node-contaminated throughput outliers.
 {e2_bullets}
 
-Excluded:
+Excluded from tracked runtime aggregates:
 
+- E1 FineWeb-Edu seed `2027` rows `75-89`: `{excluded_row_count}` rows, restart-contaminated.
 - E2 FineWeb rows `330-374`, because that dataset cell is queued/incomplete until all 45 rows finish.
 - E2 rows `375+`, because they have not been queued/completed yet.
 
-## Runtime Quality Note
+No raw all-completed E1 aggregate is tracked in this package. The contaminated E1 rows are omitted from both aggregate CSVs and `runtime_per_row.csv`.
 
-E1 FineWeb-Edu seed `2027` rows `75-89` ran as Slurm job `158117`, which completed with `Restarts=6`. The final JSONL files for those rows have one config record, one summary record, and no duplicate train steps, so `summary.total_seconds` is not directly summing archived requeue attempts. However, that matched cell is restart/node contaminated and produces pathological throughput outliers, especially rows `81-89`.
+Clean rows summarized: `{clean_row_count}`.
 
-The clean tables below therefore exclude rows `75-89` from E1 runtime aggregates. Raw all-completed tables are still written to CSV for provenance.
-
-Clean rows summarized: `{clean_row_count}`. Raw completed rows summarized: `{per_row_count}`.
-
-{clean_sections}
-
-{raw_sections}
+{sections}
 
 ## Files
 
-- `runtime_by_scope_method_clean.csv`: default clean per-combo aggregate.
-- `runtime_by_dataset_method_clean.csv`: default clean per-combo aggregate split by dataset.
-- `runtime_by_scope_method.csv`: raw all-completed per-combo aggregate.
-- `runtime_by_dataset_method.csv`: raw all-completed per-combo aggregate split by dataset.
-- `runtime_per_row.csv`: one record per included completed manifest row.
+- `runtime_by_scope_method_clean.csv`: clean per-combo aggregate.
+- `runtime_by_dataset_method_clean.csv`: clean per-combo aggregate split by dataset.
+- `runtime_per_row.csv`: one record per clean included manifest row.
 """
     (output_dir / "README.md").write_text(text)
 
@@ -267,10 +245,15 @@ Clean rows summarized: `{clean_row_count}`. Raw completed rows summarized: `{per
 def main() -> None:
     args = parse_args()
     per_row: list[dict[str, object]] = []
+    excluded = 0
     with args.manifest.open(newline="") as handle:
         for row in csv.DictReader(handle):
             scope = scope_for(row)
             if scope is None:
+                continue
+            row_index = int(row["row_index"])
+            if row_index in RESTART_AFFECTED_ROWS:
+                excluded += 1
                 continue
             jsonl_path = args.run_root / row["phase"] / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
             summary = read_summary(jsonl_path)
@@ -282,7 +265,7 @@ def main() -> None:
                     "scope": scope,
                     "phase": row["phase"],
                     "dataset": row["dataset"],
-                    "row_index": int(row["row_index"]),
+                    "row_index": row_index,
                     "row_id": row["row_id"],
                     "seed": int(row["seed"]),
                     "method": row["method"],
@@ -298,8 +281,6 @@ def main() -> None:
                     "mean_seconds_per_step": float(summary["mean_seconds_per_step"]),
                     "tokens_per_second": float(summary["tokens_per_second"]),
                     "stopped_early": bool(summary.get("stopped_early", False)),
-                    "restart_affected": int(row["row_index"]) in RESTART_AFFECTED_ROWS,
-                    "include_in_clean_runtime": int(row["row_index"]) not in RESTART_AFFECTED_ROWS,
                     "jsonl": str(jsonl_path),
                 }
             )
@@ -308,9 +289,6 @@ def main() -> None:
     per_row = sorted(per_row, key=lambda r: (str(r["scope"]), str(r["dataset"]), int(r["row_index"])))
     by_scope = aggregate(per_row, ("scope", "method"))
     by_dataset = aggregate(per_row, ("scope", "phase", "dataset", "method"))
-    clean_per_row = [row for row in per_row if row["include_in_clean_runtime"]]
-    clean_by_scope = aggregate(clean_per_row, ("scope", "method"))
-    clean_by_dataset = aggregate(clean_per_row, ("scope", "phase", "dataset", "method"))
 
     write_csv(
         args.output_dir / "runtime_per_row.csv",
@@ -335,8 +313,6 @@ def main() -> None:
             "mean_seconds_per_step",
             "tokens_per_second",
             "stopped_early",
-            "restart_affected",
-            "include_in_clean_runtime",
             "jsonl",
         ],
     )
@@ -360,11 +336,9 @@ def main() -> None:
         "mean_seconds_per_step",
         "tokens_per_second_mean",
     ]
-    write_csv(args.output_dir / "runtime_by_scope_method.csv", by_scope, [f for f in aggregate_fields if f not in {"phase", "dataset"}])
-    write_csv(args.output_dir / "runtime_by_dataset_method.csv", by_dataset, aggregate_fields)
-    write_csv(args.output_dir / "runtime_by_scope_method_clean.csv", clean_by_scope, [f for f in aggregate_fields if f not in {"phase", "dataset"}])
-    write_csv(args.output_dir / "runtime_by_dataset_method_clean.csv", clean_by_dataset, aggregate_fields)
-    write_readme(args.output_dir, by_scope, clean_by_scope, len(per_row), len(clean_per_row))
+    write_csv(args.output_dir / "runtime_by_scope_method_clean.csv", by_scope, [f for f in aggregate_fields if f not in {"phase", "dataset"}])
+    write_csv(args.output_dir / "runtime_by_dataset_method_clean.csv", by_dataset, aggregate_fields)
+    write_readme(args.output_dir, by_scope, len(per_row), excluded)
 
 
 if __name__ == "__main__":

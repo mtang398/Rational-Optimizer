@@ -459,6 +459,12 @@ python3 experiments/scripts/plot_iclr26_e1_curves.py \
   --status-md experiments/ICLR_RUN_STATUS.md
 ```
 
+E1 token-to-target savings:
+
+```bash
+python3 experiments/scripts/summarize_iclr26_e1_token_savings.py
+```
+
 E2 completed-cell summaries:
 
 ```bash
@@ -473,7 +479,13 @@ python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
   --completed-date 2026-06-12
 ```
 
-Runtime tables for completed paper cells:
+E2 dense curve figures and checkpoint tables:
+
+```bash
+python3 experiments/scripts/plot_iclr26_e2_curves.py
+```
+
+Clean runtime tables for completed paper cells:
 
 ```bash
 python3 experiments/scripts/summarize_iclr26_runtimes.py

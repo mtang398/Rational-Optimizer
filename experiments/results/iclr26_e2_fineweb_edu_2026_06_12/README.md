@@ -34,6 +34,46 @@ MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `
 | 2027 | 3.727779 | rlb_muon | 3.760002 | 0.032223 |
 | 3407 | 3.704217 | rlb_muon | 3.736407 | 0.032189 |
 
+## Runtime Summary
+
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+
+| Method | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| silu_muon | 3 | 72.8 min | 12.9 min | 63.8-87.6 min | 0.4585 | 72920.4 |
+| silu_lion | 3 | 74.5 min | 11.5 min | 61.2-81.1 min | 0.4709 | 70923.0 |
+| silu_adamw | 3 | 75.2 min | 14.0 min | 61.4-89.4 min | 0.4754 | 70683.2 |
+| silu_schedulefree | 3 | 75.5 min | 11.9 min | 61.8-82.4 min | 0.4781 | 69904.1 |
+| silu_came | 3 | 80.2 min | 11.7 min | 66.7-87.0 min | 0.5079 | 65602.6 |
+| rlb_schedulefree | 3 | 86.6 min | 14.4 min | 78.3-103.3 min | 0.5388 | 61973.9 |
+| silu_soap | 3 | 86.8 min | 12.0 min | 72.9-93.8 min | 0.5475 | 60685.2 |
+| silu_ademamix | 3 | 88.5 min | 10.7 min | 76.5-97.0 min | 0.4762 | 70175.4 |
+| rlb_lion | 3 | 91.2 min | 12.7 min | 77.0-101.3 min | 0.5685 | 58526.8 |
+| rlb_matrixpolicy_original | 3 | 91.3 min | 10.6 min | 79.1-97.7 min | 0.5713 | 57960.3 |
+| rlb_came | 3 | 92.6 min | 15.0 min | 83.9-110.0 min | 0.5774 | 57751.3 |
+| rlb_soap | 3 | 93.5 min | 12.6 min | 79.3-103.3 min | 0.5832 | 56995.4 |
+| rlb_adamw | 3 | 100.6 min | 8.5 min | 95.7-110.4 min | 0.6304 | 52246.8 |
+| rlb_muon | 3 | 102.9 min | 3.1 min | 101.1-106.5 min | 0.6429 | 51009.0 |
+| rlb_ademamix | 3 | 108.2 min | 14.2 min | 98.8-124.5 min | 0.5356 | 62475.8 |
+
+## Dense Curve Figures
+
+All-method view:
+
+![FineWeb-Edu E2 validation loss mean +/- std, all methods](../iclr26_e2_figures/fineweb_edu_core_validation_loss_mean_std.svg)
+
+![FineWeb-Edu E2 validation PPL mean +/- std, all methods](../iclr26_e2_figures/fineweb_edu_core_validation_ppl_mean_std.svg)
+
+![FineWeb-Edu E2 training loss mean +/- std, all methods](../iclr26_e2_figures/fineweb_edu_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![FineWeb-Edu E2 validation loss mean +/- std, clean comparison](../iclr26_e2_figures/fineweb_edu_clean_validation_loss_mean_std.svg)
+
+![FineWeb-Edu E2 validation PPL mean +/- std, clean comparison](../iclr26_e2_figures/fineweb_edu_clean_validation_ppl_mean_std.svg)
+
+![FineWeb-Edu E2 training loss mean +/- std, clean comparison](../iclr26_e2_figures/fineweb_edu_clean_training_loss_mean_std.svg)
+
 ## Token-To-Target Savings
 
 This table asks how many training tokens were needed to first reach a validation-loss threshold. It does not change the fixed-budget protocol; all completed runs still trained to about `299.8M` tokens. The readout uses the native eval cadence of 50 steps, or `1.64M` tokens.
@@ -54,5 +94,6 @@ This table asks how many training tokens were needed to first reach a validation
 
 - `final_summary.csv`: aggregate final validation losses by method.
 - `per_seed_summary.csv`: per-row final results and JSONL provenance paths.
+- `runtime_summary.csv`: aggregate runtime by method.
 - `token_savings.csv`: aggregate token-to-target savings.
 - `token_savings_per_seed.csv`: per-seed threshold hits and comparator identities.

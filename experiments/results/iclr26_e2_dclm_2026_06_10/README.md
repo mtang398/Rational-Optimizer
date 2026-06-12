@@ -34,6 +34,46 @@ MatrixPolicy is best on all three DCLM E2 seeds. Mean final val loss is `3.95762
 | 2027 | 3.983507 | silu_lion | 4.013479 | 0.029972 |
 | 3407 | 3.923688 | rlb_lion | 3.960352 | 0.036664 |
 
+## Runtime Summary
+
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+
+| Method | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| silu_lion | 3 | 67.6 min | 12.0 min | 60.5-81.5 min | 0.4265 | 78442.0 |
+| silu_schedulefree | 3 | 68.9 min | 11.9 min | 61.6-82.6 min | 0.4343 | 76941.0 |
+| silu_adamw | 3 | 70.9 min | 10.0 min | 61.1-81.2 min | 0.4478 | 74246.1 |
+| silu_muon | 3 | 71.4 min | 14.8 min | 59.4-87.9 min | 0.4497 | 74940.2 |
+| rlb_schedulefree | 3 | 78.3 min | 0.1 min | 78.1-78.4 min | 0.4835 | 67778.1 |
+| silu_came | 3 | 80.2 min | 11.7 min | 66.7-87.2 min | 0.5085 | 65529.0 |
+| rlb_lion | 3 | 83.6 min | 11.5 min | 76.9-96.9 min | 0.5184 | 64027.8 |
+| rlb_adamw | 3 | 83.6 min | 10.9 min | 77.3-96.3 min | 0.5188 | 63911.7 |
+| rlb_matrixpolicy_original | 3 | 84.8 min | 10.3 min | 78.8-96.7 min | 0.5293 | 62518.4 |
+| silu_ademamix | 3 | 85.3 min | 18.1 min | 64.5-96.1 min | 0.4823 | 69300.4 |
+| rlb_soap | 3 | 85.6 min | 11.0 min | 79.2-98.2 min | 0.5310 | 62405.0 |
+| silu_soap | 3 | 86.9 min | 12.3 min | 72.8-94.5 min | 0.5487 | 60587.7 |
+| rlb_muon | 3 | 89.0 min | 11.4 min | 82.3-102.1 min | 0.5530 | 59894.1 |
+| rlb_came | 3 | 90.0 min | 10.6 min | 83.9-102.3 min | 0.5604 | 59034.6 |
+| rlb_ademamix | 3 | 107.9 min | 12.1 min | 100.8-121.9 min | 0.5201 | 63823.4 |
+
+## Dense Curve Figures
+
+All-method view:
+
+![DCLM E2 validation loss mean +/- std, all methods](../iclr26_e2_figures/dclm_core_validation_loss_mean_std.svg)
+
+![DCLM E2 validation PPL mean +/- std, all methods](../iclr26_e2_figures/dclm_core_validation_ppl_mean_std.svg)
+
+![DCLM E2 training loss mean +/- std, all methods](../iclr26_e2_figures/dclm_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![DCLM E2 validation loss mean +/- std, clean comparison](../iclr26_e2_figures/dclm_clean_validation_loss_mean_std.svg)
+
+![DCLM E2 validation PPL mean +/- std, clean comparison](../iclr26_e2_figures/dclm_clean_validation_ppl_mean_std.svg)
+
+![DCLM E2 training loss mean +/- std, clean comparison](../iclr26_e2_figures/dclm_clean_training_loss_mean_std.svg)
+
 ## Token-To-Target Savings
 
 This table asks how many training tokens were needed to first reach a validation-loss threshold. It does not change the fixed-budget protocol; all completed runs still trained to about `299.8M` tokens. The readout uses the native eval cadence of 50 steps, or `1.64M` tokens.
@@ -53,5 +93,6 @@ This table asks how many training tokens were needed to first reach a validation
 
 - `final_summary.csv`: aggregate final validation losses by method.
 - `per_seed_summary.csv`: per-row final results and JSONL provenance paths.
+- `runtime_summary.csv`: aggregate runtime by method.
 - `token_savings.csv`: aggregate token-to-target savings.
 - `token_savings_per_seed.csv`: per-seed threshold hits and comparator identities.

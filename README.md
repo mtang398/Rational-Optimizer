@@ -11,6 +11,8 @@ experiments/ICLR_RUN_STATUS.md
 experiments/results/iclr26_runtime_summary_2026_06_11/
 experiments/results/iclr26_e2_dclm_2026_06_10/
 experiments/results/iclr26_e2_fineweb_edu_2026_06_12/
+experiments/results/iclr26_e2_figures/
+experiments/results/iclr26_e1_token_savings_2026_06_12/
 experiments/results/iclr26_e1_figures/
 experiments/runs/iclr26_main/        # local raw JSONL, ignored
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo anchor
@@ -18,9 +20,9 @@ experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo a
 
 ## Completed Runtime Summary
 
-Per optimizer/activation-combo runtimes for completed paper cells are tracked in `experiments/results/iclr26_runtime_summary_2026_06_11/`. The package covers all completed E1 M0/100M rows plus completed E2 M0/300M DCLM and FineWeb-Edu rows. It excludes E2 FineWeb rows `330-374` until that queued cell completes, and excludes E2 rows `375+` because they have not been queued/completed yet.
+Per optimizer/activation-combo runtimes for completed paper cells are tracked in `experiments/results/iclr26_runtime_summary_2026_06_11/`. The package covers cleaned E1 M0/100M rows plus completed E2 M0/300M DCLM and FineWeb-Edu rows. It excludes E1 FineWeb-Edu seed `2027` rows `75-89` because Slurm job `158117` had `Restarts=6` and produced restart/node-contaminated throughput outliers. It also excludes E2 FineWeb rows `330-374` until that queued cell completes, and excludes E2 rows `375+` because they have not been queued/completed yet.
 
-Default headline runtime tables use the clean aggregate: E1 FineWeb-Edu seed `2027` rows `75-89` are excluded from clean E1 runtime because Slurm job `158117` had `Restarts=6` and produced restart/node-contaminated throughput outliers. Raw all-completed CSVs are still kept for provenance.
+No raw all-completed E1 timing aggregate is tracked. The contaminated E1 rows are omitted from aggregate CSVs and `runtime_per_row.csv`.
 
 The runtime metric is the JSONL `summary.total_seconds` training-harness wall time per manifest row. This excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
 
@@ -61,7 +63,41 @@ MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `
 | 3.80 | 211.9M | 211.9M -> 224.5M (3/3) | 12.6M | 5.6% | 205.6M -> 287.5M (2/3) | 81.9M | 28.5% |
 | 3.75 | 247.4M | 237.6M -> 262.1M (2/3) | 24.6M | 9.4% | not reached (0/3) | not reached | n/a |
 
-Full per-method and per-seed tables are in the tracked E2 result package READMEs.
+Runtime tables are included in each E2 dataset package and in `experiments/results/iclr26_runtime_summary_2026_06_11/`.
+
+### E2 Dense Curve Figures
+
+The completed E2 curve package is tracked under `experiments/results/iclr26_e2_figures/`. The figures use every native JSONL log point from step 500 through 9150; shaded bands are mean +/- 1 sample std over three seeds.
+
+#### DCLM
+
+![DCLM E2 validation loss mean +/- std, all methods](experiments/results/iclr26_e2_figures/dclm_core_validation_loss_mean_std.svg)
+
+![DCLM E2 validation PPL mean +/- std, all methods](experiments/results/iclr26_e2_figures/dclm_core_validation_ppl_mean_std.svg)
+
+![DCLM E2 training loss mean +/- std, all methods](experiments/results/iclr26_e2_figures/dclm_core_training_loss_mean_std.svg)
+
+![DCLM E2 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/dclm_clean_validation_loss_mean_std.svg)
+
+![DCLM E2 validation PPL mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/dclm_clean_validation_ppl_mean_std.svg)
+
+![DCLM E2 training loss mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/dclm_clean_training_loss_mean_std.svg)
+
+#### FineWeb-Edu
+
+![FineWeb-Edu E2 validation loss mean +/- std, all methods](experiments/results/iclr26_e2_figures/fineweb_edu_core_validation_loss_mean_std.svg)
+
+![FineWeb-Edu E2 validation PPL mean +/- std, all methods](experiments/results/iclr26_e2_figures/fineweb_edu_core_validation_ppl_mean_std.svg)
+
+![FineWeb-Edu E2 training loss mean +/- std, all methods](experiments/results/iclr26_e2_figures/fineweb_edu_core_training_loss_mean_std.svg)
+
+![FineWeb-Edu E2 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/fineweb_edu_clean_validation_loss_mean_std.svg)
+
+![FineWeb-Edu E2 validation PPL mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/fineweb_edu_clean_validation_ppl_mean_std.svg)
+
+![FineWeb-Edu E2 training loss mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/fineweb_edu_clean_training_loss_mean_std.svg)
+
+Full E2 per-method, per-seed, runtime, checkpoint, and curve tables are in the tracked E2 result package READMEs.
 
 ## Current E1 Main-Suite Results
 
@@ -75,21 +111,76 @@ Current E1 M0/100M results are tracked in `experiments/ICLR_RUN_STATUS.md` and f
 | Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
 | C4 | 4.285119 +/- 0.020677 | rlb_lion 4.335663 +/- 0.020917 | 0.050544 |
 
+### E1 Token-To-Target Savings
+
+Full package: `experiments/results/iclr26_e1_token_savings_2026_06_12/`.
+
+#### DCLM
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 4.90 | 29.5M | 29.5M -> 32.2M (3/3) | 2.7M | 8.5% | 29.5M -> 36.0M (3/3) | 6.6M | 18.2% |
+| 4.70 | 39.9M | 39.9M -> 42.1M (3/3) | 2.2M | 5.2% | 39.9M -> 48.6M (3/3) | 8.7M | 18.0% |
+| 4.55 | 50.8M | 50.8M -> 53.5M (3/3) | 2.7M | 5.1% | 50.8M -> 63.4M (3/3) | 12.6M | 19.8% |
+| 4.45 | 60.1M | 60.1M -> 64.4M (3/3) | 4.4M | 6.8% | 60.1M -> 82.5M (3/3) | 22.4M | 27.2% |
+| 4.35 | 73.7M | 73.7M -> 83.0M (3/3) | 9.3M | 11.2% | not reached (0/3) | not reached | n/a |
+| 4.30 | 84.1M | 83.6M -> 99.9M (1/3) | 16.4M | 16.4% | not reached (0/3) | not reached | n/a |
+
+#### FineWeb-Edu
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 4.80 | 30.0M | 30.0M -> 32.2M (3/3) | 2.2M | 6.8% | 30.0M -> 34.4M (3/3) | 4.4M | 12.7% |
+| 4.60 | 38.2M | 38.2M -> 39.3M (3/3) | 1.1M | 2.8% | 38.2M -> 45.3M (3/3) | 7.1M | 15.7% |
+| 4.40 | 49.7M | 49.7M -> 52.4M (3/3) | 2.7M | 5.2% | 49.7M -> 61.7M (3/3) | 12.0M | 19.5% |
+| 4.30 | 59.0M | 59.0M -> 63.4M (3/3) | 4.4M | 6.9% | 59.0M -> 78.1M (3/3) | 19.1M | 24.5% |
+| 4.20 | 71.5M | 71.5M -> 80.3M (3/3) | 8.7M | 10.9% | not reached (0/3) | not reached | n/a |
+| 4.10 | 95.0M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+
+#### FineWeb
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 5.00 | 30.6M | 30.6M -> 32.2M (3/3) | 1.6M | 5.1% | 30.6M -> 35.0M (3/3) | 4.4M | 12.5% |
+| 4.80 | 39.3M | 39.3M -> 40.4M (3/3) | 1.1M | 2.7% | 39.3M -> 47.0M (3/3) | 7.6M | 16.3% |
+| 4.60 | 51.9M | 51.9M -> 55.2M (3/3) | 3.3M | 5.9% | 51.9M -> 67.2M (3/3) | 15.3M | 22.8% |
+| 4.50 | 62.3M | 62.3M -> 66.6M (3/3) | 4.4M | 6.6% | 62.3M -> 89.0M (3/3) | 26.8M | 30.1% |
+| 4.40 | 77.0M | 77.0M -> 86.3M (3/3) | 9.3M | 10.8% | not reached (0/3) | not reached | n/a |
+| 4.35 | 88.5M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+
+#### Dolma-sample
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 5.00 | 31.7M | 31.7M -> 33.3M (3/3) | 1.6M | 4.9% | 31.7M -> 36.6M (3/3) | 4.9M | 13.4% |
+| 4.80 | 40.4M | 40.4M -> 41.5M (3/3) | 1.1M | 2.6% | 40.4M -> 48.1M (3/3) | 7.6M | 15.9% |
+| 4.60 | 54.1M | 54.1M -> 56.3M (3/3) | 2.2M | 3.9% | 54.1M -> 69.4M (3/3) | 15.3M | 22.0% |
+| 4.50 | 63.9M | 63.9M -> 67.2M (3/3) | 3.3M | 4.9% | 63.9M -> 92.8M (3/3) | 28.9M | 31.2% |
+| 4.40 | 77.6M | 77.6M -> 87.4M (3/3) | 9.8M | 11.2% | not reached (0/3) | not reached | n/a |
+| 4.35 | 90.1M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+
+#### C4
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 5.00 | 29.5M | 29.5M -> 31.1M (3/3) | 1.6M | 5.3% | 29.5M -> 34.4M (3/3) | 4.9M | 14.3% |
+| 4.80 | 37.7M | 37.7M -> 38.8M (3/3) | 1.1M | 2.8% | 37.7M -> 45.3M (3/3) | 7.6M | 16.9% |
+| 4.60 | 49.7M | 49.7M -> 51.9M (3/3) | 2.2M | 4.2% | 49.7M -> 63.4M (3/3) | 13.7M | 21.6% |
+| 4.50 | 58.4M | 58.4M -> 61.7M (3/3) | 3.3M | 5.3% | 58.4M -> 80.3M (3/3) | 21.8M | 27.2% |
+| 4.40 | 71.0M | 71.0M -> 78.1M (3/3) | 7.1M | 9.1% | not reached (0/3) | not reached | n/a |
+| 4.30 | not reached | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+
 ### E1 Dense Curve Figures
 
 These are the same E1 figure panels embedded in `experiments/ICLR_RUN_STATUS.md`. The curves use completed E1 runs at native logging cadence: validation every 50 steps and training loss every 10 steps. Shaded bands are mean +/- 1 sample std over seeds. The all-method view includes MatrixPolicy, AdamW, Lion, SOAP, Muon, ScheduleFree, and CAME rows; the clean view omits SOAP from the plotted comparison.
 
 #### DCLM
 
-All-method view:
-
 ![DCLM E1 validation loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/dclm_core_validation_loss_mean_std.svg)
 
 ![DCLM E1 validation PPL mean +/- std, all methods](experiments/results/iclr26_e1_figures/dclm_core_validation_ppl_mean_std.svg)
 
 ![DCLM E1 training loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/dclm_core_training_loss_mean_std.svg)
-
-Clean comparison view:
 
 ![DCLM E1 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/dclm_clean_validation_loss_mean_std.svg)
 
@@ -99,15 +190,11 @@ Clean comparison view:
 
 #### FineWeb-Edu
 
-All-method view:
-
 ![FineWeb-Edu E1 validation loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_edu_core_validation_loss_mean_std.svg)
 
 ![FineWeb-Edu E1 validation PPL mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_edu_core_validation_ppl_mean_std.svg)
 
 ![FineWeb-Edu E1 training loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_edu_core_training_loss_mean_std.svg)
-
-Clean comparison view:
 
 ![FineWeb-Edu E1 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/fineweb_edu_clean_validation_loss_mean_std.svg)
 
@@ -117,15 +204,11 @@ Clean comparison view:
 
 #### FineWeb
 
-All-method view:
-
 ![FineWeb E1 validation loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_core_validation_loss_mean_std.svg)
 
 ![FineWeb E1 validation PPL mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_core_validation_ppl_mean_std.svg)
 
 ![FineWeb E1 training loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/fineweb_core_training_loss_mean_std.svg)
-
-Clean comparison view:
 
 ![FineWeb E1 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/fineweb_clean_validation_loss_mean_std.svg)
 
@@ -135,15 +218,11 @@ Clean comparison view:
 
 #### Dolma-sample
 
-All-method view:
-
 ![Dolma-sample E1 validation loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/dolma_sample_core_validation_loss_mean_std.svg)
 
 ![Dolma-sample E1 validation PPL mean +/- std, all methods](experiments/results/iclr26_e1_figures/dolma_sample_core_validation_ppl_mean_std.svg)
 
 ![Dolma-sample E1 training loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/dolma_sample_core_training_loss_mean_std.svg)
-
-Clean comparison view:
 
 ![Dolma-sample E1 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/dolma_sample_clean_validation_loss_mean_std.svg)
 
@@ -153,15 +232,11 @@ Clean comparison view:
 
 #### C4
 
-All-method view:
-
 ![C4 E1 validation loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/c4_en_core_validation_loss_mean_std.svg)
 
 ![C4 E1 validation PPL mean +/- std, all methods](experiments/results/iclr26_e1_figures/c4_en_core_validation_ppl_mean_std.svg)
 
 ![C4 E1 training loss mean +/- std, all methods](experiments/results/iclr26_e1_figures/c4_en_core_training_loss_mean_std.svg)
-
-Clean comparison view:
 
 ![C4 E1 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e1_figures/c4_en_clean_validation_loss_mean_std.svg)
 
@@ -256,6 +331,19 @@ sbatch experiments/scripts/run_iclr26_manifest_job.sh
 ```
 
 The manifest generator verifies that every main cell has the required method rows and that AdamW and MatrixPolicy share the same outer `lr`, `min_lr`, and `weight_decay` config set.
+
+## Result Regeneration
+
+Regenerate paper-facing completed-cell tables and figures from raw JSONL with:
+
+```bash
+python3 experiments/scripts/plot_iclr26_e1_curves.py --status-md experiments/ICLR_RUN_STATUS.md
+python3 experiments/scripts/summarize_iclr26_e1_token_savings.py
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset dclm --output-dir experiments/results/iclr26_e2_dclm_2026_06_10 --completed-date 2026-06-10
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset fineweb_edu --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12 --completed-date 2026-06-12
+python3 experiments/scripts/plot_iclr26_e2_curves.py
+python3 experiments/scripts/summarize_iclr26_runtimes.py
+```
 
 ## Method Sketch
 
