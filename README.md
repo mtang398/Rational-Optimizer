@@ -2,7 +2,7 @@
 
 RationalOPT studies Rational Local Basis (RLB) variants inside causal Transformer language models and the `rational_matrix_policy_onpolicy` optimizer for pretraining.
 
-Paper-facing results in this README include the completed E1 matched main suite and the completed E2 DCLM M0/300M cell. WikiText is kept as a small demo anchor.
+Paper-facing results in this README include the completed E1 matched main suite and the completed E2 DCLM and FineWeb-Edu M0/300M cells. WikiText is kept as a small demo anchor.
 
 ## Result Pointers
 
@@ -10,6 +10,7 @@ Paper-facing results in this README include the completed E1 matched main suite 
 experiments/ICLR_RUN_STATUS.md
 experiments/results/iclr26_runtime_summary_2026_06_11/
 experiments/results/iclr26_e2_dclm_2026_06_10/
+experiments/results/iclr26_e2_fineweb_edu_2026_06_12/
 experiments/results/iclr26_e1_figures/
 experiments/runs/iclr26_main/        # local raw JSONL, ignored
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo anchor
@@ -17,17 +18,23 @@ experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo a
 
 ## Completed Runtime Summary
 
-Per optimizer/activation-combo runtimes for completed paper cells are tracked in `experiments/results/iclr26_runtime_summary_2026_06_11/`. The package covers all completed E1 M0/100M rows and the completed E2 DCLM M0/300M rows. It deliberately excludes E2 FineWeb-Edu rows `285-329` because that dataset cell is still in progress.
+Per optimizer/activation-combo runtimes for completed paper cells are tracked in `experiments/results/iclr26_runtime_summary_2026_06_11/`. The package covers all completed E1 M0/100M rows plus completed E2 M0/300M DCLM and FineWeb-Edu rows. It excludes E2 FineWeb rows `330-374` until that queued cell completes, and excludes E2 rows `375+` because they have not been queued/completed yet.
 
-Default headline runtime tables now use the clean aggregate: E1 FineWeb-Edu seed `2027` rows `75-89` are excluded from clean E1 runtime because Slurm job `158117` had `Restarts=6` and produced restart/node-contaminated throughput outliers. Raw all-completed CSVs are still kept for provenance.
+Default headline runtime tables use the clean aggregate: E1 FineWeb-Edu seed `2027` rows `75-89` are excluded from clean E1 runtime because Slurm job `158117` had `Restarts=6` and produced restart/node-contaminated throughput outliers. Raw all-completed CSVs are still kept for provenance.
 
-The runtime metric is the JSONL `summary.total_seconds` training-harness wall time per manifest row. This is the comparable per-combo number for E1 because each E1 Slurm job ran a whole 15-row matched cell.
+The runtime metric is the JSONL `summary.total_seconds` training-harness wall time per manifest row. This excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
 
-## Current E2 DCLM 300M Result
+## Current E2 300M Results
 
-E2 M0/300M DCLM is complete for manifest rows `240-284`: three seeds, 15 fixed methods per seed, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per run. The tracked result package is `experiments/results/iclr26_e2_dclm_2026_06_10/`.
+E2 M0/300M is complete for DCLM rows `240-284` and FineWeb-Edu rows `285-329`: each completed cell has three seeds, 15 fixed methods per seed, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per run.
 
-MatrixPolicy is best on all three seeds. Mean final validation loss is `3.957627 +/- 0.030713`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, and `rlb_lion` at `3.994293 +/- 0.030088`. ADeMaMix diverged/non-finite for all E2 DCLM seeds.
+E2 FineWeb rows `330-374` are now queued as the next dataset only, split into two one-row dependency chains. E2 rows `375+` are not queued.
+
+### DCLM
+
+Tracked package: `experiments/results/iclr26_e2_dclm_2026_06_10/`.
+
+MatrixPolicy is best on all three DCLM E2 seeds. Mean final val loss is `3.957627 +/- 0.030713`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, `rlb_lion` at `3.994293 +/- 0.030088`.
 
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
@@ -38,7 +45,23 @@ MatrixPolicy is best on all three seeds. Mean final validation loss is `3.957627
 | 4.05 | 205.3M | 205.3M -> 222.8M (3/3) | 17.5M | 7.8% | 185.1M -> 244.1M (1/3) | 59.0M | 24.2% |
 | 4.00 | 244.7M | 232.7M -> 267.9M (2/3) | 35.2M | 13.1% | not reached (0/3) | not reached | n/a |
 
-Full per-method and per-seed tables are in `experiments/results/iclr26_e2_dclm_2026_06_10/README.md`.
+### FineWeb-Edu
+
+Tracked package: `experiments/results/iclr26_e2_fineweb_edu_2026_06_12/`.
+
+MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `3.706480 +/- 0.020263`; the next-best aggregate methods are `rlb_muon` at `3.738164 +/- 0.021014`, `silu_lion` at `3.744017 +/- 0.020802`, `rlb_lion` at `3.745142 +/- 0.021429`.
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 4.20 | 74.3M | 74.3M -> 81.4M (3/3) | 7.1M | 8.7% | 74.3M -> 93.4M (3/3) | 19.1M | 20.5% |
+| 4.10 | 100.5M | 100.5M -> 102.7M (3/3) | 2.2M | 2.1% | 100.5M -> 118.0M (3/3) | 17.5M | 14.8% |
+| 4.00 | 127.8M | 127.8M -> 130.5M (3/3) | 2.7M | 2.1% | 127.8M -> 151.8M (3/3) | 24.0M | 15.8% |
+| 3.90 | 163.3M | 163.3M -> 167.7M (3/3) | 4.4M | 2.6% | 163.3M -> 200.4M (3/3) | 37.1M | 18.5% |
+| 3.85 | 185.1M | 185.1M -> 191.1M (3/3) | 6.0M | 3.1% | 185.1M -> 237.0M (3/3) | 51.9M | 21.9% |
+| 3.80 | 211.9M | 211.9M -> 224.5M (3/3) | 12.6M | 5.6% | 205.6M -> 287.5M (2/3) | 81.9M | 28.5% |
+| 3.75 | 247.4M | 237.6M -> 262.1M (2/3) | 24.6M | 9.4% | not reached (0/3) | not reached | n/a |
+
+Full per-method and per-seed tables are in the tracked E2 result package READMEs.
 
 ## Current E1 Main-Suite Results
 

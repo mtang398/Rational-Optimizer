@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-11 16:05:00 EDT
+Updated: 2026-06-12 16:29:11 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -28,15 +28,28 @@ Raw row outputs are JSONL files under `experiments/runs/iclr26_main/<phase>/<dat
 
 Generated package: `experiments/results/iclr26_runtime_summary_2026_06_11/`.
 
-This summarizes per optimizer/activation-combo runtime for completed paper cells only: E1 M0/100M all datasets and E2 M0/300M DCLM. The metric is JSONL `summary.total_seconds`, the training-harness wall time per manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and other launcher overhead. E2 FineWeb-Edu rows `285-329` are excluded because that dataset cell is still in progress.
+Generated: 2026-06-12.
+
+This package summarizes per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and other launcher overhead. That is the comparable per-combo runtime because E1 jobs ran whole 15-row cells inside one Slurm allocation.
+
+Included:
+
+- E1 M0/100M all completed datasets: `225` rows, five datasets x three seeds x 15 methods.
+- E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
+- E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
+
+Excluded:
+
+- E2 FineWeb rows `330-374`, because that dataset cell is queued/incomplete until all 45 rows finish.
+- E2 rows `375+`, because they have not been queued/completed yet.
 
 ## Runtime Quality Note
 
-E1 FineWeb-Edu seed `2027` rows `75-89` ran in Slurm job `158117`, which completed with `Restarts=6`. The final JSONL files for those rows have one config record, one summary record, and no duplicate train steps, so `summary.total_seconds` is not directly summing archived requeue attempts. However, that matched cell is restart/node contaminated and produces pathological throughput outliers, especially rows `81-89`.
+E1 FineWeb-Edu seed `2027` rows `75-89` ran as Slurm job `158117`, which completed with `Restarts=6`. The final JSONL files for those rows have one config record, one summary record, and no duplicate train steps, so `summary.total_seconds` is not directly summing archived requeue attempts. However, that matched cell is restart/node contaminated and produces pathological throughput outliers, especially rows `81-89`.
 
 The clean tables below therefore exclude rows `75-89` from E1 runtime aggregates. Raw all-completed tables are still written to CSV for provenance.
 
-Clean rows summarized: `255`. Raw completed rows summarized: `270`.
+Clean rows summarized: `300`. Raw completed rows summarized: `315`.
 
 ## Clean E1 M0/100M All Datasets
 
@@ -78,6 +91,26 @@ Clean rows summarized: `255`. Raw completed rows summarized: `270`.
 | SiLU+ScheduleFree | 3 | 68.9 min | 11.9 min | 61.6 min-82.6 min | 0.4343 | 76941.0 |
 | RLB+ScheduleFree | 3 | 78.3 min | 0.1 min | 78.1 min-78.4 min | 0.4835 | 67778.1 |
 
+## Clean E2 M0/300M FineWeb-Edu
+
+| Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| RLB+MatrixPolicy | 3 | 91.3 min | 10.6 min | 79.1 min-97.7 min | 0.5713 | 57960.3 |
+| SiLU+AdamW | 3 | 75.2 min | 14.0 min | 61.4 min-89.4 min | 0.4754 | 70683.2 |
+| RLB+AdamW | 3 | 100.6 min | 8.5 min | 95.7 min-110.4 min | 0.6304 | 52246.8 |
+| SiLU+Muon | 3 | 72.8 min | 12.9 min | 63.8 min-87.6 min | 0.4585 | 72920.4 |
+| RLB+Muon | 3 | 102.9 min | 3.1 min | 101.1 min-106.5 min | 0.6429 | 51009.0 |
+| SiLU+Lion | 3 | 74.5 min | 11.5 min | 61.2 min-81.1 min | 0.4709 | 70923.0 |
+| RLB+Lion | 3 | 91.2 min | 12.7 min | 77.0 min-101.3 min | 0.5685 | 58526.8 |
+| SiLU+SOAP | 3 | 86.8 min | 12.0 min | 72.9 min-93.8 min | 0.5475 | 60685.2 |
+| RLB+SOAP | 3 | 93.5 min | 12.6 min | 79.3 min-103.3 min | 0.5832 | 56995.4 |
+| SiLU+ADeMaMix | 3 | 88.5 min | 10.7 min | 76.5 min-97.0 min | 0.4762 | 70175.4 |
+| RLB+ADeMaMix | 3 | 108.2 min | 14.2 min | 98.8 min-124.5 min | 0.5356 | 62475.8 |
+| SiLU+CAME | 3 | 80.2 min | 11.7 min | 66.7 min-87.0 min | 0.5079 | 65602.6 |
+| RLB+CAME | 3 | 92.6 min | 15.0 min | 83.9 min-110.0 min | 0.5774 | 57751.3 |
+| SiLU+ScheduleFree | 3 | 75.5 min | 11.9 min | 61.8 min-82.4 min | 0.4781 | 69904.1 |
+| RLB+ScheduleFree | 3 | 86.6 min | 14.4 min | 78.3 min-103.3 min | 0.5388 | 61973.9 |
+
 ## Raw All-Completed E1 M0/100M All Datasets
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
@@ -118,6 +151,33 @@ Clean rows summarized: `255`. Raw completed rows summarized: `270`.
 | SiLU+ScheduleFree | 3 | 68.9 min | 11.9 min | 61.6 min-82.6 min | 0.4343 | 76941.0 |
 | RLB+ScheduleFree | 3 | 78.3 min | 0.1 min | 78.1 min-78.4 min | 0.4835 | 67778.1 |
 
+## Raw All-Completed E2 M0/300M FineWeb-Edu
+
+| Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| RLB+MatrixPolicy | 3 | 91.3 min | 10.6 min | 79.1 min-97.7 min | 0.5713 | 57960.3 |
+| SiLU+AdamW | 3 | 75.2 min | 14.0 min | 61.4 min-89.4 min | 0.4754 | 70683.2 |
+| RLB+AdamW | 3 | 100.6 min | 8.5 min | 95.7 min-110.4 min | 0.6304 | 52246.8 |
+| SiLU+Muon | 3 | 72.8 min | 12.9 min | 63.8 min-87.6 min | 0.4585 | 72920.4 |
+| RLB+Muon | 3 | 102.9 min | 3.1 min | 101.1 min-106.5 min | 0.6429 | 51009.0 |
+| SiLU+Lion | 3 | 74.5 min | 11.5 min | 61.2 min-81.1 min | 0.4709 | 70923.0 |
+| RLB+Lion | 3 | 91.2 min | 12.7 min | 77.0 min-101.3 min | 0.5685 | 58526.8 |
+| SiLU+SOAP | 3 | 86.8 min | 12.0 min | 72.9 min-93.8 min | 0.5475 | 60685.2 |
+| RLB+SOAP | 3 | 93.5 min | 12.6 min | 79.3 min-103.3 min | 0.5832 | 56995.4 |
+| SiLU+ADeMaMix | 3 | 88.5 min | 10.7 min | 76.5 min-97.0 min | 0.4762 | 70175.4 |
+| RLB+ADeMaMix | 3 | 108.2 min | 14.2 min | 98.8 min-124.5 min | 0.5356 | 62475.8 |
+| SiLU+CAME | 3 | 80.2 min | 11.7 min | 66.7 min-87.0 min | 0.5079 | 65602.6 |
+| RLB+CAME | 3 | 92.6 min | 15.0 min | 83.9 min-110.0 min | 0.5774 | 57751.3 |
+| SiLU+ScheduleFree | 3 | 75.5 min | 11.9 min | 61.8 min-82.4 min | 0.4781 | 69904.1 |
+| RLB+ScheduleFree | 3 | 86.6 min | 14.4 min | 78.3 min-103.3 min | 0.5388 | 61973.9 |
+
+## Files
+
+- `runtime_by_scope_method_clean.csv`: default clean per-combo aggregate.
+- `runtime_by_dataset_method_clean.csv`: default clean per-combo aggregate split by dataset.
+- `runtime_by_scope_method.csv`: raw all-completed per-combo aggregate.
+- `runtime_by_dataset_method.csv`: raw all-completed per-combo aggregate split by dataset.
+- `runtime_per_row.csv`: one record per included completed manifest row.
 
 ## Scheduler State
 
@@ -220,33 +280,82 @@ E1 M0/100M is complete: all 225 manifest rows for rows 15-239 finished, includin
 
 ## E2 Scheduler State
 
-Current check: 2026-06-10 14:37:31 EDT. Running job(s): `316996` for `iclr26-main` row `285`; chain-head job `317024` for row `286` is pending on scheduler priority. All later FineWeb-Edu jobs are dependency-pending. Active allocation at update: 4 A6000; the submitted dependencies allow at most two 4-A6000 jobs active when the scheduler starts both chains.
+Current check: 2026-06-12 16:29:11 EDT. E2 DCLM rows `240-284` and E2 FineWeb-Edu rows `285-329` are complete. E2 FineWeb rows `330-374` have been submitted as the next dataset window only, one manifest row per job, split into two dependency chains. Rows `375+` are not queued.
 
-E2 M0/300M DCLM rows `240-284` are complete. This is the full DCLM E2 matched cell: three seeds times 15 fixed methods, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per row. The tracked result package is `experiments/results/iclr26_e2_dclm_2026_06_10/`.
+Live scheduler state at update: chain-head job `349422` is running on `nikola-compute-18` and chain-head job `349471` is running on `ellis-compute-02`; all later FineWeb jobs are dependency-pending. Active allocation at update: 8 A6000 total. The submitted dependencies allow at most two 4-A6000 jobs active.
 
-E2 M0/300M FineWeb-Edu rows `285-329` are now queued as the next dataset window. This is FineWeb-Edu only: three seeds times 15 fixed methods, one manifest row per job, split into two dependency chains.
+The completed FineWeb-Edu result package is `experiments/results/iclr26_e2_fineweb_edu_2026_06_12/`. All FineWeb-Edu jobs `316996`-`317049` completed with exit `0:0` and `Restarts=0`; the last job ended on `2026-06-12T04:15:54`.
 
 | Job(s) | Row(s) | Cell/methods | Final state | Notes |
 | --- | --- | --- | --- | --- |
 | `294899`-`294913` | 240-254 | dclm seed 1337 split one-row jobs | completed | all exit `0:0` |
 | `294914`-`294928` | 255-269 | dclm seed 2027 split one-row jobs | completed | all exit `0:0` |
-| `301071` | 270 | dclm seed 3407 `silu_adamw` | completed | final val loss 4.018327 |
-| `301072` | 271 | dclm seed 3407 `rlb_adamw` | completed | final val loss 4.021017 |
-| `306122`,`306123`,`306124`,`306137`-`306140` | 272,274,276,278,280,282,284 | dclm seed 3407 even tail chain | completed | all exit `0:0` |
-| `306116`-`306121` | 273,275,277,279,281,283 | dclm seed 3407 odd tail chain | completed | all exit `0:0` |
-| `301073`-`301085` | 272-284 old serial tail | cancelled before start | replaced by the two DCLM-only chains above |
-| `301086`-`301100` | 285-299 fineweb_edu seed 1337 | cancelled before start | earlier accidental cross-boundary submission; superseded by current FineWeb-Edu queue below |
+| `301071`-`306140` | 270-284 | dclm seed 3407 split one-row jobs | completed | all exit `0:0` |
+| `316996`-`317023` | 285,287,289,...,329 | fineweb_edu odd-row chain | completed | all exit `0:0`, `Restarts=0` |
+| `317024`-`317049` | 286,288,290,...,328 | fineweb_edu even-row chain | completed | all exit `0:0`, `Restarts=0` |
+| `349422`-`349470` | 330,332,334,...,374 | fineweb even-row chain | running/dependency-pending | head `349422` running on `nikola-compute-18`; later rows dependency-pending |
+| `349471`-`349492` | 331,333,335,...,373 | fineweb odd-row chain | running/dependency-pending | head `349471` running on `ellis-compute-02`; later rows dependency-pending |
 
-## E2 FineWeb-Edu Queue
+## E2 FineWeb Queue
 
-Rows `285-329` were submitted on `2026-06-10 14:37 EDT` as two one-row dependency chains. The row range stops at the FineWeb-Edu boundary; rows `330+` are FineWeb and were not submitted.
+Rows `330-374` were submitted on `2026-06-12 16:25 EDT` after DCLM and FineWeb-Edu E2 completed and the tracked result summaries/status files were updated. This submission is FineWeb only: three seeds x 15 fixed methods, one manifest row per job, split into two dependency chains.
 
-| Chain | Rows | Jobs | Dependency pattern | State at update |
-| --- | --- | --- | --- | --- |
-| FineWeb-Edu odd rows | 285,287,289,...,329 | `316996`,`316997`,`316998`,`316999`,`317000`, `317006`-`317023` | first job has no dependency; each later job is `afterok` previous row in chain | row 285 job `316996` running |
-| FineWeb-Edu even rows | 286,288,290,...,328 | `317024`-`317034`, `317039`-`317049` | first job has no dependency; each later job is `afterok` previous row in chain | row 286 job `317024` pending on priority |
+Even-row chain:
 
-Do not submit rows `330+` until FineWeb-Edu E2 rows `285-329` complete and the tracked result summaries/status files are updated.
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 330 | `349422` | none |
+| 332 | `349424` | afterok:`349422` |
+| 334 | `349448` | afterok:`349424` |
+| 336 | `349449` | afterok:`349448` |
+| 338 | `349450` | afterok:`349449` |
+| 340 | `349451` | afterok:`349450` |
+| 342 | `349452` | afterok:`349451` |
+| 344 | `349453` | afterok:`349452` |
+| 346 | `349454` | afterok:`349453` |
+| 348 | `349455` | afterok:`349454` |
+| 350 | `349456` | afterok:`349455` |
+| 352 | `349457` | afterok:`349456` |
+| 354 | `349458` | afterok:`349457` |
+| 356 | `349459` | afterok:`349458` |
+| 358 | `349460` | afterok:`349459` |
+| 360 | `349461` | afterok:`349460` |
+| 362 | `349462` | afterok:`349461` |
+| 364 | `349463` | afterok:`349462` |
+| 366 | `349464` | afterok:`349463` |
+| 368 | `349465` | afterok:`349464` |
+| 370 | `349466` | afterok:`349465` |
+| 372 | `349467` | afterok:`349466` |
+| 374 | `349470` | afterok:`349467` |
+
+Odd-row chain:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 331 | `349471` | none |
+| 333 | `349472` | afterok:`349471` |
+| 335 | `349473` | afterok:`349472` |
+| 337 | `349474` | afterok:`349473` |
+| 339 | `349475` | afterok:`349474` |
+| 341 | `349476` | afterok:`349475` |
+| 343 | `349477` | afterok:`349476` |
+| 345 | `349478` | afterok:`349477` |
+| 347 | `349479` | afterok:`349478` |
+| 349 | `349480` | afterok:`349479` |
+| 351 | `349481` | afterok:`349480` |
+| 353 | `349482` | afterok:`349481` |
+| 355 | `349483` | afterok:`349482` |
+| 357 | `349484` | afterok:`349483` |
+| 359 | `349485` | afterok:`349484` |
+| 361 | `349486` | afterok:`349485` |
+| 363 | `349487` | afterok:`349486` |
+| 365 | `349488` | afterok:`349487` |
+| 367 | `349489` | afterok:`349488` |
+| 369 | `349490` | afterok:`349489` |
+| 371 | `349491` | afterok:`349490` |
+| 373 | `349492` | afterok:`349491` |
+
+Do not submit rows `375+` until FineWeb E2 rows `330-374` complete and the tracked result summaries/status files are updated.
 
 ## E2 DCLM Final Results
 
@@ -265,10 +374,10 @@ Do not submit rows `330+` until FineWeb-Edu E2 rows `285-329` complete and the t
 | silu_schedulefree | 4.365672 +/- 0.029805 | 4.332936 | 4.391239 |  |
 | silu_came | 4.368189 +/- 0.022586 | 4.344955 | 4.390067 |  |
 | rlb_came | 4.450294 +/- 0.034021 | 4.428269 | 4.489478 |  |
-| silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
+| silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three DCLM E2 seeds. Mean final validation loss is `3.957627 +/- 0.030713`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, and `rlb_lion` at `3.994293 +/- 0.030088`.
+MatrixPolicy is best on all three DCLM E2 seeds. Mean final val loss is `3.957627 +/- 0.030713`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, `rlb_lion` at `3.994293 +/- 0.030088`.
 
 ## E2 DCLM Per-Seed MatrixPolicy Gap
 
@@ -280,7 +389,9 @@ MatrixPolicy is best on all three DCLM E2 seeds. Mean final validation loss is `
 
 ## E2 DCLM Token-To-Target Savings
 
-This is an early-stop/speed-to-target readout from the completed fixed-budget runs. All rows still trained to about `299.8M` tokens. `Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target.
+This table asks how many training tokens were needed to first reach a validation-loss threshold. It does not change the fixed-budget protocol; all completed runs still trained to about `299.8M` tokens. The readout uses the native eval cadence of 50 steps, or `1.64M` tokens.
+
+`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target, so the comparison column explicitly shows `MP -> comparator` tokens and the shared seed count.
 
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
@@ -290,6 +401,52 @@ This is an early-stop/speed-to-target readout from the completed fixed-budget ru
 | 4.10 | 176.4M | 176.4M -> 187.9M (3/3) | 11.5M | 6.1% | 176.4M -> 227.7M (3/3) | 51.3M | 22.5% |
 | 4.05 | 205.3M | 205.3M -> 222.8M (3/3) | 17.5M | 7.8% | 185.1M -> 244.1M (1/3) | 59.0M | 24.2% |
 | 4.00 | 244.7M | 232.7M -> 267.9M (2/3) | 35.2M | 13.1% | not reached (0/3) | not reached | n/a |
+
+## E2 FineWeb-Edu Final Results
+
+| Method | Final val loss mean +/- sample std | Min | Max | Notes |
+| --- | ---: | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 3.706480 +/- 0.020263 | 3.687444 | 3.727779 |  |
+| rlb_muon | 3.738164 +/- 0.021014 | 3.718084 | 3.760002 |  |
+| silu_lion | 3.744017 +/- 0.020802 | 3.727149 | 3.767261 |  |
+| rlb_lion | 3.745142 +/- 0.021429 | 3.727976 | 3.769158 |  |
+| silu_muon | 3.745389 +/- 0.017006 | 3.732584 | 3.764685 |  |
+| silu_adamw | 3.803482 +/- 0.018186 | 3.788790 | 3.823822 |  |
+| rlb_adamw | 3.806861 +/- 0.017650 | 3.790723 | 3.825709 |  |
+| rlb_soap | 3.830115 +/- 0.019851 | 3.813878 | 3.852245 |  |
+| silu_soap | 3.862925 +/- 0.020105 | 3.844579 | 3.884418 |  |
+| rlb_schedulefree | 4.136537 +/- 0.021710 | 4.116814 | 4.159799 |  |
+| silu_came | 4.150283 +/- 0.021107 | 4.137987 | 4.174655 |  |
+| silu_schedulefree | 4.155890 +/- 0.023847 | 4.134111 | 4.181372 |  |
+| rlb_came | 4.220261 +/- 0.036032 | 4.188819 | 4.259580 |  |
+| rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
+| silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
+
+MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `3.706480 +/- 0.020263`; the next-best aggregate methods are `rlb_muon` at `3.738164 +/- 0.021014`, `silu_lion` at `3.744017 +/- 0.020802`, `rlb_lion` at `3.745142 +/- 0.021429`.
+
+## E2 FineWeb-Edu Per-Seed MatrixPolicy Gap
+
+| Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
+| ---: | ---: | --- | ---: | ---: |
+| 1337 | 3.687444 | rlb_muon | 3.718084 | 0.030640 |
+| 2027 | 3.727779 | rlb_muon | 3.760002 | 0.032223 |
+| 3407 | 3.704217 | rlb_muon | 3.736407 | 0.032189 |
+
+## E2 FineWeb-Edu Token-To-Target Savings
+
+This table asks how many training tokens were needed to first reach a validation-loss threshold. It does not change the fixed-budget protocol; all completed runs still trained to about `299.8M` tokens. The readout uses the native eval cadence of 50 steps, or `1.64M` tokens.
+
+`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target, so the comparison column explicitly shows `MP -> comparator` tokens and the shared seed count.
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 4.20 | 74.3M | 74.3M -> 81.4M (3/3) | 7.1M | 8.7% | 74.3M -> 93.4M (3/3) | 19.1M | 20.5% |
+| 4.10 | 100.5M | 100.5M -> 102.7M (3/3) | 2.2M | 2.1% | 100.5M -> 118.0M (3/3) | 17.5M | 14.8% |
+| 4.00 | 127.8M | 127.8M -> 130.5M (3/3) | 2.7M | 2.1% | 127.8M -> 151.8M (3/3) | 24.0M | 15.8% |
+| 3.90 | 163.3M | 163.3M -> 167.7M (3/3) | 4.4M | 2.6% | 163.3M -> 200.4M (3/3) | 37.1M | 18.5% |
+| 3.85 | 185.1M | 185.1M -> 191.1M (3/3) | 6.0M | 3.1% | 185.1M -> 237.0M (3/3) | 51.9M | 21.9% |
+| 3.80 | 211.9M | 211.9M -> 224.5M (3/3) | 12.6M | 5.6% | 205.6M -> 287.5M (2/3) | 81.9M | 28.5% |
+| 3.75 | 247.4M | 237.6M -> 262.1M (2/3) | 24.6M | 9.4% | not reached (0/3) | not reached | n/a |
 
 ## E1 Dense Curve Figures
 

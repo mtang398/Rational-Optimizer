@@ -365,7 +365,70 @@ Even-row chain:
 | 326 | `317048` | afterok:`317047` |
 | 328 | `317049` | afterok:`317048` |
 
-Do not submit rows `330+` until FineWeb-Edu E2 rows `285-329` complete and the tracked result summaries/status files are updated.
+Rows `330+` were intentionally held at this point until FineWeb-Edu E2 rows `285-329` completed and the tracked result summaries/status files were updated. The later FineWeb-only submission is recorded below.
+
+## E2 FineWeb 300M Split Submission
+
+FineWeb E2 split submission on `2026-06-12 16:25 EDT`: after DCLM rows `240-284` and FineWeb-Edu rows `285-329` completed, and after the tracked result summaries/status files were updated, the next dataset window was submitted. This submission is FineWeb only: rows `330-374`, one manifest row per job, split into two dependency chains to keep at most two 4-A6000 jobs active. Rows `375+` were not submitted.
+
+Even-row chain:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 330 | `349422` | none |
+| 332 | `349424` | afterok:`349422` |
+| 334 | `349448` | afterok:`349424` |
+| 336 | `349449` | afterok:`349448` |
+| 338 | `349450` | afterok:`349449` |
+| 340 | `349451` | afterok:`349450` |
+| 342 | `349452` | afterok:`349451` |
+| 344 | `349453` | afterok:`349452` |
+| 346 | `349454` | afterok:`349453` |
+| 348 | `349455` | afterok:`349454` |
+| 350 | `349456` | afterok:`349455` |
+| 352 | `349457` | afterok:`349456` |
+| 354 | `349458` | afterok:`349457` |
+| 356 | `349459` | afterok:`349458` |
+| 358 | `349460` | afterok:`349459` |
+| 360 | `349461` | afterok:`349460` |
+| 362 | `349462` | afterok:`349461` |
+| 364 | `349463` | afterok:`349462` |
+| 366 | `349464` | afterok:`349463` |
+| 368 | `349465` | afterok:`349464` |
+| 370 | `349466` | afterok:`349465` |
+| 372 | `349467` | afterok:`349466` |
+| 374 | `349470` | afterok:`349467` |
+
+Odd-row chain:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 331 | `349471` | none |
+| 333 | `349472` | afterok:`349471` |
+| 335 | `349473` | afterok:`349472` |
+| 337 | `349474` | afterok:`349473` |
+| 339 | `349475` | afterok:`349474` |
+| 341 | `349476` | afterok:`349475` |
+| 343 | `349477` | afterok:`349476` |
+| 345 | `349478` | afterok:`349477` |
+| 347 | `349479` | afterok:`349478` |
+| 349 | `349480` | afterok:`349479` |
+| 351 | `349481` | afterok:`349480` |
+| 353 | `349482` | afterok:`349481` |
+| 355 | `349483` | afterok:`349482` |
+| 357 | `349484` | afterok:`349483` |
+| 359 | `349485` | afterok:`349484` |
+| 361 | `349486` | afterok:`349485` |
+| 363 | `349487` | afterok:`349486` |
+| 365 | `349488` | afterok:`349487` |
+| 367 | `349489` | afterok:`349488` |
+| 369 | `349490` | afterok:`349489` |
+| 371 | `349491` | afterok:`349490` |
+| 373 | `349492` | afterok:`349491` |
+
+Current scheduler state immediately after submission: jobs `349422` and `349471` were pending on priority; all later FineWeb rows were dependency-pending.
+
+Do not submit rows `375+` until FineWeb E2 rows `330-374` complete and the tracked result summaries/status files are updated.
 
 ## Internal Per-Row Command Shape
 
@@ -394,4 +457,24 @@ E1 figures and checkpoint tables:
 ```bash
 python3 experiments/scripts/plot_iclr26_e1_curves.py \
   --status-md experiments/ICLR_RUN_STATUS.md
+```
+
+E2 completed-cell summaries:
+
+```bash
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
+  --dataset dclm \
+  --output-dir experiments/results/iclr26_e2_dclm_2026_06_10 \
+  --completed-date 2026-06-10
+
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
+  --dataset fineweb_edu \
+  --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12 \
+  --completed-date 2026-06-12
+```
+
+Runtime tables for completed paper cells:
+
+```bash
+python3 experiments/scripts/summarize_iclr26_runtimes.py
 ```

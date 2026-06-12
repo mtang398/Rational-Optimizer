@@ -21,10 +21,10 @@ Each row uses `32768` global tokens/step for about `299.8M` train tokens. Valida
 | silu_schedulefree | 4.365672 +/- 0.029805 | 4.332936 | 4.391239 |  |
 | silu_came | 4.368189 +/- 0.022586 | 4.344955 | 4.390067 |  |
 | rlb_came | 4.450294 +/- 0.034021 | 4.428269 | 4.489478 |  |
-| silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
+| silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three DCLM E2 seeds. Mean final val loss is `3.957627 +/- 0.030713`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, and `rlb_lion` at `3.994293 +/- 0.030088`.
+MatrixPolicy is best on all three DCLM E2 seeds. Mean final val loss is `3.957627 +/- 0.030713`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, `rlb_lion` at `3.994293 +/- 0.030088`.
 
 ## Per-Seed MatrixPolicy Gap
 
@@ -55,4 +55,3 @@ This table asks how many training tokens were needed to first reach a validation
 - `per_seed_summary.csv`: per-row final results and JSONL provenance paths.
 - `token_savings.csv`: aggregate token-to-target savings.
 - `token_savings_per_seed.csv`: per-seed threshold hits and comparator identities.
-

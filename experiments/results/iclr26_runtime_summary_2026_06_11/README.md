@@ -1,26 +1,27 @@
 # ICLR26 Runtime Summary
 
-Generated: 2026-06-11.
+Generated: 2026-06-12.
 
 This package summarizes per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and other launcher overhead. That is the comparable per-combo runtime because E1 jobs ran whole 15-row cells inside one Slurm allocation.
 
 Included:
 
 - E1 M0/100M all completed datasets: `225` rows, five datasets x three seeds x 15 methods.
-- E2 M0/300M completed DCLM cell: `45` rows, one dataset x three seeds x 15 methods.
+- E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
+- E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
 
 Excluded:
 
-- E2 FineWeb-Edu rows `285-329`, because that dataset cell is still in progress.
-- E2 rows `330+`, because they have not been queued/completed yet.
+- E2 FineWeb rows `330-374`, because that dataset cell is queued/incomplete until all 45 rows finish.
+- E2 rows `375+`, because they have not been queued/completed yet.
 
 ## Runtime Quality Note
 
-E1 FineWeb-Edu seed `2027` rows `75-89` ran in Slurm job `158117`, which completed with `Restarts=6`. The final JSONL files for those rows have one config record, one summary record, and no duplicate train steps, so `summary.total_seconds` is not directly summing archived requeue attempts. However, that matched cell is restart/node contaminated and produces pathological throughput outliers, especially rows `81-89`.
+E1 FineWeb-Edu seed `2027` rows `75-89` ran as Slurm job `158117`, which completed with `Restarts=6`. The final JSONL files for those rows have one config record, one summary record, and no duplicate train steps, so `summary.total_seconds` is not directly summing archived requeue attempts. However, that matched cell is restart/node contaminated and produces pathological throughput outliers, especially rows `81-89`.
 
 The clean tables below therefore exclude rows `75-89` from E1 runtime aggregates. Raw all-completed tables are still written to CSV for provenance.
 
-Clean rows summarized: `255`. Raw completed rows summarized: `270`.
+Clean rows summarized: `300`. Raw completed rows summarized: `315`.
 
 ## Clean E1 M0/100M All Datasets
 
@@ -62,6 +63,26 @@ Clean rows summarized: `255`. Raw completed rows summarized: `270`.
 | SiLU+ScheduleFree | 3 | 68.9 min | 11.9 min | 61.6 min-82.6 min | 0.4343 | 76941.0 |
 | RLB+ScheduleFree | 3 | 78.3 min | 0.1 min | 78.1 min-78.4 min | 0.4835 | 67778.1 |
 
+## Clean E2 M0/300M FineWeb-Edu
+
+| Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| RLB+MatrixPolicy | 3 | 91.3 min | 10.6 min | 79.1 min-97.7 min | 0.5713 | 57960.3 |
+| SiLU+AdamW | 3 | 75.2 min | 14.0 min | 61.4 min-89.4 min | 0.4754 | 70683.2 |
+| RLB+AdamW | 3 | 100.6 min | 8.5 min | 95.7 min-110.4 min | 0.6304 | 52246.8 |
+| SiLU+Muon | 3 | 72.8 min | 12.9 min | 63.8 min-87.6 min | 0.4585 | 72920.4 |
+| RLB+Muon | 3 | 102.9 min | 3.1 min | 101.1 min-106.5 min | 0.6429 | 51009.0 |
+| SiLU+Lion | 3 | 74.5 min | 11.5 min | 61.2 min-81.1 min | 0.4709 | 70923.0 |
+| RLB+Lion | 3 | 91.2 min | 12.7 min | 77.0 min-101.3 min | 0.5685 | 58526.8 |
+| SiLU+SOAP | 3 | 86.8 min | 12.0 min | 72.9 min-93.8 min | 0.5475 | 60685.2 |
+| RLB+SOAP | 3 | 93.5 min | 12.6 min | 79.3 min-103.3 min | 0.5832 | 56995.4 |
+| SiLU+ADeMaMix | 3 | 88.5 min | 10.7 min | 76.5 min-97.0 min | 0.4762 | 70175.4 |
+| RLB+ADeMaMix | 3 | 108.2 min | 14.2 min | 98.8 min-124.5 min | 0.5356 | 62475.8 |
+| SiLU+CAME | 3 | 80.2 min | 11.7 min | 66.7 min-87.0 min | 0.5079 | 65602.6 |
+| RLB+CAME | 3 | 92.6 min | 15.0 min | 83.9 min-110.0 min | 0.5774 | 57751.3 |
+| SiLU+ScheduleFree | 3 | 75.5 min | 11.9 min | 61.8 min-82.4 min | 0.4781 | 69904.1 |
+| RLB+ScheduleFree | 3 | 86.6 min | 14.4 min | 78.3 min-103.3 min | 0.5388 | 61973.9 |
+
 ## Raw All-Completed E1 M0/100M All Datasets
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
@@ -101,6 +122,26 @@ Clean rows summarized: `255`. Raw completed rows summarized: `270`.
 | RLB+CAME | 3 | 90.0 min | 10.6 min | 83.9 min-102.3 min | 0.5604 | 59034.6 |
 | SiLU+ScheduleFree | 3 | 68.9 min | 11.9 min | 61.6 min-82.6 min | 0.4343 | 76941.0 |
 | RLB+ScheduleFree | 3 | 78.3 min | 0.1 min | 78.1 min-78.4 min | 0.4835 | 67778.1 |
+
+## Raw All-Completed E2 M0/300M FineWeb-Edu
+
+| Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| RLB+MatrixPolicy | 3 | 91.3 min | 10.6 min | 79.1 min-97.7 min | 0.5713 | 57960.3 |
+| SiLU+AdamW | 3 | 75.2 min | 14.0 min | 61.4 min-89.4 min | 0.4754 | 70683.2 |
+| RLB+AdamW | 3 | 100.6 min | 8.5 min | 95.7 min-110.4 min | 0.6304 | 52246.8 |
+| SiLU+Muon | 3 | 72.8 min | 12.9 min | 63.8 min-87.6 min | 0.4585 | 72920.4 |
+| RLB+Muon | 3 | 102.9 min | 3.1 min | 101.1 min-106.5 min | 0.6429 | 51009.0 |
+| SiLU+Lion | 3 | 74.5 min | 11.5 min | 61.2 min-81.1 min | 0.4709 | 70923.0 |
+| RLB+Lion | 3 | 91.2 min | 12.7 min | 77.0 min-101.3 min | 0.5685 | 58526.8 |
+| SiLU+SOAP | 3 | 86.8 min | 12.0 min | 72.9 min-93.8 min | 0.5475 | 60685.2 |
+| RLB+SOAP | 3 | 93.5 min | 12.6 min | 79.3 min-103.3 min | 0.5832 | 56995.4 |
+| SiLU+ADeMaMix | 3 | 88.5 min | 10.7 min | 76.5 min-97.0 min | 0.4762 | 70175.4 |
+| RLB+ADeMaMix | 3 | 108.2 min | 14.2 min | 98.8 min-124.5 min | 0.5356 | 62475.8 |
+| SiLU+CAME | 3 | 80.2 min | 11.7 min | 66.7 min-87.0 min | 0.5079 | 65602.6 |
+| RLB+CAME | 3 | 92.6 min | 15.0 min | 83.9 min-110.0 min | 0.5774 | 57751.3 |
+| SiLU+ScheduleFree | 3 | 75.5 min | 11.9 min | 61.8 min-82.4 min | 0.4781 | 69904.1 |
+| RLB+ScheduleFree | 3 | 86.6 min | 14.4 min | 78.3 min-103.3 min | 0.5388 | 61973.9 |
 
 ## Files
 

@@ -8,6 +8,7 @@ import csv
 import json
 import math
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 from statistics import mean, stdev
 
@@ -21,6 +22,17 @@ RUN_ROOT = Path("experiments/runs/iclr26_main")
 # cell are contaminated by restart/node effects and should not be used as the
 # default clean throughput estimate.
 RESTART_AFFECTED_ROWS = set(range(75, 90))
+
+COMPLETED_E2_DATASET_SCOPES = {
+    "dclm": "E2_m0_300m_dclm",
+    "fineweb_edu": "E2_m0_300m_fineweb_edu",
+}
+
+SCOPE_LABEL = {
+    "E1_m0_100m_all_datasets": "E1 M0/100M All Datasets",
+    "E2_m0_300m_dclm": "E2 M0/300M DCLM",
+    "E2_m0_300m_fineweb_edu": "E2 M0/300M FineWeb-Edu",
+}
 
 METHOD_ORDER = [
     "rlb_matrixpolicy_original",
@@ -72,8 +84,8 @@ def scope_for(row: dict[str, str]) -> str | None:
     dataset = row["dataset"]
     if phase == "E1_m0_100m":
         return "E1_m0_100m_all_datasets"
-    if phase == "E2_m0_300m" and dataset == "dclm":
-        return "E2_m0_300m_dclm"
+    if phase == "E2_m0_300m" and dataset in COMPLETED_E2_DATASET_SCOPES:
+        return COMPLETED_E2_DATASET_SCOPES[dataset]
     return None
 
 
@@ -194,48 +206,52 @@ def write_readme(
     clean_row_count: int,
 ) -> None:
     e1_rows = [row for row in raw_scope_rows if row["scope"] == "E1_m0_100m_all_datasets"]
-    e2_rows = [row for row in raw_scope_rows if row["scope"] == "E2_m0_300m_dclm"]
     e1_total = sum(int(row["runs"]) for row in e1_rows)
-    e2_total = sum(int(row["runs"]) for row in e2_rows)
+    e2_totals = {
+        scope: sum(int(row["runs"]) for row in raw_scope_rows if row["scope"] == scope)
+        for scope in COMPLETED_E2_DATASET_SCOPES.values()
+    }
+    generated = datetime.now().strftime("%Y-%m-%d")
+    e2_bullets = "\n".join(
+        f"- {SCOPE_LABEL[scope]} completed cell: `{total}` rows, one dataset x three seeds x 15 methods."
+        for scope, total in e2_totals.items()
+        if total
+    )
+    clean_sections = "\n\n".join(
+        f"## Clean {SCOPE_LABEL[scope]}\n\n{markdown_table(clean_scope_rows, scope)}"
+        for scope in ["E1_m0_100m_all_datasets", *COMPLETED_E2_DATASET_SCOPES.values()]
+    )
+    raw_sections = "\n\n".join(
+        f"## Raw All-Completed {SCOPE_LABEL[scope]}\n\n{markdown_table(raw_scope_rows, scope)}"
+        for scope in ["E1_m0_100m_all_datasets", *COMPLETED_E2_DATASET_SCOPES.values()]
+    )
     text = f"""# ICLR26 Runtime Summary
 
-Generated: 2026-06-11.
+Generated: {generated}.
 
 This package summarizes per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and other launcher overhead. That is the comparable per-combo runtime because E1 jobs ran whole 15-row cells inside one Slurm allocation.
 
 Included:
 
 - E1 M0/100M all completed datasets: `{e1_total}` rows, five datasets x three seeds x 15 methods.
-- E2 M0/300M completed DCLM cell: `{e2_total}` rows, one dataset x three seeds x 15 methods.
+{e2_bullets}
 
 Excluded:
 
-- E2 FineWeb-Edu rows `285-329`, because that dataset cell is still in progress.
-- E2 rows `330+`, because they have not been queued/completed yet.
+- E2 FineWeb rows `330-374`, because that dataset cell is queued/incomplete until all 45 rows finish.
+- E2 rows `375+`, because they have not been queued/completed yet.
 
 ## Runtime Quality Note
 
-E1 FineWeb-Edu seed `2027` rows `75-89` ran in Slurm job `158117`, which completed with `Restarts=6`. The final JSONL files for those rows have one config record, one summary record, and no duplicate train steps, so `summary.total_seconds` is not directly summing archived requeue attempts. However, that matched cell is restart/node contaminated and produces pathological throughput outliers, especially rows `81-89`.
+E1 FineWeb-Edu seed `2027` rows `75-89` ran as Slurm job `158117`, which completed with `Restarts=6`. The final JSONL files for those rows have one config record, one summary record, and no duplicate train steps, so `summary.total_seconds` is not directly summing archived requeue attempts. However, that matched cell is restart/node contaminated and produces pathological throughput outliers, especially rows `81-89`.
 
 The clean tables below therefore exclude rows `75-89` from E1 runtime aggregates. Raw all-completed tables are still written to CSV for provenance.
 
 Clean rows summarized: `{clean_row_count}`. Raw completed rows summarized: `{per_row_count}`.
 
-## Clean E1 M0/100M All Datasets
+{clean_sections}
 
-{markdown_table(clean_scope_rows, "E1_m0_100m_all_datasets")}
-
-## Clean E2 M0/300M DCLM
-
-{markdown_table(clean_scope_rows, "E2_m0_300m_dclm")}
-
-## Raw All-Completed E1 M0/100M All Datasets
-
-{markdown_table(raw_scope_rows, "E1_m0_100m_all_datasets")}
-
-## Raw All-Completed E2 M0/300M DCLM
-
-{markdown_table(raw_scope_rows, "E2_m0_300m_dclm")}
+{raw_sections}
 
 ## Files
 
