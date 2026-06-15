@@ -428,7 +428,73 @@ Odd-row chain:
 
 Current scheduler state immediately after submission: jobs `349422` and `349471` were pending on priority; all later FineWeb rows were dependency-pending.
 
-Do not submit rows `375+` until FineWeb E2 rows `330-374` complete and the tracked result summaries/status files are updated.
+FineWeb E2 completion note: all jobs `349422`-`349492` completed with exit `0:0` and `Restarts=0`; the last FineWeb job ended on `2026-06-14T05:47:34`. Rows `375-419` were then submitted as the Dolma-sample-only E2 dataset window, recorded below.
+
+## E2 Dolma-sample 300M Split Submission
+
+Dolma-sample E2 split submission on `2026-06-15 13:42 EDT`: after FineWeb rows `330-374` completed and after the tracked result summaries/status files were updated, the next dataset window was submitted. This submission is Dolma-sample only: rows `375-419`, one manifest row per job. Row `375` is the cache/front row because the Dolma-sample E2 300M train and 610M+8M validation token caches were not present at submission time. Rows `376-419` are split into two dependency chains behind row `375`; rows `420+` were not submitted.
+
+Front row:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 375 | `393488` | none |
+
+Even-row chain after row `375`:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 376 | `393489` | afterok:`393488` |
+| 378 | `393490` | afterok:`393489` |
+| 380 | `393491` | afterok:`393490` |
+| 382 | `393492` | afterok:`393491` |
+| 384 | `393493` | afterok:`393492` |
+| 386 | `393494` | afterok:`393493` |
+| 388 | `393495` | afterok:`393494` |
+| 390 | `393496` | afterok:`393495` |
+| 392 | `393497` | afterok:`393496` |
+| 394 | `393498` | afterok:`393497` |
+| 396 | `393499` | afterok:`393498` |
+| 398 | `393500` | afterok:`393499` |
+| 400 | `393501` | afterok:`393500` |
+| 402 | `393502` | afterok:`393501` |
+| 404 | `393503` | afterok:`393502` |
+| 406 | `393504` | afterok:`393503` |
+| 408 | `393505` | afterok:`393504` |
+| 410 | `393506` | afterok:`393505` |
+| 412 | `393507` | afterok:`393506` |
+| 414 | `393508` | afterok:`393507` |
+| 416 | `393509` | afterok:`393508` |
+| 418 | `393510` | afterok:`393509` |
+
+Odd-row chain after row `375`:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 377 | `393511` | afterok:`393488` |
+| 379 | `393512` | afterok:`393511` |
+| 381 | `393513` | afterok:`393512` |
+| 383 | `393514` | afterok:`393513` |
+| 385 | `393515` | afterok:`393514` |
+| 387 | `393516` | afterok:`393515` |
+| 389 | `393517` | afterok:`393516` |
+| 391 | `393518` | afterok:`393517` |
+| 393 | `393519` | afterok:`393518` |
+| 395 | `393520` | afterok:`393519` |
+| 397 | `393521` | afterok:`393520` |
+| 399 | `393522` | afterok:`393521` |
+| 401 | `393524` | afterok:`393522` |
+| 403 | `393525` | afterok:`393524` |
+| 405 | `393526` | afterok:`393525` |
+| 407 | `393527` | afterok:`393526` |
+| 409 | `393528` | afterok:`393527` |
+| 411 | `393529` | afterok:`393528` |
+| 413 | `393530` | afterok:`393529` |
+| 415 | `393531` | afterok:`393530` |
+| 417 | `393532` | afterok:`393531` |
+| 419 | `393533` | afterok:`393532` |
+
+Current scheduler state immediately after submission: job `393488` was running on `ellis-compute-02`; all later Dolma-sample rows were dependency-pending.
 
 ## Internal Per-Row Command Shape
 
@@ -477,6 +543,11 @@ python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
   --dataset fineweb_edu \
   --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12 \
   --completed-date 2026-06-12
+
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
+  --dataset fineweb \
+  --output-dir experiments/results/iclr26_e2_fineweb_2026_06_15 \
+  --completed-date 2026-06-14
 ```
 
 E2 dense curve figures and checkpoint tables:

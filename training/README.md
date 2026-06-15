@@ -4,7 +4,7 @@ This directory contains the LM benchmark harness, dataset streaming support, syn
 
 ## Current Result Anchor
 
-The completed paper-facing results are tracked in `../experiments/ICLR_RUN_STATUS.md`. E2 DCLM M0/300M rows `240-284` are complete, with per-method summaries and token-to-target savings under `../experiments/results/iclr26_e2_dclm_2026_06_10/`.
+The completed paper-facing results are tracked in `../experiments/ICLR_RUN_STATUS.md`. E2 M0/300M DCLM rows `240-284`, FineWeb-Edu rows `285-329`, and FineWeb rows `330-374` are complete, with per-method summaries and token-to-target savings under `../experiments/results/iclr26_e2_dclm_2026_06_10/`, `../experiments/results/iclr26_e2_fineweb_edu_2026_06_12/`, and `../experiments/results/iclr26_e2_fineweb_2026_06_15/`.
 
 ## Primary Files
 

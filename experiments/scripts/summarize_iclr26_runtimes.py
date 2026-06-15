@@ -25,12 +25,14 @@ RESTART_AFFECTED_ROWS = set(range(75, 90))
 COMPLETED_E2_DATASET_SCOPES = {
     "dclm": "E2_m0_300m_dclm",
     "fineweb_edu": "E2_m0_300m_fineweb_edu",
+    "fineweb": "E2_m0_300m_fineweb",
 }
 
 SCOPE_LABEL = {
     "E1_m0_100m_all_datasets": "E1 M0/100M All Datasets",
     "E2_m0_300m_dclm": "E2 M0/300M DCLM",
     "E2_m0_300m_fineweb_edu": "E2 M0/300M FineWeb-Edu",
+    "E2_m0_300m_fineweb": "E2 M0/300M FineWeb",
 }
 
 METHOD_ORDER = [
@@ -224,8 +226,7 @@ Included in tracked runtime aggregates:
 Excluded from tracked runtime aggregates:
 
 - E1 FineWeb-Edu seed `2027` rows `75-89`: `{excluded_row_count}` rows, restart-contaminated.
-- E2 FineWeb rows `330-374`, because that dataset cell is queued/incomplete until all 45 rows finish.
-- E2 rows `375+`, because they have not been queued/completed yet.
+- E2 rows `375+`, because they are queued/incomplete or not completed yet.
 
 No raw all-completed E1 aggregate is tracked in this package. The contaminated E1 rows are omitted from both aggregate CSVs and `runtime_per_row.csv`.
 

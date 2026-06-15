@@ -1,6 +1,6 @@
 # ICLR26 Runtime Summary
 
-Generated: 2026-06-12.
+Generated: 2026-06-15.
 
 This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
 
@@ -9,16 +9,16 @@ Included in tracked runtime aggregates:
 - E1 M0/100M clean rows: `210` rows. E1 FineWeb-Edu seed `2027` rows `75-89` are excluded because Slurm job `158117` completed with `Restarts=6` and produced restart/node-contaminated throughput outliers.
 - E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
+- E2 M0/300M FineWeb completed cell: `45` rows, one dataset x three seeds x 15 methods.
 
 Excluded from tracked runtime aggregates:
 
 - E1 FineWeb-Edu seed `2027` rows `75-89`: `15` rows, restart-contaminated.
-- E2 FineWeb rows `330-374`, because that dataset cell is queued/incomplete until all 45 rows finish.
-- E2 rows `375+`, because they have not been queued/completed yet.
+- E2 rows `375+`, because they are queued/incomplete or not completed yet.
 
 No raw all-completed E1 aggregate is tracked in this package. The contaminated E1 rows are omitted from both aggregate CSVs and `runtime_per_row.csv`.
 
-Clean rows summarized: `300`.
+Clean rows summarized: `345`.
 
 ## E1 M0/100M All Datasets
 
@@ -79,6 +79,26 @@ Clean rows summarized: `300`.
 | RLB+CAME | 3 | 92.6 min | 15.0 min | 83.9 min-110.0 min | 0.5774 | 57751.3 |
 | SiLU+ScheduleFree | 3 | 75.5 min | 11.9 min | 61.8 min-82.4 min | 0.4781 | 69904.1 |
 | RLB+ScheduleFree | 3 | 86.6 min | 14.4 min | 78.3 min-103.3 min | 0.5388 | 61973.9 |
+
+## E2 M0/300M FineWeb
+
+| Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| RLB+MatrixPolicy | 3 | 77.4 min | 2.9 min | 74.1 min-79.4 min | 0.4808 | 68224.0 |
+| SiLU+AdamW | 3 | 76.4 min | 18.9 min | 60.2 min-97.1 min | 0.4840 | 70588.2 |
+| RLB+AdamW | 3 | 76.3 min | 1.3 min | 74.8 min-77.2 min | 0.4700 | 69737.2 |
+| SiLU+Muon | 3 | 69.7 min | 6.2 min | 65.6 min-76.8 min | 0.4385 | 75078.6 |
+| RLB+Muon | 3 | 85.0 min | 14.3 min | 74.0 min-101.2 min | 0.5263 | 63461.5 |
+| SiLU+Lion | 3 | 64.6 min | 6.3 min | 61.0 min-71.9 min | 0.4066 | 81108.9 |
+| RLB+Lion | 3 | 79.6 min | 14.1 min | 68.6 min-95.5 min | 0.4920 | 68070.8 |
+| SiLU+SOAP | 3 | 72.3 min | 0.6 min | 71.7 min-72.9 min | 0.4571 | 71696.4 |
+| RLB+SOAP | 3 | 85.4 min | 11.1 min | 76.9 min-97.9 min | 0.5299 | 62572.7 |
+| SiLU+ADeMaMix | 3 | 150.6 min | 143.3 min | 62.6 min-316.0 min | 0.9251 | 60189.7 |
+| RLB+ADeMaMix | 3 | 104.0 min | 12.7 min | 96.0 min-118.7 min | 0.5141 | 64685.3 |
+| SiLU+CAME | 3 | 147.2 min | 139.2 min | 66.6 min-307.9 min | 0.9476 | 57383.1 |
+| RLB+CAME | 3 | 91.1 min | 10.1 min | 82.8 min-102.3 min | 0.5662 | 58393.3 |
+| SiLU+ScheduleFree | 3 | 61.7 min | 0.4 min | 61.3 min-62.1 min | 0.3875 | 84557.5 |
+| RLB+ScheduleFree | 3 | 85.6 min | 10.0 min | 77.3 min-96.7 min | 0.5304 | 62408.2 |
 
 ## Files
 

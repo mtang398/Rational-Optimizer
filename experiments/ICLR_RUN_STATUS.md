@@ -44,12 +44,11 @@ Included in tracked runtime aggregates:
 Excluded from tracked runtime aggregates:
 
 - E1 FineWeb-Edu seed `2027` rows `75-89`: `15` rows, restart-contaminated.
-- E2 FineWeb rows `330-374`, because that dataset cell is queued/incomplete until all 45 rows finish.
-- E2 rows `375+`, because they have not been queued/completed yet.
+- E2 rows `375+`, because they are queued/incomplete or not completed yet.
 
 No raw all-completed E1 aggregate is tracked in this package. The contaminated E1 rows are omitted from both aggregate CSVs and `runtime_per_row.csv`.
 
-Clean rows summarized: `300`.
+Clean rows summarized: `345`.
 
 ## E1 M0/100M All Datasets
 
@@ -218,11 +217,11 @@ E1 M0/100M is complete: all 225 manifest rows for rows 15-239 finished, includin
 
 ## E2 Scheduler State
 
-Current check: 2026-06-12 16:58:18 EDT. E2 DCLM rows `240-284` and E2 FineWeb-Edu rows `285-329` are complete. E2 FineWeb rows `330-374` have been submitted as the next dataset window only, one manifest row per job, split into two dependency chains. Rows `375+` are not queued.
+Current check: 2026-06-15 13:43 EDT. E2 DCLM rows `240-284`, E2 FineWeb-Edu rows `285-329`, and E2 FineWeb rows `330-374` are complete. E2 Dolma-sample rows `375-419` have been submitted as the next dataset window only, one manifest row per job. Row `375` is running as the cache/front row; rows `376-419` are dependency-pending in two chains behind row `375`. E2 C4 rows `420-464` are not queued.
 
-Live scheduler state at update: chain-head job `349422` is running on `nikola-compute-18` at 32:36 elapsed and chain-head job `349471` is running on `ellis-compute-02` at 32:06 elapsed; all later FineWeb jobs are dependency-pending. Active allocation at update: 8 A6000 total. The submitted dependencies allow at most two 4-A6000 jobs active.
+Live scheduler state at update: job `393488` for row `375` is running on `ellis-compute-02`; all later Dolma-sample jobs are dependency-pending. Active allocation at update: 4 A6000 total. After row `375` completes, the submitted dependencies allow at most two 4-A6000 jobs active.
 
-The completed FineWeb-Edu result package is `experiments/results/iclr26_e2_fineweb_edu_2026_06_12/`. All FineWeb-Edu jobs `316996`-`317049` completed with exit `0:0` and `Restarts=0`; the last job ended on `2026-06-12T04:15:54`.
+The completed FineWeb result package is `experiments/results/iclr26_e2_fineweb_2026_06_15/`. All FineWeb jobs `349422`-`349492` completed with exit `0:0` and `Restarts=0`; the last FineWeb job ended on `2026-06-14T05:47:34`.
 
 | Job(s) | Row(s) | Cell/methods | Final state | Notes |
 | --- | --- | --- | --- | --- |
@@ -231,93 +230,101 @@ The completed FineWeb-Edu result package is `experiments/results/iclr26_e2_finew
 | `301071`-`306140` | 270-284 | dclm seed 3407 split one-row jobs | completed | all exit `0:0` |
 | `316996`-`317023` | 285,287,289,...,329 | fineweb_edu odd-row chain | completed | all exit `0:0`, `Restarts=0` |
 | `317024`-`317049` | 286,288,290,...,328 | fineweb_edu even-row chain | completed | all exit `0:0`, `Restarts=0` |
-| `349422`-`349470` | 330,332,334,...,374 | fineweb even-row chain | running/dependency-pending | head `349422` running on `nikola-compute-18` at 32:36 elapsed; later rows dependency-pending |
-| `349471`-`349492` | 331,333,335,...,373 | fineweb odd-row chain | running/dependency-pending | head `349471` running on `ellis-compute-02` at 32:06 elapsed; later rows dependency-pending |
+| `349422`-`349470` | 330,332,334,...,374 | fineweb even-row chain | completed | all exit `0:0`, `Restarts=0` |
+| `349471`-`349492` | 331,333,335,...,373 | fineweb odd-row chain | completed | all exit `0:0`, `Restarts=0` |
+| `393488` | 375 | dolma_sample cache/front row | running | on `ellis-compute-02` at update |
+| `393489`-`393510` | 376,378,380,...,418 | dolma_sample even-row chain after row 375 | dependency-pending | all depend on row `375` then chain by row |
+| `393511`-`393533` | 377,379,381,...,419 | dolma_sample odd-row chain after row 375 | dependency-pending | all depend on row `375` then chain by row |
 
-## E2 FineWeb Queue
+## E2 Dolma-sample Queue
 
-Rows `330-374` were submitted on `2026-06-12 16:25 EDT` after DCLM and FineWeb-Edu E2 completed and the tracked result summaries/status files were updated. This submission is FineWeb only: three seeds x 15 fixed methods, one manifest row per job, split into two dependency chains.
+Rows `375-419` were submitted on `2026-06-15 13:42 EDT` after FineWeb E2 completed and the tracked result summaries/status files were updated. This submission is Dolma-sample only: three seeds x 15 fixed methods, one manifest row per job. Because the Dolma-sample E2 `300M` train cache and `610M+8M` validation cache were not present at submission time, row `375` is the cache/front row. Rows `376-419` are split into two dependency chains after row `375` completes, keeping at most two 4-A6000 jobs active after the cache/front row.
 
-Even-row chain:
-
-| Row | Job | Dependency |
-| ---: | ---: | --- |
-| 330 | `349422` | none |
-| 332 | `349424` | afterok:`349422` |
-| 334 | `349448` | afterok:`349424` |
-| 336 | `349449` | afterok:`349448` |
-| 338 | `349450` | afterok:`349449` |
-| 340 | `349451` | afterok:`349450` |
-| 342 | `349452` | afterok:`349451` |
-| 344 | `349453` | afterok:`349452` |
-| 346 | `349454` | afterok:`349453` |
-| 348 | `349455` | afterok:`349454` |
-| 350 | `349456` | afterok:`349455` |
-| 352 | `349457` | afterok:`349456` |
-| 354 | `349458` | afterok:`349457` |
-| 356 | `349459` | afterok:`349458` |
-| 358 | `349460` | afterok:`349459` |
-| 360 | `349461` | afterok:`349460` |
-| 362 | `349462` | afterok:`349461` |
-| 364 | `349463` | afterok:`349462` |
-| 366 | `349464` | afterok:`349463` |
-| 368 | `349465` | afterok:`349464` |
-| 370 | `349466` | afterok:`349465` |
-| 372 | `349467` | afterok:`349466` |
-| 374 | `349470` | afterok:`349467` |
-
-Odd-row chain:
+Front row:
 
 | Row | Job | Dependency |
 | ---: | ---: | --- |
-| 331 | `349471` | none |
-| 333 | `349472` | afterok:`349471` |
-| 335 | `349473` | afterok:`349472` |
-| 337 | `349474` | afterok:`349473` |
-| 339 | `349475` | afterok:`349474` |
-| 341 | `349476` | afterok:`349475` |
-| 343 | `349477` | afterok:`349476` |
-| 345 | `349478` | afterok:`349477` |
-| 347 | `349479` | afterok:`349478` |
-| 349 | `349480` | afterok:`349479` |
-| 351 | `349481` | afterok:`349480` |
-| 353 | `349482` | afterok:`349481` |
-| 355 | `349483` | afterok:`349482` |
-| 357 | `349484` | afterok:`349483` |
-| 359 | `349485` | afterok:`349484` |
-| 361 | `349486` | afterok:`349485` |
-| 363 | `349487` | afterok:`349486` |
-| 365 | `349488` | afterok:`349487` |
-| 367 | `349489` | afterok:`349488` |
-| 369 | `349490` | afterok:`349489` |
-| 371 | `349491` | afterok:`349490` |
-| 373 | `349492` | afterok:`349491` |
+| 375 | `393488` | none |
 
-Do not submit rows `375+` until FineWeb E2 rows `330-374` complete and the tracked result summaries/status files are updated.
+Even-row chain after row `375`:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 376 | `393489` | afterok:`393488` |
+| 378 | `393490` | afterok:`393489` |
+| 380 | `393491` | afterok:`393490` |
+| 382 | `393492` | afterok:`393491` |
+| 384 | `393493` | afterok:`393492` |
+| 386 | `393494` | afterok:`393493` |
+| 388 | `393495` | afterok:`393494` |
+| 390 | `393496` | afterok:`393495` |
+| 392 | `393497` | afterok:`393496` |
+| 394 | `393498` | afterok:`393497` |
+| 396 | `393499` | afterok:`393498` |
+| 398 | `393500` | afterok:`393499` |
+| 400 | `393501` | afterok:`393500` |
+| 402 | `393502` | afterok:`393501` |
+| 404 | `393503` | afterok:`393502` |
+| 406 | `393504` | afterok:`393503` |
+| 408 | `393505` | afterok:`393504` |
+| 410 | `393506` | afterok:`393505` |
+| 412 | `393507` | afterok:`393506` |
+| 414 | `393508` | afterok:`393507` |
+| 416 | `393509` | afterok:`393508` |
+| 418 | `393510` | afterok:`393509` |
+
+Odd-row chain after row `375`:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 377 | `393511` | afterok:`393488` |
+| 379 | `393512` | afterok:`393511` |
+| 381 | `393513` | afterok:`393512` |
+| 383 | `393514` | afterok:`393513` |
+| 385 | `393515` | afterok:`393514` |
+| 387 | `393516` | afterok:`393515` |
+| 389 | `393517` | afterok:`393516` |
+| 391 | `393518` | afterok:`393517` |
+| 393 | `393519` | afterok:`393518` |
+| 395 | `393520` | afterok:`393519` |
+| 397 | `393521` | afterok:`393520` |
+| 399 | `393522` | afterok:`393521` |
+| 401 | `393524` | afterok:`393522` |
+| 403 | `393525` | afterok:`393524` |
+| 405 | `393526` | afterok:`393525` |
+| 407 | `393527` | afterok:`393526` |
+| 409 | `393528` | afterok:`393527` |
+| 411 | `393529` | afterok:`393528` |
+| 413 | `393530` | afterok:`393529` |
+| 415 | `393531` | afterok:`393530` |
+| 417 | `393532` | afterok:`393531` |
+| 419 | `393533` | afterok:`393532` |
+
+Do not submit E2 C4 rows `420-464` until Dolma-sample E2 rows `375-419` complete and the tracked result summaries/status files are updated.
 
 ## E2 Dense Curve Figures
 
-Completed E2 M0/300M datasets: DCLM and FineWeb-Edu. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
+Completed E2 M0/300M datasets: DCLM, FineWeb-Edu, and FineWeb. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
 Final validation-loss overview across completed E2 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 
-| Method | DCLM final | FineWeb-Edu final |
-| --- | ---: | ---: |
-| MatrixPolicy | 3.9576 +/- 0.0307 | 3.7065 +/- 0.0203 |
-| RLB+AdamW | 4.0529 +/- 0.0282 | 3.8069 +/- 0.0176 |
-| SiLU+AdamW | 4.0493 +/- 0.0275 | 3.8035 +/- 0.0182 |
-| RLB+Lion | 3.9943 +/- 0.0301 | 3.7451 +/- 0.0214 |
-| SiLU+Lion | 3.9934 +/- 0.0230 | 3.7440 +/- 0.0208 |
-| RLB+SOAP | 4.0768 +/- 0.0403 | 3.8301 +/- 0.0199 |
-| SiLU+SOAP | 4.0964 +/- 0.0300 | 3.8629 +/- 0.0201 |
-| RLB+Muon | 3.9935 +/- 0.0296 | 3.7382 +/- 0.0210 |
-| SiLU+Muon | 3.9973 +/- 0.0305 | 3.7454 +/- 0.0170 |
-| RLB+ScheduleFree | 4.3563 +/- 0.0332 | 4.1365 +/- 0.0217 |
-| SiLU+ScheduleFree | 4.3657 +/- 0.0298 | 4.1559 +/- 0.0238 |
-| RLB+CAME | 4.4503 +/- 0.0340 | 4.2203 +/- 0.0360 |
-| SiLU+CAME | 4.3682 +/- 0.0226 | 4.1503 +/- 0.0211 |
-| RLB+ADeMaMix | -- | -- |
-| SiLU+ADeMaMix | -- | -- |
+| Method | DCLM final | FineWeb-Edu final | FineWeb final |
+| --- | ---: | ---: | ---: |
+| MatrixPolicy | 3.9576 +/- 0.0307 | 3.7065 +/- 0.0203 | 3.9656 +/- 0.0085 |
+| RLB+AdamW | 4.0529 +/- 0.0282 | 3.8069 +/- 0.0176 | 4.0629 +/- 0.0098 |
+| SiLU+AdamW | 4.0493 +/- 0.0275 | 3.8035 +/- 0.0182 | 4.0612 +/- 0.0101 |
+| RLB+Lion | 3.9943 +/- 0.0301 | 3.7451 +/- 0.0214 | 4.0014 +/- 0.0128 |
+| SiLU+Lion | 3.9934 +/- 0.0230 | 3.7440 +/- 0.0208 | 4.0015 +/- 0.0085 |
+| RLB+SOAP | 4.0768 +/- 0.0403 | 3.8301 +/- 0.0199 | 4.0841 +/- 0.0079 |
+| SiLU+SOAP | 4.0964 +/- 0.0300 | 3.8629 +/- 0.0201 | 4.1139 +/- 0.0101 |
+| RLB+Muon | 3.9935 +/- 0.0296 | 3.7382 +/- 0.0210 | 4.0012 +/- 0.0114 |
+| SiLU+Muon | 3.9973 +/- 0.0305 | 3.7454 +/- 0.0170 | 4.0066 +/- 0.0128 |
+| RLB+ScheduleFree | 4.3563 +/- 0.0332 | 4.1365 +/- 0.0217 | 4.3814 +/- 0.0093 |
+| SiLU+ScheduleFree | 4.3657 +/- 0.0298 | 4.1559 +/- 0.0238 | 4.3979 +/- 0.0106 |
+| RLB+CAME | 4.4503 +/- 0.0340 | 4.2203 +/- 0.0360 | 4.4732 +/- 0.0011 |
+| SiLU+CAME | 4.3682 +/- 0.0226 | 4.1503 +/- 0.0211 | 4.4060 +/- 0.0189 |
+| RLB+ADeMaMix | -- | -- | -- |
+| SiLU+ADeMaMix | -- | -- | 1361.4141 +/- 0.0000 (n=1) |
 
 ### DCLM
 
@@ -394,6 +401,44 @@ FineWeb-Edu E2 validation-loss checkpoint table, mean +/- sample std:
 | SiLU+CAME | 5.5271 +/- 0.0210 | 5.0004 +/- 0.0184 | 4.5080 +/- 0.0339 | 4.2755 +/- 0.0247 | 4.1761 +/- 0.0218 | 4.1503 +/- 0.0211 |
 | RLB+ADeMaMix | 27698.5969 +/- 47596.7828 | 4962161216.0000 +/- 6009468964.3189 (n=2) | -- | -- | -- | -- |
 | SiLU+ADeMaMix | 1388.9467 +/- 438.1649 | 929392.9245 +/- 1048745.5316 | 1370518.8750 +/- 0.0000 (n=1) | -- | -- | -- |
+
+### FineWeb
+
+All-method view:
+
+![FineWeb E2 validation loss mean +/- std, all methods](results/iclr26_e2_figures/fineweb_core_validation_loss_mean_std.svg)
+
+![FineWeb E2 validation PPL mean +/- std, all methods](results/iclr26_e2_figures/fineweb_core_validation_ppl_mean_std.svg)
+
+![FineWeb E2 training loss mean +/- std, all methods](results/iclr26_e2_figures/fineweb_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![FineWeb E2 validation loss mean +/- std, clean comparison](results/iclr26_e2_figures/fineweb_clean_validation_loss_mean_std.svg)
+
+![FineWeb E2 validation PPL mean +/- std, clean comparison](results/iclr26_e2_figures/fineweb_clean_validation_ppl_mean_std.svg)
+
+![FineWeb E2 training loss mean +/- std, clean comparison](results/iclr26_e2_figures/fineweb_clean_training_loss_mean_std.svg)
+
+FineWeb E2 validation-loss checkpoint table, mean +/- sample std:
+
+| Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| MatrixPolicy | 4.9061 +/- 0.0174 | 4.4828 +/- 0.0067 | 4.2348 +/- 0.0096 | 4.0799 +/- 0.0072 | 3.9891 +/- 0.0084 | 3.9656 +/- 0.0085 |
+| RLB+AdamW | 5.0393 +/- 0.0164 | 4.5920 +/- 0.0064 | 4.2998 +/- 0.0082 | 4.1575 +/- 0.0082 | 4.0815 +/- 0.0090 | 4.0629 +/- 0.0098 |
+| SiLU+AdamW | 5.0527 +/- 0.0192 | 4.6013 +/- 0.0095 | 4.2990 +/- 0.0101 | 4.1566 +/- 0.0097 | 4.0805 +/- 0.0098 | 4.0612 +/- 0.0101 |
+| RLB+Lion | 4.9617 +/- 0.0095 | 4.5227 +/- 0.0115 | 4.2419 +/- 0.0147 | 4.0992 +/- 0.0131 | 4.0210 +/- 0.0131 | 4.0014 +/- 0.0128 |
+| SiLU+Lion | 5.0084 +/- 0.0139 | 4.5399 +/- 0.0078 | 4.2458 +/- 0.0089 | 4.1009 +/- 0.0102 | 4.0221 +/- 0.0085 | 4.0015 +/- 0.0085 |
+| RLB+SOAP | 5.1011 +/- 0.0489 | 4.6501 +/- 0.0149 | 4.3392 +/- 0.0139 | 4.1790 +/- 0.0052 | 4.1141 +/- 0.0255 | 4.0841 +/- 0.0079 |
+| SiLU+SOAP | 5.2775 +/- 0.0437 | 4.7942 +/- 0.1152 | 4.4121 +/- 0.0185 | 4.2201 +/- 0.0089 | 4.1358 +/- 0.0106 | 4.1139 +/- 0.0101 |
+| RLB+Muon | 5.1846 +/- 0.0121 | 4.5976 +/- 0.0155 | 4.2490 +/- 0.0133 | 4.0981 +/- 0.0112 | 4.0219 +/- 0.0106 | 4.0012 +/- 0.0114 |
+| SiLU+Muon | 5.1938 +/- 0.0130 | 4.5962 +/- 0.0095 | 4.2524 +/- 0.0119 | 4.1027 +/- 0.0121 | 4.0266 +/- 0.0117 | 4.0066 +/- 0.0128 |
+| RLB+ScheduleFree | 5.5429 +/- 0.0168 | 5.0898 +/- 0.0162 | 4.6658 +/- 0.0107 | 4.4862 +/- 0.0090 | 4.4064 +/- 0.0091 | 4.3814 +/- 0.0093 |
+| SiLU+ScheduleFree | 5.5684 +/- 0.0117 | 5.1193 +/- 0.0137 | 4.6901 +/- 0.0124 | 4.5060 +/- 0.0105 | 4.4236 +/- 0.0103 | 4.3979 +/- 0.0106 |
+| RLB+CAME | 5.6199 +/- 0.0164 | 5.1868 +/- 0.0100 | 4.7914 +/- 0.0037 | 4.5916 +/- 0.0004 | 4.4979 +/- 0.0010 | 4.4732 +/- 0.0011 |
+| SiLU+CAME | 5.6395 +/- 0.0158 | 5.1935 +/- 0.0228 | 4.7432 +/- 0.0503 | 4.5220 +/- 0.0254 | 4.4301 +/- 0.0193 | 4.4060 +/- 0.0189 |
+| RLB+ADeMaMix | 257.9755 +/- 250.1753 | 1633877367.1458 +/- 2533289655.0567 | -- | -- | -- | -- |
+| SiLU+ADeMaMix | 1046.3267 +/- 385.1340 | 386.1834 +/- 120.1352 | 18508.4055 +/- 25038.3317 (n=2) | 1100.8079 +/- 0.0000 (n=1) | 2696.9573 +/- 0.0000 (n=1) | 1361.4141 +/- 0.0000 (n=1) |
 
 ## E2 DCLM Final Results
 
@@ -529,6 +574,73 @@ This table asks how many training tokens were needed to first reach a validation
 | 3.85 | 185.1M | 185.1M -> 191.1M (3/3) | 6.0M | 3.1% | 185.1M -> 237.0M (3/3) | 51.9M | 21.9% |
 | 3.80 | 211.9M | 211.9M -> 224.5M (3/3) | 12.6M | 5.6% | 205.6M -> 287.5M (2/3) | 81.9M | 28.5% |
 | 3.75 | 247.4M | 237.6M -> 262.1M (2/3) | 24.6M | 9.4% | not reached (0/3) | not reached | n/a |
+
+## E2 FineWeb Final Results
+
+| Method | Final val loss mean +/- sample std | Min | Max | Notes |
+| --- | ---: | ---: | ---: | --- |
+| rlb_matrixpolicy_original | 3.965590 +/- 0.008530 | 3.959470 | 3.975334 |  |
+| rlb_muon | 4.001245 +/- 0.011375 | 3.991416 | 4.013704 |  |
+| rlb_lion | 4.001381 +/- 0.012800 | 3.991274 | 4.015774 |  |
+| silu_lion | 4.001499 +/- 0.008463 | 3.995715 | 4.011213 |  |
+| silu_muon | 4.006567 +/- 0.012834 | 3.996716 | 4.021081 |  |
+| silu_adamw | 4.061199 +/- 0.010087 | 4.053473 | 4.072610 |  |
+| rlb_adamw | 4.062934 +/- 0.009826 | 4.054112 | 4.073524 |  |
+| rlb_soap | 4.084052 +/- 0.007895 | 4.077687 | 4.092887 |  |
+| silu_soap | 4.113942 +/- 0.010095 | 4.104786 | 4.124768 |  |
+| rlb_schedulefree | 4.381390 +/- 0.009252 | 4.374903 | 4.391984 |  |
+| silu_schedulefree | 4.397873 +/- 0.010600 | 4.390438 | 4.410011 |  |
+| silu_came | 4.406034 +/- 0.018922 | 4.393516 | 4.427802 |  |
+| rlb_came | 4.473173 +/- 0.001144 | 4.471895 | 4.474098 |  |
+| silu_ademamix | 1361.414062 +/- 0.000000 | 1361.414062 | 1361.414062 | 2 diverged/non-finite seeds |
+| rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
+
+MatrixPolicy is best on all three FineWeb E2 seeds. Mean final val loss is `3.965590 +/- 0.008530`; the next-best aggregate methods are `rlb_muon` at `4.001245 +/- 0.011375`, `rlb_lion` at `4.001381 +/- 0.012800`, `silu_lion` at `4.001499 +/- 0.008463`.
+
+## E2 FineWeb Per-Seed MatrixPolicy Gap
+
+| Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
+| ---: | ---: | --- | ---: | ---: |
+| 1337 | 3.975334 | silu_lion | 4.011213 | 0.035879 |
+| 2027 | 3.959470 | rlb_lion | 3.991274 | 0.031804 |
+| 3407 | 3.961966 | rlb_lion | 3.997095 | 0.035129 |
+
+## E2 FineWeb Runtime Summary
+
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+
+| Method | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| silu_schedulefree | 3 | 61.7 min | 0.4 min | 61.3-62.1 min | 0.3875 | 84557.5 |
+| silu_lion | 3 | 64.6 min | 6.3 min | 61.0-71.9 min | 0.4066 | 81108.9 |
+| silu_muon | 3 | 69.7 min | 6.2 min | 65.6-76.8 min | 0.4385 | 75078.6 |
+| silu_soap | 3 | 72.3 min | 0.6 min | 71.7-72.9 min | 0.4571 | 71696.4 |
+| rlb_adamw | 3 | 76.3 min | 1.3 min | 74.8-77.2 min | 0.4700 | 69737.2 |
+| silu_adamw | 3 | 76.4 min | 18.9 min | 60.2-97.1 min | 0.4840 | 70588.2 |
+| rlb_matrixpolicy_original | 3 | 77.4 min | 2.9 min | 74.1-79.4 min | 0.4808 | 68224.0 |
+| rlb_lion | 3 | 79.6 min | 14.1 min | 68.6-95.5 min | 0.4920 | 68070.8 |
+| rlb_muon | 3 | 85.0 min | 14.3 min | 74.0-101.2 min | 0.5263 | 63461.5 |
+| rlb_soap | 3 | 85.4 min | 11.1 min | 76.9-97.9 min | 0.5299 | 62572.7 |
+| rlb_schedulefree | 3 | 85.6 min | 10.0 min | 77.3-96.7 min | 0.5304 | 62408.2 |
+| rlb_came | 3 | 91.1 min | 10.1 min | 82.8-102.3 min | 0.5662 | 58393.3 |
+| rlb_ademamix | 3 | 104.0 min | 12.7 min | 96.0-118.7 min | 0.5141 | 64685.3 |
+| silu_came | 3 | 147.2 min | 139.2 min | 66.6-307.9 min | 0.9476 | 57383.1 |
+| silu_ademamix | 3 | 150.6 min | 143.3 min | 62.6-316.0 min | 0.9251 | 60189.7 |
+
+## E2 FineWeb Token-To-Target Savings
+
+This table asks how many training tokens were needed to first reach a validation-loss threshold. It does not change the fixed-budget protocol; all completed runs still trained to about `299.8M` tokens. The readout uses the native eval cadence of 50 steps, or `1.64M` tokens.
+
+`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target, so the comparison column explicitly shows `MP -> comparator` tokens and the shared seed count.
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 4.40 | 83.6M | 83.6M -> 87.9M (3/3) | 4.4M | 5.0% | 83.6M -> 102.1M (3/3) | 18.6M | 18.2% |
+| 4.30 | 112.5M | 112.5M -> 113.0M (3/3) | 0.5M | 0.5% | 112.5M -> 132.2M (3/3) | 19.7M | 14.9% |
+| 4.20 | 143.6M | 143.6M -> 148.5M (3/3) | 4.9M | 3.3% | 143.6M -> 173.1M (3/3) | 29.5M | 17.0% |
+| 4.10 | 187.3M | 187.3M -> 196.6M (3/3) | 9.3M | 4.7% | 187.3M -> 241.4M (3/3) | 54.1M | 22.4% |
+| 4.05 | 214.6M | 214.6M -> 232.1M (3/3) | 17.5M | 7.5% | not reached (0/3) | not reached | n/a |
+| 4.00 | 252.9M | 248.2M -> 285.9M (2/3) | 37.7M | 13.2% | not reached (0/3) | not reached | n/a |
 
 ## E1 Dense Curve Figures
 

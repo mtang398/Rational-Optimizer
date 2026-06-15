@@ -21,6 +21,7 @@ ADAMW_METHOD = "silu_adamw"
 DEFAULT_TARGETS = {
     "dclm": [4.40, 4.30, 4.20, 4.10, 4.05, 4.00],
     "fineweb_edu": [4.20, 4.10, 4.00, 3.90, 3.85, 3.80, 3.75],
+    "fineweb": [4.40, 4.30, 4.20, 4.10, 4.05, 4.00],
 }
 
 DATASET_LABEL = {

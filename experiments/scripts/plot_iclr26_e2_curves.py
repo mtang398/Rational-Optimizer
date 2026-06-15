@@ -18,6 +18,7 @@ PHASE = "E2_m0_300m"
 DATASETS = [
     ("dclm", "DCLM"),
     ("fineweb_edu", "FineWeb-Edu"),
+    ("fineweb", "FineWeb"),
 ]
 
 ALL_METHODS = [
@@ -163,8 +164,8 @@ def final_snapshot(curves) -> str:
     lines = [
         "Final validation-loss overview across completed E2 datasets. Lower is better; cells are mean +/- sample std over three seeds.",
         "",
-        "| Method | DCLM final | FineWeb-Edu final |",
-        "| --- | ---: | ---: |",
+        "| Method | " + " | ".join(f"{label} final" for _, label in DATASETS) + " |",
+        "| --- | " + " | ".join("---:" for _ in DATASETS) + " |",
     ]
     for method, label in TABLE_METHODS:
         cells = []
@@ -226,10 +227,14 @@ def plot_dataset(curves, dataset: str, dataset_label: str, metric: str, out_path
 
 
 def write_readme(out_dir: Path, curves) -> None:
+    if len(DATASETS) == 1:
+        completed = DATASETS[0][1]
+    else:
+        completed = ", ".join(label for _, label in DATASETS[:-1]) + f", and {DATASETS[-1][1]}"
     sections = [
         "# ICLR26 E2 Dense Curve Figures",
         "",
-        "Completed E2 M0/300M datasets: DCLM and FineWeb-Edu. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.",
+        f"Completed E2 M0/300M datasets: {completed}. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.",
         "",
         final_snapshot(curves),
     ]
