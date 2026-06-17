@@ -19,6 +19,7 @@ DATASETS = [
     ("dclm", "DCLM"),
     ("fineweb_edu", "FineWeb-Edu"),
     ("fineweb", "FineWeb"),
+    ("dolma_sample", "Dolma-sample"),
 ]
 
 ALL_METHODS = [
@@ -263,7 +264,10 @@ def write_readme(out_dir: Path, curves) -> None:
             ]
         )
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "README.md").write_text("\n\n".join(sections) + "\n")
+    text = "\n".join(sections) + "\n"
+    while "\n\n\n" in text:
+        text = text.replace("\n\n\n", "\n\n")
+    (out_dir / "README.md").write_text(text)
 
 
 def main() -> int:

@@ -1,26 +1,26 @@
 # ICLR26 E2 Dense Curve Figures
 
-Completed E2 M0/300M datasets: DCLM, FineWeb-Edu, and FineWeb. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
+Completed E2 M0/300M datasets: DCLM, FineWeb-Edu, FineWeb, and Dolma-sample. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
 Final validation-loss overview across completed E2 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 
-| Method | DCLM final | FineWeb-Edu final | FineWeb final |
-| --- | ---: | ---: | ---: |
-| MatrixPolicy | 3.9576 +/- 0.0307 | 3.7065 +/- 0.0203 | 3.9656 +/- 0.0085 |
-| RLB+AdamW | 4.0529 +/- 0.0282 | 3.8069 +/- 0.0176 | 4.0629 +/- 0.0098 |
-| SiLU+AdamW | 4.0493 +/- 0.0275 | 3.8035 +/- 0.0182 | 4.0612 +/- 0.0101 |
-| RLB+Lion | 3.9943 +/- 0.0301 | 3.7451 +/- 0.0214 | 4.0014 +/- 0.0128 |
-| SiLU+Lion | 3.9934 +/- 0.0230 | 3.7440 +/- 0.0208 | 4.0015 +/- 0.0085 |
-| RLB+SOAP | 4.0768 +/- 0.0403 | 3.8301 +/- 0.0199 | 4.0841 +/- 0.0079 |
-| SiLU+SOAP | 4.0964 +/- 0.0300 | 3.8629 +/- 0.0201 | 4.1139 +/- 0.0101 |
-| RLB+Muon | 3.9935 +/- 0.0296 | 3.7382 +/- 0.0210 | 4.0012 +/- 0.0114 |
-| SiLU+Muon | 3.9973 +/- 0.0305 | 3.7454 +/- 0.0170 | 4.0066 +/- 0.0128 |
-| RLB+ScheduleFree | 4.3563 +/- 0.0332 | 4.1365 +/- 0.0217 | 4.3814 +/- 0.0093 |
-| SiLU+ScheduleFree | 4.3657 +/- 0.0298 | 4.1559 +/- 0.0238 | 4.3979 +/- 0.0106 |
-| RLB+CAME | 4.4503 +/- 0.0340 | 4.2203 +/- 0.0360 | 4.4732 +/- 0.0011 |
-| SiLU+CAME | 4.3682 +/- 0.0226 | 4.1503 +/- 0.0211 | 4.4060 +/- 0.0189 |
-| RLB+ADeMaMix | -- | -- | -- |
-| SiLU+ADeMaMix | -- | -- | 1361.4141 +/- 0.0000 (n=1) |
+| Method | DCLM final | FineWeb-Edu final | FineWeb final | Dolma-sample final |
+| --- | ---: | ---: | ---: | ---: |
+| MatrixPolicy | 3.9576 +/- 0.0307 | 3.7065 +/- 0.0203 | 3.9656 +/- 0.0085 | 3.8099 +/- 0.0057 |
+| RLB+AdamW | 4.0529 +/- 0.0282 | 3.8069 +/- 0.0176 | 4.0629 +/- 0.0098 | 3.9064 +/- 0.0073 |
+| SiLU+AdamW | 4.0493 +/- 0.0275 | 3.8035 +/- 0.0182 | 4.0612 +/- 0.0101 | 3.9037 +/- 0.0091 |
+| RLB+Lion | 3.9943 +/- 0.0301 | 3.7451 +/- 0.0214 | 4.0014 +/- 0.0128 | 3.8425 +/- 0.0093 |
+| SiLU+Lion | 3.9934 +/- 0.0230 | 3.7440 +/- 0.0208 | 4.0015 +/- 0.0085 | 3.8475 +/- 0.0094 |
+| RLB+SOAP | 4.0768 +/- 0.0403 | 3.8301 +/- 0.0199 | 4.0841 +/- 0.0079 | 3.9205 +/- 0.0117 |
+| SiLU+SOAP | 4.0964 +/- 0.0300 | 3.8629 +/- 0.0201 | 4.1139 +/- 0.0101 | 3.9568 +/- 0.0093 |
+| RLB+Muon | 3.9935 +/- 0.0296 | 3.7382 +/- 0.0210 | 4.0012 +/- 0.0114 | 3.8482 +/- 0.0089 |
+| SiLU+Muon | 3.9973 +/- 0.0305 | 3.7454 +/- 0.0170 | 4.0066 +/- 0.0128 | 3.8581 +/- 0.0101 |
+| RLB+ScheduleFree | 4.3563 +/- 0.0332 | 4.1365 +/- 0.0217 | 4.3814 +/- 0.0093 | 4.2054 +/- 0.0105 |
+| SiLU+ScheduleFree | 4.3657 +/- 0.0298 | 4.1559 +/- 0.0238 | 4.3979 +/- 0.0106 | 4.2151 +/- 0.0053 |
+| RLB+CAME | 4.4503 +/- 0.0340 | 4.2203 +/- 0.0360 | 4.4732 +/- 0.0011 | 4.2857 +/- 0.0382 |
+| SiLU+CAME | 4.3682 +/- 0.0226 | 4.1503 +/- 0.0211 | 4.4060 +/- 0.0189 | 4.2492 +/- 0.0270 |
+| RLB+ADeMaMix | -- | -- | -- | -- |
+| SiLU+ADeMaMix | -- | -- | 1361.4141 +/- 0.0000 (n=1) | -- |
 
 ## DCLM
 
@@ -135,3 +135,41 @@ FineWeb E2 validation-loss checkpoint table, mean +/- sample std:
 | SiLU+CAME | 5.6395 +/- 0.0158 | 5.1935 +/- 0.0228 | 4.7432 +/- 0.0503 | 4.5220 +/- 0.0254 | 4.4301 +/- 0.0193 | 4.4060 +/- 0.0189 |
 | RLB+ADeMaMix | 257.9755 +/- 250.1753 | 1633877367.1458 +/- 2533289655.0567 | -- | -- | -- | -- |
 | SiLU+ADeMaMix | 1046.3267 +/- 385.1340 | 386.1834 +/- 120.1352 | 18508.4055 +/- 25038.3317 (n=2) | 1100.8079 +/- 0.0000 (n=1) | 2696.9573 +/- 0.0000 (n=1) | 1361.4141 +/- 0.0000 (n=1) |
+
+## Dolma-sample
+
+All-method view:
+
+![Dolma-sample E2 validation loss mean +/- std, all methods](dolma_sample_core_validation_loss_mean_std.svg)
+
+![Dolma-sample E2 validation PPL mean +/- std, all methods](dolma_sample_core_validation_ppl_mean_std.svg)
+
+![Dolma-sample E2 training loss mean +/- std, all methods](dolma_sample_core_training_loss_mean_std.svg)
+
+Clean comparison view:
+
+![Dolma-sample E2 validation loss mean +/- std, clean comparison](dolma_sample_clean_validation_loss_mean_std.svg)
+
+![Dolma-sample E2 validation PPL mean +/- std, clean comparison](dolma_sample_clean_validation_ppl_mean_std.svg)
+
+![Dolma-sample E2 training loss mean +/- std, clean comparison](dolma_sample_clean_training_loss_mean_std.svg)
+
+Dolma-sample E2 validation-loss checkpoint table, mean +/- sample std:
+
+| Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| MatrixPolicy | 4.7051 +/- 0.0034 | 4.3101 +/- 0.0100 | 4.0725 +/- 0.0084 | 3.9202 +/- 0.0079 | 3.8331 +/- 0.0059 | 3.8099 +/- 0.0057 |
+| RLB+AdamW | 4.8388 +/- 0.0089 | 4.4218 +/- 0.0075 | 4.1373 +/- 0.0091 | 3.9965 +/- 0.0085 | 3.9246 +/- 0.0078 | 3.9064 +/- 0.0073 |
+| SiLU+AdamW | 4.8563 +/- 0.0014 | 4.4240 +/- 0.0099 | 4.1350 +/- 0.0106 | 3.9963 +/- 0.0097 | 3.9227 +/- 0.0091 | 3.9037 +/- 0.0091 |
+| RLB+Lion | 4.7699 +/- 0.0206 | 4.3509 +/- 0.0139 | 4.0789 +/- 0.0131 | 3.9381 +/- 0.0103 | 3.8620 +/- 0.0103 | 3.8425 +/- 0.0093 |
+| SiLU+Lion | 4.8041 +/- 0.0041 | 4.3710 +/- 0.0090 | 4.0847 +/- 0.0104 | 3.9425 +/- 0.0101 | 3.8670 +/- 0.0094 | 3.8475 +/- 0.0094 |
+| RLB+SOAP | 4.9194 +/- 0.0832 | 4.4464 +/- 0.0075 | 4.1718 +/- 0.0153 | 4.0179 +/- 0.0151 | 3.9404 +/- 0.0129 | 3.9205 +/- 0.0117 |
+| SiLU+SOAP | 5.0463 +/- 0.0622 | 4.5589 +/- 0.0265 | 4.2314 +/- 0.0103 | 4.0647 +/- 0.0121 | 3.9780 +/- 0.0081 | 3.9568 +/- 0.0093 |
+| RLB+Muon | 4.9890 +/- 0.0053 | 4.4319 +/- 0.0059 | 4.0907 +/- 0.0101 | 3.9421 +/- 0.0084 | 3.8673 +/- 0.0091 | 3.8482 +/- 0.0089 |
+| SiLU+Muon | 4.9932 +/- 0.0054 | 4.4333 +/- 0.0060 | 4.1013 +/- 0.0120 | 3.9535 +/- 0.0103 | 3.8776 +/- 0.0095 | 3.8581 +/- 0.0101 |
+| RLB+ScheduleFree | 5.3286 +/- 0.0067 | 4.8747 +/- 0.0082 | 4.4745 +/- 0.0132 | 4.3037 +/- 0.0121 | 4.2285 +/- 0.0111 | 4.2054 +/- 0.0105 |
+| SiLU+ScheduleFree | 5.3512 +/- 0.0087 | 4.8985 +/- 0.0056 | 4.4895 +/- 0.0060 | 4.3161 +/- 0.0042 | 4.2391 +/- 0.0055 | 4.2151 +/- 0.0053 |
+| RLB+CAME | 5.3901 +/- 0.0074 | 4.9666 +/- 0.0087 | 4.5937 +/- 0.0186 | 4.4014 +/- 0.0335 | 4.3098 +/- 0.0387 | 4.2857 +/- 0.0382 |
+| SiLU+CAME | 5.4110 +/- 0.0084 | 4.9728 +/- 0.0149 | 4.5654 +/- 0.0444 | 4.3689 +/- 0.0414 | 4.2734 +/- 0.0294 | 4.2492 +/- 0.0270 |
+| RLB+ADeMaMix | 17928.5126 +/- 15450.5860 | 2482927104.0000 +/- 2466098821.8411 (n=2) | -- | -- | -- | -- |
+| SiLU+ADeMaMix | 1127.4188 +/- 977.4469 | 1608323.0966 +/- 2563013.6932 | 70147874816.0000 +/- 0.0000 (n=1) | -- | -- | -- |

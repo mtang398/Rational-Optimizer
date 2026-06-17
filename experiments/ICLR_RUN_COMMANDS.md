@@ -496,6 +496,74 @@ Odd-row chain after row `375`:
 
 Current scheduler state immediately after submission: job `393488` was running on `ellis-compute-02`; all later Dolma-sample rows were dependency-pending.
 
+Dolma-sample E2 completion note: all jobs `393488`-`393533` completed with exit `0:0`; the last Dolma-sample job ended on `2026-06-17T02:00:27`. Jobs `393493`, `393501`, and `393521` show nonzero Slurm `Restarts`, but each corresponding JSONL has exactly one complete summary record at step `9150`. Dolma ADeMaMix variants diverged/non-finite on all three seeds and are recorded that way in `experiments/results/iclr26_e2_dolma_sample_2026_06_17/`.
+
+## E2 C4 300M Split Submission
+
+C4 E2 split submission on `2026-06-17 13:48 EDT`: after Dolma-sample rows `375-419` completed and after the tracked result summaries/status files were updated, the final E2 dataset window was submitted. This submission is C4 only: rows `420-464`, one manifest row per job. Row `420` is the cache/front row because the C4 E2 300M train and 8M validation token caches were not present at submission time. Rows `421-464` are split into two dependency chains behind row `420`; rows `465+` were not submitted because they are E3.
+
+Front row:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 420 | `476451` | none |
+
+Odd-row chain after row `420`:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 421 | `476452` | afterok:`476451` |
+| 423 | `476453` | afterok:`476452` |
+| 425 | `476454` | afterok:`476453` |
+| 427 | `476455` | afterok:`476454` |
+| 429 | `476456` | afterok:`476455` |
+| 431 | `476457` | afterok:`476456` |
+| 433 | `476458` | afterok:`476457` |
+| 435 | `476459` | afterok:`476458` |
+| 437 | `476460` | afterok:`476459` |
+| 439 | `476461` | afterok:`476460` |
+| 441 | `476462` | afterok:`476461` |
+| 443 | `476463` | afterok:`476462` |
+| 445 | `476464` | afterok:`476463` |
+| 447 | `476465` | afterok:`476464` |
+| 449 | `476466` | afterok:`476465` |
+| 451 | `476467` | afterok:`476466` |
+| 453 | `476468` | afterok:`476467` |
+| 455 | `476469` | afterok:`476468` |
+| 457 | `476470` | afterok:`476469` |
+| 459 | `476471` | afterok:`476470` |
+| 461 | `476472` | afterok:`476471` |
+| 463 | `476473` | afterok:`476472` |
+
+Even-row chain after row `420`:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 422 | `476474` | afterok:`476451` |
+| 424 | `476475` | afterok:`476474` |
+| 426 | `476476` | afterok:`476475` |
+| 428 | `476477` | afterok:`476476` |
+| 430 | `476478` | afterok:`476477` |
+| 432 | `476479` | afterok:`476478` |
+| 434 | `476480` | afterok:`476479` |
+| 436 | `476481` | afterok:`476480` |
+| 438 | `476482` | afterok:`476481` |
+| 440 | `476483` | afterok:`476482` |
+| 442 | `476484` | afterok:`476483` |
+| 444 | `476485` | afterok:`476484` |
+| 446 | `476486` | afterok:`476485` |
+| 448 | `476487` | afterok:`476486` |
+| 450 | `476488` | afterok:`476487` |
+| 452 | `476489` | afterok:`476488` |
+| 454 | `476490` | afterok:`476489` |
+| 456 | `476491` | afterok:`476490` |
+| 458 | `476492` | afterok:`476491` |
+| 460 | `476493` | afterok:`476492` |
+| 462 | `476494` | afterok:`476493` |
+| 464 | `476495` | afterok:`476494` |
+
+Current scheduler state immediately after submission: job `476451` was pending on priority; all later C4 rows were dependency-pending.
+
 ## Internal Per-Row Command Shape
 
 The manifest launcher converts each CSV row into environment variables and executes this
