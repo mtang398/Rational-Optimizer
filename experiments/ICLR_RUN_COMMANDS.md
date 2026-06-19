@@ -564,6 +564,9 @@ Even-row chain after row `420`:
 
 Current scheduler state immediately after submission: job `476451` was pending on priority; all later C4 rows were dependency-pending.
 
+C4 E2 completion note on `2026-06-19`: all jobs `476451`-`476495` completed with exit `0:0`; the last job was `476495`, ending at `2026-06-19T03:12:51`. Jobs `476453`, `476455`, `476476`, and `476481` show `Restarts=1`, but every C4 JSONL has exactly one complete summary record and final eval at step `9150`. The final E2 C4 package is tracked at `experiments/results/iclr26_e2_c4_2026_06_19/`.
+
+
 ## Internal Per-Row Command Shape
 
 The manifest launcher converts each CSV row into environment variables and executes this
@@ -615,7 +618,17 @@ python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
 python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
   --dataset fineweb \
   --output-dir experiments/results/iclr26_e2_fineweb_2026_06_15 \
-  --completed-date 2026-06-14
+  --completed-date 2026-06-15
+
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
+  --dataset dolma_sample \
+  --output-dir experiments/results/iclr26_e2_dolma_sample_2026_06_17 \
+  --completed-date 2026-06-17
+
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
+  --dataset c4_en \
+  --output-dir experiments/results/iclr26_e2_c4_2026_06_19 \
+  --completed-date 2026-06-19
 ```
 
 E2 dense curve figures and checkpoint tables:

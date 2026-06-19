@@ -4,7 +4,7 @@ This directory contains the LM benchmark harness, dataset streaming support, syn
 
 ## Current Result Anchor
 
-The completed paper-facing results are tracked in `../experiments/ICLR_RUN_STATUS.md`. E2 M0/300M DCLM rows `240-284`, FineWeb-Edu rows `285-329`, FineWeb rows `330-374`, and Dolma-sample rows `375-419` are complete, with per-method summaries and token-to-target savings under `../experiments/results/iclr26_e2_dclm_2026_06_10/`, `../experiments/results/iclr26_e2_fineweb_edu_2026_06_12/`, `../experiments/results/iclr26_e2_fineweb_2026_06_15/`, and `../experiments/results/iclr26_e2_dolma_sample_2026_06_17/`. E2 C4 rows `420-464` are queued as the final E2 dataset block.
+The completed paper-facing results are tracked in `../experiments/ICLR_RUN_STATUS.md`. E2 M0/300M DCLM rows `240-284`, FineWeb-Edu rows `285-329`, FineWeb rows `330-374`, Dolma-sample rows `375-419`, and C4 rows `420-464` are complete, with per-method summaries and token-to-target savings under `../experiments/results/iclr26_e2_dclm_2026_06_10/`, `../experiments/results/iclr26_e2_fineweb_edu_2026_06_12/`, `../experiments/results/iclr26_e2_fineweb_2026_06_15/`, `../experiments/results/iclr26_e2_dolma_sample_2026_06_17/`, and `../experiments/results/iclr26_e2_c4_2026_06_19/`.
 
 ## Primary Files
 

@@ -20,6 +20,7 @@ DATASETS = [
     ("fineweb_edu", "FineWeb-Edu"),
     ("fineweb", "FineWeb"),
     ("dolma_sample", "Dolma-sample"),
+    ("c4_en", "C4"),
 ]
 
 ALL_METHODS = [
@@ -242,6 +243,7 @@ def write_readme(out_dir: Path, curves) -> None:
     for dataset, label in DATASETS:
         sections.extend(
             [
+                "",
                 f"## {label}",
                 "",
                 "All-method view:",

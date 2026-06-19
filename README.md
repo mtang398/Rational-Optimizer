@@ -2,7 +2,7 @@
 
 RationalOPT studies Rational Local Basis (RLB) variants inside causal Transformer language models and the `rational_matrix_policy_onpolicy` optimizer for pretraining.
 
-Paper-facing results in this README include the completed E1 matched main suite and the completed E2 DCLM, FineWeb-Edu, FineWeb, and Dolma-sample M0/300M cells. WikiText is kept as a small demo anchor.
+Paper-facing results in this README include the completed E1 matched main suite and the completed E2 DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 M0/300M cells. WikiText is kept as a small demo anchor.
 
 ## Result Pointers
 
@@ -13,6 +13,7 @@ experiments/results/iclr26_e2_dclm_2026_06_10/
 experiments/results/iclr26_e2_fineweb_edu_2026_06_12/
 experiments/results/iclr26_e2_fineweb_2026_06_15/
 experiments/results/iclr26_e2_dolma_sample_2026_06_17/
+experiments/results/iclr26_e2_c4_2026_06_19/
 experiments/results/iclr26_e2_figures/
 experiments/results/iclr26_e1_token_savings_2026_06_12/
 experiments/results/iclr26_e1_figures/
@@ -22,7 +23,7 @@ experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo a
 
 ## Completed Runtime Summary
 
-Per optimizer/activation-combo runtimes for completed paper cells are tracked in `experiments/results/iclr26_runtime_summary_2026_06_11/`. The package covers cleaned E1 M0/100M rows plus completed E2 M0/300M DCLM, FineWeb-Edu, FineWeb, and Dolma-sample rows. It excludes E1 FineWeb-Edu seed `2027` rows `75-89` because Slurm job `158117` had `Restarts=6` and produced restart/node-contaminated throughput outliers. It also excludes E2 C4 rows `420-464` because they are queued/incomplete or not completed yet; rows `465+` are outside E2.
+Per optimizer/activation-combo runtimes for completed paper cells are tracked in `experiments/results/iclr26_runtime_summary_2026_06_11/`. The package covers cleaned E1 M0/100M rows plus completed E2 M0/300M DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 rows. It excludes E1 FineWeb-Edu seed `2027` rows `75-89` because Slurm job `158117` had `Restarts=6` and produced restart/node-contaminated throughput outliers. Rows `465+` are outside E2.
 
 No raw all-completed E1 timing aggregate is tracked. The contaminated E1 rows are omitted from aggregate CSVs and `runtime_per_row.csv`.
 
@@ -30,9 +31,7 @@ The runtime metric is the JSONL `summary.total_seconds` training-harness wall ti
 
 ## Current E2 300M Results
 
-E2 M0/300M is complete for DCLM rows `240-284`, FineWeb-Edu rows `285-329`, FineWeb rows `330-374`, and Dolma-sample rows `375-419`: each completed cell has three seeds, 15 fixed methods per seed, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per run.
-
-E2 C4 rows `420-464` are now queued as the final E2 dataset block only, one manifest row per job with row `420` as the cache/front row and rows `421-464` split into two dependency chains. Rows `465+` are E3 and were not queued.
+E2 M0/300M is complete for DCLM rows `240-284`, FineWeb-Edu rows `285-329`, FineWeb rows `330-374`, Dolma-sample rows `375-419`, and C4 rows `420-464`: each completed cell has three seeds, 15 fixed methods per seed, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per run. Rows `465+` are E3 and were not queued.
 
 ### DCLM
 
@@ -96,6 +95,21 @@ MatrixPolicy is best on all three Dolma-sample E2 seeds. Mean final val loss is 
 | 3.85 | 246.3M | 244.9M -> 276.9M (2/3) | 31.9M | 11.5% | not reached (0/3) | not reached | n/a |
 | 3.82 | 282.4M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
 
+### C4
+
+Tracked package: `experiments/results/iclr26_e2_c4_2026_06_19/`.
+
+MatrixPolicy is best on all three C4 E2 seeds. Mean final val loss is `3.882593 +/- 0.013925`; the next-best aggregate methods are `rlb_muon` at `3.915858 +/- 0.016066`, `rlb_lion` at `3.919576 +/- 0.014201`, `silu_lion` at `3.921326 +/- 0.010538`. Both ADeMaMix variants diverged/non-finite on all three C4 seeds and are marked as such in the package.
+
+| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
+| 4.40 | 67.7M | 67.7M -> 72.6M (3/3) | 4.9M | 6.8% | 67.7M -> 86.8M (3/3) | 19.1M | 22.0% |
+| 4.30 | 90.7M | 90.7M -> 93.4M (3/3) | 2.7M | 2.9% | 90.7M -> 108.1M (3/3) | 17.5M | 16.2% |
+| 4.20 | 118.5M | 118.5M -> 119.1M (3/3) | 0.5M | 0.5% | 118.5M -> 139.8M (3/3) | 21.3M | 15.2% |
+| 4.10 | 151.3M | 151.3M -> 156.2M (3/3) | 4.9M | 3.1% | 151.3M -> 185.1M (3/3) | 33.9M | 18.3% |
+| 4.05 | 170.9M | 170.9M -> 179.1M (3/3) | 8.2M | 4.6% | 170.9M -> 216.3M (3/3) | 45.3M | 21.0% |
+| 4.00 | 196.1M | 196.1M -> 207.5M (3/3) | 11.5M | 5.5% | 196.1M -> 264.9M (3/3) | 68.8M | 26.0% |
+
 Runtime tables are included in each E2 dataset package and in `experiments/results/iclr26_runtime_summary_2026_06_11/`.
 
 ### E2 Dense Curve Figures
@@ -157,6 +171,20 @@ The completed E2 curve package is tracked under `experiments/results/iclr26_e2_f
 ![Dolma-sample E2 validation PPL mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/dolma_sample_clean_validation_ppl_mean_std.svg)
 
 ![Dolma-sample E2 training loss mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/dolma_sample_clean_training_loss_mean_std.svg)
+
+#### C4
+
+![C4 E2 validation loss mean +/- std, all methods](experiments/results/iclr26_e2_figures/c4_en_core_validation_loss_mean_std.svg)
+
+![C4 E2 validation PPL mean +/- std, all methods](experiments/results/iclr26_e2_figures/c4_en_core_validation_ppl_mean_std.svg)
+
+![C4 E2 training loss mean +/- std, all methods](experiments/results/iclr26_e2_figures/c4_en_core_training_loss_mean_std.svg)
+
+![C4 E2 validation loss mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/c4_en_clean_validation_loss_mean_std.svg)
+
+![C4 E2 validation PPL mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/c4_en_clean_validation_ppl_mean_std.svg)
+
+![C4 E2 training loss mean +/- std, clean comparison](experiments/results/iclr26_e2_figures/c4_en_clean_training_loss_mean_std.svg)
 
 Full E2 per-method, per-seed, runtime, checkpoint, and curve tables are in the tracked E2 result package READMEs.
 
@@ -402,6 +430,9 @@ python3 experiments/scripts/plot_iclr26_e1_curves.py --status-md experiments/ICL
 python3 experiments/scripts/summarize_iclr26_e1_token_savings.py
 python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset dclm --output-dir experiments/results/iclr26_e2_dclm_2026_06_10 --completed-date 2026-06-10
 python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset fineweb_edu --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12 --completed-date 2026-06-12
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset fineweb --output-dir experiments/results/iclr26_e2_fineweb_2026_06_15 --completed-date 2026-06-15
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset dolma_sample --output-dir experiments/results/iclr26_e2_dolma_sample_2026_06_17 --completed-date 2026-06-17
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset c4_en --output-dir experiments/results/iclr26_e2_c4_2026_06_19 --completed-date 2026-06-19
 python3 experiments/scripts/plot_iclr26_e2_curves.py
 python3 experiments/scripts/summarize_iclr26_runtimes.py
 ```

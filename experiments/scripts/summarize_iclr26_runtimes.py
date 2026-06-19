@@ -27,6 +27,7 @@ COMPLETED_E2_DATASET_SCOPES = {
     "fineweb_edu": "E2_m0_300m_fineweb_edu",
     "fineweb": "E2_m0_300m_fineweb",
     "dolma_sample": "E2_m0_300m_dolma_sample",
+    "c4_en": "E2_m0_300m_c4_en",
 }
 
 SCOPE_LABEL = {
@@ -35,6 +36,7 @@ SCOPE_LABEL = {
     "E2_m0_300m_fineweb_edu": "E2 M0/300M FineWeb-Edu",
     "E2_m0_300m_fineweb": "E2 M0/300M FineWeb",
     "E2_m0_300m_dolma_sample": "E2 M0/300M Dolma-sample",
+    "E2_m0_300m_c4_en": "E2 M0/300M C4",
 }
 
 METHOD_ORDER = [
@@ -228,7 +230,7 @@ Included in tracked runtime aggregates:
 Excluded from tracked runtime aggregates:
 
 - E1 FineWeb-Edu seed `2027` rows `75-89`: `{excluded_row_count}` rows, restart-contaminated.
-- E2 C4 rows `420-464`, because they are queued/incomplete or not completed yet. Rows `465+` are outside E2.
+- Rows `465+` are outside E2.
 
 No raw all-completed E1 aggregate is tracked in this package. The contaminated E1 rows are omitted from both aggregate CSVs and `runtime_per_row.csv`.
 
