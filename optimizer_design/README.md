@@ -2,6 +2,8 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
+The next isolated optimizer proposal and E1 rerun target is `matrixpolicyV2`, documented in `proposals/matrixpolicyV2_horizontal_pressure_adam.md`. It is a separate optimizer choice and does not replace `rational_matrix_policy_onpolicy`.
+
 ## Current Result Anchor
 
 The current paper-facing optimizer evidence is the completed E1 matched main suite plus the completed E2 DCLM M0/300M cell. In E2 DCLM, `rational_matrix_policy_onpolicy` reaches final validation loss `3.957627 +/- 0.030713`, ahead of the next aggregate methods around `3.9934`, and the token-to-target savings table is tracked in `../experiments/results/iclr26_e2_dclm_2026_06_10/README.md`.

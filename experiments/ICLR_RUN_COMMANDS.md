@@ -180,6 +180,49 @@ sbatch --dependency=afterok:158168:158167 experiments/scripts/run_iclr26_manifes
 
 E1 completion note: all jobs `155411`, `155412`, `158114`, `158115`, `158117`, `158118`, `158155`, `158156`, `158163`, `158164`, `158166`, `158165`, `158168`, `158167`, and `158169` completed. The final job `158169` covered rows 225-239 for `c4_en` seed 3407 and completed with exit `0:0` in 06:09:38.
 
+## matrixpolicyV2 E1 100M Submission
+
+This is a separate E1-only rerun for the new RLB optimizer proposal. It uses
+`experiments/manifests/iclr26_matrixpolicyV2_e1_manifest.csv`, phase
+`E1_matrixpolicyV2_100m`, method `rlb_matrixpolicyV2`, activation
+`rlb_fused_fixed_strong_ffn`, optimizer `matrixpolicyV2`, and one manifest row
+per Slurm job.
+
+The rows were submitted as two parity dependency chains so at most two 4-A6000
+jobs from this set can run at once and preemption loss is limited to one row.
+`BUILD_EXT=0` was used because the extension had already been built by the
+completed E1/E2 runs and the V2 change is Python-side optimizer logic.
+
+Submission template:
+
+```bash
+sbatch --parsable \
+  --job-name=mpV2-e1-<row> \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV2_e1_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
+  [--dependency=afterok:<previous-chain-job>] \
+  experiments/scripts/run_iclr26_manifest_job.sh
+```
+
+Submitted jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `535546` | none |
+| 1 | `535547` | none |
+| 2 | `535548` | afterok:`535546` |
+| 3 | `535549` | afterok:`535547` |
+| 4 | `535550` | afterok:`535548` |
+| 5 | `535551` | afterok:`535549` |
+| 6 | `535552` | afterok:`535550` |
+| 7 | `535553` | afterok:`535551` |
+| 8 | `535554` | afterok:`535552` |
+| 9 | `535555` | afterok:`535553` |
+| 10 | `535556` | afterok:`535554` |
+| 11 | `535557` | afterok:`535555` |
+| 12 | `535558` | afterok:`535556` |
+| 13 | `535559` | afterok:`535557` |
+| 14 | `535560` | afterok:`535558` |
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,

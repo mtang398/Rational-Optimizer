@@ -205,10 +205,23 @@ class _RLBGaugeBalanceBase:
         hidden_dim = int(group["hidden_dim"])
         if hidden_dim % groups != 0:
             return None
+        cache_key = (
+            id(in_weight),
+            id(out_weight),
+            tuple(in_weight.shape),
+            tuple(out_weight.shape),
+            groups,
+            hidden_dim,
+        )
+        cache = group.get("_weight_view_cache")
+        if cache is not None and cache.get("key") == cache_key:
+            return cache["views"]
         width = hidden_dim // groups
         in_view = in_weight.view(groups, width, -1)
         out_view = out_weight.view(out_weight.shape[0], groups, width).permute(1, 2, 0)
-        return in_view, out_view
+        views = (in_view, out_view)
+        group["_weight_view_cache"] = {"key": cache_key, "views": views}
+        return views
 
     @torch.no_grad()
     def _update_onpolicy_stats(self):
