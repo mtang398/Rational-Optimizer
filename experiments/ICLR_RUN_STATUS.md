@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-19 15:04:14 EDT
+Updated: 2026-06-19 15:14:34 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -69,6 +69,50 @@ Initial Slurm state after submission: jobs `535546` and `535547` were pending
 for resources/priority; later rows were dependency-held. Expected runtime after
 launch is about 4-5 hours for the full two-chain set, based on clean E1
 MatrixPolicy row runtimes, plus queue delay.
+
+## matrixpolicyV2 E2 Rerun Status
+
+Queued: 2026-06-19 15:14:34 EDT.
+
+This is the E2 M0/300M companion rerun for the new optimizer. It is isolated
+from the completed E2 paper grid and starts only after the corresponding E1 V2
+chain tail finishes.
+
+| Field | Value |
+| --- | --- |
+| Manifest | `experiments/manifests/iclr26_matrixpolicyV2_e2_manifest.csv` |
+| Phase | `E2_matrixpolicyV2_300m` |
+| Method | `rlb_matrixpolicyV2` |
+| Activation | `rlb_fused_fixed_strong_ffn` |
+| Optimizer | `matrixpolicyV2` |
+| Rows | `0-14`, five datasets x three seeds |
+| Budget | `9150` steps, about `300M` train tokens per row |
+| Submission shape | one row per job, two parity chains, first E2 jobs depend on E1 V2 chain tails |
+
+Submitted Slurm jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `535593` | afterok:`535560` |
+| 1 | `535594` | afterok:`535559` |
+| 2 | `535595` | afterok:`535593` |
+| 3 | `535596` | afterok:`535594` |
+| 4 | `535597` | afterok:`535595` |
+| 5 | `535598` | afterok:`535596` |
+| 6 | `535599` | afterok:`535597` |
+| 7 | `535600` | afterok:`535598` |
+| 8 | `535601` | afterok:`535599` |
+| 9 | `535602` | afterok:`535600` |
+| 10 | `535603` | afterok:`535601` |
+| 11 | `535604` | afterok:`535602` |
+| 12 | `535605` | afterok:`535603` |
+| 13 | `535606` | afterok:`535604` |
+| 14 | `535607` | afterok:`535605` |
+
+Initial Slurm state after submission: all E2 V2 jobs `535593-535607` were
+pending on dependencies. Jobs `535593` and `535594` depend on E1 V2 chain tails
+`535560` and `535559`; later rows continue one-by-one within their parity
+chains.
 
 ## Completed Runtime Summary
 

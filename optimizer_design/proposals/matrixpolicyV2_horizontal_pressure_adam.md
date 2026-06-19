@@ -215,20 +215,28 @@ A posteriori interpretation:
   not generic Muon; it is the old per-group role policy, and the next ablation
   should reintroduce only that piece after the quotient projection.
 
-## E1 Test Plan
+## Test Plan
 
-Run only E1 M0/100M for `activation=rlb_fused_fixed_strong_ffn` and
-`optimizer=matrixpolicyV2`:
+Run only `activation=rlb_fused_fixed_strong_ffn` and
+`optimizer=matrixpolicyV2` for the matched E1 and E2 settings:
 
 ```text
-5 datasets x 3 seeds = 15 jobs
+E1: 5 datasets x 3 seeds = 15 jobs
 phase = E1_matrixpolicyV2_100m
+steps = 3050
+train tokens = 100M
+
+E2: 5 datasets x 3 seeds = 15 jobs
+phase = E2_matrixpolicyV2_300m
+steps = 9150
+train tokens = 300M
+
 method = rlb_matrixpolicyV2
 ```
 
-The comparison target is the completed E1 grid. The main readouts are:
+The comparison targets are the completed E1 and E2 grids. The main readouts are:
 
 - final validation loss by dataset and seed;
-- token-to-target savings against old MatrixPolicy, RLB+Lion, and SiLU+AdamW;
+- token-to-target savings against old MatrixPolicy, RLB+Lion/Muon, and SiLU+AdamW;
 - runtime from JSONL `summary.total_seconds`, not queue or requeue time;
 - optimizer-step telemetry to verify lower overhead.

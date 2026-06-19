@@ -223,6 +223,48 @@ Submitted jobs:
 | 13 | `535559` | afterok:`535557` |
 | 14 | `535560` | afterok:`535558` |
 
+## matrixpolicyV2 E2 300M Submission
+
+This is the E2 companion rerun for the new RLB optimizer proposal. It uses
+`experiments/manifests/iclr26_matrixpolicyV2_e2_manifest.csv`, phase
+`E2_matrixpolicyV2_300m`, method `rlb_matrixpolicyV2`, activation
+`rlb_fused_fixed_strong_ffn`, optimizer `matrixpolicyV2`, and one manifest row
+per Slurm job.
+
+Rows were submitted as two parity dependency chains after the matrixpolicyV2 E1
+chain tails, so the V2 queue keeps the same two 4-A6000 active-job cap across
+E1 and E2.
+
+Submission template:
+
+```bash
+sbatch --parsable \
+  --job-name=mpV2-e2-<row> \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV2_e2_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
+  --dependency=afterok:<previous-chain-job> \
+  experiments/scripts/run_iclr26_manifest_job.sh
+```
+
+Submitted jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `535593` | afterok:`535560` |
+| 1 | `535594` | afterok:`535559` |
+| 2 | `535595` | afterok:`535593` |
+| 3 | `535596` | afterok:`535594` |
+| 4 | `535597` | afterok:`535595` |
+| 5 | `535598` | afterok:`535596` |
+| 6 | `535599` | afterok:`535597` |
+| 7 | `535600` | afterok:`535598` |
+| 8 | `535601` | afterok:`535599` |
+| 9 | `535602` | afterok:`535600` |
+| 10 | `535603` | afterok:`535601` |
+| 11 | `535604` | afterok:`535602` |
+| 12 | `535605` | afterok:`535603` |
+| 13 | `535606` | afterok:`535604` |
+| 14 | `535607` | afterok:`535605` |
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,
