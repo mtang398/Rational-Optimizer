@@ -180,25 +180,18 @@ sbatch --dependency=afterok:158168:158167 experiments/scripts/run_iclr26_manifes
 
 E1 completion note: all jobs `155411`, `155412`, `158114`, `158115`, `158117`, `158118`, `158155`, `158156`, `158163`, `158164`, `158166`, `158165`, `158168`, `158167`, and `158169` completed. The final job `158169` covered rows 225-239 for `c4_en` seed 3407 and completed with exit `0:0` in 06:09:38.
 
-## matrixpolicyV2 E1 100M Submission
+## matrixpolicyV3 E1 100M Submission
 
-This is a separate E1-only rerun for the new RLB optimizer proposal. It uses
-`experiments/manifests/iclr26_matrixpolicyV2_e1_manifest.csv`, phase
-`E1_matrixpolicyV2_100m`, method `rlb_matrixpolicyV2`, activation
-`rlb_fused_fixed_strong_ffn`, optimizer `matrixpolicyV2`, and one manifest row
-per Slurm job.
+This is a separate E1-only rerun for the replacement RLB optimizer proposal. It uses `experiments/manifests/iclr26_matrixpolicyV3_e1_manifest.csv`, phase `E1_matrixpolicyV3_100m`, method `rlb_matrixpolicyV3`, activation `rlb_fused_fixed_strong_ffn`, optimizer `matrixpolicyV3`, and one manifest row per Slurm job.
 
-The rows were submitted as two parity dependency chains so at most two 4-A6000
-jobs from this set can run at once and preemption loss is limited to one row.
-`BUILD_EXT=0` was used because the extension had already been built by the
-completed E1/E2 runs and the V2 change is Python-side optimizer logic.
+The rows were submitted as two parity dependency chains so at most two 4-A6000 jobs from this set can run at once and preemption loss is limited to one row. `BUILD_EXT=0` was used because the extension had already been built and V3 is Python-side optimizer logic.
 
 Submission template:
 
 ```bash
 sbatch --parsable \
-  --job-name=mpV2-e1-<row> \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV2_e1_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
+  --job-name=mpV3-e1-<row> \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV3_e1_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
   [--dependency=afterok:<previous-chain-job>] \
   experiments/scripts/run_iclr26_manifest_job.sh
 ```
@@ -207,63 +200,21 @@ Submitted jobs:
 
 | Row | Job | Dependency |
 | ---: | ---: | --- |
-| 0 | `535546` | none |
-| 1 | `535547` | none |
-| 2 | `535548` | afterok:`535546` |
-| 3 | `535549` | afterok:`535547` |
-| 4 | `535550` | afterok:`535548` |
-| 5 | `535551` | afterok:`535549` |
-| 6 | `535552` | afterok:`535550` |
-| 7 | `535553` | afterok:`535551` |
-| 8 | `535554` | afterok:`535552` |
-| 9 | `535555` | afterok:`535553` |
-| 10 | `535556` | afterok:`535554` |
-| 11 | `535557` | afterok:`535555` |
-| 12 | `535558` | afterok:`535556` |
-| 13 | `535559` | afterok:`535557` |
-| 14 | `535560` | afterok:`535558` |
-
-## matrixpolicyV2 E2 300M Submission
-
-This is the E2 companion rerun for the new RLB optimizer proposal. It uses
-`experiments/manifests/iclr26_matrixpolicyV2_e2_manifest.csv`, phase
-`E2_matrixpolicyV2_300m`, method `rlb_matrixpolicyV2`, activation
-`rlb_fused_fixed_strong_ffn`, optimizer `matrixpolicyV2`, and one manifest row
-per Slurm job.
-
-Rows were submitted as two parity dependency chains after the matrixpolicyV2 E1
-chain tails, so the V2 queue keeps the same two 4-A6000 active-job cap across
-E1 and E2.
-
-Submission template:
-
-```bash
-sbatch --parsable \
-  --job-name=mpV2-e2-<row> \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV2_e2_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
-  --dependency=afterok:<previous-chain-job> \
-  experiments/scripts/run_iclr26_manifest_job.sh
-```
-
-Submitted jobs:
-
-| Row | Job | Dependency |
-| ---: | ---: | --- |
-| 0 | `535593` | afterok:`535560` |
-| 1 | `535594` | afterok:`535559` |
-| 2 | `535595` | afterok:`535593` |
-| 3 | `535596` | afterok:`535594` |
-| 4 | `535597` | afterok:`535595` |
-| 5 | `535598` | afterok:`535596` |
-| 6 | `535599` | afterok:`535597` |
-| 7 | `535600` | afterok:`535598` |
-| 8 | `535601` | afterok:`535599` |
-| 9 | `535602` | afterok:`535600` |
-| 10 | `535603` | afterok:`535601` |
-| 11 | `535604` | afterok:`535602` |
-| 12 | `535605` | afterok:`535603` |
-| 13 | `535606` | afterok:`535604` |
-| 14 | `535607` | afterok:`535605` |
+| 0 | `690946` | none |
+| 1 | `690947` | none |
+| 2 | `690948` | afterok:`690946` |
+| 3 | `690949` | afterok:`690947` |
+| 4 | `690950` | afterok:`690948` |
+| 5 | `690951` | afterok:`690949` |
+| 6 | `690952` | afterok:`690950` |
+| 7 | `690953` | afterok:`690951` |
+| 8 | `690954` | afterok:`690952` |
+| 9 | `690955` | afterok:`690953` |
+| 10 | `690956` | afterok:`690954` |
+| 11 | `690957` | afterok:`690955` |
+| 12 | `690958` | afterok:`690956` |
+| 13 | `690959` | afterok:`690957` |
+| 14 | `690960` | afterok:`690958` |
 
 ## E2 Main 300M Submissions
 

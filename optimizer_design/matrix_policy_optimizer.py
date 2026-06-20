@@ -58,6 +58,13 @@ class RationalMatrixPolicyOptimizer:
         muon_output_decay_shift: float = 0.0,
         muon_reset_adam_state: bool = False,
         final_muon: float = 0.0,
+        muon_tail_strength: float = 0.0,
+        muon_tail_start: float = 0.24,
+        muon_tail_end: float = 0.48,
+        muon_tail_decay_start: float = 0.90,
+        muon_tail_decay_end: float = 1.00,
+        muon_tail_pressure_weight: float = 0.35,
+        muon_tail_activity_weight: float = 0.35,
         min_muon: float = 0.0,
         max_muon: float = 0.75,
         input_depth_gain: float = -0.50,
@@ -114,6 +121,13 @@ class RationalMatrixPolicyOptimizer:
         self.muon_output_decay_shift = float(muon_output_decay_shift)
         self.muon_reset_adam_state = bool(muon_reset_adam_state)
         self.final_muon = float(final_muon)
+        self.muon_tail_strength = float(muon_tail_strength)
+        self.muon_tail_start = float(muon_tail_start)
+        self.muon_tail_end = float(muon_tail_end)
+        self.muon_tail_decay_start = float(muon_tail_decay_start)
+        self.muon_tail_decay_end = float(muon_tail_decay_end)
+        self.muon_tail_pressure_weight = float(muon_tail_pressure_weight)
+        self.muon_tail_activity_weight = float(muon_tail_activity_weight)
         self.min_muon = float(min_muon)
         self.max_muon = float(max_muon)
         self.input_depth_gain = float(input_depth_gain)
@@ -137,8 +151,15 @@ class RationalMatrixPolicyOptimizer:
         self.use_muon = (
             self.muon_lr_scale != 0.0
             and self.max_muon > 0.0
-            and (self.muon_strength != 0.0 or self.final_muon != 0.0 or self.min_muon > 0.0)
+            and (
+                self.muon_strength != 0.0
+                or self.final_muon != 0.0
+                or self.muon_tail_strength != 0.0
+                or self.min_muon > 0.0
+            )
         )
+        self._muon_fraction_cache_step = -1
+        self._muon_fraction_cache = {}
         for name, value in (
             ("adam_beta2_final", self.adam_beta2_final),
             ("adam_beta2_input_final", self.adam_beta2_input_final),
@@ -152,6 +173,8 @@ class RationalMatrixPolicyOptimizer:
             raise ValueError("adam_max_lr_scale must be >= adam_min_lr_scale")
         if self.max_muon < self.min_muon:
             raise ValueError("max_muon must be >= min_muon")
+        if self.muon_tail_strength < 0.0:
+            raise ValueError("muon_tail_strength must be non-negative")
         if self.group_min_scale <= 0.0:
             raise ValueError("group_min_scale must be positive")
         if self.group_max_scale < self.group_min_scale:
@@ -231,6 +254,8 @@ class RationalMatrixPolicyOptimizer:
         if self.muon is not None and "muon" in state_dict:
             self.muon.load_state_dict(state_dict["muon"])
         self.step_index = int(state_dict.get("step_index", 0))
+        self._muon_fraction_cache_step = -1
+        self._muon_fraction_cache = {}
 
     def _progress(self) -> float:
         if self.total_steps <= 1:
@@ -449,13 +474,13 @@ class RationalMatrixPolicyOptimizer:
             self.adam.state.pop(param, None)
         group["_adam_reset_done"] = True
 
-    def _stat_factor(self, group: dict) -> float:
+    def _pressure_activity_terms(self, group: dict) -> tuple[torch.Tensor, torch.Tensor] | None:
         selector_index = int(group.get("selector_index", -1))
         if selector_index < 0 or selector_index >= len(self.selector_groups):
-            return 1.0
+            return None
         state = self.selector_groups[selector_index].get("_onpolicy")
         if state is None:
-            return 1.0
+            return None
 
         in_rel = state["in_rel_ema"].detach().float().clamp_min(self.eps)
         out_rel = state["out_rel_ema"].detach().float().clamp_min(self.eps)
@@ -466,10 +491,43 @@ class RationalMatrixPolicyOptimizer:
         matrix_log = 0.5 * (log_in + log_out)
         rational_activity = (torch.log(rat_rel) - matrix_log).mean()
         excess_activity = torch.relu((rational_activity - self.activity_target) / self.activity_width)
+        return pressure, excess_activity
+
+    def _stat_factor(self, group: dict) -> float:
+        terms = self._pressure_activity_terms(group)
+        if terms is None:
+            return 1.0
+        pressure, excess_activity = terms
         penalty = self.pressure_weight * pressure + self.activity_weight * excess_activity
         return float(torch.exp(-penalty).clamp(0.10, 1.15).item())
 
-    def _muon_fraction(self, group: dict) -> float:
+    def _muon_tail_fraction(self, group: dict) -> float:
+        if self.muon_tail_strength <= 0.0:
+            return 0.0
+        progress = self._progress()
+        on_phase = _smoothstep(self.muon_tail_start, self.muon_tail_end, progress)
+        off_phase = _smoothstep(self.muon_tail_decay_start, self.muon_tail_decay_end, progress)
+        window = on_phase * (1.0 - off_phase)
+        if window <= 0.0:
+            return 0.0
+        terms = self._pressure_activity_terms(group)
+        if terms is None:
+            confidence = 1.0
+        else:
+            pressure, excess_activity = terms
+            penalty = self.muon_tail_pressure_weight * pressure + self.muon_tail_activity_weight * excess_activity
+            confidence = float(torch.exp(-penalty).clamp(0.10, 1.15).item())
+        return self.muon_tail_strength * window * self._role_depth_factor(group) * confidence
+
+    @staticmethod
+    def _muon_cache_key(group: dict) -> tuple[int, int, str]:
+        return (
+            int(group.get("layer_index", -1)),
+            int(group.get("selector_index", -1)),
+            str(group.get("matrix_role", "matrix")),
+        )
+
+    def _compute_muon_fraction(self, group: dict) -> float:
         progress = self._progress()
         depth_offset = self.muon_decay_depth_shift * (self._depth(group) - 0.5)
         role = str(group.get("matrix_role", "matrix"))
@@ -484,7 +542,20 @@ class RationalMatrixPolicyOptimizer:
         base_strength = self.muon_strength * (1.0 - off_phase) + self.final_muon * off_phase
         base = base_strength * on_phase
         value = base * self._role_depth_factor(group) * self._stat_factor(group)
+        value = max(value, self._muon_tail_fraction(group))
         return min(self.max_muon, max(self.min_muon, value))
+
+    def _muon_fraction(self, group: dict) -> float:
+        if self._muon_fraction_cache_step != self.step_index:
+            self._muon_fraction_cache_step = self.step_index
+            self._muon_fraction_cache = {}
+        key = self._muon_cache_key(group)
+        cached = self._muon_fraction_cache.get(key)
+        if cached is not None:
+            return cached
+        value = self._compute_muon_fraction(group)
+        self._muon_fraction_cache[key] = value
+        return value
 
     def _maybe_reset_adam_after_muon(self, group: dict, fraction: float):
         if not self.muon_reset_adam_state:

@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The next isolated optimizer proposal and E1 rerun target is `matrixpolicyV2`, documented in `proposals/matrixpolicyV2_horizontal_pressure_adam.md`. It is a separate optimizer choice and does not replace `rational_matrix_policy_onpolicy`.
+The rejected V2 branch has been removed from the live optimizer surface. The next isolated optimizer proposal and E1 rerun target is `matrixpolicyV3`, documented in `proposals/matrixpolicyV3_horizontal_confidence_tail.md`. It is a separate optimizer choice and does not replace `rational_matrix_policy_onpolicy`.
 
 ## Current Result Anchor
 
@@ -228,6 +228,12 @@ Current E1 M0/100M manifest-suite readout:
 Full mean +/- std tables and curves are in `../experiments/ICLR_RUN_STATUS.md` and `../experiments/results/iclr26_e1_figures/`.
 
 The paper story should be: RLB creates optimizer-visible geometry, and MatrixPolicy uses it. It should not be sold as an activation-only result or a generic Muon result.
+
+## Active V3 Test
+
+`matrixpolicyV3` keeps the original winning MatrixPolicy recipe, adds a modest horizontal gauge projection, and adds a small confidence-gated Muon tail that is suppressed by live RLB pressure/activity. This is deliberately not a broad optimizer mixture. The a priori claim is that RLB matrix updates should be horizontal to the positive scale gauge, while the a posteriori constraint from V2 is that the original early role/depth Muon and group policy must be retained.
+
+The isolated test is `experiments/manifests/iclr26_matrixpolicyV3_e1_manifest.csv`, phase `E1_matrixpolicyV3_100m`, method `rlb_matrixpolicyV3`, optimizer `matrixpolicyV3`. V3 is accepted only if it beats original MatrixPolicy on E1 final loss, ties it with better token/time behavior, or shows clear telemetry improvement at equal loss. Runtime must be measured from JSONL `summary.total_seconds`, `summary.mean_seconds_per_step`, `summary.tokens_per_second`, and log-step `optimizer_step_seconds`, not Slurm elapsed time.
 
 ## Telemetry Status
 
