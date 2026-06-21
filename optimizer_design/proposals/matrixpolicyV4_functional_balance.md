@@ -1,6 +1,6 @@
 # matrixpolicyV4 Proposal: Functional-Balance MatrixPolicy
 
-Status: proposal only. No V4 jobs have been run and there are no V4 results yet. This proposal replaces the earlier quotient-trust V4 draft because that draft was too close to a damping/engineering tweak.
+Status: implemented as separate optimizer choice `matrixpolicyV4` and queued for the E1-only run on 2026-06-21. No V4 results are available yet. This proposal replaces the earlier quotient-trust V4 draft because that draft was too close to a damping/engineering tweak.
 
 ## Evidence To Explain
 

@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-20 21:39:10 EDT
+Updated: 2026-06-21 13:29:07 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -67,6 +67,46 @@ Slurm accounting notes:
 | 13 | `690959` | C4 seed `2027` | completed `0:0` | slower full-step row on `monakhova-compute-01`; optimizer-step time remained normal |
 
 Interpretation: V3 is not a better optimizer. The loss result rejects the late Muon tail and makes the partial projection insufficient as a default. Full-step timing should not be used as an acceptance signal without node/restart filtering; log-step optimizer timing is the cleaner method metric.
+
+## matrixpolicyV4 E1 Functional-Balance Run Status
+
+Queued: 2026-06-21 13:29:07 EDT.
+
+V4 is a functional-balance MatrixPolicy test, not an engineering speed tweak. It keeps original MatrixPolicy role/depth mechanics and adds an on-policy scalar that reallocates per-group input-selector versus output-recombiner step budget using the local RLB linearization `delta y_g ~= delta B_g h_g + B_g J_g delta A_g x`.
+
+| Field | Value |
+| --- | --- |
+| Proposal | `optimizer_design/proposals/matrixpolicyV4_functional_balance.md` |
+| Manifest | `experiments/manifests/iclr26_matrixpolicyV4_e1_manifest.csv` |
+| Phase | `E1_matrixpolicyV4_100m` |
+| Method | `rlb_matrixpolicyV4` |
+| Activation | `rlb_fused_fixed_strong_ffn` |
+| Optimizer | `matrixpolicyV4` |
+| Rows | `0-14`, five datasets x three seeds |
+| Budget | `3050` steps, about `100M` train tokens per row |
+| Submission shape | one row per job, two parity dependency chains |
+
+Submitted Slurm jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `715013` | none |
+| 1 | `715014` | none |
+| 2 | `715015` | afterok:`715013` |
+| 3 | `715016` | afterok:`715014` |
+| 4 | `715017` | afterok:`715015` |
+| 5 | `715018` | afterok:`715016` |
+| 6 | `715019` | afterok:`715017` |
+| 7 | `715020` | afterok:`715018` |
+| 8 | `715021` | afterok:`715019` |
+| 9 | `715022` | afterok:`715020` |
+| 10 | `715023` | afterok:`715021` |
+| 11 | `715024` | afterok:`715022` |
+| 12 | `715025` | afterok:`715023` |
+| 13 | `715026` | afterok:`715024` |
+| 14 | `715027` | afterok:`715025` |
+
+Initial Slurm state after submission: jobs `715013` and `715014` are pending, rows `2-14` are dependency-held. No V5 jobs should be queued until V4 E1 is completed and analyzed.
 
 ## Completed Runtime Summary
 

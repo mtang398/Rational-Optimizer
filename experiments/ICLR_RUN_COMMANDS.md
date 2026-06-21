@@ -218,7 +218,43 @@ Submitted jobs:
 
 Completion note: all jobs `690946`-`690960` completed with exit `0:0`. Job `690953` reported `Restarts=1`; its JSONL restarted cleanly and produced a final summary, but its full-step throughput is restart contaminated. The completed E1 aggregate is slightly worse than original MatrixPolicy on every dataset mean, so V3 is rejected/superseded and no V3 E2 jobs should be queued.
 
-The next optimizer-design proposal is `optimizer_design/proposals/matrixpolicyV4_functional_balance.md`. V4 is proposal-only at this point; no V4 jobs have been submitted from this command log.
+The next optimizer-design proposal is `optimizer_design/proposals/matrixpolicyV4_functional_balance.md`.
+
+## matrixpolicyV4 E1 100M Submission
+
+This is a separate E1-only rerun for the functional-balance RLB optimizer proposal. It uses `experiments/manifests/iclr26_matrixpolicyV4_e1_manifest.csv`, phase `E1_matrixpolicyV4_100m`, method `rlb_matrixpolicyV4`, activation `rlb_fused_fixed_strong_ffn`, optimizer `matrixpolicyV4`, and one manifest row per Slurm job.
+
+The rows were submitted as two parity dependency chains so at most two 4-A6000 jobs from this set can run at once and preemption loss is limited to one row. `BUILD_EXT=0` was used because the extension had already been built and V4 is Python-side optimizer logic.
+
+Submission template:
+
+```bash
+sbatch --parsable \
+  --job-name=mpV4-e1-<row> \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV4_e1_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
+  [--dependency=afterok:<previous-chain-job>] \
+  experiments/scripts/run_iclr26_manifest_job.sh
+```
+
+Submitted jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `715013` | none |
+| 1 | `715014` | none |
+| 2 | `715015` | afterok:`715013` |
+| 3 | `715016` | afterok:`715014` |
+| 4 | `715017` | afterok:`715015` |
+| 5 | `715018` | afterok:`715016` |
+| 6 | `715019` | afterok:`715017` |
+| 7 | `715020` | afterok:`715018` |
+| 8 | `715021` | afterok:`715019` |
+| 9 | `715022` | afterok:`715020` |
+| 10 | `715023` | afterok:`715021` |
+| 11 | `715024` | afterok:`715022` |
+| 12 | `715025` | afterok:`715023` |
+| 13 | `715026` | afterok:`715024` |
+| 14 | `715027` | afterok:`715025` |
 
 ## E2 Main 300M Submissions
 
