@@ -4,6 +4,10 @@ RationalOPT studies Rational Local Basis (RLB) variants inside causal Transforme
 
 Paper-facing results in this README include the completed E1 matched main suite and the completed E2 DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 M0/300M cells. WikiText is kept as a small demo anchor.
 
+## Optimizer Variant Status
+
+The completed `matrixpolicyV3` E1 rerun is rejected: it was slightly worse than original MatrixPolicy on every E1 dataset mean. The active next design proposal is `optimizer_design/proposals/matrixpolicyV4_quotient_trust.md`; no V4 jobs have been submitted yet.
+
 ## Result Pointers
 
 ```text

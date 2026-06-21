@@ -216,6 +216,10 @@ Submitted jobs:
 | 13 | `690959` | afterok:`690957` |
 | 14 | `690960` | afterok:`690958` |
 
+Completion note: all jobs `690946`-`690960` completed with exit `0:0`. Job `690953` reported `Restarts=1`; its JSONL restarted cleanly and produced a final summary, but its full-step throughput is restart contaminated. The completed E1 aggregate is slightly worse than original MatrixPolicy on every dataset mean, so V3 is rejected/superseded and no V3 E2 jobs should be queued.
+
+The next optimizer-design proposal is `optimizer_design/proposals/matrixpolicyV4_quotient_trust.md`. V4 is proposal-only at this point; no V4 jobs have been submitted from this command log.
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,

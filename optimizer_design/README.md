@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The rejected V2 branch has been removed from the live optimizer surface. The next isolated optimizer proposal and E1 rerun target is `matrixpolicyV3`, documented in `proposals/matrixpolicyV3_horizontal_confidence_tail.md`. It is a separate optimizer choice and does not replace `rational_matrix_policy_onpolicy`.
+The rejected V2 branch has been removed from the live optimizer surface. The completed `matrixpolicyV3` E1 rerun is now a rejected negative result, not the next paper candidate. The next design proposal is `matrixpolicyV4`, documented in `proposals/matrixpolicyV4_quotient_trust.md`; it keeps the original MatrixPolicy mechanics and uses quotient geometry only as a conservative trust gate.
 
 ## Current Result Anchor
 
@@ -229,11 +229,19 @@ Full mean +/- std tables and curves are in `../experiments/ICLR_RUN_STATUS.md` a
 
 The paper story should be: RLB creates optimizer-visible geometry, and MatrixPolicy uses it. It should not be sold as an activation-only result or a generic Muon result.
 
-## Active V3 Test
+## Rejected V3 Test And V4 Direction
 
-`matrixpolicyV3` keeps the original winning MatrixPolicy recipe, adds a modest horizontal gauge projection, and adds a small confidence-gated Muon tail that is suppressed by live RLB pressure/activity. This is deliberately not a broad optimizer mixture. The a priori claim is that RLB matrix updates should be horizontal to the positive scale gauge, while the a posteriori constraint from V2 is that the original early role/depth Muon and group policy must be retained.
+`matrixpolicyV3` kept the original winning MatrixPolicy recipe, added a modest horizontal gauge projection, and added a small confidence-gated Muon tail suppressed by live RLB pressure/activity. The completed E1 rerun did not improve final validation loss on any dataset mean:
 
-The isolated test is `experiments/manifests/iclr26_matrixpolicyV3_e1_manifest.csv`, phase `E1_matrixpolicyV3_100m`, method `rlb_matrixpolicyV3`, optimizer `matrixpolicyV3`. V3 is accepted only if it beats original MatrixPolicy on E1 final loss, ties it with better token/time behavior, or shows clear telemetry improvement at equal loss. Runtime must be measured from JSONL `summary.total_seconds`, `summary.mean_seconds_per_step`, `summary.tokens_per_second`, and log-step `optimizer_step_seconds`, not Slurm elapsed time.
+| Dataset | V3 final val loss | Original MatrixPolicy | Delta |
+| --- | ---: | ---: | ---: |
+| DCLM | 4.257245 +/- 0.003457 | 4.256224 | +0.001021 |
+| FineWeb-Edu | 4.089219 +/- 0.006443 | 4.088240 | +0.000979 |
+| FineWeb | 4.318981 +/- 0.009135 | 4.318581 | +0.000400 |
+| Dolma-sample | 4.324203 +/- 0.004118 | 4.323851 | +0.000352 |
+| C4 | 4.288422 +/- 0.015948 | 4.285119 | +0.003304 |
+
+The V3 inference is that quotient geometry is real, but using it as a gradient projector plus late Muon source is not justified. The next proposal, `matrixpolicyV4`, uses the same RLB gauge geometry only as a scalar trust gate: if a group update is mostly vertical to the quotient, reduce its matrix step budget; otherwise reduce exactly to original MatrixPolicy. The proposal is in `proposals/matrixpolicyV4_quotient_trust.md`.
 
 ## Telemetry Status
 

@@ -4,6 +4,10 @@ This directory keeps E1 matched main-suite results, completed E2 DCLM, FineWeb-E
 
 Paper runs follow the manifest rule below. Exact submitted commands are recorded in `ICLR_RUN_COMMANDS.md`.
 
+## Optimizer Variant Status
+
+The completed `matrixpolicyV3` E1 rerun is rejected: it was slightly worse than original MatrixPolicy on every E1 dataset mean. The active next design proposal is `optimizer_design/proposals/matrixpolicyV4_quotient_trust.md`; no V4 jobs have been submitted yet.
+
 ## Result Pointers
 
 ```text

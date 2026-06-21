@@ -1,6 +1,20 @@
 # matrixpolicyV3 Proposal: Horizontal Confidence-Tail MatrixPolicy
 
-Status: implemented as the separate optimizer choice `matrixpolicyV3`. It does not replace the paper anchor `rational_matrix_policy_onpolicy`.
+Status: rejected/superseded after the completed E1 rerun on 2026-06-20. The file is retained as negative evidence; it does not replace the paper anchor `rational_matrix_policy_onpolicy`, and it is not the active next proposal.
+
+## Completed E1 Readout
+
+V3 missed its acceptance gate. It was slightly worse than original MatrixPolicy on every E1 dataset mean:
+
+| Dataset | V3 final val loss | Original MatrixPolicy | Delta | V3 optimizer-step s |
+| --- | ---: | ---: | ---: | ---: |
+| DCLM | 4.257245 +/- 0.003457 | 4.256224 | +0.001021 | 0.091257 |
+| FineWeb-Edu | 4.089219 +/- 0.006443 | 4.088240 | +0.000979 | 0.091290 |
+| FineWeb | 4.318981 +/- 0.009135 | 4.318581 | +0.000400 | 0.085624 |
+| Dolma-sample | 4.324203 +/- 0.004118 | 4.323851 | +0.000352 | 0.087206 |
+| C4 | 4.288422 +/- 0.015948 | 4.285119 | +0.003304 | 0.084667 |
+
+Full-step timing is contaminated by node/restart variation in several rows, including row 7 with `Restarts=1` and slow-node rows 5, 9, 11, and 13, so V3 is judged mainly by final loss and log-step optimizer timing. The result rejects the late confidence-gated Muon tail and the default partial horizontal projection. The next proposal is `matrixpolicyV4_quotient_trust.md`, which keeps quotient geometry only as a scalar trust gate.
 
 ## Why V2 Is Rejected
 
