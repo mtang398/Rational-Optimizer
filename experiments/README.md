@@ -6,7 +6,7 @@ Paper runs follow the manifest rule below. Exact submitted commands are recorded
 
 ## Optimizer Variant Status
 
-The completed `matrixpolicyV3` E1 rerun is rejected: it was slightly worse than original MatrixPolicy on every E1 dataset mean. The active V4 test is `optimizer_design/proposals/matrixpolicyV4_functional_balance.md`, a functional-balance MatrixPolicy E1 run queued as Slurm jobs `715013`-`715027`.
+The completed `matrixpolicyV3` E1 rerun is rejected: it was slightly worse than original MatrixPolicy on every E1 dataset mean. The active V4 test is `optimizer_design/proposals/matrixpolicyV4_functional_balance.md`, a functional-balance MatrixPolicy E1 run queued as replacement Slurm jobs `715054`-`715068`.
 
 ## Result Pointers
 

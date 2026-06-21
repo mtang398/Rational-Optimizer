@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-21 13:29:07 EDT
+Updated: 2026-06-21 13:34:08 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -70,7 +70,7 @@ Interpretation: V3 is not a better optimizer. The loss result rejects the late M
 
 ## matrixpolicyV4 E1 Functional-Balance Run Status
 
-Queued: 2026-06-21 13:29:07 EDT.
+Queued: 2026-06-21 13:29:07 EDT; replacement queued: 2026-06-21 13:34:08 EDT.
 
 V4 is a functional-balance MatrixPolicy test, not an engineering speed tweak. It keeps original MatrixPolicy role/depth mechanics and adds an on-policy scalar that reallocates per-group input-selector versus output-recombiner step budget using the local RLB linearization `delta y_g ~= delta B_g h_g + B_g J_g delta A_g x`.
 
@@ -86,7 +86,7 @@ V4 is a functional-balance MatrixPolicy test, not an engineering speed tweak. It
 | Budget | `3050` steps, about `100M` train tokens per row |
 | Submission shape | one row per job, two parity dependency chains |
 
-Submitted Slurm jobs:
+Invalid first Slurm submission:
 
 | Row | Job | Dependency |
 | ---: | ---: | --- |
@@ -106,7 +106,29 @@ Submitted Slurm jobs:
 | 13 | `715026` | afterok:`715024` |
 | 14 | `715027` | afterok:`715025` |
 
-Initial Slurm state after submission: jobs `715013` and `715014` are pending, rows `2-14` are dependency-held. No V5 jobs should be queued until V4 E1 is completed and analyzed.
+Rows `0-8` from the first submission exited in 6-12 seconds before training because `training/run_lm_optimizer_sweep.sbatch` still rejected `matrixpolicyV4` in its hard-coded allowlist. Rows `9-14` were cancelled. These jobs produced no JSONL and are not results. The wrapper was fixed in commit `94d1352`.
+
+Replacement Slurm jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `715054` | none |
+| 1 | `715055` | none |
+| 2 | `715056` | afterok:`715054` |
+| 3 | `715057` | afterok:`715055` |
+| 4 | `715058` | afterok:`715056` |
+| 5 | `715059` | afterok:`715057` |
+| 6 | `715060` | afterok:`715058` |
+| 7 | `715061` | afterok:`715059` |
+| 8 | `715062` | afterok:`715060` |
+| 9 | `715063` | afterok:`715061` |
+| 10 | `715064` | afterok:`715062` |
+| 11 | `715065` | afterok:`715063` |
+| 12 | `715066` | afterok:`715064` |
+| 13 | `715067` | afterok:`715065` |
+| 14 | `715068` | afterok:`715066` |
+
+Initial replacement state after submission: jobs `715054` and `715055` are pending, rows `2-14` are dependency-held. No V5 jobs should be queued until V4 E1 is completed and analyzed.
 
 ## Completed Runtime Summary
 

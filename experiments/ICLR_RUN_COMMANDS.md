@@ -236,7 +236,7 @@ sbatch --parsable \
   experiments/scripts/run_iclr26_manifest_job.sh
 ```
 
-Submitted jobs:
+Invalid first submitted jobs:
 
 | Row | Job | Dependency |
 | ---: | ---: | --- |
@@ -255,6 +255,28 @@ Submitted jobs:
 | 12 | `715025` | afterok:`715023` |
 | 13 | `715026` | afterok:`715024` |
 | 14 | `715027` | afterok:`715025` |
+
+The first submission is invalid: rows `0-8` exited before training because `training/run_lm_optimizer_sweep.sbatch` did not yet include `matrixpolicyV4` in its hard-coded optimizer allowlist; rows `9-14` were cancelled. No JSONL outputs were produced. The wrapper fix was committed as `94d1352`.
+
+Replacement submitted jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `715054` | none |
+| 1 | `715055` | none |
+| 2 | `715056` | afterok:`715054` |
+| 3 | `715057` | afterok:`715055` |
+| 4 | `715058` | afterok:`715056` |
+| 5 | `715059` | afterok:`715057` |
+| 6 | `715060` | afterok:`715058` |
+| 7 | `715061` | afterok:`715059` |
+| 8 | `715062` | afterok:`715060` |
+| 9 | `715063` | afterok:`715061` |
+| 10 | `715064` | afterok:`715062` |
+| 11 | `715065` | afterok:`715063` |
+| 12 | `715066` | afterok:`715064` |
+| 13 | `715067` | afterok:`715065` |
+| 14 | `715068` | afterok:`715066` |
 
 ## E2 Main 300M Submissions
 
