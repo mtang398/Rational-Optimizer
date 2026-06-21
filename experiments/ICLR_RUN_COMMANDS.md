@@ -306,6 +306,8 @@ Submitted jobs:
 
 Initial scheduler state after submission: jobs `716298` and `716299` were pending on priority; jobs `716300`-`716312` were dependency-held behind their parity-chain predecessors.
 
+Launch-health update at `2026-06-21 17:12:02 EDT`: row `0` job `716298` was preempted once before training at `2026-06-21T17:07:38` on `monakhova-compute-01`, then requeued and restarted cleanly at `2026-06-21T17:10:38` with `Restarts=1`. Row `1` job `716299` is running on `sun-compute-03` with `Restarts=0`. The row `1` JSONL reached step `450` and logged nontrivial V5 role scaling (`in ~= 0.866`, `out ~= 1.155`), confirming the `matrixpolicyV5` optimizer path and functional-metric telemetry are active.
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,

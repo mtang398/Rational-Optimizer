@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-21 17:06:55 EDT
+Updated: 2026-06-21 17:12:02 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -109,7 +109,7 @@ Interpretation: V4 is a near-tie, not a better optimizer. The telemetry gives th
 Next optimizer-design proposal: `optimizer_design/proposals/matrixpolicyV5_joint_functional_metric.md`. V5 is implemented as a separate optimizer choice `matrixpolicyV5`, and its E1 manifest is `experiments/manifests/iclr26_matrixpolicyV5_e1_manifest.csv`. It uses a joint function-space sensitivity metric over `(A_g, B_g)` instead of a raw functional-balance proxy.
 
 ## matrixpolicyV5 E1 Joint Functional-Metric Run Status
-Queued: 2026-06-21 17:06:55 EDT. Commit: `70233f9`. Current decision status: running/pending E1 only; no V5 E2 jobs are queued.
+Queued: 2026-06-21 17:06:55 EDT. Commit: `70233f9`. Current decision status: running E1 only; no V5 E2 jobs are queued.
 
 V5 is not an engineering tweak. It changes the MatrixPolicy update metric for RLB matrix roles using joint function-space sensitivity over `(A_g, B_g)`. It does not change activation kernels, fusion, compiler flags, batching, launch shape, or cache behavior as a research contribution.
 
@@ -129,8 +129,8 @@ Submitted Slurm jobs:
 
 | Row | Job | Dependency | State at submission check |
 | ---: | ---: | --- | --- |
-| 0 | `716298` | none | pending priority at submission |
-| 1 | `716299` | none | pending priority at submission |
+| 0 | `716298` | none | preempted once before training; requeued/running, `Restarts=1` |
+| 1 | `716299` | none | running, `Restarts=0` |
 | 2 | `716300` | afterok:`716298` | dependency-held at submission |
 | 3 | `716301` | afterok:`716299` | dependency-held at submission |
 | 4 | `716302` | afterok:`716300` | dependency-held at submission |
@@ -144,6 +144,8 @@ Submitted Slurm jobs:
 | 12 | `716310` | afterok:`716308` | dependency-held at submission |
 | 13 | `716311` | afterok:`716309` | dependency-held at submission |
 | 14 | `716312` | afterok:`716310` | dependency-held at submission |
+
+Launch-health update at `2026-06-21 17:12:02 EDT`: row `0` job `716298` was preempted once before training at `2026-06-21T17:07:38`, then restarted cleanly at `2026-06-21T17:10:38` on `monakhova-compute-01`; its JSONL reached step `40`. Row `1` job `716299` has been running since `2026-06-21T17:07:33` on `sun-compute-03`; its JSONL reached step `450`, validation loss `5.325820`, and logged V5 role scaling around `in=0.866`, `out=1.155`. That confirms the optimizer allowlist, V5 CLI flags, and functional-metric telemetry are active.
 
 Acceptance gate: V5 must beat or tie original MatrixPolicy on at least three of five E1 dataset means, avoid catastrophic dataset regression, and show nontrivial functional-metric role scaling. Runtime-only movement or telemetry-only movement is a rejection, not a paper result.
 
