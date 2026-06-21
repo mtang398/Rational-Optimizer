@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-21 16:54:48 EDT
+Updated: 2026-06-21 17:06:55 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -107,6 +107,45 @@ Aggregate result:
 Interpretation: V4 is a near-tie, not a better optimizer. The telemetry gives the decisive negative result: all `4590` recorded `matrix_policy_functional_balance_log_ratio_*` values were clipped at `+0.47` (`clip_frac = 1.000`). Since the V4 balance multiplier is applied inside a role-wise geometrically centered group scale, a role-wise constant clipped signal is mostly normalized away. The failure is the V4 proxy and centering design, not evidence against the original MatrixPolicy.
 
 Next optimizer-design proposal: `optimizer_design/proposals/matrixpolicyV5_joint_functional_metric.md`. V5 is implemented as a separate optimizer choice `matrixpolicyV5`, and its E1 manifest is `experiments/manifests/iclr26_matrixpolicyV5_e1_manifest.csv`. It uses a joint function-space sensitivity metric over `(A_g, B_g)` instead of a raw functional-balance proxy.
+
+## matrixpolicyV5 E1 Joint Functional-Metric Run Status
+Queued: 2026-06-21 17:06:55 EDT. Commit: `70233f9`. Current decision status: running/pending E1 only; no V5 E2 jobs are queued.
+
+V5 is not an engineering tweak. It changes the MatrixPolicy update metric for RLB matrix roles using joint function-space sensitivity over `(A_g, B_g)`. It does not change activation kernels, fusion, compiler flags, batching, launch shape, or cache behavior as a research contribution.
+
+| Field | Value |
+| --- | --- |
+| Proposal | `optimizer_design/proposals/matrixpolicyV5_joint_functional_metric.md` |
+| Manifest | `experiments/manifests/iclr26_matrixpolicyV5_e1_manifest.csv` |
+| Phase | `E1_matrixpolicyV5_100m` |
+| Method | `rlb_matrixpolicyV5` |
+| Activation | `rlb_fused_fixed_strong_ffn` |
+| Optimizer | `matrixpolicyV5` |
+| Rows | `0-14`, five datasets x three seeds |
+| Budget | `3050` steps, about `100M` train tokens per row |
+| Submission shape | one row per job, two parity dependency chains |
+
+Submitted Slurm jobs:
+
+| Row | Job | Dependency | State at submission check |
+| ---: | ---: | --- | --- |
+| 0 | `716298` | none | pending priority at submission |
+| 1 | `716299` | none | pending priority at submission |
+| 2 | `716300` | afterok:`716298` | dependency-held at submission |
+| 3 | `716301` | afterok:`716299` | dependency-held at submission |
+| 4 | `716302` | afterok:`716300` | dependency-held at submission |
+| 5 | `716303` | afterok:`716301` | dependency-held at submission |
+| 6 | `716304` | afterok:`716302` | dependency-held at submission |
+| 7 | `716305` | afterok:`716303` | dependency-held at submission |
+| 8 | `716306` | afterok:`716304` | dependency-held at submission |
+| 9 | `716307` | afterok:`716305` | dependency-held at submission |
+| 10 | `716308` | afterok:`716306` | dependency-held at submission |
+| 11 | `716309` | afterok:`716307` | dependency-held at submission |
+| 12 | `716310` | afterok:`716308` | dependency-held at submission |
+| 13 | `716311` | afterok:`716309` | dependency-held at submission |
+| 14 | `716312` | afterok:`716310` | dependency-held at submission |
+
+Acceptance gate: V5 must beat or tie original MatrixPolicy on at least three of five E1 dataset means, avoid catastrophic dataset regression, and show nontrivial functional-metric role scaling. Runtime-only movement or telemetry-only movement is a rejection, not a paper result.
 
 ## Completed Runtime Summary
 

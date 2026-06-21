@@ -1,6 +1,6 @@
 # matrixpolicyV5 Proposal: Joint Functional-Metric MatrixPolicy
 
-Status: implemented as separate optimizer choice `matrixpolicyV5`; E1 manifest prepared at `experiments/manifests/iclr26_matrixpolicyV5_e1_manifest.csv`. V4 E1 is now fully closed and documented as a neutral/rejected result, so V5 is the active next optimizer proposal. Submission job IDs are recorded in `experiments/ICLR_RUN_COMMANDS.md` after queueing.
+Status: implemented as separate optimizer choice `matrixpolicyV5`; E1 manifest queued on 2026-06-21 as Slurm jobs `716298`-`716312`. V4 E1 is fully closed and documented as a neutral/rejected result, so V5 is the active E1 optimizer proposal. Submission job IDs are recorded in `experiments/ICLR_RUN_COMMANDS.md`.
 
 ## Why V5 Exists
 

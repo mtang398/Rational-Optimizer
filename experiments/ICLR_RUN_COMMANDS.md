@@ -280,6 +280,32 @@ Replacement submitted jobs:
 
 Completion note: replacement jobs `715054`-`715068` all completed with exit `0:0` by `2026-06-21 16:53:52 EDT`. Jobs `715054` and `715055` had `Restarts=1` with incomplete pre-restart JSONLs archived; jobs `715056`-`715068` had `Restarts=0`. V4 near-tied original MatrixPolicy but is rejected/superseded because all `4590` recorded functional-balance log-ratio telemetry values clipped to `+0.47`, making the role-wise signal effectively constant and centered away. The next proposal is `optimizer_design/proposals/matrixpolicyV5_joint_functional_metric.md`.
 
+## matrixpolicyV5 E1 100M Submission
+
+Submitted: 2026-06-21 17:06:55 EDT. Commit: `70233f9`. Manifest: `experiments/manifests/iclr26_matrixpolicyV5_e1_manifest.csv`. This is an E1-only optimizer-geometry test; no V5 E2 jobs are queued until E1 is completed and analyzed. The proposal explicitly disallows engineering/fusion/kernel/cache speedups as optimizer evidence.
+
+Submitted jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `716298` | none |
+| 1 | `716299` | none |
+| 2 | `716300` | afterok:`716298` |
+| 3 | `716301` | afterok:`716299` |
+| 4 | `716302` | afterok:`716300` |
+| 5 | `716303` | afterok:`716301` |
+| 6 | `716304` | afterok:`716302` |
+| 7 | `716305` | afterok:`716303` |
+| 8 | `716306` | afterok:`716304` |
+| 9 | `716307` | afterok:`716305` |
+| 10 | `716308` | afterok:`716306` |
+| 11 | `716309` | afterok:`716307` |
+| 12 | `716310` | afterok:`716308` |
+| 13 | `716311` | afterok:`716309` |
+| 14 | `716312` | afterok:`716310` |
+
+Initial scheduler state after submission: jobs `716298` and `716299` were pending on priority; jobs `716300`-`716312` were dependency-held behind their parity-chain predecessors.
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,
