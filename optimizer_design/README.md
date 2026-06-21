@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The rejected V2 branch has been removed from the live optimizer surface. The completed `matrixpolicyV3` E1 rerun is now a rejected negative result, not the next paper candidate. The next design proposal is `matrixpolicyV4`, documented in `proposals/matrixpolicyV4_quotient_trust.md`; it keeps the original MatrixPolicy mechanics and uses quotient geometry only as a conservative trust gate.
+The rejected V2 branch has been removed from the live optimizer surface. The completed `matrixpolicyV3` E1 rerun is now a rejected negative result, not the next paper candidate. The next design proposal is `matrixpolicyV4`, documented in `proposals/matrixpolicyV4_functional_balance.md`; it keeps the original MatrixPolicy role/depth mechanics and adds an on-policy functional-balance rule for allocating input-selector versus output-recombiner step budget.
 
 ## Current Result Anchor
 
@@ -241,7 +241,7 @@ The paper story should be: RLB creates optimizer-visible geometry, and MatrixPol
 | Dolma-sample | 4.324203 +/- 0.004118 | 4.323851 | +0.000352 |
 | C4 | 4.288422 +/- 0.015948 | 4.285119 | +0.003304 |
 
-The V3 inference is that quotient geometry is real, but using it as a gradient projector plus late Muon source is not justified. The next proposal, `matrixpolicyV4`, uses the same RLB gauge geometry only as a scalar trust gate: if a group update is mostly vertical to the quotient, reduce its matrix step budget; otherwise reduce exactly to original MatrixPolicy. The proposal is in `proposals/matrixpolicyV4_quotient_trust.md`.
+The V3 inference is that projection and late Muon do not fix the remaining problem. The next proposal, `matrixpolicyV4`, is functional-balance MatrixPolicy: estimate the two local function-space terms `delta B_g h_g` and `B_g J_g delta A_g x`, then reallocate paired per-group matrix step budget so input-selector and output-recombiner movement track a depth-dependent target. The proposal is in `proposals/matrixpolicyV4_functional_balance.md`.
 
 ## Telemetry Status
 

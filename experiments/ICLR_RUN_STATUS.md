@@ -31,7 +31,7 @@ Raw row outputs are JSONL files under `experiments/runs/iclr26_main/<phase>/<dat
 
 Queued: 2026-06-20 15:12:39 EDT. Completed: 2026-06-20 21:33:47 EDT. All submitted jobs `690946`-`690960` completed with exit `0:0`; `squeue` is empty for the V3 job set.
 
-Decision: reject/supersede V3 and do not queue V3 E2. V3 kept the original MatrixPolicy mechanics and added partial horizontal gauge projection plus a confidence-gated Muon tail, but it did not improve E1 final loss on any dataset mean. The next design proposal is `optimizer_design/proposals/matrixpolicyV4_quotient_trust.md`.
+Decision: reject/supersede V3 and do not queue V3 E2. V3 kept the original MatrixPolicy mechanics and added partial horizontal gauge projection plus a confidence-gated Muon tail, but it did not improve E1 final loss on any dataset mean. The next design proposal is `optimizer_design/proposals/matrixpolicyV4_functional_balance.md`.
 
 | Field | Value |
 | --- | --- |

@@ -6,7 +6,7 @@ Paper-facing results in this README include the completed E1 matched main suite 
 
 ## Optimizer Variant Status
 
-The completed `matrixpolicyV3` E1 rerun is rejected: it was slightly worse than original MatrixPolicy on every E1 dataset mean. The active next design proposal is `optimizer_design/proposals/matrixpolicyV4_quotient_trust.md`; no V4 jobs have been submitted yet.
+The completed `matrixpolicyV3` E1 rerun is rejected: it was slightly worse than original MatrixPolicy on every E1 dataset mean. The active next design proposal is `optimizer_design/proposals/matrixpolicyV4_functional_balance.md`, a functional-balance MatrixPolicy hypothesis; no V4 jobs have been submitted yet.
 
 ## Result Pointers
 

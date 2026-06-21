@@ -83,6 +83,15 @@ class RationalMatrixPolicyOptimizer:
         group_end: float = 0.35,
         group_min_scale: float = 0.65,
         group_max_scale: float = 1.55,
+        functional_balance_strength: float = 0.0,
+        functional_balance_start: float = 0.02,
+        functional_balance_end: float = 0.12,
+        functional_balance_decay_start: float = 0.30,
+        functional_balance_decay_end: float = 0.50,
+        functional_balance_target_depth_gain: float = 0.80,
+        functional_balance_clip: float = 0.47,
+        functional_balance_min_scale: float = 0.80,
+        functional_balance_max_scale: float = 1.25,
         muon_momentum: float = 0.95,
         muon_ns_steps: int = 5,
         muon_adjust_lr_fn: str | None = "match_rms_adamw",
@@ -146,6 +155,15 @@ class RationalMatrixPolicyOptimizer:
         self.group_end = float(group_end)
         self.group_min_scale = float(group_min_scale)
         self.group_max_scale = float(group_max_scale)
+        self.functional_balance_strength = float(functional_balance_strength)
+        self.functional_balance_start = float(functional_balance_start)
+        self.functional_balance_end = float(functional_balance_end)
+        self.functional_balance_decay_start = float(functional_balance_decay_start)
+        self.functional_balance_decay_end = float(functional_balance_decay_end)
+        self.functional_balance_target_depth_gain = float(functional_balance_target_depth_gain)
+        self.functional_balance_clip = float(functional_balance_clip)
+        self.functional_balance_min_scale = float(functional_balance_min_scale)
+        self.functional_balance_max_scale = float(functional_balance_max_scale)
         self.eps = float(eps)
         self.step_index = 0
         self.use_muon = (
@@ -179,6 +197,14 @@ class RationalMatrixPolicyOptimizer:
             raise ValueError("group_min_scale must be positive")
         if self.group_max_scale < self.group_min_scale:
             raise ValueError("group_max_scale must be >= group_min_scale")
+        if self.functional_balance_strength < 0.0:
+            raise ValueError("functional_balance_strength must be non-negative")
+        if self.functional_balance_clip < 0.0:
+            raise ValueError("functional_balance_clip must be non-negative")
+        if self.functional_balance_min_scale <= 0.0:
+            raise ValueError("functional_balance_min_scale must be positive")
+        if self.functional_balance_max_scale < self.functional_balance_min_scale:
+            raise ValueError("functional_balance_max_scale must be >= functional_balance_min_scale")
 
         adam_groups = []
         muon_groups = []
@@ -271,11 +297,23 @@ class RationalMatrixPolicyOptimizer:
     def _group_policy_phase(self) -> float:
         return _smoothstep(self.group_start, self.group_end, self._progress())
 
+    def _functional_balance_phase(self) -> float:
+        if self.functional_balance_strength <= 0.0:
+            return 0.0
+        progress = self._progress()
+        on_phase = _smoothstep(self.functional_balance_start, self.functional_balance_end, progress)
+        off_phase = _smoothstep(self.functional_balance_decay_start, self.functional_balance_decay_end, progress)
+        return on_phase * (1.0 - off_phase)
+
+    def _functional_balance_enabled(self) -> bool:
+        return self.functional_balance_strength > 0.0
+
     def _group_policy_enabled(self) -> bool:
         return (
             self.group_gain_strength != 0.0
             or self.group_pressure_strength != 0.0
             or self.group_activity_damping != 0.0
+            or self._functional_balance_enabled()
         )
 
     @staticmethod
@@ -379,8 +417,9 @@ class RationalMatrixPolicyOptimizer:
     def _group_policy_scale(self, group: dict, device: torch.device, dtype: torch.dtype) -> torch.Tensor | None:
         if not self._group_policy_enabled():
             return None
-        phase = self._group_policy_phase()
-        if phase <= 0.0:
+        group_phase = self._group_policy_phase()
+        balance_phase = self._functional_balance_phase()
+        if group_phase <= 0.0 and balance_phase <= 0.0:
             return None
         selector_index = int(group.get("selector_index", -1))
         if selector_index < 0 or selector_index >= len(self.selector_groups):
@@ -394,20 +433,20 @@ class RationalMatrixPolicyOptimizer:
         role = str(group.get("matrix_role", "matrix"))
         module = curve_group.get("module")
         stats = getattr(module, "_rlb_optimizer_stats", None) if module is not None else None
-        if self.group_gain_strength != 0.0 and stats:
+        if group_phase > 0.0 and self.group_gain_strength != 0.0 and stats:
             key = "derivative_rms" if role == "in" else "output_rms"
             gain = stats.get(key)
             if torch.is_tensor(gain) and gain.numel() == groups:
                 scale.mul_(
                     self._centered_inverse_scale(
                         gain.to(device=device),
-                        self.group_gain_strength * phase,
+                        self.group_gain_strength * group_phase,
                         self.eps,
                     ).to(device=device)
                 )
 
         state = curve_group.get("_onpolicy")
-        if state is not None and (self.group_pressure_strength != 0.0 or self.group_activity_damping != 0.0):
+        if group_phase > 0.0 and state is not None and (self.group_pressure_strength != 0.0 or self.group_activity_damping != 0.0):
             in_rel = state["in_rel_ema"].to(device=device, dtype=torch.float32).clamp_min(self.eps)
             out_rel = state["out_rel_ema"].to(device=device, dtype=torch.float32).clamp_min(self.eps)
             rat_rel = state["rat_rel_ema"].to(device=device, dtype=torch.float32).clamp_min(self.eps)
@@ -418,17 +457,81 @@ class RationalMatrixPolicyOptimizer:
                         max=self.pressure_clip,
                     )
                     direction = -pressure if role == "in" else pressure
-                    scale.mul_(torch.exp(self.group_pressure_strength * phase * direction))
+                    scale.mul_(torch.exp(self.group_pressure_strength * group_phase * direction))
                 if self.group_activity_damping != 0.0:
                     matrix_log = 0.5 * (torch.log(in_rel) + torch.log(out_rel))
                     rational_activity = torch.log(rat_rel) - matrix_log
                     excess = torch.relu((rational_activity - self.group_activity_target) / self.group_activity_width)
-                    scale.mul_(torch.exp(-self.group_activity_damping * phase * excess))
+                    scale.mul_(torch.exp(-self.group_activity_damping * group_phase * excess))
+
+        balance_scale = self._functional_balance_scale(group, curve_group, balance_phase, device)
+        if balance_scale is not None:
+            scale.mul_(balance_scale)
 
         scale = scale.clamp_min(self.eps)
         scale = scale / torch.exp(torch.log(scale).mean()).clamp_min(self.eps)
         scale = scale.clamp(self.group_min_scale, self.group_max_scale)
         return scale.to(device=device, dtype=dtype)
+
+    def _functional_balance_log_imbalance(self, group: dict, curve_group: dict, device: torch.device) -> torch.Tensor | None:
+        if not self._functional_balance_enabled():
+            return None
+        groups = int(curve_group.get("groups", 0))
+        hidden_dim = int(curve_group.get("hidden_dim", 0))
+        if groups <= 0 or hidden_dim <= 0 or hidden_dim % groups != 0:
+            return None
+        in_weight = curve_group.get("in_weight")
+        out_weight = curve_group.get("out_weight")
+        if in_weight is None or out_weight is None or in_weight.grad is None or out_weight.grad is None:
+            return None
+        if in_weight.shape[0] != hidden_dim or out_weight.shape[1] != hidden_dim:
+            return None
+        module = curve_group.get("module")
+        stats = getattr(module, "_rlb_optimizer_stats", None) if module is not None else None
+        if not stats:
+            return None
+        derivative_rms = stats.get("derivative_rms")
+        output_rms = stats.get("output_rms")
+        if not (torch.is_tensor(derivative_rms) and torch.is_tensor(output_rms)):
+            return None
+        if derivative_rms.numel() != groups or output_rms.numel() != groups:
+            return None
+
+        width = hidden_dim // groups
+        in_grad = in_weight.grad.detach().view(groups, width, -1).float()
+        out_grad = out_weight.grad.detach().view(out_weight.shape[0], groups, width).permute(1, 2, 0).float()
+        out_view = out_weight.detach().view(out_weight.shape[0], groups, width).permute(1, 2, 0).float()
+        in_update = torch.sqrt(in_grad.square().mean(dim=(1, 2)) + self.eps).to(device=device)
+        out_update = torch.sqrt(out_grad.square().mean(dim=(1, 2)) + self.eps).to(device=device)
+        out_weight_rms = torch.sqrt(out_view.square().mean(dim=(1, 2)) + self.eps).to(device=device)
+        derivative = derivative_rms.detach().float().to(device=device).clamp_min(self.eps)
+        output = output_rms.detach().float().to(device=device).clamp_min(self.eps)
+
+        m_in = out_weight_rms * derivative * in_update
+        m_out = output * out_update
+        target_log = self.functional_balance_target_depth_gain * (self._depth(group) - 0.5)
+        imbalance = torch.log(m_out.clamp_min(self.eps)) - torch.log(m_in.clamp_min(self.eps)) - target_log
+        clip = float(self.functional_balance_clip)
+        if clip > 0.0:
+            imbalance = imbalance.clamp(min=-clip, max=clip)
+        return imbalance
+
+    def _functional_balance_scale(
+        self,
+        group: dict,
+        curve_group: dict,
+        phase: float,
+        device: torch.device,
+    ) -> torch.Tensor | None:
+        if phase <= 0.0:
+            return None
+        imbalance = self._functional_balance_log_imbalance(group, curve_group, device)
+        if imbalance is None:
+            return None
+        role = str(group.get("matrix_role", "matrix"))
+        direction = 1.0 if role == "in" else -1.0
+        scale = torch.exp(direction * self.functional_balance_strength * phase * imbalance)
+        return scale.clamp(self.functional_balance_min_scale, self.functional_balance_max_scale)
 
     def _apply_group_policy_to_gradients(self):
         if not self._group_policy_enabled():
@@ -601,6 +704,7 @@ class RationalMatrixPolicyOptimizer:
         muon_by_role = {}
         adam_lr_by_role = {}
         group_scales = []
+        functional_balance = []
         pressures = []
         activities = []
         for group in self.adam.param_groups:
@@ -614,6 +718,15 @@ class RationalMatrixPolicyOptimizer:
                 scale = self._group_policy_scale(group, param.device, torch.float32)
                 if scale is not None:
                     group_scales.extend(float(x) for x in scale.detach().float().reshape(-1).cpu())
+                selector_index_for_balance = int(group.get("selector_index", -1))
+                if 0 <= selector_index_for_balance < len(self.selector_groups):
+                    imbalance = self._functional_balance_log_imbalance(
+                        group,
+                        self.selector_groups[selector_index_for_balance],
+                        param.device,
+                    )
+                    if imbalance is not None:
+                        functional_balance.extend(float(x) for x in imbalance.detach().float().reshape(-1).cpu())
 
             selector_index = int(group.get("selector_index", -1))
             if 0 <= selector_index < len(self.selector_groups):
@@ -629,6 +742,7 @@ class RationalMatrixPolicyOptimizer:
                     activities.extend(float(x) for x in activity.reshape(-1).cpu())
 
         group_mean, group_std, group_min, group_max = self._mean_std_min_max(group_scales)
+        balance_mean, balance_std, balance_min, balance_max = self._mean_std_min_max(functional_balance)
         pressure_mean, pressure_std, _, _ = self._mean_std_min_max(pressures)
         activity_mean, activity_std, _, _ = self._mean_std_min_max(activities)
         return {
@@ -638,6 +752,10 @@ class RationalMatrixPolicyOptimizer:
             "matrix_policy_group_scale_std": group_std,
             "matrix_policy_group_scale_min": group_min,
             "matrix_policy_group_scale_max": group_max,
+            "matrix_policy_functional_balance_log_ratio_mean": balance_mean,
+            "matrix_policy_functional_balance_log_ratio_std": balance_std,
+            "matrix_policy_functional_balance_log_ratio_min": balance_min,
+            "matrix_policy_functional_balance_log_ratio_max": balance_max,
             "matrix_policy_pressure_mean": pressure_mean,
             "matrix_policy_pressure_std": pressure_std,
             "matrix_policy_activity_mean": activity_mean,
