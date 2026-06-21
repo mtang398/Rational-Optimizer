@@ -278,6 +278,8 @@ Replacement submitted jobs:
 | 13 | `715067` | afterok:`715065` |
 | 14 | `715068` | afterok:`715066` |
 
+Completion note: replacement jobs `715054`-`715068` all completed with exit `0:0` by `2026-06-21 16:53:52 EDT`. Jobs `715054` and `715055` had `Restarts=1` with incomplete pre-restart JSONLs archived; jobs `715056`-`715068` had `Restarts=0`. V4 near-tied original MatrixPolicy but is rejected/superseded because all `4590` recorded functional-balance log-ratio telemetry values clipped to `+0.47`, making the role-wise signal effectively constant and centered away. The next proposal is `optimizer_design/proposals/matrixpolicyV5_joint_functional_metric.md`.
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,

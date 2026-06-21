@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-21 13:34:08 EDT
+Updated: 2026-06-21 16:54:48 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -69,10 +69,9 @@ Slurm accounting notes:
 Interpretation: V3 is not a better optimizer. The loss result rejects the late Muon tail and makes the partial projection insufficient as a default. Full-step timing should not be used as an acceptance signal without node/restart filtering; log-step optimizer timing is the cleaner method metric.
 
 ## matrixpolicyV4 E1 Functional-Balance Run Status
+Queued: 2026-06-21 13:29:07 EDT; replacement queued: 2026-06-21 13:34:08 EDT. Completed: 2026-06-21 16:53:52 EDT. Decision: reject/supersede V4 as a neutral result and move to `matrixpolicyV5`.
 
-Queued: 2026-06-21 13:29:07 EDT; replacement queued: 2026-06-21 13:34:08 EDT.
-
-V4 is a functional-balance MatrixPolicy test, not an engineering speed tweak. It keeps original MatrixPolicy role/depth mechanics and adds an on-policy scalar that reallocates per-group input-selector versus output-recombiner step budget using the local RLB linearization `delta y_g ~= delta B_g h_g + B_g J_g delta A_g x`.
+V4 was a functional-balance MatrixPolicy test, not an engineering speed tweak. It kept original MatrixPolicy role/depth mechanics and added an on-policy scalar intended to reallocate per-group input-selector versus output-recombiner step budget using the local RLB linearization `delta y_g ~= delta B_g h_g + B_g J_g delta A_g x`.
 
 | Field | Value |
 | --- | --- |
@@ -86,49 +85,28 @@ V4 is a functional-balance MatrixPolicy test, not an engineering speed tweak. It
 | Budget | `3050` steps, about `100M` train tokens per row |
 | Submission shape | one row per job, two parity dependency chains |
 
-Invalid first Slurm submission:
+Invalid first submission: jobs `715013`-`715027`. Rows `0-8` exited in 6-12 seconds before training because `training/run_lm_optimizer_sweep.sbatch` did not yet include `matrixpolicyV4` in its hard-coded optimizer allowlist; rows `9-14` were cancelled. No JSONL outputs were produced. The wrapper fix was committed as `94d1352`.
 
-| Row | Job | Dependency |
-| ---: | ---: | --- |
-| 0 | `715013` | none |
-| 1 | `715014` | none |
-| 2 | `715015` | afterok:`715013` |
-| 3 | `715016` | afterok:`715014` |
-| 4 | `715017` | afterok:`715015` |
-| 5 | `715018` | afterok:`715016` |
-| 6 | `715019` | afterok:`715017` |
-| 7 | `715020` | afterok:`715018` |
-| 8 | `715021` | afterok:`715019` |
-| 9 | `715022` | afterok:`715020` |
-| 10 | `715023` | afterok:`715021` |
-| 11 | `715024` | afterok:`715022` |
-| 12 | `715025` | afterok:`715023` |
-| 13 | `715026` | afterok:`715024` |
-| 14 | `715027` | afterok:`715025` |
+Replacement jobs `715054`-`715068` all completed with exit `0:0`. Jobs `715054` and `715055` report `Restarts=1`; their incomplete pre-restart JSONLs were archived and the final current JSONLs contain clean summaries. Jobs `715056`-`715068` report `Restarts=0`.
 
-Rows `0-8` from the first submission exited in 6-12 seconds before training because `training/run_lm_optimizer_sweep.sbatch` still rejected `matrixpolicyV4` in its hard-coded allowlist. Rows `9-14` were cancelled. These jobs produced no JSONL and are not results. The wrapper was fixed in commit `94d1352`.
+| Row range | Jobs | State | Restart note |
+| --- | --- | --- | --- |
+| `0-1` | `715054`, `715055` | completed `0:0` | `Restarts=1`, clean final JSONL summaries |
+| `2-14` | `715056`-`715068` | completed `0:0` | `Restarts=0` |
 
-Replacement Slurm jobs:
+Aggregate result:
 
-| Row | Job | Dependency |
-| ---: | ---: | --- |
-| 0 | `715054` | none |
-| 1 | `715055` | none |
-| 2 | `715056` | afterok:`715054` |
-| 3 | `715057` | afterok:`715055` |
-| 4 | `715058` | afterok:`715056` |
-| 5 | `715059` | afterok:`715057` |
-| 6 | `715060` | afterok:`715058` |
-| 7 | `715061` | afterok:`715059` |
-| 8 | `715062` | afterok:`715060` |
-| 9 | `715063` | afterok:`715061` |
-| 10 | `715064` | afterok:`715062` |
-| 11 | `715065` | afterok:`715063` |
-| 12 | `715066` | afterok:`715064` |
-| 13 | `715067` | afterok:`715065` |
-| 14 | `715068` | afterok:`715066` |
+| Dataset | V4 final val loss | Original MatrixPolicy | Delta | V4 mean runtime | V4 tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| DCLM | 4.255052 +/- 0.002431 | 4.256224 +/- 0.004972 | -0.001172 | 23.1 min | 76621.3 |
+| FineWeb-Edu | 4.088879 +/- 0.009448 | 4.088240 +/- 0.009434 | +0.000639 | 22.9 min | 77313.7 |
+| FineWeb | 4.317874 +/- 0.011026 | 4.318581 +/- 0.010914 | -0.000706 | 23.1 min | 76776.7 |
+| Dolma-sample | 4.323299 +/- 0.005749 | 4.323851 +/- 0.004565 | -0.000552 | 22.9 min | 77361.2 |
+| C4 | 4.287153 +/- 0.019124 | 4.285119 +/- 0.020677 | +0.002035 | 23.1 min | 76854.2 |
 
-Initial replacement state after submission: jobs `715054` and `715055` are pending, rows `2-14` are dependency-held. No V5 jobs should be queued until V4 E1 is completed and analyzed.
+Interpretation: V4 is a near-tie, not a better optimizer. The telemetry gives the decisive negative result: all `4590` recorded `matrix_policy_functional_balance_log_ratio_*` values were clipped at `+0.47` (`clip_frac = 1.000`). Since the V4 balance multiplier is applied inside a role-wise geometrically centered group scale, a role-wise constant clipped signal is mostly normalized away. The failure is the V4 proxy and centering design, not evidence against the original MatrixPolicy.
+
+Next optimizer-design proposal: `optimizer_design/proposals/matrixpolicyV5_joint_functional_metric.md`. V5 is implemented as a separate optimizer choice `matrixpolicyV5`, and its E1 manifest is `experiments/manifests/iclr26_matrixpolicyV5_e1_manifest.csv`. It uses a joint function-space sensitivity metric over `(A_g, B_g)` instead of a raw functional-balance proxy.
 
 ## Completed Runtime Summary
 

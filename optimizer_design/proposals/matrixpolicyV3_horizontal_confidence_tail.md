@@ -125,14 +125,11 @@ lambda_a = 0.35
 
 This is not `Muon + MatrixPolicy` as an unprincipled mixture. The tail is only active after the original Muon component begins decaying, and it is suppressed by exactly the same RLB pressure/activity variables that define whether the group representative is trustworthy.
 
-## Same-Method Speedup
+## Timing Accounting, Not Optimizer Evidence
 
-Two speedups are used without changing the mathematical method:
+Any caching or wrapper-efficiency notes from this rejected V3 run are historical implementation details, not optimizer-design evidence and not a valid reason to accept a MatrixPolicy variant. No active proposal should be advanced because of a speedup, kernel change, cache change, fusion change, scheduler shape, or launcher behavior.
 
-1. The gauge wrapper caches stable RLB matrix views instead of repeatedly rebuilding `view(...).permute(...)` objects.
-2. MatrixPolicy now caches the Muon mixture fraction by `(layer, selector, role)` for each step. Adam and Muon child groups share the same value instead of recomputing the same live-pressure scalar.
-
-Runtime will be judged from JSONL fields:
+Timing fields remain useful only for diagnosing contaminated rows:
 
 ```text
 summary.total_seconds
@@ -182,7 +179,7 @@ Extra args are the original winning MatrixPolicy group-stat settings plus the V3
 V3 is useful only if at least one of these is true:
 
 1. It beats original MatrixPolicy mean final validation loss on E1.
-2. It ties original within seed noise but improves early token-to-target or runtime.
+2. It ties original within seed noise but improves early token-to-target.
 3. It gives clear telemetry support: lower gauge drift or better update/weight ratio at equal or better loss.
 
-If V3 is worse than original with no runtime win, reject it and treat the negative result as evidence that the original time-local Muon decay is already near the best E1 tradeoff.
+If V3 is worse than original, reject it and treat the negative result as evidence that the original time-local Muon decay is already near the best E1 tradeoff.

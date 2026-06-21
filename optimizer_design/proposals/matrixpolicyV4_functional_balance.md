@@ -1,6 +1,18 @@
 # matrixpolicyV4 Proposal: Functional-Balance MatrixPolicy
 
-Status: implemented as separate optimizer choice `matrixpolicyV4` and queued for the E1-only replacement run on 2026-06-21 as jobs `715054`-`715068`. No V4 results are available yet. This proposal replaces the earlier quotient-trust V4 draft because that draft was too close to a damping/engineering tweak.
+Status: completed and rejected/superseded after the E1-only replacement run on 2026-06-21. Replacement jobs `715054`-`715068` all completed with exit `0:0`; jobs `715054` and `715055` had `Restarts=1` before their clean final JSONL summaries, and jobs `715056`-`715068` had `Restarts=0`. V4 near-tied original MatrixPolicy, but its functional-balance signal clipped to a constant and mostly centered itself away. The next proposal is `matrixpolicyV5_joint_functional_metric.md`.
+
+## Completed E1 Result
+
+| Dataset | V4 final val loss | Original MatrixPolicy | Delta | Decision |
+| --- | ---: | ---: | ---: | --- |
+| DCLM | 4.255052 +/- 0.002431 | 4.256224 +/- 0.004972 | -0.001172 | near-tie |
+| FineWeb-Edu | 4.088879 +/- 0.009448 | 4.088240 +/- 0.009434 | +0.000639 | near-tie |
+| FineWeb | 4.317874 +/- 0.011026 | 4.318581 +/- 0.010914 | -0.000706 | near-tie |
+| Dolma-sample | 4.323299 +/- 0.005749 | 4.323851 +/- 0.004565 | -0.000552 | near-tie |
+| C4 | 4.287153 +/- 0.019124 | 4.285119 +/- 0.020677 | +0.002035 | near-tie/slightly worse |
+
+The telemetry explains the neutral result. Across all 15 V4 rows, all `4590` recorded `matrix_policy_functional_balance_log_ratio_*` values were exactly clipped at `+0.47` (`clip_frac = 1.000`). Because the balance scale is then geometrically centered inside each role, this uniform clipped signal is normalized away rather than becoming a real A/B functional reallocation. V4 is therefore a useful negative result: the proposed proxy was underidentified and saturated, not a better MatrixPolicy.
 
 ## Evidence To Explain
 

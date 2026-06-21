@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The rejected V2 branch has been removed from the live optimizer surface. The completed `matrixpolicyV3` E1 rerun is now a rejected negative result, not the next paper candidate. The next design proposal is `matrixpolicyV4`, documented in `proposals/matrixpolicyV4_functional_balance.md`; it keeps the original MatrixPolicy role/depth mechanics and adds an on-policy functional-balance rule for allocating input-selector versus output-recombiner step budget.
+The rejected V2 branch has been removed from the live optimizer surface. The completed `matrixpolicyV3` and `matrixpolicyV4` E1 reruns are retained as negative/neutral evidence, not paper anchors. The next design proposal is `matrixpolicyV5`, documented in `proposals/matrixpolicyV5_joint_functional_metric.md`; it keeps the original MatrixPolicy role/depth mechanics but changes the RLB matrix update metric to a joint function-space sensitivity metric over the `(A_g, B_g)` pair.
 
 ## Current Result Anchor
 
@@ -229,9 +229,8 @@ Full mean +/- std tables and curves are in `../experiments/ICLR_RUN_STATUS.md` a
 
 The paper story should be: RLB creates optimizer-visible geometry, and MatrixPolicy uses it. It should not be sold as an activation-only result or a generic Muon result.
 
-## Rejected V3 Test And V4 Direction
-
-`matrixpolicyV3` kept the original winning MatrixPolicy recipe, added a modest horizontal gauge projection, and added a small confidence-gated Muon tail suppressed by live RLB pressure/activity. The completed E1 rerun did not improve final validation loss on any dataset mean:
+## Rejected V3/V4 Tests And V5 Direction
+`matrixpolicyV3` kept the original winning MatrixPolicy recipe, added a modest horizontal gauge projection, and added a small confidence-gated Muon tail. The completed E1 rerun did not improve final validation loss on any dataset mean:
 
 | Dataset | V3 final val loss | Original MatrixPolicy | Delta |
 | --- | ---: | ---: | ---: |
@@ -241,7 +240,26 @@ The paper story should be: RLB creates optimizer-visible geometry, and MatrixPol
 | Dolma-sample | 4.324203 +/- 0.004118 | 4.323851 | +0.000352 |
 | C4 | 4.288422 +/- 0.015948 | 4.285119 | +0.003304 |
 
-The V3 inference is that projection and late Muon do not fix the remaining problem. The next proposal, `matrixpolicyV4`, is functional-balance MatrixPolicy: estimate the two local function-space terms `delta B_g h_g` and `B_g J_g delta A_g x`, then reallocate paired per-group matrix step budget so input-selector and output-recombiner movement track a depth-dependent target. The proposal is in `proposals/matrixpolicyV4_functional_balance.md`.
+`matrixpolicyV4` kept the original MatrixPolicy mechanics and added a functional-balance proxy. It near-tied original MatrixPolicy, but it did not produce a useful new mechanism:
+
+| Dataset | V4 final val loss | Original MatrixPolicy | Delta |
+| --- | ---: | ---: | ---: |
+| DCLM | 4.255052 +/- 0.002431 | 4.256224 +/- 0.004972 | -0.001172 |
+| FineWeb-Edu | 4.088879 +/- 0.009448 | 4.088240 +/- 0.009434 | +0.000639 |
+| FineWeb | 4.317874 +/- 0.011026 | 4.318581 +/- 0.010914 | -0.000706 |
+| Dolma-sample | 4.323299 +/- 0.005749 | 4.323851 +/- 0.004565 | -0.000552 |
+| C4 | 4.287153 +/- 0.019124 | 4.285119 +/- 0.020677 | +0.002035 |
+
+The V4 telemetry is the decisive negative evidence: all `4590` recorded functional-balance log-ratio values were clipped at `+0.47`. Since V4 multiplies per-group scales and then geometrically centers inside each role, a role-wise constant clipped signal is normalized away. V4 is therefore rejected as a neutral test of a bad proxy, not as evidence against MatrixPolicy itself.
+
+The next proposal is `matrixpolicyV5`: a joint functional-metric MatrixPolicy. It estimates first-order RLB function sensitivity for both matrix roles,
+
+```text
+k_in,g  = rms(B_g) sqrt(rms(R_g)^2 + rms(J_g)^2)
+k_out,g = rms(A_g) rms(R_g)
+```
+
+and applies inverse square-root scaling centered jointly across both roles. This preserves A/B role-level scaling instead of centering it away role-by-role.
 
 ## Telemetry Status
 

@@ -6,7 +6,7 @@ Paper-facing results in this README include the completed E1 matched main suite 
 
 ## Optimizer Variant Status
 
-The completed `matrixpolicyV3` E1 rerun is rejected: it was slightly worse than original MatrixPolicy on every E1 dataset mean. The active V4 test is `optimizer_design/proposals/matrixpolicyV4_functional_balance.md`, a functional-balance MatrixPolicy E1 run queued as replacement Slurm jobs `715054`-`715068`.
+The completed `matrixpolicyV3` E1 rerun is rejected: it was slightly worse than original MatrixPolicy on every E1 dataset mean. The completed `matrixpolicyV4` E1 rerun is also rejected as a neutral result: it near-tied V1, but its functional-balance telemetry clipped to `+0.47` for 100% of recorded balance values, so the proposed mechanism mostly centered itself away. The active next proposal is `optimizer_design/proposals/matrixpolicyV5_joint_functional_metric.md`, a joint A/B functional-metric MatrixPolicy that changes the matrix update metric rather than adding engineering tweaks.
 
 ## Result Pointers
 

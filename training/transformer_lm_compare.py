@@ -96,6 +96,7 @@ MATRIX_POLICY_OPTIMIZERS = {
     "rational_matrix_policy_onpolicy",
     "matrixpolicyV3",
     "matrixpolicyV4",
+    "matrixpolicyV5",
 }
 RATIONAL_SPECIFIC_OPTIMIZERS = set(MATRIX_POLICY_OPTIMIZERS)
 ACTIVE_OPTIMIZERS = sorted(CLASSIC_OPTIMIZERS | RATIONAL_SPECIFIC_OPTIMIZERS)
@@ -5096,6 +5097,7 @@ def configure_optimizer(model, args):
 
         matrixpolicy_v3 = args.optimizer == "matrixpolicyV3"
         matrixpolicy_v4 = args.optimizer == "matrixpolicyV4"
+        matrixpolicy_v5 = args.optimizer == "matrixpolicyV5"
         curve_groups = collect_rlb_optimizer_groups(model, args)
         if not curve_groups:
             raise ValueError(f"Accepted activations for {args.optimizer} are RLB activations")
@@ -5331,6 +5333,15 @@ def configure_optimizer(model, args):
                 functional_balance_clip=args.matrixpolicy_v4_functional_balance_clip,
                 functional_balance_min_scale=args.matrixpolicy_v4_functional_balance_min_scale,
                 functional_balance_max_scale=args.matrixpolicy_v4_functional_balance_max_scale,
+                functional_metric_strength=(
+                    args.matrixpolicy_v5_functional_metric_strength if matrixpolicy_v5 else 0.0
+                ),
+                functional_metric_start=args.matrixpolicy_v5_functional_metric_start,
+                functional_metric_end=args.matrixpolicy_v5_functional_metric_end,
+                functional_metric_decay_start=args.matrixpolicy_v5_functional_metric_decay_start,
+                functional_metric_decay_end=args.matrixpolicy_v5_functional_metric_decay_end,
+                functional_metric_min_scale=args.matrixpolicy_v5_functional_metric_min_scale,
+                functional_metric_max_scale=args.matrixpolicy_v5_functional_metric_max_scale,
                 muon_momentum=args.muon_momentum,
                 muon_ns_steps=args.muon_ns_steps,
                 muon_adjust_lr_fn=args.muon_adjust_lr_fn,
@@ -5889,6 +5900,13 @@ def parse_args():
     parser.add_argument("--matrixpolicy-v4-functional-balance-clip", type=float, default=0.47)
     parser.add_argument("--matrixpolicy-v4-functional-balance-min-scale", type=float, default=0.80)
     parser.add_argument("--matrixpolicy-v4-functional-balance-max-scale", type=float, default=1.25)
+    parser.add_argument("--matrixpolicy-v5-functional-metric-strength", type=float, default=1.0)
+    parser.add_argument("--matrixpolicy-v5-functional-metric-start", type=float, default=0.02)
+    parser.add_argument("--matrixpolicy-v5-functional-metric-end", type=float, default=0.20)
+    parser.add_argument("--matrixpolicy-v5-functional-metric-decay-start", type=float, default=1.1)
+    parser.add_argument("--matrixpolicy-v5-functional-metric-decay-end", type=float, default=1.1)
+    parser.add_argument("--matrixpolicy-v5-functional-metric-min-scale", type=float, default=0.70)
+    parser.add_argument("--matrixpolicy-v5-functional-metric-max-scale", type=float, default=1.45)
     parser.add_argument("--rational-transport-quotient-strength", type=float, default=0.0)
     parser.add_argument("--rational-transport-strength", type=float, default=0.0)
     parser.add_argument("--rational-transport-final-strength", type=float, default=None)
@@ -6323,9 +6341,16 @@ def main():
         "matrixpolicy_v4_functional_balance_clip": args.matrixpolicy_v4_functional_balance_clip if args.optimizer == "matrixpolicyV4" else None,
         "matrixpolicy_v4_functional_balance_min_scale": args.matrixpolicy_v4_functional_balance_min_scale if args.optimizer == "matrixpolicyV4" else None,
         "matrixpolicy_v4_functional_balance_max_scale": args.matrixpolicy_v4_functional_balance_max_scale if args.optimizer == "matrixpolicyV4" else None,
-        "muon_adjust_lr_fn": args.muon_adjust_lr_fn if args.optimizer in {"muon", "rational_matrix_policy_onpolicy", "matrixpolicyV3", "matrixpolicyV4"} else None,
-        "muon_momentum": args.muon_momentum if args.optimizer in {"muon", "rational_matrix_policy_onpolicy", "matrixpolicyV3", "matrixpolicyV4"} else None,
-        "muon_ns_steps": args.muon_ns_steps if args.optimizer in {"muon", "rational_matrix_policy_onpolicy", "matrixpolicyV3", "matrixpolicyV4"} else None,
+        "matrixpolicy_v5_functional_metric_strength": args.matrixpolicy_v5_functional_metric_strength if args.optimizer == "matrixpolicyV5" else None,
+        "matrixpolicy_v5_functional_metric_start": args.matrixpolicy_v5_functional_metric_start if args.optimizer == "matrixpolicyV5" else None,
+        "matrixpolicy_v5_functional_metric_end": args.matrixpolicy_v5_functional_metric_end if args.optimizer == "matrixpolicyV5" else None,
+        "matrixpolicy_v5_functional_metric_decay_start": args.matrixpolicy_v5_functional_metric_decay_start if args.optimizer == "matrixpolicyV5" else None,
+        "matrixpolicy_v5_functional_metric_decay_end": args.matrixpolicy_v5_functional_metric_decay_end if args.optimizer == "matrixpolicyV5" else None,
+        "matrixpolicy_v5_functional_metric_min_scale": args.matrixpolicy_v5_functional_metric_min_scale if args.optimizer == "matrixpolicyV5" else None,
+        "matrixpolicy_v5_functional_metric_max_scale": args.matrixpolicy_v5_functional_metric_max_scale if args.optimizer == "matrixpolicyV5" else None,
+        "muon_adjust_lr_fn": args.muon_adjust_lr_fn if args.optimizer in {"muon", "rational_matrix_policy_onpolicy", "matrixpolicyV3", "matrixpolicyV4", "matrixpolicyV5"} else None,
+        "muon_momentum": args.muon_momentum if args.optimizer in {"muon", "rational_matrix_policy_onpolicy", "matrixpolicyV3", "matrixpolicyV4", "matrixpolicyV5"} else None,
+        "muon_ns_steps": args.muon_ns_steps if args.optimizer in {"muon", "rational_matrix_policy_onpolicy", "matrixpolicyV3", "matrixpolicyV4", "matrixpolicyV5"} else None,
         "heads": args.heads,
         "layers": args.layers,
         "params": param_count,

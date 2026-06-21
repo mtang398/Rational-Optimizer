@@ -79,6 +79,16 @@ Current MatrixPolicy manifest flags:
 --rational-matrix-policy-group-max-scale 1.35
 ```
 
+Separate proposal reruns are exposed as `matrixpolicyV3`, `matrixpolicyV4`, and `matrixpolicyV5` so they do not overwrite the paper anchor `rational_matrix_policy_onpolicy`. V5 adds joint functional-metric flags for the RLB matrix pair:
+
+```text
+--matrixpolicy-v5-functional-metric-strength 1.0
+--matrixpolicy-v5-functional-metric-start 0.02
+--matrixpolicy-v5-functional-metric-end 0.20
+--matrixpolicy-v5-functional-metric-min-scale 0.70
+--matrixpolicy-v5-functional-metric-max-scale 1.45
+```
+
 ## Real-Corpus Protocol
 
 The main screen streams Hugging Face datasets and builds bounded token caches. Dataset source, config, token budgets, and validation slice come from `../experiments/manifests/iclr26_main_manifest.csv`; E1 M0/100M uses this shape:
