@@ -79,15 +79,7 @@ Current MatrixPolicy manifest flags:
 --rational-matrix-policy-group-max-scale 1.35
 ```
 
-Separate proposal reruns are exposed as `matrixpolicyV3`, `matrixpolicyV4`, and `matrixpolicyV5` so they do not overwrite the paper anchor `rational_matrix_policy_onpolicy`. V5 adds joint functional-metric flags for the RLB matrix pair:
-
-```text
---matrixpolicy-v5-functional-metric-strength 1.0
---matrixpolicy-v5-functional-metric-start 0.02
---matrixpolicy-v5-functional-metric-end 0.20
---matrixpolicy-v5-functional-metric-min-scale 0.70
---matrixpolicy-v5-functional-metric-max-scale 1.45
-```
+No proposal optimizer aliases are live. Rejected V3/V4/V5 hooks and standalone manifests were removed after their completed E1 reruns failed the acceptance gates. Future V6/V7 ideas start as proposal/pilot documents and must not be added to `ACTIVE_OPTIMIZERS` until they pass the fast paired pilot protocol.
 
 ## Real-Corpus Protocol
 

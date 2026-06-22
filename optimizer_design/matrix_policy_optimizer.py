@@ -58,13 +58,6 @@ class RationalMatrixPolicyOptimizer:
         muon_output_decay_shift: float = 0.0,
         muon_reset_adam_state: bool = False,
         final_muon: float = 0.0,
-        muon_tail_strength: float = 0.0,
-        muon_tail_start: float = 0.24,
-        muon_tail_end: float = 0.48,
-        muon_tail_decay_start: float = 0.90,
-        muon_tail_decay_end: float = 1.00,
-        muon_tail_pressure_weight: float = 0.35,
-        muon_tail_activity_weight: float = 0.35,
         min_muon: float = 0.0,
         max_muon: float = 0.75,
         input_depth_gain: float = -0.50,
@@ -83,22 +76,6 @@ class RationalMatrixPolicyOptimizer:
         group_end: float = 0.35,
         group_min_scale: float = 0.65,
         group_max_scale: float = 1.55,
-        functional_balance_strength: float = 0.0,
-        functional_balance_start: float = 0.02,
-        functional_balance_end: float = 0.12,
-        functional_balance_decay_start: float = 0.30,
-        functional_balance_decay_end: float = 0.50,
-        functional_balance_target_depth_gain: float = 0.80,
-        functional_balance_clip: float = 0.47,
-        functional_balance_min_scale: float = 0.80,
-        functional_balance_max_scale: float = 1.25,
-        functional_metric_strength: float = 0.0,
-        functional_metric_start: float = 0.02,
-        functional_metric_end: float = 0.20,
-        functional_metric_decay_start: float = 1.1,
-        functional_metric_decay_end: float = 1.1,
-        functional_metric_min_scale: float = 0.70,
-        functional_metric_max_scale: float = 1.45,
         muon_momentum: float = 0.95,
         muon_ns_steps: int = 5,
         muon_adjust_lr_fn: str | None = "match_rms_adamw",
@@ -137,13 +114,6 @@ class RationalMatrixPolicyOptimizer:
         self.muon_output_decay_shift = float(muon_output_decay_shift)
         self.muon_reset_adam_state = bool(muon_reset_adam_state)
         self.final_muon = float(final_muon)
-        self.muon_tail_strength = float(muon_tail_strength)
-        self.muon_tail_start = float(muon_tail_start)
-        self.muon_tail_end = float(muon_tail_end)
-        self.muon_tail_decay_start = float(muon_tail_decay_start)
-        self.muon_tail_decay_end = float(muon_tail_decay_end)
-        self.muon_tail_pressure_weight = float(muon_tail_pressure_weight)
-        self.muon_tail_activity_weight = float(muon_tail_activity_weight)
         self.min_muon = float(min_muon)
         self.max_muon = float(max_muon)
         self.input_depth_gain = float(input_depth_gain)
@@ -162,22 +132,6 @@ class RationalMatrixPolicyOptimizer:
         self.group_end = float(group_end)
         self.group_min_scale = float(group_min_scale)
         self.group_max_scale = float(group_max_scale)
-        self.functional_balance_strength = float(functional_balance_strength)
-        self.functional_balance_start = float(functional_balance_start)
-        self.functional_balance_end = float(functional_balance_end)
-        self.functional_balance_decay_start = float(functional_balance_decay_start)
-        self.functional_balance_decay_end = float(functional_balance_decay_end)
-        self.functional_balance_target_depth_gain = float(functional_balance_target_depth_gain)
-        self.functional_balance_clip = float(functional_balance_clip)
-        self.functional_balance_min_scale = float(functional_balance_min_scale)
-        self.functional_balance_max_scale = float(functional_balance_max_scale)
-        self.functional_metric_strength = float(functional_metric_strength)
-        self.functional_metric_start = float(functional_metric_start)
-        self.functional_metric_end = float(functional_metric_end)
-        self.functional_metric_decay_start = float(functional_metric_decay_start)
-        self.functional_metric_decay_end = float(functional_metric_decay_end)
-        self.functional_metric_min_scale = float(functional_metric_min_scale)
-        self.functional_metric_max_scale = float(functional_metric_max_scale)
         self.eps = float(eps)
         self.step_index = 0
         self.use_muon = (
@@ -186,7 +140,6 @@ class RationalMatrixPolicyOptimizer:
             and (
                 self.muon_strength != 0.0
                 or self.final_muon != 0.0
-                or self.muon_tail_strength != 0.0
                 or self.min_muon > 0.0
             )
         )
@@ -205,27 +158,10 @@ class RationalMatrixPolicyOptimizer:
             raise ValueError("adam_max_lr_scale must be >= adam_min_lr_scale")
         if self.max_muon < self.min_muon:
             raise ValueError("max_muon must be >= min_muon")
-        if self.muon_tail_strength < 0.0:
-            raise ValueError("muon_tail_strength must be non-negative")
         if self.group_min_scale <= 0.0:
             raise ValueError("group_min_scale must be positive")
         if self.group_max_scale < self.group_min_scale:
             raise ValueError("group_max_scale must be >= group_min_scale")
-        if self.functional_balance_strength < 0.0:
-            raise ValueError("functional_balance_strength must be non-negative")
-        if self.functional_balance_clip < 0.0:
-            raise ValueError("functional_balance_clip must be non-negative")
-        if self.functional_balance_min_scale <= 0.0:
-            raise ValueError("functional_balance_min_scale must be positive")
-        if self.functional_balance_max_scale < self.functional_balance_min_scale:
-            raise ValueError("functional_balance_max_scale must be >= functional_balance_min_scale")
-        if self.functional_metric_strength < 0.0:
-            raise ValueError("functional_metric_strength must be non-negative")
-        if self.functional_metric_min_scale <= 0.0:
-            raise ValueError("functional_metric_min_scale must be positive")
-        if self.functional_metric_max_scale < self.functional_metric_min_scale:
-            raise ValueError("functional_metric_max_scale must be >= functional_metric_min_scale")
-
         adam_groups = []
         muon_groups = []
         for group in params:
@@ -317,35 +253,11 @@ class RationalMatrixPolicyOptimizer:
     def _group_policy_phase(self) -> float:
         return _smoothstep(self.group_start, self.group_end, self._progress())
 
-    def _functional_balance_phase(self) -> float:
-        if self.functional_balance_strength <= 0.0:
-            return 0.0
-        progress = self._progress()
-        on_phase = _smoothstep(self.functional_balance_start, self.functional_balance_end, progress)
-        off_phase = _smoothstep(self.functional_balance_decay_start, self.functional_balance_decay_end, progress)
-        return on_phase * (1.0 - off_phase)
-
-    def _functional_balance_enabled(self) -> bool:
-        return self.functional_balance_strength > 0.0
-
-    def _functional_metric_phase(self) -> float:
-        if self.functional_metric_strength <= 0.0:
-            return 0.0
-        progress = self._progress()
-        on_phase = _smoothstep(self.functional_metric_start, self.functional_metric_end, progress)
-        off_phase = _smoothstep(self.functional_metric_decay_start, self.functional_metric_decay_end, progress)
-        return self.functional_metric_strength * on_phase * (1.0 - off_phase)
-
-    def _functional_metric_enabled(self) -> bool:
-        return self.functional_metric_strength > 0.0
-
     def _group_policy_enabled(self) -> bool:
         return (
             self.group_gain_strength != 0.0
             or self.group_pressure_strength != 0.0
             or self.group_activity_damping != 0.0
-            or self._functional_balance_enabled()
-            or self._functional_metric_enabled()
         )
 
     @staticmethod
@@ -377,7 +289,7 @@ class RationalMatrixPolicyOptimizer:
         else:
             phase = self._adam_decay_phase(group)
             scheduled = self.adam_lr_scale * (1.0 - phase) + self.adam_lr_scale_final * phase
-        factor = self._adam_role_factor(group) * self._adam_stat_factor(group) * self._functional_metric_role_factor(group)
+        factor = self._adam_role_factor(group) * self._adam_stat_factor(group)
         scale = scheduled * factor
         return min(self.adam_max_lr_scale, max(self.adam_min_lr_scale, scale))
 
@@ -450,8 +362,7 @@ class RationalMatrixPolicyOptimizer:
         if not self._group_policy_enabled():
             return None
         group_phase = self._group_policy_phase()
-        balance_phase = self._functional_balance_phase()
-        if group_phase <= 0.0 and balance_phase <= 0.0:
+        if group_phase <= 0.0:
             return None
         selector_index = int(group.get("selector_index", -1))
         if selector_index < 0 or selector_index >= len(self.selector_groups):
@@ -496,166 +407,10 @@ class RationalMatrixPolicyOptimizer:
                     excess = torch.relu((rational_activity - self.group_activity_target) / self.group_activity_width)
                     scale.mul_(torch.exp(-self.group_activity_damping * group_phase * excess))
 
-        balance_scale = self._functional_balance_scale(group, curve_group, balance_phase, device)
-        if balance_scale is not None:
-            scale.mul_(balance_scale)
-
-        metric_scale = self._functional_metric_group_scale(group, curve_group, device)
-        if metric_scale is not None:
-            scale.mul_(metric_scale)
-
         scale = scale.clamp_min(self.eps)
         scale = scale / torch.exp(torch.log(scale).mean()).clamp_min(self.eps)
         scale = scale.clamp(self.group_min_scale, self.group_max_scale)
         return scale.to(device=device, dtype=dtype)
-
-    def _functional_metric_log_scales(
-        self,
-        curve_group: dict,
-        device: torch.device,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor] | None:
-        phase = self._functional_metric_phase()
-        if phase <= 0.0:
-            return None
-        groups = int(curve_group.get("groups", 0))
-        hidden_dim = int(curve_group.get("hidden_dim", 0))
-        if groups <= 0 or hidden_dim <= 0 or hidden_dim % groups != 0:
-            return None
-        in_weight = curve_group.get("in_weight")
-        out_weight = curve_group.get("out_weight")
-        if in_weight is None or out_weight is None:
-            return None
-        if in_weight.shape[0] != hidden_dim or out_weight.shape[1] != hidden_dim:
-            return None
-        module = curve_group.get("module")
-        stats = getattr(module, "_rlb_optimizer_stats", None) if module is not None else None
-        if not stats:
-            return None
-        output_rms = stats.get("output_rms")
-        derivative_rms = stats.get("derivative_rms")
-        if not (torch.is_tensor(output_rms) and torch.is_tensor(derivative_rms)):
-            return None
-        if output_rms.numel() != groups or derivative_rms.numel() != groups:
-            return None
-
-        width = hidden_dim // groups
-        in_view = in_weight.detach().view(groups, width, -1).float()
-        out_view = out_weight.detach().view(out_weight.shape[0], groups, width).permute(1, 2, 0).float()
-        in_rms = torch.sqrt(in_view.square().mean(dim=(1, 2)) + self.eps).to(device=device).clamp_min(self.eps)
-        out_rms = torch.sqrt(out_view.square().mean(dim=(1, 2)) + self.eps).to(device=device).clamp_min(self.eps)
-        output = output_rms.detach().float().to(device=device).clamp_min(self.eps)
-        derivative = derivative_rms.detach().float().to(device=device).clamp_min(self.eps)
-
-        curve_direction = torch.sqrt(output.square() + derivative.square()).clamp_min(self.eps)
-        log_sens_in = torch.log(out_rms) + torch.log(curve_direction)
-        log_sens_out = torch.log(in_rms) + torch.log(output)
-        joint_center = 0.5 * (log_sens_in.mean() + log_sens_out.mean())
-        log_in = -0.5 * phase * (log_sens_in - joint_center)
-        log_out = -0.5 * phase * (log_sens_out - joint_center)
-
-        min_log = torch.log(torch.tensor(self.functional_metric_min_scale, device=device, dtype=torch.float32))
-        max_log = torch.log(torch.tensor(self.functional_metric_max_scale, device=device, dtype=torch.float32))
-        return (
-            log_in.clamp(min=min_log, max=max_log),
-            log_out.clamp(min=min_log, max=max_log),
-            log_sens_in,
-            log_sens_out,
-        )
-
-    def _functional_metric_role_factor(self, group: dict) -> float:
-        if not self._functional_metric_enabled():
-            return 1.0
-        selector_index = int(group.get("selector_index", -1))
-        if selector_index < 0 or selector_index >= len(self.selector_groups):
-            return 1.0
-        curve_group = self.selector_groups[selector_index]
-        param = next((p for p in group.get("params", []) if p is not None), None)
-        if param is None:
-            return 1.0
-        scales = self._functional_metric_log_scales(curve_group, param.device)
-        if scales is None:
-            return 1.0
-        role = str(group.get("matrix_role", "matrix"))
-        log_scale = scales[0] if role == "in" else scales[1] if role == "out" else None
-        if log_scale is None:
-            return 1.0
-        return float(torch.exp(log_scale.mean()).clamp(self.functional_metric_min_scale, self.functional_metric_max_scale).item())
-
-    def _functional_metric_group_scale(
-        self,
-        group: dict,
-        curve_group: dict,
-        device: torch.device,
-    ) -> torch.Tensor | None:
-        scales = self._functional_metric_log_scales(curve_group, device)
-        if scales is None:
-            return None
-        role = str(group.get("matrix_role", "matrix"))
-        log_scale = scales[0] if role == "in" else scales[1] if role == "out" else None
-        if log_scale is None:
-            return None
-        residual = log_scale - log_scale.mean()
-        return torch.exp(residual).clamp(self.functional_metric_min_scale, self.functional_metric_max_scale)
-
-    def _functional_balance_log_imbalance(self, group: dict, curve_group: dict, device: torch.device) -> torch.Tensor | None:
-        if not self._functional_balance_enabled():
-            return None
-        groups = int(curve_group.get("groups", 0))
-        hidden_dim = int(curve_group.get("hidden_dim", 0))
-        if groups <= 0 or hidden_dim <= 0 or hidden_dim % groups != 0:
-            return None
-        in_weight = curve_group.get("in_weight")
-        out_weight = curve_group.get("out_weight")
-        if in_weight is None or out_weight is None or in_weight.grad is None or out_weight.grad is None:
-            return None
-        if in_weight.shape[0] != hidden_dim or out_weight.shape[1] != hidden_dim:
-            return None
-        module = curve_group.get("module")
-        stats = getattr(module, "_rlb_optimizer_stats", None) if module is not None else None
-        if not stats:
-            return None
-        derivative_rms = stats.get("derivative_rms")
-        output_rms = stats.get("output_rms")
-        if not (torch.is_tensor(derivative_rms) and torch.is_tensor(output_rms)):
-            return None
-        if derivative_rms.numel() != groups or output_rms.numel() != groups:
-            return None
-
-        width = hidden_dim // groups
-        in_grad = in_weight.grad.detach().view(groups, width, -1).float()
-        out_grad = out_weight.grad.detach().view(out_weight.shape[0], groups, width).permute(1, 2, 0).float()
-        out_view = out_weight.detach().view(out_weight.shape[0], groups, width).permute(1, 2, 0).float()
-        in_update = torch.sqrt(in_grad.square().mean(dim=(1, 2)) + self.eps).to(device=device)
-        out_update = torch.sqrt(out_grad.square().mean(dim=(1, 2)) + self.eps).to(device=device)
-        out_weight_rms = torch.sqrt(out_view.square().mean(dim=(1, 2)) + self.eps).to(device=device)
-        derivative = derivative_rms.detach().float().to(device=device).clamp_min(self.eps)
-        output = output_rms.detach().float().to(device=device).clamp_min(self.eps)
-
-        m_in = out_weight_rms * derivative * in_update
-        m_out = output * out_update
-        target_log = self.functional_balance_target_depth_gain * (self._depth(group) - 0.5)
-        imbalance = torch.log(m_out.clamp_min(self.eps)) - torch.log(m_in.clamp_min(self.eps)) - target_log
-        clip = float(self.functional_balance_clip)
-        if clip > 0.0:
-            imbalance = imbalance.clamp(min=-clip, max=clip)
-        return imbalance
-
-    def _functional_balance_scale(
-        self,
-        group: dict,
-        curve_group: dict,
-        phase: float,
-        device: torch.device,
-    ) -> torch.Tensor | None:
-        if phase <= 0.0:
-            return None
-        imbalance = self._functional_balance_log_imbalance(group, curve_group, device)
-        if imbalance is None:
-            return None
-        role = str(group.get("matrix_role", "matrix"))
-        direction = 1.0 if role == "in" else -1.0
-        scale = torch.exp(direction * self.functional_balance_strength * phase * imbalance)
-        return scale.clamp(self.functional_balance_min_scale, self.functional_balance_max_scale)
 
     def _apply_group_policy_to_gradients(self):
         if not self._group_policy_enabled():
@@ -728,24 +483,6 @@ class RationalMatrixPolicyOptimizer:
         penalty = self.pressure_weight * pressure + self.activity_weight * excess_activity
         return float(torch.exp(-penalty).clamp(0.10, 1.15).item())
 
-    def _muon_tail_fraction(self, group: dict) -> float:
-        if self.muon_tail_strength <= 0.0:
-            return 0.0
-        progress = self._progress()
-        on_phase = _smoothstep(self.muon_tail_start, self.muon_tail_end, progress)
-        off_phase = _smoothstep(self.muon_tail_decay_start, self.muon_tail_decay_end, progress)
-        window = on_phase * (1.0 - off_phase)
-        if window <= 0.0:
-            return 0.0
-        terms = self._pressure_activity_terms(group)
-        if terms is None:
-            confidence = 1.0
-        else:
-            pressure, excess_activity = terms
-            penalty = self.muon_tail_pressure_weight * pressure + self.muon_tail_activity_weight * excess_activity
-            confidence = float(torch.exp(-penalty).clamp(0.10, 1.15).item())
-        return self.muon_tail_strength * window * self._role_depth_factor(group) * confidence
-
     @staticmethod
     def _muon_cache_key(group: dict) -> tuple[int, int, str]:
         return (
@@ -769,7 +506,6 @@ class RationalMatrixPolicyOptimizer:
         base_strength = self.muon_strength * (1.0 - off_phase) + self.final_muon * off_phase
         base = base_strength * on_phase
         value = base * self._role_depth_factor(group) * self._stat_factor(group)
-        value = max(value, self._muon_tail_fraction(group))
         return min(self.max_muon, max(self.min_muon, value))
 
     def _muon_fraction(self, group: dict) -> float:
@@ -828,10 +564,6 @@ class RationalMatrixPolicyOptimizer:
         muon_by_role = {}
         adam_lr_by_role = {}
         group_scales = []
-        functional_balance = []
-        functional_metric_role = {}
-        functional_metric_group_scales = []
-        functional_metric_sensitivity = {}
         pressures = []
         activities = []
         for group in self.adam.param_groups:
@@ -845,36 +577,6 @@ class RationalMatrixPolicyOptimizer:
                 scale = self._group_policy_scale(group, param.device, torch.float32)
                 if scale is not None:
                     group_scales.extend(float(x) for x in scale.detach().float().reshape(-1).cpu())
-                selector_index_for_balance = int(group.get("selector_index", -1))
-                if 0 <= selector_index_for_balance < len(self.selector_groups):
-                    imbalance = self._functional_balance_log_imbalance(
-                        group,
-                        self.selector_groups[selector_index_for_balance],
-                        param.device,
-                    )
-                    if imbalance is not None:
-                        functional_balance.extend(float(x) for x in imbalance.detach().float().reshape(-1).cpu())
-                    metric = self._functional_metric_log_scales(
-                        self.selector_groups[selector_index_for_balance],
-                        param.device,
-                    )
-                    if metric is not None:
-                        log_in, log_out, sens_in, sens_out = metric
-                        role_log = log_in if role == "in" else log_out if role == "out" else None
-                        role_sens = sens_in if role == "in" else sens_out if role == "out" else None
-                        if role_log is not None:
-                            role_factor = torch.exp(role_log.mean()).clamp(
-                                self.functional_metric_min_scale,
-                                self.functional_metric_max_scale,
-                            )
-                            self._append_role(functional_metric_role, role, float(role_factor.item()))
-                            residual = torch.exp(role_log - role_log.mean())
-                            functional_metric_group_scales.extend(float(x) for x in residual.detach().float().reshape(-1).cpu())
-                        if role_sens is not None:
-                            functional_metric_sensitivity.setdefault(role, []).extend(
-                                float(x) for x in role_sens.detach().float().reshape(-1).cpu()
-                            )
-
             selector_index = int(group.get("selector_index", -1))
             if 0 <= selector_index < len(self.selector_groups):
                 state = self.selector_groups[selector_index].get("_onpolicy")
@@ -889,8 +591,6 @@ class RationalMatrixPolicyOptimizer:
                     activities.extend(float(x) for x in activity.reshape(-1).cpu())
 
         group_mean, group_std, group_min, group_max = self._mean_std_min_max(group_scales)
-        balance_mean, balance_std, balance_min, balance_max = self._mean_std_min_max(functional_balance)
-        metric_scale_mean, metric_scale_std, metric_scale_min, metric_scale_max = self._mean_std_min_max(functional_metric_group_scales)
         pressure_mean, pressure_std, _, _ = self._mean_std_min_max(pressures)
         activity_mean, activity_std, _, _ = self._mean_std_min_max(activities)
         return {
@@ -900,16 +600,6 @@ class RationalMatrixPolicyOptimizer:
             "matrix_policy_group_scale_std": group_std,
             "matrix_policy_group_scale_min": group_min,
             "matrix_policy_group_scale_max": group_max,
-            "matrix_policy_functional_balance_log_ratio_mean": balance_mean,
-            "matrix_policy_functional_balance_log_ratio_std": balance_std,
-            "matrix_policy_functional_balance_log_ratio_min": balance_min,
-            "matrix_policy_functional_balance_log_ratio_max": balance_max,
-            "matrix_policy_functional_metric_role_scale_mean_by_role": self._role_means(functional_metric_role),
-            "matrix_policy_functional_metric_group_scale_mean": metric_scale_mean,
-            "matrix_policy_functional_metric_group_scale_std": metric_scale_std,
-            "matrix_policy_functional_metric_group_scale_min": metric_scale_min,
-            "matrix_policy_functional_metric_group_scale_max": metric_scale_max,
-            "matrix_policy_functional_metric_log_sensitivity_mean_by_role": self._role_means(functional_metric_sensitivity),
             "matrix_policy_pressure_mean": pressure_mean,
             "matrix_policy_pressure_std": pressure_std,
             "matrix_policy_activity_mean": activity_mean,
@@ -983,7 +673,7 @@ class RationalMatrixPolicyOptimizer:
                 lr = float(group["lr"])
                 saved_muon_lrs.append(lr)
                 fraction = self._muon_fraction(group)
-                group["lr"] = lr * self.muon_lr_scale * fraction * self._functional_metric_role_factor(group)
+                group["lr"] = lr * self.muon_lr_scale * fraction
 
         self.adam.step()
         if self.muon is not None:

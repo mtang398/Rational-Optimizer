@@ -180,6 +180,10 @@ sbatch --dependency=afterok:158168:158167 experiments/scripts/run_iclr26_manifes
 
 E1 completion note: all jobs `155411`, `155412`, `158114`, `158115`, `158117`, `158118`, `158155`, `158156`, `158163`, `158164`, `158166`, `158165`, `158168`, `158167`, and `158169` completed. The final job `158169` covered rows 225-239 for `c4_en` seed 3407 and completed with exit `0:0` in 06:09:38.
 
+## Rejected MatrixPolicy Variant Artifact Note
+
+As of 2026-06-22, rejected V3/V4/V5 proposal files and standalone manifests have been deleted from the active repo surface. The paths in the historical command log below document what was submitted at the time; they are not live launch artifacts.
+
 ## matrixpolicyV3 E1 100M Submission
 
 This is a separate E1-only rerun for the replacement RLB optimizer proposal. It uses `experiments/manifests/iclr26_matrixpolicyV3_e1_manifest.csv`, phase `E1_matrixpolicyV3_100m`, method `rlb_matrixpolicyV3`, activation `rlb_fused_fixed_strong_ffn`, optimizer `matrixpolicyV3`, and one manifest row per Slurm job.
@@ -218,7 +222,7 @@ Submitted jobs:
 
 Completion note: all jobs `690946`-`690960` completed with exit `0:0`. Job `690953` reported `Restarts=1`; its JSONL restarted cleanly and produced a final summary, but its full-step throughput is restart contaminated. The completed E1 aggregate is slightly worse than original MatrixPolicy on every dataset mean, so V3 is rejected/superseded and no V3 E2 jobs should be queued.
 
-The next optimizer-design proposal is `optimizer_design/proposals/matrixpolicyV4_functional_balance.md`.
+V3 is rejected. Its proposal/manifest artifacts were later removed from the active repo surface after V5 also failed.
 
 ## matrixpolicyV4 E1 100M Submission
 
@@ -278,11 +282,11 @@ Replacement submitted jobs:
 | 13 | `715067` | afterok:`715065` |
 | 14 | `715068` | afterok:`715066` |
 
-Completion note: replacement jobs `715054`-`715068` all completed with exit `0:0` by `2026-06-21 16:53:52 EDT`. Jobs `715054` and `715055` had `Restarts=1` with incomplete pre-restart JSONLs archived; jobs `715056`-`715068` had `Restarts=0`. V4 near-tied original MatrixPolicy but is rejected/superseded because all `4590` recorded functional-balance log-ratio telemetry values clipped to `+0.47`, making the role-wise signal effectively constant and centered away. The next proposal is `optimizer_design/proposals/matrixpolicyV5_joint_functional_metric.md`.
+Completion note: replacement jobs `715054`-`715068` all completed with exit `0:0` by `2026-06-21 16:53:52 EDT`. Jobs `715054` and `715055` had `Restarts=1` with incomplete pre-restart JSONLs archived; jobs `715056`-`715068` had `Restarts=0`. V4 near-tied original MatrixPolicy but is rejected/superseded because all `4590` recorded functional-balance log-ratio telemetry values clipped to `+0.47`, making the role-wise signal effectively constant and centered away. V4 is rejected. Its proposal/manifest artifacts were later removed from the active repo surface after V5 also failed.
 
 ## matrixpolicyV5 E1 100M Submission
 
-Submitted: 2026-06-21 17:06:55 EDT. Commit: `70233f9`. Manifest: `experiments/manifests/iclr26_matrixpolicyV5_e1_manifest.csv`. This is an E1-only optimizer-geometry test; no V5 E2 jobs are queued until E1 is completed and analyzed. The proposal explicitly disallows engineering/fusion/kernel/cache speedups as optimizer evidence.
+Submitted: 2026-06-21 17:06:55 EDT. Commit: `70233f9`. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicyV5_e1_manifest.csv`. This was an E1-only optimizer-geometry test. It later failed E1, no V5 E2 jobs were queued, and the proposal/manifest artifacts were removed from the active repo surface. The proposal explicitly disallowed engineering/fusion/kernel/cache speedups as optimizer evidence.
 
 Submitted jobs:
 
@@ -307,6 +311,8 @@ Submitted jobs:
 Initial scheduler state after submission: jobs `716298` and `716299` were pending on priority; jobs `716300`-`716312` were dependency-held behind their parity-chain predecessors.
 
 Launch-health update at `2026-06-21 17:12:02 EDT`: row `0` job `716298` was preempted once before training at `2026-06-21T17:07:38` on `monakhova-compute-01`, then requeued and restarted cleanly at `2026-06-21T17:10:38` with `Restarts=1`. Row `1` job `716299` is running on `sun-compute-03` with `Restarts=0`. The row `1` JSONL reached step `450` and logged nontrivial V5 role scaling (`in ~= 0.866`, `out ~= 1.155`), confirming the `matrixpolicyV5` optimizer path and functional-metric telemetry are active.
+
+Completion note: all V5 E1 jobs `716298`-`716312` completed with exit `0:0` by `2026-06-21T22:37:04`. Jobs `716298` and `716304` had `Restarts=1` and clean final JSONL summaries; all other V5 jobs had `Restarts=0`. V5 failed the E1 acceptance gate: it improved only FineWeb-Edu (`-0.001404` vs original MatrixPolicy) and was neutral/slightly worse on DCLM, FineWeb, Dolma-sample, and C4. No V5 E2 jobs were queued.
 
 ## E2 Main 300M Submissions
 

@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The rejected V2 branch has been removed from the live optimizer surface. The completed `matrixpolicyV3` and `matrixpolicyV4` E1 reruns are retained as negative/neutral evidence, not paper anchors. The next design proposal is `matrixpolicyV5`, documented in `proposals/matrixpolicyV5_joint_functional_metric.md`; it keeps the original MatrixPolicy role/depth mechanics but changes the RLB matrix update metric to a joint function-space sensitivity metric over the `(A_g, B_g)` pair.
+The rejected V2/V3/V4/V5 branches have been removed from the live optimizer surface. The completed V3/V4/V5 E1 rerun summaries are retained below as negative/neutral evidence, but their proposal files and standalone manifests were deleted after rejection. The current paper anchor remains original `rational_matrix_policy_onpolicy`. V6 and V7 are proposal-only documents, not runnable optimizer aliases.
 
 ## Current Result Anchor
 
@@ -229,7 +229,7 @@ Full mean +/- std tables and curves are in `../experiments/ICLR_RUN_STATUS.md` a
 
 The paper story should be: RLB creates optimizer-visible geometry, and MatrixPolicy uses it. It should not be sold as an activation-only result or a generic Muon result.
 
-## Rejected V3/V4 Tests And V5 Direction
+## Rejected V3/V4/V5 Tests
 `matrixpolicyV3` kept the original winning MatrixPolicy recipe, added a modest horizontal gauge projection, and added a small confidence-gated Muon tail. The completed E1 rerun did not improve final validation loss on any dataset mean:
 
 | Dataset | V3 final val loss | Original MatrixPolicy | Delta |
@@ -252,14 +252,29 @@ The paper story should be: RLB creates optimizer-visible geometry, and MatrixPol
 
 The V4 telemetry is the decisive negative evidence: all `4590` recorded functional-balance log-ratio values were clipped at `+0.47`. Since V4 multiplies per-group scales and then geometrically centers inside each role, a role-wise constant clipped signal is normalized away. V4 is therefore rejected as a neutral test of a bad proxy, not as evidence against MatrixPolicy itself.
 
-The next proposal is `matrixpolicyV5`: a joint functional-metric MatrixPolicy. It estimates first-order RLB function sensitivity for both matrix roles,
+`matrixpolicyV5` then tested a joint functional-metric MatrixPolicy. It did preserve A/B role-level scaling instead of centering it away role-by-role, but the completed E1 loss result did not pass the acceptance gate:
+
+| Dataset | V5 final val loss | Original MatrixPolicy | Delta |
+| --- | ---: | ---: | ---: |
+| DCLM | 4.257406 +/- 0.004169 | 4.256224 +/- 0.004972 | +0.001182 |
+| FineWeb-Edu | 4.086836 +/- 0.007661 | 4.088240 +/- 0.009434 | -0.001404 |
+| FineWeb | 4.319513 +/- 0.010019 | 4.318581 +/- 0.010914 | +0.000932 |
+| Dolma-sample | 4.324036 +/- 0.005130 | 4.323851 +/- 0.004565 | +0.000185 |
+| C4 | 4.285666 +/- 0.020566 | 4.285119 +/- 0.020677 | +0.000547 |
+
+V5 telemetry was real: final role-scale means were consistently around `in=0.817-0.819`, `out=1.221-1.224`. The rejection is therefore not the V4 failure mode. It says a near-constant inverse sensitivity A/B reallocation is not enough to beat the original MatrixPolicy recipe.
+
+## Next Proposal Direction
+
+The next designs are proposal-only and must pass a short paired pilot before any full E1 run:
 
 ```text
-k_in,g  = rms(B_g) sqrt(rms(R_g)^2 + rms(J_g)^2)
-k_out,g = rms(A_g) rms(R_g)
+optimizer_design/proposals/matrixpolicyV6_loss_aligned_channel_policy.md
+optimizer_design/proposals/matrixpolicyV7_secant_trust_matrix_policy.md
+optimizer_design/proposals/matrixpolicy_fast_pilot_protocol.md
 ```
 
-and applies inverse square-root scaling centered jointly across both roles. This preserves A/B role-level scaling instead of centering it away role-by-role.
+V6 changes the mathematical target from unsigned function sensitivity to signed first-order loss alignment. V7 keeps the V1 base update but adds a local secant trust estimate for each RLB matrix channel. Neither is an engineering/fusion/kernel tweak, and neither is wired into the training harness.
 
 ## Telemetry Status
 
