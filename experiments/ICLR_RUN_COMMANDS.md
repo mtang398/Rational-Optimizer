@@ -316,7 +316,7 @@ Completion note: all V5 E1 jobs `716298`-`716312` completed with exit `0:0` by `
 
 ## matrixpolicyV7 P0 500-Step Pilot Submission
 
-Submitted: 2026-06-22 18:41:57 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv`. This is a P0 mechanism/loss smoke, not a full E1 run. It compares a fresh V1 control against `matrixpolicyV7` on DCLM seed `1337` for `500` steps.
+Corrected submission: 2026-06-22 18:52:42 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv`. This is a P0 mechanism/loss smoke, not a full E1 run. It compares a fresh V1 control against `matrixpolicyV7` on DCLM seed `1337` for `500` steps. First submission jobs `727119` and `727120` were cancelled before run files were produced because the manifest used `val_tokens=1000000`; the corrected manifest uses the existing `val_tokens=4000000` DCLM validation cache.
 
 ```bash
 sbatch --parsable \
@@ -324,17 +324,19 @@ sbatch --parsable \
   --time=02:00:00 \
   --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
   experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727119
+# returned 727161
 
 sbatch --parsable \
   --job-name=mpV7-p0-cand \
   --time=02:00:00 \
   --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
   experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727120
+# returned 727162
 ```
 
-Initial scheduler state: both jobs were pending on priority immediately after submission.
+Corrected scheduler state at submission: both jobs were pending on resources immediately after submission.
+
+Completion note: jobs `727161` and `727162` completed with exit `0:0` and `Restarts=0`. V7 was rejected after P0 because its final/AUC loss improvement was small while runtime was about `1.085x` paired V1; the V7 source hook, proposal file, and standalone manifest were pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
 
 
 ## E2 Main 300M Submissions

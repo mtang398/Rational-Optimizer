@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-22 18:41:57 EDT
+Updated: 2026-06-22 19:00:03 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -152,30 +152,35 @@ Per-seed final losses:
 Interpretation: V5 fails its stated acceptance gate. It beats original MatrixPolicy on only one of five E1 dataset means, FineWeb-Edu. The functional-metric telemetry was not centered away: final role-scale means were consistently around `in=0.817-0.819` and `out=1.221-1.224`. Therefore the rejection is different from V4. V5 successfully applies a real A/B sensitivity reallocation, but that near-constant inverse-sensitivity reallocation is not a better optimizer than the original MatrixPolicy recipe.
 
 ## matrixpolicyV7 P0 Secant-Trust Pilot
-Queued: 2026-06-22 18:41:57 EDT. Decision status: running P0 only. Do not queue P1, P2, or full E1 until P0 passes the telemetry/runtime/loss gates.
+Queued: 2026-06-22 18:52:42 EDT. Completed: 2026-06-22 18:57:47 EDT. Decision: reject and prune. Do not queue V7 P1, P2, or E1.
 
-V7 is not an engineering tweak. It keeps the original MatrixPolicy base update and adds a low-frequency secant trust multiplier for RLB matrix groups. The secant signal uses the normal backward pass and previous accepted matrix updates to estimate whether each matrix channel has positive local descent and moderate curvature. No activation kernel, fusion, compiler, cache, batch, or global LR change is part of the method claim.
+The first submission, jobs `727119` and `727120` at 2026-06-22 18:41:57 EDT, was cancelled before run files were produced because it used `val_tokens=1000000`, which would have built an avoidable validation cache. The corrected manifest used the existing `val_tokens=4000000` DCLM validation cache.
+
+V7 was not an engineering tweak. It kept the original MatrixPolicy base update and added a low-frequency secant trust multiplier for RLB matrix groups. The secant signal used the normal backward pass and previous accepted matrix updates to estimate whether each matrix channel had positive local descent and moderate curvature. The active source hook, proposal file, and standalone manifest were removed after the failed P0 gate.
 
 | Field | Value |
 | --- | --- |
-| Proposal | `optimizer_design/proposals/matrixpolicyV7_secant_trust_matrix_policy.md` |
-| Manifest | `experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv` |
+| Proposal | removed after failed P0; result retained here |
+| Manifest | removed after failed P0; raw JSONL retained under `experiments/runs/iclr26_main/P0_matrixpolicyV7_500step/` |
 | Phase | `P0_matrixpolicyV7_500step` |
 | Rows | `0-1`, fresh V1 control plus V7 candidate |
 | Dataset/seed | DCLM seed `1337` |
 | Budget | `500` steps, `16,384,000` train tokens per row |
-| Eval | every `50` steps, `10` eval batches |
-| Jobs | row `0` V1 control job `727119`; row `1` V7 candidate job `727120` |
+| Jobs | row `0` V1 control job `727161`; row `1` V7 candidate job `727162`; both completed `0:0`, `Restarts=0` |
 
-P0 acceptance gates:
+Result:
 
-```text
-V7 JSONL must log matrix_policy_v7_* telemetry.
-Telemetry must not be constant, absent, or clipped for most logged steps.
-V7 runtime must be <= 1.05x paired V1 unless early loss/AUC clearly compensates.
-V7 final validation loss and validation-loss AUC must tie or beat paired V1 within pilot noise.
-```
+| Metric | V1 control | V7 candidate | Delta / ratio |
+| --- | ---: | ---: | ---: |
+| Final val loss | 5.392391 | 5.390516 | -0.001875 |
+| Validation-loss AUC | 6.368319 | 6.365609 | -0.002710 |
+| Total seconds | 224.761 | 243.763 | 1.085x |
+| Mean seconds/step | 0.416472 | 0.454503 | 1.091x |
+| Tokens/s | 78,679.9 | 72,096.4 | 0.916x |
 
+Telemetry: V7 emitted `42` train records with `matrix_policy_v7_*` fields. Mean scale clip fraction was `0.0204`; trust means ranged `in=0.971-1.000`, `out=1.000-1.088`; positive curvature fraction averaged `1.0` for both roles.
+
+Interpretation: V7 had real mechanism telemetry and a small DCLM P0 loss/AUC improvement, but the improvement is too small for the measured runtime penalty. It fails the P0 speed gate and should not be promoted.
 
 ## Completed Runtime Summary
 

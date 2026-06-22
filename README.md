@@ -6,7 +6,7 @@ Paper-facing results in this README include the completed E1 matched main suite 
 
 ## Optimizer Variant Status
 
-The completed `matrixpolicyV3`, `matrixpolicyV4`, and `matrixpolicyV5` E1 reruns are rejected. Their live optimizer hooks, proposal files, and standalone manifests were removed; raw JSONL/status evidence is retained only as historical negative evidence. Original `rational_matrix_policy_onpolicy` remains the paper anchor. `matrixpolicyV7` is now a short P0 pilot candidate, not a paper anchor: jobs `727119` and `727120` compare fresh V1 versus V7 on DCLM seed `1337` for `500` steps.
+The completed `matrixpolicyV3`, `matrixpolicyV4`, and `matrixpolicyV5` E1 reruns and the `matrixpolicyV7` P0 pilot are rejected. Their live optimizer hooks, proposal files, and standalone manifests were removed; raw JSONL/status evidence is retained only as historical negative evidence. `matrixpolicyV6` stayed proposal-only and was removed without a pilot. Original `rational_matrix_policy_onpolicy` remains the paper anchor and the only active MatrixPolicy optimizer.
 
 ## Result Pointers
 

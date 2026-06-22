@@ -36,7 +36,7 @@ BUILD_EXT_ARGS="${BUILD_EXT_ARGS:-}"
 SKIP_BUILD_EXT="${SKIP_BUILD_EXT:-0}"
 SKIP_PREPARE="${SKIP_PREPARE:-0}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
-ACTIVE_OPTIMIZERS="adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_matrix_policy_onpolicy matrixpolicyV7"
+ACTIVE_OPTIMIZERS="adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_matrix_policy_onpolicy"
 
 for optimizer in ${OPTIMIZERS}; do
   case " ${ACTIVE_OPTIMIZERS} " in
@@ -63,7 +63,7 @@ fi
 for seed in ${SEEDS}; do
   for optimizer in ${OPTIMIZERS}; do
     for activation in ${ACTIVATIONS}; do
-      if [[ ( "${optimizer}" == rational_* || "${optimizer}" == matrixpolicyV* ) && "${activation}" != rlb_* ]]; then
+      if [[ "${optimizer}" == rational_* && "${activation}" != rlb_* ]]; then
         continue
       fi
       "${PYTHON}" -m torch.distributed.run \

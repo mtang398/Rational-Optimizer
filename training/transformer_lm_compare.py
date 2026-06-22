@@ -94,7 +94,6 @@ CLASSIC_OPTIMIZERS = {
 }
 MATRIX_POLICY_OPTIMIZERS = {
     "rational_matrix_policy_onpolicy",
-    "matrixpolicyV7",
 }
 RATIONAL_SPECIFIC_OPTIMIZERS = set(MATRIX_POLICY_OPTIMIZERS)
 ACTIVE_OPTIMIZERS = sorted(CLASSIC_OPTIMIZERS | RATIONAL_SPECIFIC_OPTIMIZERS)
@@ -5093,7 +5092,6 @@ def configure_optimizer(model, args):
     if args.optimizer in MATRIX_POLICY_OPTIMIZERS:
         from optimizer_design import FunctionSpaceRationalOptimizer, RationalMatrixPolicyOptimizer, RationalTransportOnPolicyOptimizer
 
-        matrixpolicy_v7 = args.optimizer == "matrixpolicyV7"
         curve_groups = collect_rlb_optimizer_groups(model, args)
         if not curve_groups:
             raise ValueError(f"Accepted activations for {args.optimizer} are RLB activations")
@@ -5311,18 +5309,6 @@ def configure_optimizer(model, args):
                 group_end=args.rational_matrix_policy_group_end,
                 group_min_scale=args.rational_matrix_policy_group_min_scale,
                 group_max_scale=args.rational_matrix_policy_group_max_scale,
-                secant_trust_strength=args.matrixpolicy_v7_secant_strength if matrixpolicy_v7 else 0.0,
-                secant_trust_every=args.matrixpolicy_v7_secant_every,
-                secant_trust_start=args.matrixpolicy_v7_secant_start,
-                secant_trust_end=args.matrixpolicy_v7_secant_end,
-                secant_trust_ema_decay=args.matrixpolicy_v7_secant_ema_decay,
-                secant_trust_descent_gain=args.matrixpolicy_v7_secant_descent_gain,
-                secant_trust_descent_clip=args.matrixpolicy_v7_secant_descent_clip,
-                secant_trust_curvature_clip=args.matrixpolicy_v7_secant_curvature_clip,
-                secant_trust_kappa_min_ratio=args.matrixpolicy_v7_secant_kappa_min_ratio,
-                secant_trust_kappa_max_ratio=args.matrixpolicy_v7_secant_kappa_max_ratio,
-                secant_trust_min_scale=args.matrixpolicy_v7_secant_min_scale,
-                secant_trust_max_scale=args.matrixpolicy_v7_secant_max_scale,
                 muon_momentum=args.muon_momentum,
                 muon_ns_steps=args.muon_ns_steps,
                 muon_adjust_lr_fn=args.muon_adjust_lr_fn,
@@ -5862,18 +5848,6 @@ def parse_args():
     parser.add_argument("--rational-matrix-policy-group-end", type=float, default=0.35)
     parser.add_argument("--rational-matrix-policy-group-min-scale", type=float, default=0.65)
     parser.add_argument("--rational-matrix-policy-group-max-scale", type=float, default=1.55)
-    parser.add_argument("--matrixpolicy-v7-secant-strength", type=float, default=0.30)
-    parser.add_argument("--matrixpolicy-v7-secant-every", type=int, default=8)
-    parser.add_argument("--matrixpolicy-v7-secant-start", type=float, default=0.08)
-    parser.add_argument("--matrixpolicy-v7-secant-end", type=float, default=0.55)
-    parser.add_argument("--matrixpolicy-v7-secant-ema-decay", type=float, default=0.95)
-    parser.add_argument("--matrixpolicy-v7-secant-descent-gain", type=float, default=2.0)
-    parser.add_argument("--matrixpolicy-v7-secant-descent-clip", type=float, default=0.50)
-    parser.add_argument("--matrixpolicy-v7-secant-curvature-clip", type=float, default=0.50)
-    parser.add_argument("--matrixpolicy-v7-secant-kappa-min-ratio", type=float, default=0.05)
-    parser.add_argument("--matrixpolicy-v7-secant-kappa-max-ratio", type=float, default=20.0)
-    parser.add_argument("--matrixpolicy-v7-secant-min-scale", type=float, default=0.85)
-    parser.add_argument("--matrixpolicy-v7-secant-max-scale", type=float, default=1.15)
     parser.add_argument("--rational-transport-quotient-strength", type=float, default=0.0)
     parser.add_argument("--rational-transport-strength", type=float, default=0.0)
     parser.add_argument("--rational-transport-final-strength", type=float, default=None)
@@ -6246,18 +6220,6 @@ def main():
         "rational_matrix_policy_group_end": args.rational_matrix_policy_group_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_group_min_scale": args.rational_matrix_policy_group_min_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_group_max_scale": args.rational_matrix_policy_group_max_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "matrixpolicy_v7_secant_strength": args.matrixpolicy_v7_secant_strength if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_every": args.matrixpolicy_v7_secant_every if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_start": args.matrixpolicy_v7_secant_start if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_end": args.matrixpolicy_v7_secant_end if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_ema_decay": args.matrixpolicy_v7_secant_ema_decay if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_descent_gain": args.matrixpolicy_v7_secant_descent_gain if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_descent_clip": args.matrixpolicy_v7_secant_descent_clip if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_curvature_clip": args.matrixpolicy_v7_secant_curvature_clip if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_kappa_min_ratio": args.matrixpolicy_v7_secant_kappa_min_ratio if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_kappa_max_ratio": args.matrixpolicy_v7_secant_kappa_max_ratio if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_min_scale": args.matrixpolicy_v7_secant_min_scale if args.optimizer == "matrixpolicyV7" else None,
-        "matrixpolicy_v7_secant_max_scale": args.matrixpolicy_v7_secant_max_scale if args.optimizer == "matrixpolicyV7" else None,
         "rational_transport_quotient_strength": args.rational_transport_quotient_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_transport_strength": args.rational_transport_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_transport_final_strength": args.rational_transport_final_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
@@ -6303,9 +6265,9 @@ def main():
         "rational_transport_pressure_depth_gain": args.rational_transport_pressure_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_transport_pressure_min_scale": args.rational_transport_pressure_min_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_transport_pressure_max_scale": args.rational_transport_pressure_max_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "muon_adjust_lr_fn": args.muon_adjust_lr_fn if args.optimizer == "muon" or args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "muon_momentum": args.muon_momentum if args.optimizer == "muon" or args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "muon_ns_steps": args.muon_ns_steps if args.optimizer == "muon" or args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
+        "muon_adjust_lr_fn": args.muon_adjust_lr_fn if args.optimizer in {"muon", "rational_matrix_policy_onpolicy"} else None,
+        "muon_momentum": args.muon_momentum if args.optimizer in {"muon", "rational_matrix_policy_onpolicy"} else None,
+        "muon_ns_steps": args.muon_ns_steps if args.optimizer in {"muon", "rational_matrix_policy_onpolicy"} else None,
         "heads": args.heads,
         "layers": args.layers,
         "params": param_count,

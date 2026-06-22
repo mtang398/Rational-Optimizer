@@ -1,6 +1,6 @@
 # MatrixPolicy Fast Pilot Protocol
 
-Status: active pilot policy. The first use is `matrixpolicyV7` P0, queued on 2026-06-22 as jobs `727119` and `727120` from `experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv`.
+Status: active pilot policy. The first use, `matrixpolicyV7` P0, failed on 2026-06-22 and was pruned from the active repo surface. Corrected jobs `727161` and `727162` completed cleanly; V7 slightly improved final/AUC loss but was about `1.085x` slower than paired V1, so it did not pass the P0 speed gate.
 
 ## Problem
 

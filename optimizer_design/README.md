@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The rejected V2/V3/V4/V5 branches have been removed from the live optimizer surface. The completed V3/V4/V5 E1 rerun summaries are retained below as negative/neutral evidence, but their proposal files and standalone manifests were deleted after rejection. The current paper anchor remains original `rational_matrix_policy_onpolicy`. `matrixpolicyV7` is a live short-pilot alias only; it is not a paper anchor unless it passes paired P0/P1 gates.
+The rejected V2/V3/V4/V5 branches and failed V7 P0 pilot have been removed from the live optimizer surface. The completed V3/V4/V5 E1 rerun summaries and V7 P0 result are retained below as negative/neutral evidence, but proposal files and standalone manifests were deleted after rejection. V6 stayed proposal-only and was removed without a pilot. The current paper anchor remains original `rational_matrix_policy_onpolicy`; no live Vx alias is active.
 
 ## Current Result Anchor
 
@@ -266,13 +266,9 @@ V5 telemetry was real: final role-scale means were consistently around `in=0.817
 
 ## Next Proposal Direction
 
-V6 remains proposal-only and changes the mathematical target from unsigned function sensitivity to signed first-order loss alignment. V7 is now implemented as a short pilot: it keeps the V1 base update but adds a local secant trust estimate for each RLB matrix channel. The current P0 manifest is:
+V7 P0 is a useful negative result: it slightly improved the 500-step DCLM pilot loss, but the gain was too small for the runtime penalty. That rules out per-step or low-frequency full-parameter snapshot methods as the next direction unless the loss gain is much larger.
 
-```text
-experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv
-```
-
-This is not an engineering/fusion/kernel tweak. It changes the matrix gradient multiplier by observed local secant descent and curvature, with no additional forward/backward pass. P0 must show active telemetry and avoid runtime/loss regression before any P1 queue.
+The next candidate should be a MatrixPolicy rule that is explainable from existing optimizer/RLB quantities and does not add expensive hooks, extra forward/backward passes, or matrix snapshots. It must pass the fast paired P0 gate before any P1 or E1 expansion. No current Vx proposal file is retained; new candidate artifacts should stay temporary and be pruned immediately if the pilot fails.
 
 ## Telemetry Status
 
