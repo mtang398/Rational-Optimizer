@@ -314,6 +314,29 @@ Launch-health update at `2026-06-21 17:12:02 EDT`: row `0` job `716298` was pree
 
 Completion note: all V5 E1 jobs `716298`-`716312` completed with exit `0:0` by `2026-06-21T22:37:04`. Jobs `716298` and `716304` had `Restarts=1` and clean final JSONL summaries; all other V5 jobs had `Restarts=0`. V5 failed the E1 acceptance gate: it improved only FineWeb-Edu (`-0.001404` vs original MatrixPolicy) and was neutral/slightly worse on DCLM, FineWeb, Dolma-sample, and C4. No V5 E2 jobs were queued.
 
+## matrixpolicyV7 P0 500-Step Pilot Submission
+
+Submitted: 2026-06-22 18:41:57 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv`. This is a P0 mechanism/loss smoke, not a full E1 run. It compares a fresh V1 control against `matrixpolicyV7` on DCLM seed `1337` for `500` steps.
+
+```bash
+sbatch --parsable \
+  --job-name=mpV7-p0-v1 \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727119
+
+sbatch --parsable \
+  --job-name=mpV7-p0-cand \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727120
+```
+
+Initial scheduler state: both jobs were pending on priority immediately after submission.
+
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,

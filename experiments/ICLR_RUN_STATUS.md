@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-22 18:22:30 EDT
+Updated: 2026-06-22 18:41:57 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -150,6 +150,32 @@ Per-seed final losses:
 | C4 | `1337:4.262487`, `2027:4.301728`, `3407:4.292782` |
 
 Interpretation: V5 fails its stated acceptance gate. It beats original MatrixPolicy on only one of five E1 dataset means, FineWeb-Edu. The functional-metric telemetry was not centered away: final role-scale means were consistently around `in=0.817-0.819` and `out=1.221-1.224`. Therefore the rejection is different from V4. V5 successfully applies a real A/B sensitivity reallocation, but that near-constant inverse-sensitivity reallocation is not a better optimizer than the original MatrixPolicy recipe.
+
+## matrixpolicyV7 P0 Secant-Trust Pilot
+Queued: 2026-06-22 18:41:57 EDT. Decision status: running P0 only. Do not queue P1, P2, or full E1 until P0 passes the telemetry/runtime/loss gates.
+
+V7 is not an engineering tweak. It keeps the original MatrixPolicy base update and adds a low-frequency secant trust multiplier for RLB matrix groups. The secant signal uses the normal backward pass and previous accepted matrix updates to estimate whether each matrix channel has positive local descent and moderate curvature. No activation kernel, fusion, compiler, cache, batch, or global LR change is part of the method claim.
+
+| Field | Value |
+| --- | --- |
+| Proposal | `optimizer_design/proposals/matrixpolicyV7_secant_trust_matrix_policy.md` |
+| Manifest | `experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv` |
+| Phase | `P0_matrixpolicyV7_500step` |
+| Rows | `0-1`, fresh V1 control plus V7 candidate |
+| Dataset/seed | DCLM seed `1337` |
+| Budget | `500` steps, `16,384,000` train tokens per row |
+| Eval | every `50` steps, `10` eval batches |
+| Jobs | row `0` V1 control job `727119`; row `1` V7 candidate job `727120` |
+
+P0 acceptance gates:
+
+```text
+V7 JSONL must log matrix_policy_v7_* telemetry.
+Telemetry must not be constant, absent, or clipped for most logged steps.
+V7 runtime must be <= 1.05x paired V1 unless early loss/AUC clearly compensates.
+V7 final validation loss and validation-loss AUC must tie or beat paired V1 within pilot noise.
+```
+
 
 ## Completed Runtime Summary
 

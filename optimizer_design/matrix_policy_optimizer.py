@@ -76,6 +76,18 @@ class RationalMatrixPolicyOptimizer:
         group_end: float = 0.35,
         group_min_scale: float = 0.65,
         group_max_scale: float = 1.55,
+        secant_trust_strength: float = 0.0,
+        secant_trust_every: int = 8,
+        secant_trust_start: float = 0.08,
+        secant_trust_end: float = 0.55,
+        secant_trust_ema_decay: float = 0.95,
+        secant_trust_descent_gain: float = 2.0,
+        secant_trust_descent_clip: float = 0.50,
+        secant_trust_curvature_clip: float = 0.50,
+        secant_trust_kappa_min_ratio: float = 0.05,
+        secant_trust_kappa_max_ratio: float = 20.0,
+        secant_trust_min_scale: float = 0.75,
+        secant_trust_max_scale: float = 1.20,
         muon_momentum: float = 0.95,
         muon_ns_steps: int = 5,
         muon_adjust_lr_fn: str | None = "match_rms_adamw",
@@ -132,6 +144,18 @@ class RationalMatrixPolicyOptimizer:
         self.group_end = float(group_end)
         self.group_min_scale = float(group_min_scale)
         self.group_max_scale = float(group_max_scale)
+        self.secant_trust_strength = float(secant_trust_strength)
+        self.secant_trust_every = max(1, int(secant_trust_every))
+        self.secant_trust_start = float(secant_trust_start)
+        self.secant_trust_end = float(secant_trust_end)
+        self.secant_trust_ema_decay = min(0.999, max(0.0, float(secant_trust_ema_decay)))
+        self.secant_trust_descent_gain = float(secant_trust_descent_gain)
+        self.secant_trust_descent_clip = max(0.0, float(secant_trust_descent_clip))
+        self.secant_trust_curvature_clip = max(0.0, float(secant_trust_curvature_clip))
+        self.secant_trust_kappa_min_ratio = max(0.0, float(secant_trust_kappa_min_ratio))
+        self.secant_trust_kappa_max_ratio = max(self.secant_trust_kappa_min_ratio, float(secant_trust_kappa_max_ratio))
+        self.secant_trust_min_scale = float(secant_trust_min_scale)
+        self.secant_trust_max_scale = float(secant_trust_max_scale)
         self.eps = float(eps)
         self.step_index = 0
         self.use_muon = (
@@ -162,6 +186,12 @@ class RationalMatrixPolicyOptimizer:
             raise ValueError("group_min_scale must be positive")
         if self.group_max_scale < self.group_min_scale:
             raise ValueError("group_max_scale must be >= group_min_scale")
+        if self.secant_trust_strength < 0.0:
+            raise ValueError("secant_trust_strength must be non-negative")
+        if self.secant_trust_min_scale <= 0.0:
+            raise ValueError("secant_trust_min_scale must be positive")
+        if self.secant_trust_max_scale < self.secant_trust_min_scale:
+            raise ValueError("secant_trust_max_scale must be >= secant_trust_min_scale")
         adam_groups = []
         muon_groups = []
         for group in params:
@@ -195,6 +225,10 @@ class RationalMatrixPolicyOptimizer:
         self.param_groups = self.adam.param_groups if self.muon is None else self.adam.param_groups + self.muon.param_groups
         self._capture_telemetry_next_step = False
         self._last_telemetry = {}
+        self._secant_prev = {}
+        self._secant_scales = {}
+        self._secant_ema = {}
+        self._secant_telemetry = {}
 
     def set_telemetry_capture(self, enabled: bool = True):
         self._capture_telemetry_next_step = bool(enabled)
@@ -253,11 +287,24 @@ class RationalMatrixPolicyOptimizer:
     def _group_policy_phase(self) -> float:
         return _smoothstep(self.group_start, self.group_end, self._progress())
 
+    def _secant_trust_enabled(self) -> bool:
+        return self.secant_trust_strength > 0.0
+
+    def _secant_trust_phase(self) -> float:
+        if not self._secant_trust_enabled():
+            return 0.0
+        return self.secant_trust_strength * _smoothstep(
+            self.secant_trust_start,
+            self.secant_trust_end,
+            self._progress(),
+        )
+
     def _group_policy_enabled(self) -> bool:
         return (
             self.group_gain_strength != 0.0
             or self.group_pressure_strength != 0.0
             or self.group_activity_damping != 0.0
+            or self._secant_trust_enabled()
         )
 
     @staticmethod
@@ -362,14 +409,16 @@ class RationalMatrixPolicyOptimizer:
         if not self._group_policy_enabled():
             return None
         group_phase = self._group_policy_phase()
-        if group_phase <= 0.0:
-            return None
         selector_index = int(group.get("selector_index", -1))
         if selector_index < 0 or selector_index >= len(self.selector_groups):
             return None
         curve_group = self.selector_groups[selector_index]
         groups = int(curve_group.get("groups", 0))
         if groups <= 0:
+            return None
+
+        secant_scale = self._secant_trust_scale(group, device, torch.float32)
+        if group_phase <= 0.0 and secant_scale is None:
             return None
 
         scale = torch.ones(groups, device=device, dtype=torch.float32)
@@ -407,10 +456,173 @@ class RationalMatrixPolicyOptimizer:
                     excess = torch.relu((rational_activity - self.group_activity_target) / self.group_activity_width)
                     scale.mul_(torch.exp(-self.group_activity_damping * group_phase * excess))
 
-        scale = scale.clamp_min(self.eps)
-        scale = scale / torch.exp(torch.log(scale).mean()).clamp_min(self.eps)
-        scale = scale.clamp(self.group_min_scale, self.group_max_scale)
+        if group_phase > 0.0:
+            scale = scale.clamp_min(self.eps)
+            scale = scale / torch.exp(torch.log(scale).mean()).clamp_min(self.eps)
+            scale = scale.clamp(self.group_min_scale, self.group_max_scale)
+        if secant_scale is not None:
+            scale.mul_(secant_scale)
+            combined_min = min(self.group_min_scale, self.secant_trust_min_scale)
+            combined_max = max(self.group_max_scale, self.secant_trust_max_scale)
+            scale = scale.clamp(combined_min, combined_max)
         return scale.to(device=device, dtype=dtype)
+
+    def _matrix_group_view(self, tensor: torch.Tensor, group: dict, curve_group: dict) -> torch.Tensor | None:
+        groups = int(curve_group.get("groups", 0))
+        hidden_dim = int(curve_group.get("hidden_dim", 0))
+        if groups <= 0 or hidden_dim <= 0 or hidden_dim % groups != 0:
+            return None
+        width = hidden_dim // groups
+        role = str(group.get("matrix_role", "matrix"))
+        if role == "in":
+            if tensor.shape[0] != hidden_dim:
+                return None
+            return tensor.view(groups, width, -1)
+        if role == "out":
+            if tensor.shape[1] != hidden_dim:
+                return None
+            return tensor.view(tensor.shape[0], groups, width).permute(1, 2, 0)
+        return None
+
+    def _secant_trust_scale(self, group: dict, device: torch.device, dtype: torch.dtype) -> torch.Tensor | None:
+        if not self._secant_trust_enabled():
+            return None
+        scale = self._secant_scales.get(self._muon_cache_key(group))
+        if scale is None:
+            return None
+        return scale.to(device=device, dtype=dtype)
+
+    def _refresh_secant_trust(self):
+        if not self._secant_trust_enabled():
+            return
+        if self.step_index % self.secant_trust_every != 0:
+            return
+        phase = self._secant_trust_phase()
+        observations = []
+        snapshots = {}
+        for group in self.adam.param_groups:
+            role = str(group.get("matrix_role", "matrix"))
+            if role not in {"in", "out"}:
+                continue
+            selector_index = int(group.get("selector_index", -1))
+            if selector_index < 0 or selector_index >= len(self.selector_groups):
+                continue
+            curve_group = self.selector_groups[selector_index]
+            param = next((p for p in group.get("params", []) if p is not None), None)
+            if param is None or param.grad is None:
+                continue
+            key = self._muon_cache_key(group)
+            current_param = param.detach().clone()
+            current_grad = param.grad.detach().clone()
+            snapshots[key] = (current_param, current_grad)
+            previous = self._secant_prev.get(key)
+            if phase <= 0.0 or previous is None:
+                continue
+
+            prev_param, prev_grad = previous
+            delta = current_param.float() - prev_param.to(device=param.device).float()
+            grad_delta = current_grad.float() - prev_grad.to(device=param.device).float()
+            grad = current_grad.float()
+            delta_view = self._matrix_group_view(delta, group, curve_group)
+            grad_delta_view = self._matrix_group_view(grad_delta, group, curve_group)
+            grad_view = self._matrix_group_view(grad, group, curve_group)
+            if delta_view is None or grad_delta_view is None or grad_view is None:
+                continue
+            delta_m2 = delta_view.square().mean(dim=(1, 2)).clamp_min(self.eps)
+            grad_m2 = grad_view.square().mean(dim=(1, 2)).clamp_min(self.eps)
+            kappa = (delta_view * grad_delta_view).mean(dim=(1, 2)) / delta_m2
+            descent = -(grad_view * delta_view).mean(dim=(1, 2)) / torch.sqrt(delta_m2 * grad_m2).clamp_min(self.eps)
+            valid = (delta_m2 > self.eps * 10.0) & torch.isfinite(kappa) & torch.isfinite(descent)
+            if bool(valid.any().item()):
+                observations.append({"key": key, "role": role, "kappa": kappa.detach(), "descent": descent.detach(), "valid": valid.detach()})
+
+        self._secant_prev.update(snapshots)
+        if phase <= 0.0 or not observations:
+            self._secant_scales = {}
+            self._secant_telemetry = {}
+            return
+
+        valid_kappas = []
+        valid_descents = []
+        for obs in observations:
+            valid = obs["valid"]
+            kappa = obs["kappa"][valid]
+            descent = obs["descent"][valid]
+            positive = kappa[kappa > self.eps]
+            if positive.numel() > 0:
+                valid_kappas.append(positive)
+            if descent.numel() > 0:
+                valid_descents.append(descent)
+        if not valid_descents:
+            self._secant_scales = {}
+            self._secant_telemetry = {}
+            return
+        descent_center = torch.cat(valid_descents).mean()
+        if valid_kappas:
+            kappa_ref = torch.cat(valid_kappas).median().clamp_min(self.eps)
+        else:
+            kappa_ref = torch.tensor(1.0, device=valid_descents[0].device, dtype=torch.float32)
+
+        scale_entries = []
+        trust_by_role = {}
+        kappa_by_role = {}
+        descent_by_role = {}
+        positive_by_role = {}
+        for obs in observations:
+            role = obs["role"]
+            kappa = obs["kappa"].float()
+            descent = obs["descent"].float()
+            valid = obs["valid"]
+            descent_term = (descent - descent_center.to(device=descent.device)).clamp(
+                min=-self.secant_trust_descent_clip,
+                max=self.secant_trust_descent_clip,
+            )
+            min_kappa = kappa_ref.to(device=kappa.device) * self.secant_trust_kappa_min_ratio
+            max_kappa = kappa_ref.to(device=kappa.device) * self.secant_trust_kappa_max_ratio
+            kappa_clamped = kappa.clamp(min=min_kappa.clamp_min(self.eps), max=max_kappa.clamp_min(self.eps))
+            curvature_term = 0.5 * torch.log(kappa_ref.to(device=kappa.device).clamp_min(self.eps) / kappa_clamped.clamp_min(self.eps))
+            curvature_term = curvature_term.clamp(
+                min=-self.secant_trust_curvature_clip,
+                max=self.secant_trust_curvature_clip,
+            )
+            raw_log = phase * (self.secant_trust_descent_gain * descent_term + curvature_term)
+            raw_log = torch.where(kappa > self.eps, raw_log, torch.minimum(raw_log, torch.zeros_like(raw_log)))
+            raw_log = torch.where(valid, raw_log, torch.zeros_like(raw_log))
+            raw_scale = torch.exp(raw_log)
+            scale_entries.append({"key": obs["key"], "role": role, "raw": raw_scale, "valid": valid, "kappa": kappa, "descent": descent})
+
+        all_raw = torch.cat([entry["raw"][entry["valid"]].reshape(-1) for entry in scale_entries if bool(entry["valid"].any().item())])
+        center = torch.exp(torch.log(all_raw.clamp_min(self.eps)).mean()).clamp_min(self.eps)
+        new_scales = {}
+        clip_flags = []
+        decay = self.secant_trust_ema_decay
+        for entry in scale_entries:
+            key = entry["key"]
+            role = entry["role"]
+            scale = entry["raw"] / center.to(device=entry["raw"].device)
+            scale = torch.where(entry["valid"], scale, torch.ones_like(scale))
+            clipped = scale.clamp(self.secant_trust_min_scale, self.secant_trust_max_scale)
+            clip = (clipped != scale).detach().float()
+            previous_ema = self._secant_ema.get(key)
+            if previous_ema is not None and previous_ema.numel() == clipped.numel():
+                clipped = decay * previous_ema.to(device=clipped.device) + (1.0 - decay) * clipped
+            self._secant_ema[key] = clipped.detach()
+            new_scales[key] = clipped.detach()
+            trust_by_role.setdefault(role, []).extend(float(x) for x in clipped.detach().float().reshape(-1).cpu())
+            kappa_by_role.setdefault(role, []).extend(float(x) for x in entry["kappa"].detach().float().reshape(-1).cpu())
+            descent_by_role.setdefault(role, []).extend(float(x) for x in entry["descent"].detach().float().reshape(-1).cpu())
+            positive_by_role.setdefault(role, []).extend(float(x) for x in (entry["kappa"] > self.eps).detach().float().reshape(-1).cpu())
+            clip_flags.extend(float(x) for x in clip.reshape(-1).cpu())
+
+        self._secant_scales = new_scales
+        self._secant_telemetry = {
+            "phase": float(phase),
+            "trust_by_role": trust_by_role,
+            "kappa_by_role": kappa_by_role,
+            "descent_by_role": descent_by_role,
+            "positive_by_role": positive_by_role,
+            "clip_flags": clip_flags,
+        }
 
     def _apply_group_policy_to_gradients(self):
         if not self._group_policy_enabled():
@@ -560,6 +772,37 @@ class RationalMatrixPolicyOptimizer:
     def _role_means(mapping: dict) -> dict:
         return {role: RationalMatrixPolicyOptimizer._mean(values) for role, values in sorted(mapping.items())}
 
+    @staticmethod
+    def _role_stds(mapping: dict) -> dict:
+        result = {}
+        for role, values in sorted(mapping.items()):
+            if not values:
+                result[role] = None
+                continue
+            tensor = torch.tensor(values, dtype=torch.float32)
+            result[role] = float(tensor.std(unbiased=False).item()) if tensor.numel() > 1 else 0.0
+        return result
+
+    def _secant_telemetry_record(self) -> dict:
+        if not self._secant_trust_enabled() or not self._secant_telemetry:
+            return {}
+        trust = self._secant_telemetry.get("trust_by_role", {})
+        kappa = self._secant_telemetry.get("kappa_by_role", {})
+        descent = self._secant_telemetry.get("descent_by_role", {})
+        positive = self._secant_telemetry.get("positive_by_role", {})
+        clip_flags = self._secant_telemetry.get("clip_flags", [])
+        clip_frac = self._mean(clip_flags) if clip_flags else None
+        return {
+            "matrix_policy_v7_phase": self._secant_telemetry.get("phase"),
+            "matrix_policy_v7_trust_mean_by_role": self._role_means(trust),
+            "matrix_policy_v7_trust_std_by_role": self._role_stds(trust),
+            "matrix_policy_v7_kappa_mean_by_role": self._role_means(kappa),
+            "matrix_policy_v7_kappa_positive_frac_by_role": self._role_means(positive),
+            "matrix_policy_v7_predicted_descent_mean_by_role": self._role_means(descent),
+            "matrix_policy_v7_predicted_descent_std_by_role": self._role_stds(descent),
+            "matrix_policy_v7_scale_clip_frac": clip_frac,
+        }
+
     def _policy_telemetry_before_step(self):
         muon_by_role = {}
         adam_lr_by_role = {}
@@ -593,7 +836,7 @@ class RationalMatrixPolicyOptimizer:
         group_mean, group_std, group_min, group_max = self._mean_std_min_max(group_scales)
         pressure_mean, pressure_std, _, _ = self._mean_std_min_max(pressures)
         activity_mean, activity_std, _, _ = self._mean_std_min_max(activities)
-        return {
+        telemetry = {
             "matrix_policy_muon_mix_mean_by_role": self._role_means(muon_by_role),
             "matrix_policy_adam_lr_scale_mean_by_role": self._role_means(adam_lr_by_role),
             "matrix_policy_group_scale_mean": group_mean,
@@ -605,6 +848,8 @@ class RationalMatrixPolicyOptimizer:
             "matrix_policy_activity_mean": activity_mean,
             "matrix_policy_activity_std": activity_std,
         }
+        telemetry.update(self._secant_telemetry_record())
+        return telemetry
 
     def _capture_pre_step_weights(self):
         snapshots = {}
@@ -648,6 +893,7 @@ class RationalMatrixPolicyOptimizer:
         if closure is not None:
             raise RuntimeError("RationalMatrixPolicyOptimizer does not support closures")
         self.step_index += 1
+        self._refresh_secant_trust()
         capture_telemetry = self._capture_telemetry_next_step
         self._capture_telemetry_next_step = False
         telemetry = self._policy_telemetry_before_step() if capture_telemetry else {}

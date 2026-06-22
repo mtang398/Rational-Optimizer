@@ -6,7 +6,7 @@ Paper runs follow the manifest rule below. Exact submitted commands are recorded
 
 ## Optimizer Variant Status
 
-The completed `matrixpolicyV3`, `matrixpolicyV4`, and `matrixpolicyV5` E1 reruns are rejected. Their live optimizer hooks, proposal files, and standalone manifests were removed; raw JSONL/status evidence is retained only as historical negative evidence. Original `rational_matrix_policy_onpolicy` remains the paper anchor. V6 and V7 are proposal-only design documents under `optimizer_design/proposals/`, and no V6/V7 jobs are queued.
+The completed `matrixpolicyV3`, `matrixpolicyV4`, and `matrixpolicyV5` E1 reruns are rejected. Their live optimizer hooks, proposal files, and standalone manifests were removed; raw JSONL/status evidence is retained only as historical negative evidence. Original `rational_matrix_policy_onpolicy` remains the paper anchor. `matrixpolicyV7` is now a short P0 pilot candidate, not a paper anchor: jobs `727119` and `727120` compare fresh V1 versus V7 on DCLM seed `1337` for `500` steps.
 
 ## Result Pointers
 

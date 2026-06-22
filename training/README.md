@@ -79,7 +79,7 @@ Current MatrixPolicy manifest flags:
 --rational-matrix-policy-group-max-scale 1.35
 ```
 
-No proposal optimizer aliases are live. Rejected V3/V4/V5 hooks and standalone manifests were removed after their completed E1 reruns failed the acceptance gates. Future V6/V7 ideas start as proposal/pilot documents and must not be added to `ACTIVE_OPTIMIZERS` until they pass the fast paired pilot protocol.
+`matrixpolicyV7` is the only live proposal optimizer alias, and only for the short P0 pilot in `../experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv`. Rejected V3/V4/V5 hooks and standalone manifests remain removed. V7 must beat or tie the paired V1 pilot and emit non-saturated secant telemetry before any P1/P2/full-E1 expansion.
 
 ## Real-Corpus Protocol
 

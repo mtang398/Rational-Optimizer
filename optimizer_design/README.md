@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The rejected V2/V3/V4/V5 branches have been removed from the live optimizer surface. The completed V3/V4/V5 E1 rerun summaries are retained below as negative/neutral evidence, but their proposal files and standalone manifests were deleted after rejection. The current paper anchor remains original `rational_matrix_policy_onpolicy`. V6 and V7 are proposal-only documents, not runnable optimizer aliases.
+The rejected V2/V3/V4/V5 branches have been removed from the live optimizer surface. The completed V3/V4/V5 E1 rerun summaries are retained below as negative/neutral evidence, but their proposal files and standalone manifests were deleted after rejection. The current paper anchor remains original `rational_matrix_policy_onpolicy`. `matrixpolicyV7` is a live short-pilot alias only; it is not a paper anchor unless it passes paired P0/P1 gates.
 
 ## Current Result Anchor
 
@@ -266,15 +266,13 @@ V5 telemetry was real: final role-scale means were consistently around `in=0.817
 
 ## Next Proposal Direction
 
-The next designs are proposal-only and must pass a short paired pilot before any full E1 run:
+V6 remains proposal-only and changes the mathematical target from unsigned function sensitivity to signed first-order loss alignment. V7 is now implemented as a short pilot: it keeps the V1 base update but adds a local secant trust estimate for each RLB matrix channel. The current P0 manifest is:
 
 ```text
-optimizer_design/proposals/matrixpolicyV6_loss_aligned_channel_policy.md
-optimizer_design/proposals/matrixpolicyV7_secant_trust_matrix_policy.md
-optimizer_design/proposals/matrixpolicy_fast_pilot_protocol.md
+experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv
 ```
 
-V6 changes the mathematical target from unsigned function sensitivity to signed first-order loss alignment. V7 keeps the V1 base update but adds a local secant trust estimate for each RLB matrix channel. Neither is an engineering/fusion/kernel tweak, and neither is wired into the training harness.
+This is not an engineering/fusion/kernel tweak. It changes the matrix gradient multiplier by observed local secant descent and curvature, with no additional forward/backward pass. P0 must show active telemetry and avoid runtime/loss regression before any P1 queue.
 
 ## Telemetry Status
 

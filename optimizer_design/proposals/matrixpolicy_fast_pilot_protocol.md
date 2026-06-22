@@ -1,6 +1,6 @@
 # MatrixPolicy Fast Pilot Protocol
 
-Status: proposal-only pilot policy for future MatrixPolicy variants. It is designed to reject bad ideas before a full five-dataset, three-seed E1 rerun.
+Status: active pilot policy. The first use is `matrixpolicyV7` P0, queued on 2026-06-22 as jobs `727119` and `727120` from `experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv`.
 
 ## Problem
 

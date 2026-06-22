@@ -1,6 +1,6 @@
 # matrixpolicyV7 Proposal: Secant-Trust MatrixPolicy
 
-Status: proposal only. This is not a live optimizer alias, not in the Slurm allowlist, and not queued. The live MatrixPolicy optimizer remains `rational_matrix_policy_onpolicy`.
+Status: P0 pilot implemented and queued on 2026-06-22. `matrixpolicyV7` is a live pilot alias only, not a paper anchor. P0 jobs `727119` and `727120` compare fresh V1 versus V7 on DCLM seed `1337` for `500` steps using `experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv`.
 
 ## Motivation
 
