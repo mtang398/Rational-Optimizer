@@ -1,6 +1,6 @@
 # MatrixPolicy Fast Pilot Protocol
 
-Status: active pilot policy. The first use, `matrixpolicyV7` P0, failed on 2026-06-22 and was pruned from the active repo surface. Corrected jobs `727161` and `727162` completed cleanly; V7 slightly improved final/AUC loss but was about `1.085x` slower than paired V1, so it did not pass the P0 speed gate.
+Status: active pilot policy. The first use, `matrixpolicyV7` P0, failed on 2026-06-22 and was pruned from the active repo surface. Corrected jobs `727161` and `727162` completed cleanly; V7 slightly improved final/AUC loss but was about `1.085x` slower than paired V1, so it did not pass the P0 speed gate. Current active use: `matrixpolicyV8_fastpulse` P0 jobs `727338`-`727340`, a no-new-code MatrixPolicy schedule pilot that will be pruned if it fails.
 
 ## Problem
 

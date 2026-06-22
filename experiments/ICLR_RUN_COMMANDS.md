@@ -339,6 +339,36 @@ Corrected scheduler state at submission: both jobs were pending on resources imm
 Completion note: jobs `727161` and `727162` completed with exit `0:0` and `Restarts=0`. V7 was rejected after P0 because its final/AUC loss improvement was small while runtime was about `1.085x` paired V1; the V7 source hook, proposal file, and standalone manifest were pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
 
 
+## matrixpolicyV8 Fast-Pulse P0 Submission
+
+Submitted: 2026-06-22 19:07:51 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV8_fastpulse_p0_manifest.csv`. This is a three-row P0 pilot using the existing `rational_matrix_policy_onpolicy` optimizer only: V1 control, role-staged fast pulse, and lower-peak fast pulse.
+
+```bash
+sbatch --parsable \
+  --job-name=mpV8-p0-v1 \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV8_fastpulse_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727338
+
+sbatch --parsable \
+  --job-name=mpV8-p0-fast \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV8_fastpulse_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727339
+
+sbatch --parsable \
+  --job-name=mpV8-p0-low \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV8_fastpulse_p0_manifest.csv,ROW_START=2,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727340
+```
+
+Scheduler state at 2026-06-22 19:15:48 EDT: all three jobs were pending on priority with no logs yet.
+
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,
