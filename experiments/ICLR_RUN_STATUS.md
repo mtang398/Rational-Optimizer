@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-22 21:02:34 EDT
+Updated: 2026-06-22 21:07:09 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -285,6 +285,23 @@ V11 is a no-new-source-path MatrixPolicy method pilot. It keeps the original ful
 | Estimated starts | unavailable from `squeue --start` at submission time |
 
 P0 gate: V11 must match or improve paired V1 final validation loss and AUC, with no runtime regression after the safe Muon-off implementation fix. If it fails, delete the temporary manifest and retain only a concise failed-pilot record here.
+
+## matrixpolicyV12 Selector-Beta2 P0 Pilot
+Queued: 2026-06-22 21:07:09 EDT. Decision status: pending on scheduler priority. Do not queue V12 P1 or E1 until this candidate and the shared fresh V1 controls pass the paired loss/runtime gate.
+
+V12 is a no-new-source-path, candidate-only MatrixPolicy method pilot. It reuses the already queued fresh MatrixPolicy controls from the safe-speed, V10, and V11 P0 runs if they complete cleanly. It keeps the original full-quality early Muon conditioning window and group-stat MatrixPolicy, then decays Adam beta2 only for input-selector matrices from `0.999` to `0.98` after the Muon window has ended (`progress 0.36` to `0.50`). The a priori claim is role-specific: prior P0 telemetry showed post-Muon input-side update/weight ratios consistently above output-side ratios, so the input-domain selector metric may need faster post-Muon adaptation while the output recombiner metric should remain smoother.
+
+| Field | Value |
+| --- | --- |
+| Temporary manifest | `experiments/manifests/iclr26_matrixpolicyV12_selector_beta2_p0_manifest.csv` |
+| Phase | `P0_matrixpolicyV12_selector_beta2_500step` |
+| Dataset/seed | DCLM seed `1337` |
+| Budget | `500` steps, `16,384,000` train tokens |
+| Row 0 | V12 selector-beta2 candidate job `728038`, method `rlb_matrixpolicyV12_selector_beta2_b98` |
+| Shared controls | fresh original MatrixPolicy jobs `727992`, `728006`, and `728025` if they complete cleanly |
+| Estimated start | `2026-06-23T18:46:00` |
+
+P0 gate: V12 must match or improve the clean fresh V1 controls on final validation loss and AUC, with no runtime regression after the safe Muon-off implementation fix. If it fails, delete the temporary manifest and retain only a concise failed-pilot record here.
 
 ## Completed Runtime Summary
 

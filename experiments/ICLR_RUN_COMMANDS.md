@@ -476,6 +476,21 @@ sbatch --parsable \
 
 Scheduler state at 2026-06-22 21:02:34 EDT: both jobs were pending on priority, with no estimated start time from `squeue --start`.
 
+## matrixpolicyV12 Selector-Beta2 P0 Submission
+
+Submitted: 2026-06-22 21:07:09 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV12_selector_beta2_p0_manifest.csv`. This is a one-row DCLM seed `1337`, `500`-step candidate-only P0 method pilot. It adds only `--rational-matrix-policy-adam-beta2-input-final 0.98 --rational-matrix-policy-adam-beta2-decay-start 0.36 --rational-matrix-policy-adam-beta2-decay-end 0.50` to the original MatrixPolicy flags. It uses the already queued fresh MatrixPolicy controls for comparison if they complete cleanly; no new source alias is added.
+
+```bash
+sbatch --parsable \
+  --job-name=mpV12-p0-inb98 \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV12_selector_beta2_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 728038
+```
+
+Scheduler state at 2026-06-22 21:07:09 EDT: job `728038` was pending on priority. Estimated start was `2026-06-23T18:46:00` EDT.
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,
