@@ -1,6 +1,6 @@
 # MatrixPolicy Fast Pilot Protocol
 
-Status: active pilot policy. `matrixpolicyV7`, `matrixpolicyV8_fastpulse`, `matrixpolicyV9_approx_muon`, `matrixpolicyV10_switchclean`, `matrixpolicyV11_stateadapt`, and `matrixpolicyV12_selector_beta2` P0 all failed or were pruned from the active repo surface on 2026-06-22/23. The method-preserving safe Muon-off implementation in commit `02b85d9` passed P0 speed validation and is now being checked with a full split E1 rerun, jobs `767136`-`767150`, using manifest `experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv`.
+Status: active pilot policy. `matrixpolicyV7`, `matrixpolicyV8_fastpulse`, `matrixpolicyV9_approx_muon`, `matrixpolicyV10_switchclean`, `matrixpolicyV11_stateadapt`, and `matrixpolicyV12_selector_beta2` P0 all failed or were pruned from the active repo surface on 2026-06-22/23. The method-preserving safe Muon-off implementation in commit `02b85d9` passed P0 speed validation and the full split E1 rerun, jobs `767136`-`767150`, using manifest `experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv`. It is the accepted speed-fixed implementation of original MatrixPolicy, not a new Vx method.
 
 ## Problem
 

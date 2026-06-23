@@ -6,7 +6,7 @@ Paper-facing results in this README include the completed E1 matched main suite 
 
 ## Optimizer Variant Status
 
-The completed `matrixpolicyV3`, `matrixpolicyV4`, and `matrixpolicyV5` E1 reruns and the `matrixpolicyV7` P0 pilot are rejected. Their live optimizer hooks, proposal files, and standalone manifests were removed; raw JSONL/status evidence is retained only as historical negative evidence. `matrixpolicyV6` stayed proposal-only and was removed without a pilot. Original `rational_matrix_policy_onpolicy` remains the paper anchor and the only active MatrixPolicy optimizer.
+The completed `matrixpolicyV3`, `matrixpolicyV4`, and `matrixpolicyV5` E1 reruns and the failed `matrixpolicyV7`-`matrixpolicyV12` P0 pilots are rejected. Their live optimizer hooks, proposal files, and standalone manifests were removed; raw JSONL/status evidence is retained only as historical negative evidence. `matrixpolicyV6` stayed proposal-only and was removed without a pilot. Original `rational_matrix_policy_onpolicy` remains the paper anchor and the only active MatrixPolicy optimizer. Its method-preserving safe Muon-off implementation completed a full 15-row E1 rerun on 2026-06-23 with quality-neutral losses and a clean runtime aggregate of `27.3` min, `0.5102` s/step, and `67,078.3` tokens/s.
 
 ## Result Pointers
 

@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-23 14:23:33 EDT
+Updated: 2026-06-23 18:19:18 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -346,7 +346,9 @@ Result:
 Interpretation: V12 worsens final loss by `+0.003590` and AUC by `+0.003774` versus the clean fresh-control mean. The timing comparison is node-mixed, but the method already fails quality. Role-selective late beta2 adaptation is not promoted.
 
 ## E1 MatrixPolicy Safe-Speed Full Rerun
-Queued: 2026-06-23 14:23:33 EDT. Decision status: running/queued. This is the full E1 validation of original MatrixPolicy under the method-preserving speed fix from commit `02b85d9`, not a new optimizer method.
+Queued: 2026-06-23 14:23:33 EDT. Completed: 2026-06-23 18:16:55 EDT. Decision: pass as the paper-facing implementation-speed validation of original MatrixPolicy under commit `02b85d9`.
+
+This is not a new optimizer method. It is original `rlb_matrixpolicy_original` / `rational_matrix_policy_onpolicy` with the method-preserving safe Muon-off implementation fix: after every MatrixPolicy Muon group has permanently decayed to zero, the code skips the otherwise zero-LR Muon step.
 
 | Field | Value |
 | --- | --- |
@@ -355,30 +357,47 @@ Queued: 2026-06-23 14:23:33 EDT. Decision status: running/queued. This is the fu
 | Dataset/seed coverage | 5 datasets x 3 seeds, all `rlb_matrixpolicy_original` |
 | Budget | `3050` steps, about `100M` train tokens per row |
 | Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs |
-| Jobs | `767136`-`767150` |
-| Initial running jobs | rows `0` and `1`, jobs `767136` and `767137` |
+| Jobs | `767136`-`767150`; all completed `0:0` |
+| Restart note | job `767137` had `Restarts=1`; the preempted partial JSONL was archived as `.incomplete_767137_1_20260623150154` and excluded from aggregates |
 
-Submitted jobs:
+Quality aggregate, compared with the original completed E1 MatrixPolicy table:
 
-| Row | Job | Dataset | Seed | Dependency |
-| ---: | ---: | --- | ---: | --- |
-| 0 | `767136` | DCLM | 1337 | none |
-| 1 | `767137` | DCLM | 2027 | none |
-| 2 | `767138` | DCLM | 3407 | afterok:`767136` |
-| 3 | `767139` | FineWeb-Edu | 1337 | afterok:`767137` |
-| 4 | `767140` | FineWeb-Edu | 2027 | afterok:`767138` |
-| 5 | `767141` | FineWeb-Edu | 3407 | afterok:`767139` |
-| 6 | `767142` | FineWeb | 1337 | afterok:`767140` |
-| 7 | `767143` | FineWeb | 2027 | afterok:`767141` |
-| 8 | `767144` | FineWeb | 3407 | afterok:`767142` |
-| 9 | `767145` | Dolma-sample | 1337 | afterok:`767143` |
-| 10 | `767146` | Dolma-sample | 2027 | afterok:`767144` |
-| 11 | `767147` | Dolma-sample | 3407 | afterok:`767145` |
-| 12 | `767148` | C4 | 1337 | afterok:`767146` |
-| 13 | `767149` | C4 | 2027 | afterok:`767147` |
-| 14 | `767150` | C4 | 3407 | afterok:`767148` |
+| Dataset | Safe-speed final mean +/- std | Original MatrixPolicy final mean +/- std | Delta |
+| --- | ---: | ---: | ---: |
+| DCLM | 4.256989 +/- 0.004197 | 4.256224 +/- 0.004972 | +0.000765 |
+| FineWeb-Edu | 4.088287 +/- 0.009169 | 4.088240 +/- 0.009434 | +0.000047 |
+| FineWeb | 4.319472 +/- 0.012370 | 4.318581 +/- 0.010914 | +0.000891 |
+| Dolma-sample | 4.323933 +/- 0.005168 | 4.323851 +/- 0.004565 | +0.000082 |
+| C4 | 4.286446 +/- 0.019324 | 4.285119 +/- 0.020677 | +0.001327 |
 
-Acceptance gate: full E1 final losses should match the original MatrixPolicy E1 result within normal seed/dataset noise, while runtime and optimizer-step telemetry should reflect the safe Muon-off speed improvement. If this passes, the speed-fixed original MatrixPolicy becomes the candidate for the goal's full-E1 evidence.
+Runtime and optimizer-step telemetry use JSONL `summary.total_seconds` and exclude queue/dependency wait, token-cache construction, extension compilation, launcher overhead, and the archived preempted attempt.
+
+| Scope | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s | Late optimizer-step s, step >= 1200 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| E1 safe-speed MatrixPolicy | 15 | 27.3 min | 6.0 min | 22.1-37.2 min | 0.5102 | 67,078.3 | 0.061662 |
+| Prior clean E1 RLB+MatrixPolicy package row | 14 | 32.0 min | 4.9 min | 23.4-38.3 min | 0.6032 | 55,759.6 | n/a |
+
+Interpretation: quality is neutral within the original E1 seed/dataset noise on all five datasets. The clean harness runtime is lower than the prior clean E1 RLB+MatrixPolicy aggregate by about `14.7%` in mean runtime and `15.4%` in mean seconds/step, with mean tokens/s higher by about `20.3%`. This comparison still has node-mix and row-count differences, but it uses the same JSONL summary metric and avoids requeue-contaminated wall time. The speed-fixed original MatrixPolicy should replace the pre-fix implementation in paper-facing runtime discussion.
+
+Per-row results:
+
+| Dataset | Seed | Job | Restarts | Final val | Harness runtime | Slurm elapsed | Mean s/step | Tokens/s | Late opt step s | Node |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| DCLM | 1337 | `767136` | 0 | 4.252673 | 36.0 min | 00:36:36 | 0.6807 | 48,140.5 | 0.054690 | `ma-compute-01` |
+| DCLM | 2027 | `767137` | 1 | 4.261056 | 37.2 min | 00:39:56 | 0.7036 | 46,572.8 | 0.060412 | `fang-compute-02` |
+| DCLM | 3407 | `767138` | 0 | 4.257238 | 35.9 min | 00:36:35 | 0.6802 | 48,171.8 | 0.054221 | `ma-compute-01` |
+| FineWeb-Edu | 1337 | `767139` | 0 | 4.090931 | 36.7 min | 00:37:28 | 0.6954 | 47,122.0 | 0.059448 | `fang-compute-02` |
+| FineWeb-Edu | 2027 | `767140` | 0 | 4.078087 | 22.2 min | 00:22:58 | 0.4100 | 79,929.2 | 0.056384 | `abdelfattah-compute-03` |
+| FineWeb-Edu | 3407 | `767141` | 0 | 4.095844 | 22.1 min | 00:22:47 | 0.4094 | 80,030.6 | 0.055419 | `abdelfattah-compute-03` |
+| FineWeb | 1337 | `767142` | 0 | 4.305259 | 26.0 min | 00:26:52 | 0.4836 | 67,762.5 | 0.071853 | `badfellow` |
+| FineWeb | 2027 | `767143` | 0 | 4.325352 | 22.2 min | 00:22:47 | 0.4100 | 79,922.8 | 0.056349 | `abdelfattah-compute-03` |
+| FineWeb | 3407 | `767144` | 0 | 4.327806 | 26.4 min | 00:27:05 | 0.4903 | 66,829.9 | 0.073551 | `badfellow` |
+| Dolma-sample | 1337 | `767145` | 0 | 4.320532 | 22.2 min | 00:22:48 | 0.4101 | 79,909.0 | 0.055597 | `abdelfattah-compute-03` |
+| Dolma-sample | 2027 | `767146` | 0 | 4.329880 | 26.0 min | 00:27:16 | 0.4829 | 67,855.6 | 0.070334 | `badfellow` |
+| Dolma-sample | 3407 | `767147` | 0 | 4.321388 | 22.2 min | 00:23:05 | 0.4106 | 79,796.8 | 0.056856 | `abdelfattah-compute-03` |
+| C4 | 1337 | `767148` | 0 | 4.264466 | 26.2 min | 00:27:07 | 0.4886 | 67,064.8 | 0.072973 | `badfellow` |
+| C4 | 2027 | `767149` | 0 | 4.300764 | 22.2 min | 00:22:51 | 0.4102 | 79,884.0 | 0.055058 | `abdelfattah-compute-03` |
+| C4 | 3407 | `767150` | 0 | 4.294108 | 26.3 min | 00:27:11 | 0.4878 | 67,181.7 | 0.071785 | `badfellow` |
 
 ## Completed Runtime Summary
 
