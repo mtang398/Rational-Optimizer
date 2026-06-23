@@ -368,6 +368,38 @@ sbatch --parsable \
 
 Scheduler state at 2026-06-22 19:15:48 EDT: all three jobs were pending on priority with no logs yet.
 
+Completion note: jobs `727338`, `727339`, and `727340` completed with exit `0:0` and `Restarts=0`. V8 was rejected after P0: fast pulse worsened final loss/AUC with no same-node speedup, and lower-peak fast pulse was faster only on a different node while also worsening loss/AUC. The temporary V8 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
+
+
+## matrixpolicyV9 Approximate-Muon P0 Submission
+
+Submitted: 2026-06-22 20:28:38 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV9_approx_muon_p0_manifest.csv`. This is a three-row P0 pilot using the existing `rational_matrix_policy_onpolicy` optimizer only: V1 control, Muon NS=3, and Muon NS=2.
+
+```bash
+sbatch --parsable \
+  --job-name=mpV9-p0-v1 \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV9_approx_muon_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727913
+
+sbatch --parsable \
+  --job-name=mpV9-p0-ns3 \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV9_approx_muon_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727914
+
+sbatch --parsable \
+  --job-name=mpV9-p0-ns2 \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV9_approx_muon_p0_manifest.csv,ROW_START=2,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727915
+```
+
+Scheduler state at 2026-06-22 20:28:38 EDT: all three jobs were pending on priority. Estimated starts were `727913` at `20:33:55`, `727914` at `22:34:00`, and `727915` at `2026-06-23 00:34:00` EDT.
+
 
 ## E2 Main 300M Submissions
 
