@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-22 20:44:32 EDT
+Updated: 2026-06-22 20:54:36 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -234,6 +234,23 @@ Result:
 | Slurm node | `lancer-compute-01` | `lancer-compute-01` | `ma-compute-02` |
 
 Interpretation: lowering Newton-Schulz accuracy reduced logged optimizer-step time, but the same-node NS=3 row gained only about `0.45%` total wall-time while worsening final loss by `+0.004756` and AUC by `+0.007731`. NS=2 was much worse on loss/AUC and ran on a different, slower node, so its wall-time is not a favorable acceptance signal. V9 says the original MatrixPolicy benefit is not coming from an easily disposable excess of Muon iteration accuracy. The next candidate should preserve the full-quality matrix conditioning direction and seek speed through a different mathematically justified reuse, amortization, or lower-cost policy signal.
+
+## MatrixPolicy Safe Muon-Off Speed P0 Pilot
+Queued: 2026-06-22 20:54:36 EDT. Decision status: pending on scheduler priority. This is an implementation speed validation, not a new Vx optimizer method.
+
+The code change in commit `02b85d9` keeps the original `rational_matrix_policy_onpolicy` update rule, but skips `torch.optim.Muon.step()` after every MatrixPolicy Muon group has permanently decayed to zero (`final_muon=min_muon=0` and all group decay ends have passed). It intentionally does not skip the early zero-LR warmup region, because that could alter Muon momentum state before the active window. The method hypothesis is unchanged: use the original full-quality early MatrixPolicy conditioning, then avoid paying Muon overhead after it is provably inactive.
+
+| Field | Value |
+| --- | --- |
+| Temporary manifest | `experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv` |
+| Phase | `P0_matrixpolicy_safe_speed_500step` |
+| Dataset/seed | DCLM seed `1337` |
+| Budget | `500` steps, `16,384,000` train tokens per row |
+| Row 0 | SiLU+AdamW job `727991`, method `silu_adamw` |
+| Row 1 | RLB+AdamW job `727990`, method `rlb_adamw` |
+| Row 2 | RLB+MatrixPolicy job `727992`, method `rlb_matrixpolicy_original` with the safe Muon-off skip |
+
+Acceptance gate: MatrixPolicy final loss/AUC should match the existing 500-step DCLM MatrixPolicy controls within normal run noise, and logged MatrixPolicy `optimizer_step_seconds` after the Muon decay point should fall materially versus the pre-speedup controls. For the speed goal, compare total seconds, mean seconds/step, tokens/s, and optimizer-step time against the fresh SiLU+AdamW and RLB+AdamW rows, with node differences called out explicitly.
 
 ## Completed Runtime Summary
 

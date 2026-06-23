@@ -403,6 +403,35 @@ Scheduler state at 2026-06-22 20:28:38 EDT: all three jobs were pending on prior
 Completion note: jobs `727913`, `727914`, and `727915` completed with exit `0:0` and `Restarts=0` by `2026-06-22 20:43:48 EDT`. V9 was rejected after P0: NS=3 gave only a `0.45%` same-node total-time reduction while worsening final loss/AUC, and NS=2 worsened final loss/AUC further with non-comparable slower-node wall time. The temporary V9 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
 
 
+## MatrixPolicy Safe Muon-Off Speed P0 Submission
+
+Submitted: 2026-06-22 20:54:36 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv`. This is a three-row implementation-speed pilot using DCLM seed `1337` for `500` steps: SiLU+AdamW, RLB+AdamW, and original RLB+MatrixPolicy after commit `02b85d9` skips permanently inactive Muon steps. It is not a new Vx optimizer method.
+
+```bash
+sbatch --parsable \
+  --job-name=mpSafe-p0-silu \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727991
+
+sbatch --parsable \
+  --job-name=mpSafe-p0-rlbadam \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727990
+
+sbatch --parsable \
+  --job-name=mpSafe-p0-mp \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv,ROW_START=2,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 727992
+```
+
+Scheduler state at 2026-06-22 20:54:36 EDT: all three jobs were pending on priority with no estimated start time from `squeue --start`.
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,
