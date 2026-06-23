@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-22 20:54:36 EDT
+Updated: 2026-06-22 20:58:38 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -251,6 +251,23 @@ The code change in commit `02b85d9` keeps the original `rational_matrix_policy_o
 | Row 2 | RLB+MatrixPolicy job `727992`, method `rlb_matrixpolicy_original` with the safe Muon-off skip |
 
 Acceptance gate: MatrixPolicy final loss/AUC should match the existing 500-step DCLM MatrixPolicy controls within normal run noise, and logged MatrixPolicy `optimizer_step_seconds` after the Muon decay point should fall materially versus the pre-speedup controls. For the speed goal, compare total seconds, mean seconds/step, tokens/s, and optimizer-step time against the fresh SiLU+AdamW and RLB+AdamW rows, with node differences called out explicitly.
+
+## matrixpolicyV10 Switch-Clean P0 Pilot
+Queued: 2026-06-22 20:58:38 EDT. Decision status: pending on scheduler priority. Do not queue V10 P1 or E1 until this P0 passes the paired loss/runtime gate.
+
+V10 is a no-new-source-path MatrixPolicy method pilot using the existing `--rational-matrix-policy-muon-reset-adam-state` flag. It keeps the original full-quality early Muon conditioning window and the same group-stat MatrixPolicy. The a priori claim is that MatrixPolicy mixes two matrix metrics: early Muon/polar geometry and late AdamW diagonal moments. If Adam moments are accumulated through the mixed phase, the late pure-Adam matrix step can inherit stale second-moment geometry from before the Muon-conditioned representative has settled. Resetting the matrix Adam state exactly when Muon permanently turns off makes the late Adam phase estimate its diagonal metric in the post-Muon, gauge-balanced coordinates. This is a method hypothesis about optimizer state geometry, not a kernel/fusion/runtime tweak.
+
+| Field | Value |
+| --- | --- |
+| Temporary manifest | `experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv` |
+| Phase | `P0_matrixpolicyV10_switchclean_500step` |
+| Dataset/seed | DCLM seed `1337` |
+| Budget | `500` steps, `16,384,000` train tokens per row |
+| Row 0 | V1 control job `728006`, method `rlb_matrixpolicy_original` |
+| Row 1 | V10 switch-clean job `728007`, method `rlb_matrixpolicyV10_switchclean` |
+| Estimated starts | `728006` at `2026-06-23T16:05:00`, `728007` at `2026-06-23T16:46:00` |
+
+P0 gate: V10 must match or improve paired V1 final validation loss and AUC, with no runtime regression after the safe Muon-off implementation fix. If it fails, delete the temporary manifest and retain only a concise failed-pilot record here.
 
 ## Completed Runtime Summary
 

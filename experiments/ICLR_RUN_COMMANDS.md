@@ -432,6 +432,28 @@ sbatch --parsable \
 
 Scheduler state at 2026-06-22 20:54:36 EDT: all three jobs were pending on priority with no estimated start time from `squeue --start`.
 
+## matrixpolicyV10 Switch-Clean P0 Submission
+
+Submitted: 2026-06-22 20:58:38 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv`. This is a two-row DCLM seed `1337`, `500`-step P0 method pilot: original MatrixPolicy control and a switch-clean candidate that adds only `--rational-matrix-policy-muon-reset-adam-state` to the original MatrixPolicy flags. It uses the existing optimizer path; no new source alias is added.
+
+```bash
+sbatch --parsable \
+  --job-name=mpV10-p0-v1 \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 728006
+
+sbatch --parsable \
+  --job-name=mpV10-p0-clean \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 728007
+```
+
+Scheduler state at 2026-06-22 20:58:38 EDT: both jobs were pending on priority. Estimated starts were `728006` at `2026-06-23T16:05:00` and `728007` at `2026-06-23T16:46:00` EDT.
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,
