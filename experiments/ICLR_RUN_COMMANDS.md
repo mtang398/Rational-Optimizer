@@ -400,6 +400,8 @@ sbatch --parsable \
 
 Scheduler state at 2026-06-22 20:28:38 EDT: all three jobs were pending on priority. Estimated starts were `727913` at `20:33:55`, `727914` at `22:34:00`, and `727915` at `2026-06-23 00:34:00` EDT.
 
+Completion note: jobs `727913`, `727914`, and `727915` completed with exit `0:0` and `Restarts=0` by `2026-06-22 20:43:48 EDT`. V9 was rejected after P0: NS=3 gave only a `0.45%` same-node total-time reduction while worsening final loss/AUC, and NS=2 worsened final loss/AUC further with non-comparable slower-node wall time. The temporary V9 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
+
 
 ## E2 Main 300M Submissions
 

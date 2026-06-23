@@ -1,6 +1,6 @@
 # MatrixPolicy Fast Pilot Protocol
 
-Status: active pilot policy. `matrixpolicyV7` and `matrixpolicyV8_fastpulse` P0 both failed on 2026-06-22 and were pruned from the active repo surface. V7 slightly improved loss but was slower; V8 tested no-new-code shorter Muon pulse schedules and worsened loss/AUC, so shorter-Muon schedules should not be promoted. Current active use: `matrixpolicyV9_approx_muon` P0 jobs `727913`-`727915`, a no-new-code test of lower Muon Newton-Schulz accuracy inside the original MatrixPolicy window.
+Status: active pilot policy. `matrixpolicyV7`, `matrixpolicyV8_fastpulse`, and `matrixpolicyV9_approx_muon` P0 all failed on 2026-06-22 and were pruned from the active repo surface. V7 slightly improved loss but was slower; V8 tested no-new-code shorter Muon pulse schedules and worsened loss/AUC; V9 tested lower Muon Newton-Schulz accuracy inside the original MatrixPolicy window and worsened loss/AUC for only negligible same-node speed. Current active use: none; the next candidate should preserve the full-quality MatrixPolicy conditioning direction and seek speed through a mathematically justified reuse, amortization, or lower-cost policy signal.
 
 ## Problem
 
