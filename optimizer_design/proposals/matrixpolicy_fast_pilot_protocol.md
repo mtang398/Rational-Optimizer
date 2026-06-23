@@ -1,6 +1,6 @@
 # MatrixPolicy Fast Pilot Protocol
 
-Status: active pilot policy. `matrixpolicyV7`, `matrixpolicyV8_fastpulse`, and `matrixpolicyV9_approx_muon` P0 all failed on 2026-06-22 and were pruned from the active repo surface. V7 slightly improved loss but was slower; V8 tested no-new-code shorter Muon pulse schedules and worsened loss/AUC; V9 tested lower Muon Newton-Schulz accuracy inside the original MatrixPolicy window and worsened loss/AUC for only negligible same-node speed. Current active use: method-preserving safe-speed P0 jobs `727990`-`727992`, validating commit `02b85d9`, V10 switch-clean P0 jobs `728006`-`728007`, V11 state-adaptive beta2 P0 jobs `728025`-`728026`, and V12 selector-beta2 candidate job `728038`. V10-V12 keep full-quality early MatrixPolicy conditioning and test post-Muon Adam-state geometry, using existing optimizer flags only.
+Status: active pilot policy. `matrixpolicyV7`, `matrixpolicyV8_fastpulse`, `matrixpolicyV9_approx_muon`, `matrixpolicyV10_switchclean`, `matrixpolicyV11_stateadapt`, and `matrixpolicyV12_selector_beta2` P0 all failed or were pruned from the active repo surface on 2026-06-22/23. The method-preserving safe Muon-off implementation in commit `02b85d9` passed P0 speed validation and is now being checked with a full split E1 rerun, jobs `767136`-`767150`, using manifest `experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv`.
 
 ## Problem
 

@@ -405,91 +405,81 @@ Completion note: jobs `727913`, `727914`, and `727915` completed with exit `0:0`
 
 ## MatrixPolicy Safe Muon-Off Speed P0 Submission
 
-Submitted: 2026-06-22 20:54:36 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv`. This is a three-row implementation-speed pilot using DCLM seed `1337` for `500` steps: SiLU+AdamW, RLB+AdamW, and original RLB+MatrixPolicy after commit `02b85d9` skips permanently inactive Muon steps. It is not a new Vx optimizer method.
+Submitted: 2026-06-22 20:54:36 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv`. This was a three-row implementation-speed pilot using DCLM seed `1337` for `500` steps: SiLU+AdamW, RLB+AdamW, and original RLB+MatrixPolicy after commit `02b85d9` skips permanently inactive Muon steps. It was not a new Vx optimizer method.
 
-```bash
-sbatch --parsable \
-  --job-name=mpSafe-p0-silu \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727991
+Submitted jobs:
 
-sbatch --parsable \
-  --job-name=mpSafe-p0-rlbadam \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727990
+| Row | Job | Method |
+| ---: | ---: | --- |
+| 0 | `727991` | `silu_adamw` |
+| 1 | `727990` | `rlb_adamw` |
+| 2 | `727992` | `rlb_matrixpolicy_original` speed-fixed |
 
-sbatch --parsable \
-  --job-name=mpSafe-p0-mp \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv,ROW_START=2,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727992
-```
-
-Scheduler state at 2026-06-22 20:54:36 EDT: all three jobs were pending on priority with no estimated start time from `squeue --start`.
+Completion note: jobs `727990`, `727991`, and `727992` completed with exit `0:0` and `Restarts=0` by `2026-06-22 22:32:09 EDT`. The MatrixPolicy speed-fixed row retained the expected 500-step quality band and improved mean optimizer-step time from the earlier same-node pre-speed control by about `17.5%`. The temporary P0 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
 
 ## matrixpolicyV10 Switch-Clean P0 Submission
 
-Submitted: 2026-06-22 20:58:38 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv`. This is a two-row DCLM seed `1337`, `500`-step P0 method pilot: original MatrixPolicy control and a switch-clean candidate that adds only `--rational-matrix-policy-muon-reset-adam-state` to the original MatrixPolicy flags. It uses the existing optimizer path; no new source alias is added.
+Submitted: 2026-06-22 20:58:38 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv`. This was a two-row DCLM seed `1337`, `500`-step P0 method pilot: original MatrixPolicy control and a switch-clean candidate that added only `--rational-matrix-policy-muon-reset-adam-state` to the original MatrixPolicy flags. It used the existing optimizer path; no new source alias was added.
 
-```bash
-sbatch --parsable \
-  --job-name=mpV10-p0-v1 \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 728006
+Submitted jobs:
 
-sbatch --parsable \
-  --job-name=mpV10-p0-clean \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 728007
-```
+| Row | Job | Method |
+| ---: | ---: | --- |
+| 0 | `728006` | `rlb_matrixpolicy_original` |
+| 1 | `728007` | `rlb_matrixpolicyV10_switchclean` |
 
-Scheduler state at 2026-06-22 20:58:38 EDT: both jobs were pending on priority. Estimated starts were `728006` at `2026-06-23T16:05:00` and `728007` at `2026-06-23T16:46:00` EDT.
+Completion note: jobs `728006` and `728007` completed with exit `0:0` and `Restarts=0`. V10 was rejected after P0 because final loss worsened from `5.391717` to `5.424358` and AUC worsened from `6.367025` to `6.401291`. The temporary V10 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
 
 ## matrixpolicyV11 State-Adaptive Beta2 P0 Submission
 
-Submitted: 2026-06-22 21:02:34 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv`. This is a two-row DCLM seed `1337`, `500`-step P0 method pilot: original MatrixPolicy control and a state-adaptive beta2 candidate that adds only `--rational-matrix-policy-adam-beta2-final 0.98 --rational-matrix-policy-adam-beta2-decay-start 0.36 --rational-matrix-policy-adam-beta2-decay-end 0.50` to the original MatrixPolicy flags. It uses the existing optimizer path; no new source alias is added.
+Submitted: 2026-06-22 21:02:34 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv`. This was a two-row DCLM seed `1337`, `500`-step P0 method pilot: original MatrixPolicy control and a state-adaptive beta2 candidate that added only `--rational-matrix-policy-adam-beta2-final 0.98 --rational-matrix-policy-adam-beta2-decay-start 0.36 --rational-matrix-policy-adam-beta2-decay-end 0.50` to the original MatrixPolicy flags. It used the existing optimizer path; no new source alias was added.
 
-```bash
-sbatch --parsable \
-  --job-name=mpV11-p0-v1 \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 728025
+Submitted jobs:
 
-sbatch --parsable \
-  --job-name=mpV11-p0-b98 \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 728026
-```
+| Row | Job | Method |
+| ---: | ---: | --- |
+| 0 | `728025` | `rlb_matrixpolicy_original` |
+| 1 | `728026` | `rlb_matrixpolicyV11_stateadapt_b98` |
 
-Scheduler state at 2026-06-22 21:02:34 EDT: both jobs were pending on priority, with no estimated start time from `squeue --start`.
+Completion note: jobs `728025` and `728026` completed with exit `0:0` and `Restarts=0`. V11 was rejected after P0 because final loss worsened from `5.391785` to `5.394934` and AUC worsened from `6.367712` to `6.374737`; it also did not show a speed win. The temporary V11 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
 
 ## matrixpolicyV12 Selector-Beta2 P0 Submission
 
-Submitted: 2026-06-22 21:07:09 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV12_selector_beta2_p0_manifest.csv`. This is a one-row DCLM seed `1337`, `500`-step candidate-only P0 method pilot. It adds only `--rational-matrix-policy-adam-beta2-input-final 0.98 --rational-matrix-policy-adam-beta2-decay-start 0.36 --rational-matrix-policy-adam-beta2-decay-end 0.50` to the original MatrixPolicy flags. It uses the already queued fresh MatrixPolicy controls for comparison if they complete cleanly; no new source alias is added.
+Submitted: 2026-06-22 21:07:09 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicyV12_selector_beta2_p0_manifest.csv`. This was a one-row DCLM seed `1337`, `500`-step candidate-only P0 method pilot. It added only `--rational-matrix-policy-adam-beta2-input-final 0.98 --rational-matrix-policy-adam-beta2-decay-start 0.36 --rational-matrix-policy-adam-beta2-decay-end 0.50` to the original MatrixPolicy flags. It used fresh MatrixPolicy controls from the same pilot batch for comparison; no new source alias was added.
 
-```bash
-sbatch --parsable \
-  --job-name=mpV12-p0-inb98 \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV12_selector_beta2_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 728038
-```
+Submitted job:
 
-Scheduler state at 2026-06-22 21:07:09 EDT: job `728038` was pending on priority. Estimated start was `2026-06-23T18:46:00` EDT.
+| Row | Job | Method |
+| ---: | ---: | --- |
+| 0 | `728038` | `rlb_matrixpolicyV12_selector_beta2_b98` |
+
+Completion note: job `728038` completed with exit `0:0` and `Restarts=0`. V12 was rejected after P0 because it worsened final loss and AUC against the clean fresh-control mean. The temporary V12 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
+
+## E1 MatrixPolicy Safe-Speed Full Rerun Submission
+
+Submitted: 2026-06-23 14:23:33 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv`. This is a full E1 rerun for original `rlb_matrixpolicy_original` under the method-preserving safe Muon-off speed fix from commit `02b85d9`. It is one row per job in two parity dependency chains, so at most two 4-A6000 jobs run concurrently and preemption loss is bounded to one row.
+
+Submitted jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `767136` | none |
+| 1 | `767137` | none |
+| 2 | `767138` | afterok:`767136` |
+| 3 | `767139` | afterok:`767137` |
+| 4 | `767140` | afterok:`767138` |
+| 5 | `767141` | afterok:`767139` |
+| 6 | `767142` | afterok:`767140` |
+| 7 | `767143` | afterok:`767141` |
+| 8 | `767144` | afterok:`767142` |
+| 9 | `767145` | afterok:`767143` |
+| 10 | `767146` | afterok:`767144` |
+| 11 | `767147` | afterok:`767145` |
+| 12 | `767148` | afterok:`767146` |
+| 13 | `767149` | afterok:`767147` |
+| 14 | `767150` | afterok:`767148` |
+
+Initial scheduler state after submission: jobs `767136` and `767137` were running on `ma-compute-01` and `monakhova-compute-01`; jobs `767138`-`767150` were dependency-held.
 
 ## E2 Main 300M Submissions
 

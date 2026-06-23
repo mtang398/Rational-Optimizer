@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-22 21:07:09 EDT
+Updated: 2026-06-23 14:23:33 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -236,72 +236,149 @@ Result:
 Interpretation: lowering Newton-Schulz accuracy reduced logged optimizer-step time, but the same-node NS=3 row gained only about `0.45%` total wall-time while worsening final loss by `+0.004756` and AUC by `+0.007731`. NS=2 was much worse on loss/AUC and ran on a different, slower node, so its wall-time is not a favorable acceptance signal. V9 says the original MatrixPolicy benefit is not coming from an easily disposable excess of Muon iteration accuracy. The next candidate should preserve the full-quality matrix conditioning direction and seek speed through a different mathematically justified reuse, amortization, or lower-cost policy signal.
 
 ## MatrixPolicy Safe Muon-Off Speed P0 Pilot
-Queued: 2026-06-22 20:54:36 EDT. Decision status: pending on scheduler priority. This is an implementation speed validation, not a new Vx optimizer method.
+Queued: 2026-06-22 20:54:36 EDT. Completed: 2026-06-22 22:32:09 EDT. Decision: pass as an implementation-speed validation and prune the temporary P0 manifest.
 
-The code change in commit `02b85d9` keeps the original `rational_matrix_policy_onpolicy` update rule, but skips `torch.optim.Muon.step()` after every MatrixPolicy Muon group has permanently decayed to zero (`final_muon=min_muon=0` and all group decay ends have passed). It intentionally does not skip the early zero-LR warmup region, because that could alter Muon momentum state before the active window. The method hypothesis is unchanged: use the original full-quality early MatrixPolicy conditioning, then avoid paying Muon overhead after it is provably inactive.
+Commit `02b85d9` keeps the original `rational_matrix_policy_onpolicy` method, but skips `torch.optim.Muon.step()` after every MatrixPolicy Muon group has permanently decayed to zero (`final_muon=min_muon=0` and all group decay ends have passed). It does not skip the early zero-LR warmup region, so Muon momentum state before the active window is unchanged. This is not a new Vx method; it is the speed-fixed implementation of the original MatrixPolicy.
 
 | Field | Value |
 | --- | --- |
-| Temporary manifest | `experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv` |
+| Manifest | removed after completed P0; raw JSONL retained under `experiments/runs/iclr26_main/P0_matrixpolicy_safe_speed_500step/` |
 | Phase | `P0_matrixpolicy_safe_speed_500step` |
 | Dataset/seed | DCLM seed `1337` |
 | Budget | `500` steps, `16,384,000` train tokens per row |
-| Row 0 | SiLU+AdamW job `727991`, method `silu_adamw` |
-| Row 1 | RLB+AdamW job `727990`, method `rlb_adamw` |
-| Row 2 | RLB+MatrixPolicy job `727992`, method `rlb_matrixpolicy_original` with the safe Muon-off skip |
+| Jobs | SiLU+AdamW `727991`, RLB+AdamW `727990`, RLB+MatrixPolicy `727992`; all completed `0:0`, `Restarts=0` |
 
-Acceptance gate: MatrixPolicy final loss/AUC should match the existing 500-step DCLM MatrixPolicy controls within normal run noise, and logged MatrixPolicy `optimizer_step_seconds` after the Muon decay point should fall materially versus the pre-speedup controls. For the speed goal, compare total seconds, mean seconds/step, tokens/s, and optimizer-step time against the fresh SiLU+AdamW and RLB+AdamW rows, with node differences called out explicitly.
+Result:
+
+| Metric | SiLU+AdamW | RLB+AdamW | RLB+MatrixPolicy speed-fixed |
+| --- | ---: | ---: | ---: |
+| Final val loss | 5.526357 | 5.507063 | 5.390449 |
+| Validation-loss AUC | 6.526789 | 6.465431 | 6.366827 |
+| Total seconds | 201.893 | 225.824 | 235.540 |
+| Mean seconds/step | 0.382180 | 0.417371 | 0.437841 |
+| Tokens/s | 85,739.7 | 78,510.5 | 74,840.0 |
+| Mean optimizer-step s | 0.016275 | 0.015735 | 0.074118 |
+| Late optimizer-step s, step >= 200 | 0.015229 | 0.015152 | 0.064019 |
+| Slurm node | `damle-compute-01` | `barcheck-compute-01` | `lancer-compute-01` |
+
+Interpretation: the implementation speed fix preserves the expected MatrixPolicy loss/AUC band and materially reduces logged MatrixPolicy optimizer-step overhead. Against the earlier same-node pre-speed P0 control on `lancer-compute-01` (`5.390707` final loss, `242.934s` total, `0.452856` s/step, `0.089893` mean optimizer-step s), the speed-fixed row is effectively quality-neutral and improves total time by about `3.0%`, mean s/step by about `3.3%`, and mean optimizer-step time by about `17.5%`. It is still slower than SiLU+AdamW at P0, but is now close to RLB+AdamW full-step time while retaining the MatrixPolicy quality advantage. This justifies the full split E1 rerun below.
 
 ## matrixpolicyV10 Switch-Clean P0 Pilot
-Queued: 2026-06-22 20:58:38 EDT. Decision status: pending on scheduler priority. Do not queue V10 P1 or E1 until this P0 passes the paired loss/runtime gate.
+Queued: 2026-06-22 20:58:38 EDT. Completed: 2026-06-22 22:32:10 EDT. Decision: reject and prune. Do not queue V10 P1 or E1.
 
-V10 is a no-new-source-path MatrixPolicy method pilot using the existing `--rational-matrix-policy-muon-reset-adam-state` flag. It keeps the original full-quality early Muon conditioning window and the same group-stat MatrixPolicy. The a priori claim is that MatrixPolicy mixes two matrix metrics: early Muon/polar geometry and late AdamW diagonal moments. If Adam moments are accumulated through the mixed phase, the late pure-Adam matrix step can inherit stale second-moment geometry from before the Muon-conditioned representative has settled. Resetting the matrix Adam state exactly when Muon permanently turns off makes the late Adam phase estimate its diagonal metric in the post-Muon, gauge-balanced coordinates. This is a method hypothesis about optimizer state geometry, not a kernel/fusion/runtime tweak.
+V10 used the existing `--rational-matrix-policy-muon-reset-adam-state` flag. It kept the original full-quality early Muon conditioning window and group-stat MatrixPolicy, then reset matrix Adam state exactly when Muon permanently turned off. The a priori claim was that the late pure-Adam matrix phase should estimate its diagonal metric in post-Muon, gauge-balanced coordinates. P0 rejects this hard switch-clean reset.
 
 | Field | Value |
 | --- | --- |
-| Temporary manifest | `experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv` |
+| Manifest | removed after failed P0; raw JSONL retained under `experiments/runs/iclr26_main/P0_matrixpolicyV10_switchclean_500step/` |
 | Phase | `P0_matrixpolicyV10_switchclean_500step` |
 | Dataset/seed | DCLM seed `1337` |
 | Budget | `500` steps, `16,384,000` train tokens per row |
-| Row 0 | V1 control job `728006`, method `rlb_matrixpolicy_original` |
-| Row 1 | V10 switch-clean job `728007`, method `rlb_matrixpolicyV10_switchclean` |
-| Estimated starts | `728006` at `2026-06-23T16:05:00`, `728007` at `2026-06-23T16:46:00` |
+| Jobs | V1 control `728006`, V10 switch-clean `728007`; both completed `0:0`, `Restarts=0` |
 
-P0 gate: V10 must match or improve paired V1 final validation loss and AUC, with no runtime regression after the safe Muon-off implementation fix. If it fails, delete the temporary manifest and retain only a concise failed-pilot record here.
+Result:
+
+| Metric | V1 control | V10 switch-clean |
+| --- | ---: | ---: |
+| Final val loss | 5.391717 | 5.424358 |
+| Validation-loss AUC | 6.367025 | 6.401291 |
+| Total seconds | 237.312 | 233.785 |
+| Mean seconds/step | 0.441691 | 0.435504 |
+| Tokens/s | 74,187.6 | 75,241.5 |
+| Mean optimizer-step s | 0.078312 | 0.076854 |
+| Slurm node | `lancer-compute-01` | `sun-compute-03` |
+
+Interpretation: V10 is slightly faster in this P0 pair but fails decisively on quality: final loss worsens by `+0.032641` and AUC by `+0.034266`. Hard-resetting Adam state at the Muon-off switch likely discards useful diagonal curvature memory rather than cleaning stale geometry.
 
 ## matrixpolicyV11 State-Adaptive Beta2 P0 Pilot
-Queued: 2026-06-22 21:02:34 EDT. Decision status: pending on scheduler priority. Do not queue V11 P1 or E1 until this P0 passes the paired loss/runtime gate.
+Queued: 2026-06-22 21:02:34 EDT. Completed: 2026-06-22 22:34:17 EDT. Decision: reject and prune. Do not queue V11 P1 or E1.
 
-V11 is a no-new-source-path MatrixPolicy method pilot. It keeps the original full-quality early Muon conditioning window and group-stat MatrixPolicy, then decays the RLB matrix Adam beta2 from `0.999` to `0.98` after the Muon window has ended (`progress 0.36` to `0.50`). The a priori claim is a softer version of V10: once the optimizer leaves the Muon/polar metric and enters the pure AdamW matrix phase, the diagonal second-moment metric should adapt faster to the post-Muon, gauge-balanced coordinates. Unlike V10, V11 does not flush all Adam state; it gradually shortens the memory of the second-moment estimator.
+V11 kept the original full-quality early Muon conditioning window and group-stat MatrixPolicy, then decayed the RLB matrix Adam beta2 from `0.999` to `0.98` after the Muon window ended (`progress 0.36` to `0.50`). The a priori claim was a softer version of V10: shorten second-moment memory in the post-Muon coordinates without flushing all Adam state. P0 rejects this global late beta2 adaptation.
 
 | Field | Value |
 | --- | --- |
-| Temporary manifest | `experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv` |
+| Manifest | removed after failed P0; raw JSONL retained under `experiments/runs/iclr26_main/P0_matrixpolicyV11_stateadapt_500step/` |
 | Phase | `P0_matrixpolicyV11_stateadapt_500step` |
 | Dataset/seed | DCLM seed `1337` |
 | Budget | `500` steps, `16,384,000` train tokens per row |
-| Row 0 | V1 control job `728025`, method `rlb_matrixpolicy_original` |
-| Row 1 | V11 beta2-adaptive job `728026`, method `rlb_matrixpolicyV11_stateadapt_b98` |
-| Estimated starts | unavailable from `squeue --start` at submission time |
+| Jobs | V1 control `728025`, V11 beta2-adaptive `728026`; both completed `0:0`, `Restarts=0` |
 
-P0 gate: V11 must match or improve paired V1 final validation loss and AUC, with no runtime regression after the safe Muon-off implementation fix. If it fails, delete the temporary manifest and retain only a concise failed-pilot record here.
+Result:
+
+| Metric | V1 control | V11 beta2-adaptive |
+| --- | ---: | ---: |
+| Final val loss | 5.391785 | 5.394934 |
+| Validation-loss AUC | 6.367712 | 6.374737 |
+| Total seconds | 357.151 | 362.870 |
+| Mean seconds/step | 0.681426 | 0.693354 |
+| Tokens/s | 48,087.4 | 47,260.1 |
+| Mean optimizer-step s | 0.072005 | 0.082035 |
+| Slurm node | `ma-compute-01` | `monakhova-compute-01` |
+
+Interpretation: V11 fails the quality gate and does not provide a reliable speed win. Lowering beta2 globally after Muon turns off increases late update responsiveness, but the P0 curve suggests the original long-memory matrix Adam state is part of the stable MatrixPolicy handoff.
 
 ## matrixpolicyV12 Selector-Beta2 P0 Pilot
-Queued: 2026-06-22 21:07:09 EDT. Decision status: pending on scheduler priority. Do not queue V12 P1 or E1 until this candidate and the shared fresh V1 controls pass the paired loss/runtime gate.
+Queued: 2026-06-22 21:07:09 EDT. Completed: 2026-06-22 22:33:55 EDT. Decision: reject and prune. Do not queue V12 P1 or E1.
 
-V12 is a no-new-source-path, candidate-only MatrixPolicy method pilot. It reuses the already queued fresh MatrixPolicy controls from the safe-speed, V10, and V11 P0 runs if they complete cleanly. It keeps the original full-quality early Muon conditioning window and group-stat MatrixPolicy, then decays Adam beta2 only for input-selector matrices from `0.999` to `0.98` after the Muon window has ended (`progress 0.36` to `0.50`). The a priori claim is role-specific: prior P0 telemetry showed post-Muon input-side update/weight ratios consistently above output-side ratios, so the input-domain selector metric may need faster post-Muon adaptation while the output recombiner metric should remain smoother.
+V12 was a no-new-source-path, candidate-only MatrixPolicy method pilot. It kept the original full-quality early Muon conditioning window and group-stat MatrixPolicy, then decayed Adam beta2 only for input-selector matrices from `0.999` to `0.98` after the Muon window ended (`progress 0.36` to `0.50`). The role-specific claim was that input-domain selector matrices might need faster post-Muon adaptation while output recombiners remain smoother. P0 rejects this selector-only beta2 change.
 
 | Field | Value |
 | --- | --- |
-| Temporary manifest | `experiments/manifests/iclr26_matrixpolicyV12_selector_beta2_p0_manifest.csv` |
+| Manifest | removed after failed P0; raw JSONL retained under `experiments/runs/iclr26_main/P0_matrixpolicyV12_selector_beta2_500step/` |
 | Phase | `P0_matrixpolicyV12_selector_beta2_500step` |
 | Dataset/seed | DCLM seed `1337` |
 | Budget | `500` steps, `16,384,000` train tokens |
-| Row 0 | V12 selector-beta2 candidate job `728038`, method `rlb_matrixpolicyV12_selector_beta2_b98` |
-| Shared controls | fresh original MatrixPolicy jobs `727992`, `728006`, and `728025` if they complete cleanly |
-| Estimated start | `2026-06-23T18:46:00` |
+| Job | V12 selector-beta2 candidate `728038`, completed `0:0`, `Restarts=0` |
+| Shared controls | fresh original MatrixPolicy controls `727992`, `728006`, and `728025`, all completed cleanly |
 
-P0 gate: V12 must match or improve the clean fresh V1 controls on final validation loss and AUC, with no runtime regression after the safe Muon-off implementation fix. If it fails, delete the temporary manifest and retain only a concise failed-pilot record here.
+Result:
+
+| Metric | Fresh V1 controls mean | V12 selector-beta2 |
+| --- | ---: | ---: |
+| Final val loss | 5.391317 | 5.394907 |
+| Validation-loss AUC | 6.367188 | 6.370962 |
+| Total seconds | 276.664 | 324.148 |
+| Mean seconds/step | 0.520319 | 0.615609 |
+| Tokens/s | 65,705.0 | 53,228.6 |
+| Mean optimizer-step s | 0.074812 | 0.104886 |
+| Slurm node(s) | mixed | `sablab-gpu-12` |
+
+Interpretation: V12 worsens final loss by `+0.003590` and AUC by `+0.003774` versus the clean fresh-control mean. The timing comparison is node-mixed, but the method already fails quality. Role-selective late beta2 adaptation is not promoted.
+
+## E1 MatrixPolicy Safe-Speed Full Rerun
+Queued: 2026-06-23 14:23:33 EDT. Decision status: running/queued. This is the full E1 validation of original MatrixPolicy under the method-preserving speed fix from commit `02b85d9`, not a new optimizer method.
+
+| Field | Value |
+| --- | --- |
+| Manifest | `experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv` |
+| Phase | `E1_matrixpolicy_safe_speed_100m` |
+| Dataset/seed coverage | 5 datasets x 3 seeds, all `rlb_matrixpolicy_original` |
+| Budget | `3050` steps, about `100M` train tokens per row |
+| Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs |
+| Jobs | `767136`-`767150` |
+| Initial running jobs | rows `0` and `1`, jobs `767136` and `767137` |
+
+Submitted jobs:
+
+| Row | Job | Dataset | Seed | Dependency |
+| ---: | ---: | --- | ---: | --- |
+| 0 | `767136` | DCLM | 1337 | none |
+| 1 | `767137` | DCLM | 2027 | none |
+| 2 | `767138` | DCLM | 3407 | afterok:`767136` |
+| 3 | `767139` | FineWeb-Edu | 1337 | afterok:`767137` |
+| 4 | `767140` | FineWeb-Edu | 2027 | afterok:`767138` |
+| 5 | `767141` | FineWeb-Edu | 3407 | afterok:`767139` |
+| 6 | `767142` | FineWeb | 1337 | afterok:`767140` |
+| 7 | `767143` | FineWeb | 2027 | afterok:`767141` |
+| 8 | `767144` | FineWeb | 3407 | afterok:`767142` |
+| 9 | `767145` | Dolma-sample | 1337 | afterok:`767143` |
+| 10 | `767146` | Dolma-sample | 2027 | afterok:`767144` |
+| 11 | `767147` | Dolma-sample | 3407 | afterok:`767145` |
+| 12 | `767148` | C4 | 1337 | afterok:`767146` |
+| 13 | `767149` | C4 | 2027 | afterok:`767147` |
+| 14 | `767150` | C4 | 3407 | afterok:`767148` |
+
+Acceptance gate: full E1 final losses should match the original MatrixPolicy E1 result within normal seed/dataset noise, while runtime and optimizer-step telemetry should reflect the safe Muon-off speed improvement. If this passes, the speed-fixed original MatrixPolicy becomes the candidate for the goal's full-E1 evidence.
 
 ## Completed Runtime Summary
 
