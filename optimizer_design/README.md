@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The rejected V2/V3/V4/V5 branches and failed V7 P0 pilot have been removed from the live optimizer surface. The completed V3/V4/V5 E1 rerun summaries and V7 P0 result are retained below as negative/neutral evidence, but proposal files and standalone manifests were deleted after rejection. V6 stayed proposal-only and was removed without a pilot. The current paper anchor remains original `rational_matrix_policy_onpolicy`; no live Vx alias is active.
+The rejected V2/V3/V4/V5 branches and failed V7/V8/V9 P0 pilots have been removed from the live optimizer surface. The completed V3/V4/V5 E1 rerun summaries and V7/V8/V9 P0 results are retained as negative/neutral evidence in `../experiments/ICLR_RUN_STATUS.md`, but proposal files and standalone manifests were deleted after rejection. V6 stayed proposal-only and was removed without a pilot. The current paper anchor remains original `rational_matrix_policy_onpolicy`; no live Vx alias is active.
 
 ## Current Result Anchor
 
@@ -266,9 +266,11 @@ V5 telemetry was real: final role-scale means were consistently around `in=0.817
 
 ## Next Proposal Direction
 
-V7 P0 is a useful negative result: it slightly improved the 500-step DCLM pilot loss, but the gain was too small for the runtime penalty. That rules out per-step or low-frequency full-parameter snapshot methods as the next direction unless the loss gain is much larger.
+V7/V8/V9 are useful negative results. V7 slightly improved the 500-step DCLM pilot loss, but the gain was too small for the runtime penalty. V8 shortened the Muon window and worsened loss/AUC. V9 lowered Muon Newton-Schulz accuracy inside the original window and also worsened loss/AUC for negligible same-node speed. Together they say the early full-quality MatrixPolicy conditioning direction matters, and the next optimizer-design candidate should not simply weaken or shorten Muon.
 
-The next candidate should be a MatrixPolicy rule that is explainable from existing optimizer/RLB quantities and does not add expensive hooks, extra forward/backward passes, or matrix snapshots. It must pass the fast paired P0 gate before any P1 or E1 expansion. No current Vx proposal file is retained; new candidate artifacts should stay temporary and be pruned immediately if the pilot fails.
+The current implementation includes a method-preserving speed fix: once every MatrixPolicy Muon group has passed its decay end and `final_muon=min_muon=0`, `RationalMatrixPolicyOptimizer` skips the otherwise zero-LR Muon step. This should reduce runtime without changing the represented optimizer trajectory, because no later Muon update can use the skipped state. It is being validated as an implementation speed pilot, not as a new Vx method.
+
+The next method candidate should be a MatrixPolicy rule that is explainable from existing optimizer/RLB quantities and does not add expensive hooks, extra forward/backward passes, or matrix snapshots. It must pass the fast paired P0 gate before any P1 or E1 expansion. No current Vx proposal file is retained; new candidate artifacts should stay temporary and be pruned immediately if the pilot fails.
 
 ## Telemetry Status
 

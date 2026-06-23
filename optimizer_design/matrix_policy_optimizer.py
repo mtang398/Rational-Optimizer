@@ -520,6 +520,20 @@ class RationalMatrixPolicyOptimizer:
         self._muon_fraction_cache[key] = value
         return value
 
+    def _muon_decay_end_for(self, group: dict) -> float:
+        depth_offset = self.muon_decay_depth_shift * (self._depth(group) - 0.5)
+        role = str(group.get("matrix_role", "matrix"))
+        role_offset = self.muon_output_decay_shift if role == "out" else self.muon_input_decay_shift
+        return min(1.0, max(0.0, self.decay_end + depth_offset + role_offset))
+
+    def _muon_permanently_inactive(self) -> bool:
+        if self.muon is None:
+            return True
+        if self.final_muon != 0.0 or self.min_muon > 0.0:
+            return False
+        progress = self._progress()
+        return all(progress >= self._muon_decay_end_for(group) for group in self.muon.param_groups)
+
     def _maybe_reset_adam_after_muon(self, group: dict, fraction: float):
         if not self.muon_reset_adam_state:
             return
@@ -667,8 +681,9 @@ class RationalMatrixPolicyOptimizer:
             group["lr"] = lr * self._adam_lr_scale(group) * (1.0 - fraction)
             group["betas"] = self._adam_betas(group)
 
+        muon_should_step = self.muon is not None and not self._muon_permanently_inactive()
         saved_muon_lrs = []
-        if self.muon is not None:
+        if muon_should_step:
             for group in self.muon.param_groups:
                 lr = float(group["lr"])
                 saved_muon_lrs.append(lr)
@@ -676,13 +691,13 @@ class RationalMatrixPolicyOptimizer:
                 group["lr"] = lr * self.muon_lr_scale * fraction
 
         self.adam.step()
-        if self.muon is not None:
+        if muon_should_step:
             self.muon.step()
 
         for group, lr, betas in zip(self.adam.param_groups, saved_adam_lrs, saved_adam_betas):
             group["lr"] = lr
             group["betas"] = betas
-        if self.muon is not None:
+        if muon_should_step:
             for group, lr in zip(self.muon.param_groups, saved_muon_lrs):
                 group["lr"] = lr
         if capture_telemetry:
