@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-22 20:58:38 EDT
+Updated: 2026-06-22 21:02:34 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -268,6 +268,23 @@ V10 is a no-new-source-path MatrixPolicy method pilot using the existing `--rati
 | Estimated starts | `728006` at `2026-06-23T16:05:00`, `728007` at `2026-06-23T16:46:00` |
 
 P0 gate: V10 must match or improve paired V1 final validation loss and AUC, with no runtime regression after the safe Muon-off implementation fix. If it fails, delete the temporary manifest and retain only a concise failed-pilot record here.
+
+## matrixpolicyV11 State-Adaptive Beta2 P0 Pilot
+Queued: 2026-06-22 21:02:34 EDT. Decision status: pending on scheduler priority. Do not queue V11 P1 or E1 until this P0 passes the paired loss/runtime gate.
+
+V11 is a no-new-source-path MatrixPolicy method pilot. It keeps the original full-quality early Muon conditioning window and group-stat MatrixPolicy, then decays the RLB matrix Adam beta2 from `0.999` to `0.98` after the Muon window has ended (`progress 0.36` to `0.50`). The a priori claim is a softer version of V10: once the optimizer leaves the Muon/polar metric and enters the pure AdamW matrix phase, the diagonal second-moment metric should adapt faster to the post-Muon, gauge-balanced coordinates. Unlike V10, V11 does not flush all Adam state; it gradually shortens the memory of the second-moment estimator.
+
+| Field | Value |
+| --- | --- |
+| Temporary manifest | `experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv` |
+| Phase | `P0_matrixpolicyV11_stateadapt_500step` |
+| Dataset/seed | DCLM seed `1337` |
+| Budget | `500` steps, `16,384,000` train tokens per row |
+| Row 0 | V1 control job `728025`, method `rlb_matrixpolicy_original` |
+| Row 1 | V11 beta2-adaptive job `728026`, method `rlb_matrixpolicyV11_stateadapt_b98` |
+| Estimated starts | unavailable from `squeue --start` at submission time |
+
+P0 gate: V11 must match or improve paired V1 final validation loss and AUC, with no runtime regression after the safe Muon-off implementation fix. If it fails, delete the temporary manifest and retain only a concise failed-pilot record here.
 
 ## Completed Runtime Summary
 

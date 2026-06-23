@@ -454,6 +454,28 @@ sbatch --parsable \
 
 Scheduler state at 2026-06-22 20:58:38 EDT: both jobs were pending on priority. Estimated starts were `728006` at `2026-06-23T16:05:00` and `728007` at `2026-06-23T16:46:00` EDT.
 
+## matrixpolicyV11 State-Adaptive Beta2 P0 Submission
+
+Submitted: 2026-06-22 21:02:34 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv`. This is a two-row DCLM seed `1337`, `500`-step P0 method pilot: original MatrixPolicy control and a state-adaptive beta2 candidate that adds only `--rational-matrix-policy-adam-beta2-final 0.98 --rational-matrix-policy-adam-beta2-decay-start 0.36 --rational-matrix-policy-adam-beta2-decay-end 0.50` to the original MatrixPolicy flags. It uses the existing optimizer path; no new source alias is added.
+
+```bash
+sbatch --parsable \
+  --job-name=mpV11-p0-v1 \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 728025
+
+sbatch --parsable \
+  --job-name=mpV11-p0-b98 \
+  --time=02:00:00 \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+# returned 728026
+```
+
+Scheduler state at 2026-06-22 21:02:34 EDT: both jobs were pending on priority, with no estimated start time from `squeue --start`.
+
 ## E2 Main 300M Submissions
 
 Rows `240-464` are E2. E2 initially started with whole 15-row matched cells,
