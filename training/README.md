@@ -79,7 +79,7 @@ Current MatrixPolicy manifest flags:
 --rational-matrix-policy-group-max-scale 1.35
 ```
 
-No live proposal optimizer alias is active. Rejected V2-V12 hooks, standalone manifests, proposal files, and raw run directories are removed; the single retained failure state is `../optimizer_design/proposals/matrixpolicy_variant_failures.md`. New MatrixPolicy variants should start as short paired pilots and be pruned unless they pass both loss and runtime gates.
+No live proposal optimizer alias is active. Rejected proposal hooks, standalone manifests, proposal files, and raw run directories are removed; the single retained failure state is `../optimizer_design/proposals/matrixpolicy_variant_failures.md`. New MatrixPolicy variants should start as short paired pilots and be pruned unless they pass both loss and runtime gates.
 
 ## Real-Corpus Protocol
 

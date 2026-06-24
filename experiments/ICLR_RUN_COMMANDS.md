@@ -182,11 +182,18 @@ E1 completion note: all jobs `155411`, `155412`, `158114`, `158115`, `158117`, `
 
 ## Rejected MatrixPolicy Variant Artifact Note
 
-Rejected V2-V12 launch artifacts have been pruned from the active repo surface and raw run tree. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; detailed rejected-variant submission blocks are intentionally not retained here.
+Rejected proposal launch artifacts have been pruned from the active repo surface and raw run tree. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; detailed rejected-variant submission blocks are intentionally not retained here.
+
+## Rational-Only RLB Ablation Halt Note
+
+Checked: 2026-06-24 15:17:49 EDT. Manifest: `experiments/manifests/iclr26_rational_only_ablation_manifest.csv`. Planned scope was E1 + E2 across five datasets x three seeds per phase using clean activation alias `rlb_fused_rational_only` and the original `rational_matrix_policy_onpolicy` optimizer settings.
+
+No new full-suite jobs were submitted at this check. Two existing DCLM E1 rows from `E1_rational_only_100m` already failed the ablation gate: seeds `1337` and `2027` have finite validation loss at step `50`, `NaN` validation loss from step `100` onward, no JSONL summary record, and `NaN` train loss by logged step `250`. This is recorded as a method failure in `ICLR_RUN_STATUS.md` and `optimizer_design/proposals/matrixpolicy_variant_failures.md`, not as a preemption gap.
+
 
 ## MatrixPolicy Safe Muon-Off Speed P0 Submission
 
-Submitted: 2026-06-22 20:54:36 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv`. This was a three-row implementation-speed pilot using DCLM seed `1337` for `500` steps: SiLU+AdamW, RLB+AdamW, and original RLB+MatrixPolicy after commit `02b85d9` skips permanently inactive Muon steps. It was not a new Vx optimizer method.
+Submitted: 2026-06-22 20:54:36 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv`. This was a three-row implementation-speed pilot using DCLM seed `1337` for `500` steps: SiLU+AdamW, RLB+AdamW, and original RLB+MatrixPolicy after commit `02b85d9` skips permanently inactive Muon steps. It was not a new optimizer method.
 
 Submitted jobs:
 

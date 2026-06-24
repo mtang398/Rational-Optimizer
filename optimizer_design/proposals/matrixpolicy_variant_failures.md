@@ -22,7 +22,7 @@ Status: retained negative-result state only. All V2-V12 proposal files, standalo
 
 | Ablation | What was tried | Outcome | Failure reason |
 | --- | --- | --- | --- |
-| Rational-only RLB | `rlb_fused_rational_only_ffn`: remove local rational atoms (`centers=()`) while keeping the grouped SiLU-fitted P5/Q4 rational scalar and original MatrixPolicy settings. | Failed short E1 probe. | Two DCLM E1 seeds became nonfinite by train step `70` and validation step `100`, so the E1/E2 queue was stopped. This supports keeping the local basis in the paper anchor; the early fused speed readout is not a valid runtime result because quality failed. |
+| Rational-only RLB | `rlb_fused_rational_only`: remove local rational atoms (`centers=()`) while keeping the grouped SiLU-fitted P5/Q4 rational scalar and original MatrixPolicy settings. | Failed short E1 probe. | Two DCLM E1 seeds had finite validation loss at step `50`, `NaN` validation loss from step `100` onward, no summary record, and `NaN` train loss by logged step `250`; the E1/E2 queue was stopped. This supports keeping the local basis in the paper anchor; the early speed readout is not a valid runtime result because quality failed. |
 
 ## Decision
 

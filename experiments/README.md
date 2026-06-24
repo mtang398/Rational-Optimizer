@@ -6,7 +6,7 @@ All E1/E2 MatrixPolicy tables, curves, token-savings readouts, and runtime summa
 
 ## Optimizer Variant Status
 
-Rejected MatrixPolicy V2-V12 artifacts have been pruned from the live repo and raw run tree; the single retained negative-result state is `../optimizer_design/proposals/matrixpolicy_variant_failures.md`. Original `rational_matrix_policy_onpolicy` remains the paper anchor and the only active MatrixPolicy optimizer. Its method-preserving safe Muon-off implementation is now the paper-facing MatrixPolicy implementation for E1 and E2: E1 has a complete 15-row safe-speed MatrixPolicy replacement, and every E2 dataset has a complete three-seed safe-speed MatrixPolicy replacement.
+Rejected MatrixPolicy proposal artifacts have been pruned from the live repo and raw run tree; the single retained negative-result state is `../optimizer_design/proposals/matrixpolicy_variant_failures.md`. Original `rational_matrix_policy_onpolicy` remains the paper anchor and the only active MatrixPolicy optimizer. Its method-preserving safe Muon-off implementation is now the paper-facing MatrixPolicy implementation for E1 and E2: E1 has a complete 15-row safe-speed MatrixPolicy replacement, and every E2 dataset has a complete three-seed safe-speed MatrixPolicy replacement.
 
 ## Result Pointers
 

@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The rejected V2-V12 branches have been removed from the live optimizer surface and raw run tree. Their only retained state is the compact failure log in `proposals/matrixpolicy_variant_failures.md`. The current paper anchor remains original `rational_matrix_policy_onpolicy`; no live Vx alias is active.
+Rejected proposal branches have been removed from the live optimizer surface and raw run tree. Their only retained state is the compact failure log in `proposals/matrixpolicy_variant_failures.md`. The current paper anchor remains original `rational_matrix_policy_onpolicy`; no live proposal alias is active.
 
 ## Current Result Anchor
 
@@ -253,11 +253,11 @@ The paper story should be: RLB creates optimizer-visible geometry, and MatrixPol
 
 ## Rejected Variant Log
 
-Rejected V2-V12 method attempts are consolidated in `proposals/matrixpolicy_variant_failures.md`. Their source hooks, standalone manifests, proposal files, and raw run directories are no longer part of the active repo state.
+Rejected method attempts are consolidated in `proposals/matrixpolicy_variant_failures.md`. Their source hooks, standalone manifests, proposal files, and raw run directories are no longer part of the active repo state.
 
 ## Next Proposal Direction
 
-The current implementation includes a method-preserving speed fix: once every MatrixPolicy Muon group has passed its decay end and `final_muon=min_muon=0`, `RationalMatrixPolicyOptimizer` skips the otherwise zero-LR Muon step. P0 validated this as quality-neutral with lower optimizer-step overhead. The full `E1_matrixpolicy_safe_speed_100m` rerun completed all 15 rows on 2026-06-23: final losses match the original MatrixPolicy E1 table within seed/dataset noise, and the clean harness runtime aggregate improved to `27.3` min, `0.5102` s/step, and `67,078.3` tokens/s over 15 rows. This is the paper-facing implementation of the original MatrixPolicy, not a new Vx method.
+The current implementation includes a method-preserving speed fix: once every MatrixPolicy Muon group has passed its decay end and `final_muon=min_muon=0`, `RationalMatrixPolicyOptimizer` skips the otherwise zero-LR Muon step. P0 validated this as quality-neutral with lower optimizer-step overhead. The full `E1_matrixpolicy_safe_speed_100m` rerun completed all 15 rows on 2026-06-23: final losses match the original MatrixPolicy E1 table within seed/dataset noise, and the clean harness runtime aggregate improved to `27.3` min, `0.5102` s/step, and `67,078.3` tokens/s over 15 rows. This is the paper-facing implementation of the original MatrixPolicy, not a new optimizer method.
 
 The next method candidate should be a MatrixPolicy rule that is explainable from existing optimizer/RLB quantities and does not add expensive hooks, extra forward/backward passes, or matrix snapshots. It must pass a fast paired pilot before any E1 expansion.
 
