@@ -5572,6 +5572,7 @@ def parse_args():
             "rlb_fused_fast_h2640_ffn",
             "rlb_fused_fast_h2560_ffn",
             "rlb_fused_fixed_strong_ffn",
+            "rlb_fused_rational_only_ffn",
             "rlb_fused_fixed_strong_h2880_ffn",
             "rlb_fused_fixed_strong_h2816_ffn",
             "rlb_fused_fixed_strong_h2640_ffn",
