@@ -25,9 +25,9 @@ MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
 # Rows 81-88 cannot provide trusted per-row runtime from the original artifacts:
 # sacct --duplicates shows six preempted allocations and partial JSONLs for row
 # 81, so the original row summaries are not clean timing records. They are
-# skipped from the main manifest and overlaid only from the clean repair manifest
-# once those reruns finish. Row 89 is replaced by the safe-speed MatrixPolicy
-# rerun through the method-key overlay below.
+# skipped from the main manifest and overlaid from the completed clean repair
+# manifest. Row 89 is replaced by the safe-speed MatrixPolicy rerun through the
+# method-key overlay below.
 RESTART_AFFECTED_ROWS = set(range(81, 89))
 
 
@@ -245,7 +245,7 @@ Included in tracked runtime aggregates:
 
 Excluded from tracked runtime aggregates:
 
-- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `{skipped_original_row_count}` rows skipped from the main manifest runtime source. They are overlaid only from `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv` after clean repair reruns complete.
+- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `{skipped_original_row_count}` rows skipped from the main manifest runtime source. They are overlaid from the completed clean repair manifest `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`.
 - Rows `465+` are outside E2.
 
 No raw Slurm-elapsed E1 aggregate is tracked in this package. Runtime aggregates use completed JSONL `summary.total_seconds` only for clean row attempts; original restart-contaminated rows `81-88` are not assigned inferred row times.

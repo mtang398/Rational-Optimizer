@@ -197,6 +197,22 @@ def checkpoint_table(curves, dataset: str, dataset_label: str) -> str:
     return "\n".join(lines)
 
 
+def final_snapshot(curves) -> str:
+    lines = [
+        "Final validation-loss overview across completed E1 datasets. Lower is better; cells are mean +/- sample std over three seeds.",
+        "",
+        "| Method | " + " | ".join(f"{label} final" for _, label in DATASETS) + " |",
+        "| --- | " + " | ".join("---:" for _ in DATASETS) + " |",
+    ]
+    for method, label in TABLE_METHODS:
+        cells = []
+        for dataset, _dataset_label in DATASETS:
+            by_step = aggregate_values(curves, dataset, method, "val_loss")
+            cells.append(checkpoint_cell(by_step.get(3050, [])))
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
 def update_status_tables(status_path: Path, curves) -> None:
     text = status_path.read_text()
     for dataset, label in DATASETS:
@@ -270,8 +286,63 @@ def plot_dataset(curves, dataset: str, dataset_label: str, metric: str, out_path
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, format="svg")
+    svg_text = out_path.read_text()
+    out_path.write_text("\n".join(line.rstrip() for line in svg_text.splitlines()) + "\n")
     plt.close(fig)
     return True
+
+
+def write_readme(out_dir: Path, curves, uses_safe_matrixpolicy: bool) -> None:
+    if len(DATASETS) == 1:
+        completed = DATASETS[0][1]
+    else:
+        completed = ", ".join(label for _, label in DATASETS[:-1]) + f", and {DATASETS[-1][1]}"
+    matrixpolicy_note = (
+        "MatrixPolicy curves and tables use the accepted E1 safe-speed replacement JSONL rows when "
+        "the generator is called with `--matrixpolicy-manifest`; all other methods use the clean main "
+        "E1 rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable."
+        if uses_safe_matrixpolicy
+        else "MatrixPolicy curves and tables use the manifest rows passed to this generator."
+    )
+    sections = [
+        "# ICLR26 E1 Dense Curve Figures",
+        "",
+        f"Completed E1 M0/100M datasets: {completed}. Figures use every native JSONL log point from step 500 through 3050. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.",
+        "",
+        matrixpolicy_note,
+        "",
+        final_snapshot(curves),
+    ]
+    for dataset, label in DATASETS:
+        sections.extend(
+            [
+                "",
+                f"## {label}",
+                "",
+                "All-method view:",
+                "",
+                f"![{label} E1 validation loss mean +/- std, all methods]({dataset}_core_validation_loss_mean_std.svg)",
+                "",
+                f"![{label} E1 validation PPL mean +/- std, all methods]({dataset}_core_validation_ppl_mean_std.svg)",
+                "",
+                f"![{label} E1 training loss mean +/- std, all methods]({dataset}_core_training_loss_mean_std.svg)",
+                "",
+                "Clean comparison view:",
+                "",
+                f"![{label} E1 validation loss mean +/- std, clean comparison]({dataset}_clean_validation_loss_mean_std.svg)",
+                "",
+                f"![{label} E1 validation PPL mean +/- std, clean comparison]({dataset}_clean_validation_ppl_mean_std.svg)",
+                "",
+                f"![{label} E1 training loss mean +/- std, clean comparison]({dataset}_clean_training_loss_mean_std.svg)",
+                "",
+                checkpoint_table(curves, dataset, label),
+            ]
+        )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    text = "\n".join(sections) + "\n"
+    while "\n\n\n" in text:
+        text = text.replace("\n\n\n", "\n\n")
+    (out_dir / "README.md").write_text(text)
 
 
 def main() -> int:
@@ -311,8 +382,16 @@ def main() -> int:
                 out_path = args.out_dir / f"{dataset}_{variant}_{suffix}"
                 if plot_dataset(curves, dataset, label, metric, out_path, methods, variant_label):
                     made.append(out_path)
+    write_readme(
+        args.out_dir,
+        curves,
+        args.matrixpolicy_manifest is not None
+        and args.matrixpolicy_run_root is not None
+        and args.matrixpolicy_phase is not None,
+    )
     for path in made:
         print(path)
+    print(args.out_dir / "README.md")
     return 0
 
 

@@ -6,7 +6,29 @@ The rejected V2-V12 branches have been removed from the live optimizer surface a
 
 ## Current Result Anchor
 
-The current paper-facing optimizer evidence is the completed E1 matched main suite plus the completed E2 DCLM M0/300M cell. In E2 DCLM, `rational_matrix_policy_onpolicy` reaches final validation loss `3.957627 +/- 0.030713`, ahead of the next aggregate methods around `3.9934`, and the token-to-target savings table is tracked in `../experiments/results/iclr26_e2_dclm_2026_06_10/README.md`.
+The current paper-facing optimizer evidence is the completed E1 matched main suite plus completed E2 M0/300M cells on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. All MatrixPolicy values use the accepted safe-speed replacement rows, not the pre-fix MatrixPolicy timing path.
+
+E1 M0/100M final validation-loss anchor:
+
+| Dataset | MatrixPolicy final val loss | next best current method | gap |
+| --- | ---: | ---: | ---: |
+| DCLM | 4.256989 +/- 0.004197 | rlb_lion 4.305728 +/- 0.005836 | 0.048739 |
+| FineWeb-Edu | 4.088287 +/- 0.009169 | rlb_lion 4.142669 +/- 0.006812 | 0.054382 |
+| FineWeb | 4.319472 +/- 0.012370 | rlb_lion 4.367062 +/- 0.007532 | 0.047590 |
+| Dolma-sample | 4.323933 +/- 0.005168 | rlb_lion 4.369254 +/- 0.005561 | 0.045321 |
+| C4 | 4.286446 +/- 0.019324 | rlb_lion 4.335663 +/- 0.020917 | 0.049217 |
+
+E2 M0/300M final validation-loss anchor:
+
+| Dataset | MatrixPolicy final val loss | next best aggregate method | gap |
+| --- | ---: | ---: | ---: |
+| DCLM | 3.956069 +/- 0.030752 | silu_lion 3.993430 +/- 0.023038 | 0.037361 |
+| FineWeb-Edu | 3.707768 +/- 0.018711 | rlb_muon 3.738164 +/- 0.021014 | 0.030396 |
+| FineWeb | 3.964892 +/- 0.009459 | rlb_muon 4.001245 +/- 0.011375 | 0.036353 |
+| Dolma-sample | 3.808954 +/- 0.006442 | rlb_lion 3.842503 +/- 0.009333 | 0.033549 |
+| C4 | 3.883021 +/- 0.014134 | rlb_muon 3.915858 +/- 0.016066 | 0.032837 |
+
+Full E1 token-savings and curve/checkpoint tables are in `../experiments/results/iclr26_e1_token_savings_2026_06_12/` and `../experiments/results/iclr26_e1_figures/`. Full E2 final, runtime, token-savings, and curve/checkpoint tables are in `../experiments/results/iclr26_e2_*` and `../experiments/results/iclr26_e2_figures/`.
 
 ## Problem Setup
 

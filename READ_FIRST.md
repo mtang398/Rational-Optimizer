@@ -10,26 +10,29 @@ Every comparison must keep the base protocol matched: model size, token budget, 
 
 ## Current Result Boundary
 
-The paper-facing result boundary now has two completed pieces: E1 M0/100M across all five matched datasets, and E2 M0/300M for the full DCLM cell. E1 has three seeds per dataset with matched outer configs, dense validation every 50 steps, and full mean +/- sample std curves in `experiments/ICLR_RUN_STATUS.md`. E2 DCLM rows `240-284` are complete and summarized in `experiments/results/iclr26_e2_dclm_2026_06_10/`.
+The paper-facing result boundary is complete for E1 M0/100M and E2 M0/300M across all five matched datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. E1 has three seeds per dataset with matched outer configs, dense validation every 50 steps, and full mean +/- sample std curves in `experiments/results/iclr26_e1_figures/`. E2 has three seeds per dataset, final eval at step `9150`, and full result packages under `experiments/results/iclr26_e2_*` plus curves in `experiments/results/iclr26_e2_figures/`.
+
+All MatrixPolicy values below use the accepted safe-speed replacement rows: `experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv` for E1 and `experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv` for E2. Token-to-target savings are tracked in the E1 package and in each E2 dataset package.
+
+E1 M0/100M final validation-loss anchor:
 
 | Dataset | MatrixPolicy final val loss | next best current method | gap |
 | --- | ---: | ---: | ---: |
-| DCLM | 4.256224 +/- 0.004972 | rlb_lion 4.305728 +/- 0.005836 | 0.049505 |
-| FineWeb-Edu | 4.088240 +/- 0.009434 | rlb_lion 4.142669 +/- 0.006812 | 0.054429 |
-| FineWeb | 4.318581 +/- 0.010914 | rlb_lion 4.367062 +/- 0.007532 | 0.048481 |
-| Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
-| C4 | 4.285119 +/- 0.020677 | rlb_lion 4.335663 +/- 0.020917 | 0.050544 |
+| DCLM | 4.256989 +/- 0.004197 | rlb_lion 4.305728 +/- 0.005836 | 0.048739 |
+| FineWeb-Edu | 4.088287 +/- 0.009169 | rlb_lion 4.142669 +/- 0.006812 | 0.054382 |
+| FineWeb | 4.319472 +/- 0.012370 | rlb_lion 4.367062 +/- 0.007532 | 0.047590 |
+| Dolma-sample | 4.323933 +/- 0.005168 | rlb_lion 4.369254 +/- 0.005561 | 0.045321 |
+| C4 | 4.286446 +/- 0.019324 | rlb_lion 4.335663 +/- 0.020917 | 0.049217 |
 
-E2 DCLM M0/300M summary: MatrixPolicy final validation loss is `3.957627 +/- 0.030713`; the next-best aggregate method is `silu_lion` at `3.993430 +/- 0.023038`. MatrixPolicy is best on all three seeds, with the token-to-target savings below.
+E2 M0/300M final validation-loss anchor:
 
-| Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
-| ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
-| 4.40 | 74.3M | 74.3M -> 80.8M (3/3) | 6.6M | 8.1% | 74.3M -> 93.4M (3/3) | 19.1M | 20.5% |
-| 4.30 | 101.0M | 101.0M -> 104.9M (3/3) | 3.8M | 3.6% | 101.0M -> 120.7M (3/3) | 19.7M | 16.3% |
-| 4.20 | 133.3M | 133.3M -> 139.3M (3/3) | 6.0M | 4.3% | 133.3M -> 161.1M (3/3) | 27.9M | 17.3% |
-| 4.10 | 176.4M | 176.4M -> 187.9M (3/3) | 11.5M | 6.1% | 176.4M -> 227.7M (3/3) | 51.3M | 22.5% |
-| 4.05 | 205.3M | 205.3M -> 222.8M (3/3) | 17.5M | 7.8% | 185.1M -> 244.1M (1/3) | 59.0M | 24.2% |
-| 4.00 | 244.7M | 232.7M -> 267.9M (2/3) | 35.2M | 13.1% | not reached (0/3) | not reached | n/a |
+| Dataset | MatrixPolicy final val loss | next best aggregate method | gap |
+| --- | ---: | ---: | ---: |
+| DCLM | 3.956069 +/- 0.030752 | silu_lion 3.993430 +/- 0.023038 | 0.037361 |
+| FineWeb-Edu | 3.707768 +/- 0.018711 | rlb_muon 3.738164 +/- 0.021014 | 0.030396 |
+| FineWeb | 3.964892 +/- 0.009459 | rlb_muon 4.001245 +/- 0.011375 | 0.036353 |
+| Dolma-sample | 3.808954 +/- 0.006442 | rlb_lion 3.842503 +/- 0.009333 | 0.033549 |
+| C4 | 3.883021 +/- 0.014134 | rlb_muon 3.915858 +/- 0.016066 | 0.032837 |
 
 This should be read as an optimizer result, not an RLB-only activation comparison. WikiText remains only a small demo anchor.
 

@@ -224,7 +224,7 @@ Submitted jobs:
 
 Initial scheduler state after submission: jobs `767136` and `767137` were running on `ma-compute-01` and `monakhova-compute-01`; jobs `767138`-`767150` were dependency-held.
 
-Completion note: all jobs `767136`-`767150` completed with exit `0:0` by `2026-06-23 18:16:55 EDT`. Job `767137` had `Restarts=1`; its preempted partial JSONL was archived as `.incomplete_767137_1_20260623150154`, and the final clean rerun is the only row included in aggregates. The completed rerun passes the E1 acceptance gate: final losses match the original MatrixPolicy E1 table within seed/dataset noise while the clean JSONL runtime aggregate improves from the prior clean E1 RLB+MatrixPolicy row (`32.0` min, `0.6032` s/step, `55,759.6` tokens/s over 14 clean rows) to `27.3` min, `0.5102` s/step, and `67,078.3` tokens/s over 15 clean rows.
+Completion note: all jobs `767136`-`767150` completed with exit `0:0` by `2026-06-23 18:16:55 EDT`. Job `767137` had `Restarts=1`; its preempted partial JSONL was archived as `.incomplete_767137_1_20260623150154`, and the final clean rerun is the only row included in aggregates. The completed rerun passes the E1 acceptance gate: final losses match the original MatrixPolicy E1 table within seed/dataset noise. The paper-facing runtime summary now uses the 15-row safe-speed MatrixPolicy aggregate (`27.3` min, `0.5102` s/step, `67,078.3` tokens/s) together with completed repair overlays that restore 15 E1 runs for every optimizer/activation combo.
 
 ## E2 Main 300M Submissions
 

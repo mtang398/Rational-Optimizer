@@ -77,17 +77,7 @@ These are optimizer-diagnostic fields. They do not change the activation claim b
 
 ## Evidence Boundary
 
-The current paper-facing evidence is the manifest-based E1 suite on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 plus the completed E2 DCLM M0/300M cell. Full E1 curves, E2 DCLM final tables, and E2 token-to-target savings are in `../experiments/ICLR_RUN_STATUS.md`; the E2 package is `../experiments/results/iclr26_e2_dclm_2026_06_10/`. This remains evidence for RLB plus MatrixPolicy, not an activation-only claim.
-
-This is why RLB changes should be evaluated with the full control set:
-
-```text
-SiLU+AdamW
-RLB+AdamW
-SiLU+Muon
-RLB+Muon
-RLB+MatrixPolicy
-```
+The current paper-facing evidence is the manifest-based E1 M0/100M suite and E2 M0/300M suite on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. All MatrixPolicy values in the paper-facing packages use the accepted safe-speed replacement rows. Full E1 curves, token-savings, and checkpoint tables are in `../experiments/results/iclr26_e1_figures/` and `../experiments/results/iclr26_e1_token_savings_2026_06_12/`; full E2 final/runtime/token/curve tables are in `../experiments/results/iclr26_e2_*` and `../experiments/results/iclr26_e2_figures/`. This remains evidence for RLB plus MatrixPolicy, not an activation-only claim.
 
 ## Paper Use
 

@@ -12,15 +12,27 @@ RLB exposes optimizer-visible structure, and MatrixPolicy uses that structure to
 
 ### E1 M0/100M Main Suite
 
-Full tables, completed job status, and dense mean +/- std curves are in `experiments/ICLR_RUN_STATUS.md`; exact submitted commands are in `experiments/ICLR_RUN_COMMANDS.md`. E1 M0/100M is complete across all five datasets and three seeds. MatrixPolicy is the lowest-loss method on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 under the fixed matched manifest.
+Full tables, completed job status, and dense mean +/- std curves are in `experiments/ICLR_RUN_STATUS.md`; exact submitted commands are in `experiments/ICLR_RUN_COMMANDS.md`. E1 M0/100M is complete across all five datasets and three seeds. MatrixPolicy rows use the accepted safe-speed replacement manifest.
 
 | Dataset | MatrixPolicy final val loss | next best current method | gap |
 | --- | ---: | ---: | ---: |
-| DCLM | 4.256224 +/- 0.004972 | rlb_lion 4.305728 +/- 0.005836 | 0.049505 |
-| FineWeb-Edu | 4.088240 +/- 0.009434 | rlb_lion 4.142669 +/- 0.006812 | 0.054429 |
-| FineWeb | 4.318581 +/- 0.010914 | rlb_lion 4.367062 +/- 0.007532 | 0.048481 |
-| Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
-| C4 | 4.285119 +/- 0.020677 | rlb_lion 4.335663 +/- 0.020917 | 0.050544 |
+| DCLM | 4.256989 +/- 0.004197 | rlb_lion 4.305728 +/- 0.005836 | 0.048739 |
+| FineWeb-Edu | 4.088287 +/- 0.009169 | rlb_lion 4.142669 +/- 0.006812 | 0.054382 |
+| FineWeb | 4.319472 +/- 0.012370 | rlb_lion 4.367062 +/- 0.007532 | 0.047590 |
+| Dolma-sample | 4.323933 +/- 0.005168 | rlb_lion 4.369254 +/- 0.005561 | 0.045321 |
+| C4 | 4.286446 +/- 0.019324 | rlb_lion 4.335663 +/- 0.020917 | 0.049217 |
+
+### E2 M0/300M Main Suite
+
+E2 M0/300M is complete across DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy rows use the accepted safe-speed replacement manifest; full final, runtime, token-savings, and curve/checkpoint tables are in `experiments/results/iclr26_e2_*` and `experiments/results/iclr26_e2_figures/`.
+
+| Dataset | MatrixPolicy final val loss | next best aggregate method | gap |
+| --- | ---: | ---: | ---: |
+| DCLM | 3.956069 +/- 0.030752 | silu_lion 3.993430 +/- 0.023038 | 0.037361 |
+| FineWeb-Edu | 3.707768 +/- 0.018711 | rlb_muon 3.738164 +/- 0.021014 | 0.030396 |
+| FineWeb | 3.964892 +/- 0.009459 | rlb_muon 4.001245 +/- 0.011375 | 0.036353 |
+| Dolma-sample | 3.808954 +/- 0.006442 | rlb_lion 3.842503 +/- 0.009333 | 0.033549 |
+| C4 | 3.883021 +/- 0.014134 | rlb_muon 3.915858 +/- 0.016066 | 0.032837 |
 
 ### WikiText Demo Anchor
 
@@ -60,12 +72,11 @@ If AdamW appears with an outer config in a matched cell, MatrixPolicy must appea
 ## Immediate Tasks
 
 1. Keep `experiments/ICLR_RUN_STATUS.md`, README files, and `TODO.md` synchronized whenever result summaries change.
-2. Finish the E1 derived analyses: validation AUC, early/mid/late AUC, paired seed gaps, ranks, timing, throughput, GPU-hour accounting, and divergence/failure-adjusted summaries.
-3. Before launching E2, verify the manifest rows still satisfy the matched-cell rule and that no stale partial-result language remains in Markdown.
-4. Monitor the running E2 M0/300M DCLM whole-cell jobs (`294600` rows 240-254, `294599` rows 255-269), then summarize complete matched cells before launching the next E2 wave.
-5. Run E3 M1 scale, E4 600M horizon, throughput/memory, cross-corpus evaluation, and corpus-shift runs in that order.
-6. Run sensitivity maps only after main M0/E2 curves exist.
-7. Run method ablations last.
+2. Use the completed safe-speed E1/E2 packages as the paper-facing result source for final validation loss, token-to-target, runtime, and curve/checkpoint figures.
+3. Finish derived analyses from the completed E1/E2 JSONL: validation AUC, early/mid/late AUC, paired seed gaps, ranks, timing, throughput, GPU-hour accounting, and divergence/failure-adjusted summaries.
+4. Run E3 M1 scale, E4 600M horizon, throughput/memory, cross-corpus evaluation, and corpus-shift runs in that order.
+5. Run sensitivity maps only after the completed main E1/E2 evidence is frozen.
+6. Run method ablations last.
 
 ## Mechanism Diagnostics Needed
 
