@@ -22,7 +22,8 @@ Status: retained negative-result state only. All V2-V12 proposal files, standalo
 
 | Ablation | What was tried | Outcome | Failure reason |
 | --- | --- | --- | --- |
-| Rational-only RLB | `rlb_fused_rational_only`: keep the RLB single-branch wrapper and grouped SiLU-fitted global P5/Q4 rational scalar, but remove local rational atoms with `centers=()`. | Full E1/E2 ablation queued by user request after a failed short probe. | Prior DCLM E1 seeds had finite validation loss at step `50`, `NaN` validation loss from step `100` onward, no summary record, and `NaN` train loss by logged step `250`; the current full queue is retained as an explicit ablation despite this warning. |
+| Rational-only RLB flawed alias | `rlb_fused_rational_only`: attempted global-only control by setting `centers=()`, but still constructed a zero-sized `coeff_logits` `Parameter`. | Rejected and excluded from ablation aggregates. | This was not the requested no-atom ablation because an atom/coefficient parameter group still existed structurally; rows that completed under this alias showed early nonfinite behavior and the remaining queue was cancelled. |
+| Rational-only RLB corrected alias | `rlb_fused_global_rational`: keep the RLB single-branch wrapper and grouped SiLU-fitted global P5/Q4 rational scalar, with no R-local atom path and no atom/coefficient `Parameter`. | Full E1/E2 ablation queued on 2026-06-24. | Pending; this is the corrected ablation definition. |
 
 ## Decision
 

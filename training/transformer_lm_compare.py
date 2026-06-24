@@ -229,6 +229,7 @@ RLB_ACTIVATIONS = {
     "rlb_fused_fast_h2640_ffn",
     "rlb_fused_fast_h2560_ffn",
     "rlb_fused_fixed_strong_ffn",
+    "rlb_fused_global_rational",
     "rlb_fused_rational_only",
     "rlb_fused_rational_only_ffn",
     "rlb_fused_fixed_strong_h2880_ffn",
@@ -2249,6 +2250,15 @@ def rlb_settings(activation, ffn_dim, group_size, max_groups):
         input_affine = False
         train_centers = False
         fused = True
+    elif activation == "rlb_fused_global_rational":
+        centers = ()
+        coeff_limit = 0.0
+        odd_init = 0.0
+        bump_init = 0.0
+        beta = 0.0
+        input_affine = False
+        train_centers = False
+        fused = True
     elif activation in {"rlb_fused_rational_only", "rlb_fused_rational_only_ffn"}:
         centers = ()
         coeff_limit = 0.60
@@ -2576,20 +2586,31 @@ class RationalLocalBasisFFN(nn.Module):
         self.groups = settings["groups"]
         self.in_proj = nn.Linear(dim, self.hidden_dim, bias=False)
         if settings["fused"]:
-            from rational_opt import RationalFusedLocalBasisA5_4
+            if activation == "rlb_fused_global_rational":
+                from rational_opt import RationalFusedGlobalA5_4
 
-            self.rlb_activation = RationalFusedLocalBasisA5_4(
-                self.hidden_dim,
-                self.groups,
-                init=settings["base_init"],
-                fit_range=5.0,
-                centers=settings["centers"],
-                coeff_limit=settings["coeff_limit"],
-                odd_init=settings["odd_init"],
-                bump_init=settings["bump_init"],
-                beta=settings["beta"],
-                eps=eps,
-            )
+                self.rlb_activation = RationalFusedGlobalA5_4(
+                    self.hidden_dim,
+                    self.groups,
+                    init=settings["base_init"],
+                    fit_range=5.0,
+                    eps=eps,
+                )
+            else:
+                from rational_opt import RationalFusedLocalBasisA5_4
+
+                self.rlb_activation = RationalFusedLocalBasisA5_4(
+                    self.hidden_dim,
+                    self.groups,
+                    init=settings["base_init"],
+                    fit_range=5.0,
+                    centers=settings["centers"],
+                    coeff_limit=settings["coeff_limit"],
+                    odd_init=settings["odd_init"],
+                    bump_init=settings["bump_init"],
+                    beta=settings["beta"],
+                    eps=eps,
+                )
         else:
             self.rlb_activation = RationalLocalBasisActivation(
                 self.hidden_dim,
@@ -4515,7 +4536,7 @@ def enable_rlb_training_telemetry(model, args):
     if args.activation not in RLB_ACTIVATIONS:
         return
     for module in model.modules():
-        if not all(hasattr(module, attr) for attr in ("groups", "hidden_dim", "numerator", "denominator", "coeff_logits")):
+        if not all(hasattr(module, attr) for attr in ("groups", "hidden_dim", "numerator", "denominator")):
             continue
         setattr(module, "_rlb_optimizer_track_stats", True)
         setattr(module, "_rlb_optimizer_stat_every", max(1, int(args.telemetry_rlb_stat_every)))
@@ -4932,7 +4953,7 @@ def collect_rlb_optimizer_groups(model, args):
         out_proj = getattr(module, "out_proj", None)
         if activation is None or in_proj is None or out_proj is None:
             continue
-        required = ("groups", "hidden_dim", "numerator", "denominator", "coeff_logits", "centers", "beta", "coeff_limit")
+        required = ("groups", "hidden_dim", "numerator", "denominator")
         if not isinstance(in_proj, nn.Linear) or not isinstance(out_proj, nn.Linear):
             continue
         if not all(hasattr(activation, attr) for attr in required):
@@ -4941,8 +4962,11 @@ def collect_rlb_optimizer_groups(model, args):
             continue
         if not isinstance(activation.denominator, nn.Parameter):
             continue
-        if not isinstance(activation.coeff_logits, nn.Parameter):
+        coeff_logits = getattr(activation, "coeff_logits", None)
+        if coeff_logits is not None and not isinstance(coeff_logits, nn.Parameter):
             continue
+        if coeff_logits is not None and coeff_logits.numel() == 0:
+            coeff_logits = None
         hidden_dim = int(activation.hidden_dim)
         groups_count = int(activation.groups)
         if in_proj.weight.shape[0] != hidden_dim or out_proj.weight.shape[1] != hidden_dim:
@@ -4954,10 +4978,10 @@ def collect_rlb_optimizer_groups(model, args):
                 "out_weight": out_proj.weight,
                 "numerator": activation.numerator,
                 "denominator": activation.denominator,
-                "coeff_logits": activation.coeff_logits,
-                "centers": activation.centers,
-                "beta": activation.beta,
-                "coeff_limit": float(activation.coeff_limit),
+                "coeff_logits": coeff_logits,
+                "centers": getattr(activation, "centers", None),
+                "beta": getattr(activation, "beta", None),
+                "coeff_limit": float(getattr(activation, "coeff_limit", 0.0)),
                 "groups": groups_count,
                 "hidden_dim": hidden_dim,
                 "layer_index": rational_optimizer_layer_index(module_name + "."),
@@ -5573,6 +5597,7 @@ def parse_args():
             "rlb_fused_fast_h2640_ffn",
             "rlb_fused_fast_h2560_ffn",
             "rlb_fused_fixed_strong_ffn",
+            "rlb_fused_global_rational",
             "rlb_fused_rational_only",
             "rlb_fused_rational_only_ffn",
             "rlb_fused_fixed_strong_h2880_ffn",

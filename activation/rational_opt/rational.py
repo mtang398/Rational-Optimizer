@@ -694,6 +694,149 @@ class RationalVersionA5_4(nn.Module):
         return rational_version_a5_4(x, self.numerator, self.denominator)
 
 
+class RationalFusedGlobalA5_4(nn.Module):
+    """Fused grouped Version A rational activation without local atoms."""
+
+    def __init__(
+        self,
+        hidden_dim,
+        groups,
+        init="silu",
+        fit_range=5.0,
+        eps=1e-6,
+    ):
+        super().__init__()
+        hidden_dim = int(hidden_dim)
+        groups = int(groups)
+        if hidden_dim <= 0:
+            raise ValueError("hidden_dim must be positive")
+        if groups <= 0:
+            raise ValueError("groups must be positive")
+        if hidden_dim % groups != 0:
+            raise ValueError("hidden_dim must be divisible by groups")
+        if hidden_dim // groups > 256:
+            raise ValueError("fused global rational supports group width <= 256")
+
+        numerator, denominator = _load_init(_VERSION_A_INIT_TABLE, init, fit_range)
+        numerator_tensor, denominator_tensor = _repeat_init(numerator, denominator, groups)
+
+        self.hidden_dim = hidden_dim
+        self.groups = groups
+        self.init_name = init
+        self.fit_range = float(fit_range)
+        self.eps = float(eps)
+        self.numerator = nn.Parameter(numerator_tensor)
+        self.denominator = nn.Parameter(denominator_tensor)
+        self.register_buffer("_empty_coeff", torch.empty(groups, 0, 2, dtype=torch.float32))
+        self.register_buffer("_empty_centers", torch.empty(groups, 0, dtype=torch.float32))
+        self.register_buffer("_empty_beta", torch.empty(groups, 0, dtype=torch.float32))
+
+    @torch.no_grad()
+    def _update_optimizer_stats(self, x):
+        if not bool(getattr(self, "_rlb_optimizer_track_stats", False)):
+            return
+        stat_every = int(getattr(self, "_rlb_optimizer_stat_every", 1))
+        counter = int(getattr(self, "_rlb_optimizer_stat_counter", 0)) + 1
+        self._rlb_optimizer_stat_counter = counter
+        if stat_every > 1 and counter % stat_every != 0 and hasattr(self, "_rlb_optimizer_stats"):
+            return
+
+        flat = x.detach().reshape(-1, self.hidden_dim)
+        max_samples = int(getattr(self, "_rlb_optimizer_stat_samples", 512))
+        if max_samples > 0 and flat.size(0) > max_samples:
+            index = torch.linspace(0, flat.size(0) - 1, max_samples, device=flat.device).long()
+            flat = flat.index_select(0, index)
+        grouped = flat.float().view(-1, self.groups, self.hidden_dim // self.groups)
+        rms = torch.sqrt(grouped.square().mean(dim=-1, keepdim=True) + self.eps)
+        t = grouped / rms
+        abs_t = t.abs()
+
+        moments = [torch.ones(self.groups, device=t.device, dtype=torch.float32)]
+        signed_moments = [torch.ones(self.groups, device=t.device, dtype=torch.float32)]
+        abs_power = torch.ones_like(abs_t)
+        signed_power = torch.ones_like(t)
+        for _ in range(1, 11):
+            abs_power = abs_power * abs_t
+            signed_power = signed_power * t
+            moments.append(abs_power.mean(dim=(0, 2)))
+            signed_moments.append(signed_power.mean(dim=(0, 2)))
+        abs_moments = torch.stack(moments, dim=1)
+        raw_moments = torch.stack(signed_moments, dim=1)
+
+        t2 = t.square()
+        t3 = t2 * t
+        t4 = t2.square()
+        t5 = t4 * t
+        ax3 = abs_t * t2
+        numerator = self.numerator.detach().float().view(1, self.groups, 1, 6)
+        denominator = self.denominator.detach().float()
+        denominator_abs = denominator.abs().view(1, self.groups, 1, 4)
+        denominator_sign = torch.where(denominator >= 0.0, 1.0, -1.0).view(1, self.groups, 1, 4)
+        powers = torch.stack((torch.ones_like(t), t, t2, t3, t4, t5), dim=-1)
+        den_powers = torch.stack((abs_t, t2, ax3, t4), dim=-1)
+        q = (
+            1.0
+            + denominator_abs[..., 0] * abs_t
+            + denominator_abs[..., 1] * t2
+            + denominator_abs[..., 2] * ax3
+            + denominator_abs[..., 3] * t4
+        )
+        poly = (numerator * powers).sum(dim=-1)
+        dpoly = (
+            numerator[..., 1]
+            + 2.0 * numerator[..., 2] * t
+            + 3.0 * numerator[..., 3] * t2
+            + 4.0 * numerator[..., 4] * t3
+            + 5.0 * numerator[..., 5] * t4
+        )
+        dq = (
+            denominator_abs[..., 0] * torch.sign(t)
+            + 2.0 * denominator_abs[..., 1] * t
+            + 3.0 * denominator_abs[..., 2] * t * abs_t
+            + 4.0 * denominator_abs[..., 3] * t3
+        )
+        output = poly / q.clamp_min(self.eps)
+        derivative = (dpoly * q - poly * dq) / q.square().clamp_min(self.eps)
+        num_features = powers / q.unsqueeze(-1).clamp_min(self.eps)
+        den_features = -poly.unsqueeze(-1) * denominator_sign * den_powers / q.square().unsqueeze(-1).clamp_min(self.eps)
+
+        num_flat = num_features.permute(1, 0, 2, 3).reshape(self.groups, -1, 6)
+        den_flat = den_features.permute(1, 0, 2, 3).reshape(self.groups, -1, 4)
+        num_gram = torch.einsum("gni,gnj->gij", num_flat, num_flat) / max(1, num_flat.size(1))
+        den_gram = torch.einsum("gni,gnj->gij", den_flat, den_flat) / max(1, den_flat.size(1))
+        output_rms = torch.sqrt(output.square().mean(dim=(0, 2)) + self.eps)
+        derivative_rms = torch.sqrt(derivative.square().mean(dim=(0, 2)) + self.eps)
+
+        self._rlb_optimizer_stats = {
+            "abs_moments": abs_moments.detach(),
+            "raw_moments": raw_moments.detach(),
+            "num_gram": num_gram.detach(),
+            "den_gram": den_gram.detach(),
+            "output_rms": output_rms.detach(),
+            "derivative_rms": derivative_rms.detach(),
+        }
+
+    def forward(self, x):
+        if x.size(-1) != self.hidden_dim:
+            raise ValueError(f"expected last dimension {self.hidden_dim}, got {x.size(-1)}")
+        self._update_optimizer_stats(x)
+        return rational_local_basis(
+            x,
+            self.numerator,
+            self.denominator,
+            self._empty_coeff,
+            self._empty_centers,
+            self._empty_beta,
+            0.0,
+            self.eps,
+            self.hidden_dim,
+            self.groups,
+        )
+
+    def extra_repr(self):
+        return f"hidden_dim={self.hidden_dim}, groups={self.groups}, init={self.init_name!r}, fit_range={self.fit_range:g}"
+
+
 class RationalGroupedVersionA5_4(nn.Module):
     """Width-scaled Version A rational activation with one coefficient set per channel group."""
 

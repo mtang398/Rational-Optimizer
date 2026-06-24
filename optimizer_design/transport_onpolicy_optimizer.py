@@ -138,10 +138,10 @@ class _RLBGaugeBalanceBase:
     def _curve_gain(self, group: dict):
         numerator = group["numerator"]
         denominator = group["denominator"]
-        coeff_logits = group["coeff_logits"]
-        centers = group["centers"]
-        beta = group["beta"]
-        coeff_limit = float(group["coeff_limit"])
+        coeff_logits = group.get("coeff_logits")
+        centers = group.get("centers")
+        beta = group.get("beta")
+        coeff_limit = float(group.get("coeff_limit", 0.0))
         dtype = numerator.dtype
         device = numerator.device
         t = torch.linspace(-self.probe_range, self.probe_range, self.probe_points, device=device, dtype=dtype)
@@ -174,7 +174,7 @@ class _RLBGaugeBalanceBase:
         f = p / q
         df = (dp * q - p * dq) / (q * q)
 
-        if coeff_logits.numel() > 0:
+        if coeff_logits is not None and coeff_logits.numel() > 0 and centers is not None and beta is not None:
             coeff = coeff_limit * torch.tanh(coeff_logits).to(dtype=dtype)
             center = centers.to(device=device, dtype=dtype).unsqueeze(-1)
             beta_v = beta.to(device=device, dtype=dtype).unsqueeze(-1)
@@ -249,8 +249,8 @@ class _RLBGaugeBalanceBase:
 
             rational_terms = []
             for key in ("numerator", "denominator", "coeff_logits"):
-                param = group[key]
-                if param.grad is None:
+                param = group.get(key)
+                if param is None or param.numel() == 0 or param.grad is None:
                     continue
                 grad = param.grad
                 rational_terms.append(grad.reshape(groups, -1).square().mean(dim=1))
@@ -619,7 +619,9 @@ class _RLBAdaptiveMetricBase(_RLBMatrixMetricBase):
             atom_blend = self._coefficient_blend(group, 1.10)
             self._apply_metric_gradient(group["numerator"], stats.get("num_gram"), num_blend)
             self._apply_metric_gradient(group["denominator"], stats.get("den_gram"), den_blend, role_damping=1.5)
-            self._apply_metric_gradient(group["coeff_logits"], stats.get("atom_gram"), atom_blend, role_damping=0.75)
+            coeff_logits = group.get("coeff_logits")
+            if coeff_logits is not None and coeff_logits.numel() > 0:
+                self._apply_metric_gradient(coeff_logits, stats.get("atom_gram"), atom_blend, role_damping=0.75)
 
     @torch.no_grad()
     def _precondition_matrix_gradients(self):
@@ -872,8 +874,8 @@ class RationalTransportOnPolicyOptimizer(_RLBAdaptiveMetricBase):
 
     @torch.no_grad()
     def _clip_transport_for_atom_headroom(self, group: dict, log_scale: torch.Tensor) -> torch.Tensor:
-        coeff_logits = group["coeff_logits"]
-        if coeff_logits.numel() == 0:
+        coeff_logits = group.get("coeff_logits")
+        if coeff_logits is None or coeff_logits.numel() == 0:
             return log_scale
         groups = int(group["groups"])
         limit = float(group["coeff_limit"])
@@ -894,8 +896,8 @@ class RationalTransportOnPolicyOptimizer(_RLBAdaptiveMetricBase):
         numerator = group["numerator"]
         numerator.view(groups, -1).mul_(scale.to(device=numerator.device, dtype=numerator.dtype).view(groups, 1))
 
-        coeff_logits = group["coeff_logits"]
-        if coeff_logits.numel() == 0:
+        coeff_logits = group.get("coeff_logits")
+        if coeff_logits is None or coeff_logits.numel() == 0:
             return
         limit = float(group["coeff_limit"])
         coeff = limit * torch.tanh(coeff_logits.detach().float())

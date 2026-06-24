@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-24 15:38:32 EDT
+Updated: 2026-06-24 16:04:49 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -30,31 +30,38 @@ Raw row outputs are JSONL files under `experiments/runs/iclr26_main/<phase>/<dat
 Rejected MatrixPolicy proposal artifacts were pruned from the active repo surface and raw run tree on 2026-06-23. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; this status file keeps only the accepted safe-speed MatrixPolicy records and paper-facing completed-suite summaries.
 
 ## Rational-Only RLB Ablation Status
-Queued: 2026-06-24 15:36 EDT. Checked: 2026-06-24 15:38:32 EDT. Decision: queued by user request; monitor closely because the earlier short probe showed NaNs.
+Queued corrected: 2026-06-24 16:02 EDT. Checked: 2026-06-24 16:04:49 EDT. Decision: rerun from scratch with a true no-atom activation; exclude the flawed earlier queue.
 
-Purpose: test whether RLB needs local rational atoms. This ablation keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted global rational P5/Q4, telemetry, gauge/stat hooks, and original MatrixPolicy optimizer settings, but removes the local atom basis by setting `centers=()`.
+Purpose: test whether RLB needs the local rational atoms. This ablation keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted global rational P5/Q4, telemetry, gauge/stat hooks, and original MatrixPolicy optimizer settings, but removes the R-local atom path entirely.
+
+Correction note: the 2026-06-24 15:36 queue used `rlb_fused_rational_only`, which set `centers=()` but still constructed `coeff_logits` as a zero-sized `Parameter`. That means an atom/coefficient parameter group still existed structurally, and the MatrixPolicy activity path could consume empty atom statistics. Jobs `830651`-`830681` completed under that flawed definition, jobs `830683` and `830685` were cancelled while active, and jobs `830688`-`830717` were cancelled before starting. Those JSONLs are obsolete and must not be used for the ablation.
 
 | Field | Value |
 | --- | --- |
 | Manifest | `experiments/manifests/iclr26_rational_only_ablation_manifest.csv` |
 | Planned scope | E1 + E2, five datasets x three seeds per phase |
-| Clean activation alias | `rlb_fused_rational_only` |
-| Definition | global grouped rational P/Q only; no local RLB atoms |
+| Correct activation alias | `rlb_fused_global_rational` |
+| Implementation | `RationalFusedGlobalA5_4` in `activation/rational_opt/rational.py` |
+| Definition | global grouped rational P/Q only; no R-local atoms and no atom/coefficient `Parameter` |
+| Trainable rational parameters | `numerator`, `denominator` only |
 | Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs |
-| Jobs | `830651`-`830717` |
-| Terminal jobs | even chain `830715`, odd chain `830717` |
-| Current scheduler state | `830651` and `830653` running; remaining rows dependency-held at this check |
+| Jobs | even chain `835104`, `835105`, `835106`, `835107`, `835108`, `835109`, `835110`, `835111`, `835112`, `835121`, `835122`, `835124`, `835125`, `835126`, `835127`; odd chain `835128`, `835129`, `835130`, `835131`, `835132`, `835133`, `835134`, `835135`, `835137`, `835138`, `835139`, `835140`, `835141`, `835142`, `835143` |
+| Terminal jobs | even chain `835127`, odd chain `835143` |
+| Current scheduler state | `835104` running on `rush-compute-03`, `835128` running on `ellis-compute-02`; all later rows dependency-held at this check |
 | Constraint | `--constraint=nvlink`; launcher also guards rational-only timing rows for NVLink |
 
-Prior probe warning:
+Verification before queue:
 
-| Dataset | Seed | Last logged train step | Final logged train loss | Eval losses |
-| --- | ---: | ---: | ---: | --- |
-| DCLM | 1337 | 250 | NaN | step 1: `10.923668`; step 50: `8.145039`; step 100+: `NaN` |
-| DCLM | 2027 | 250 | NaN | step 1: `10.910393`; step 50: `8.129251`; step 100+: `NaN` |
+| Check | Result |
+| --- | --- |
+| Direct activation parameters | `['denominator', 'numerator']` |
+| `coeff_logits` attribute | absent |
+| Activation stats | `abs_moments`, `raw_moments`, `num_gram`, `den_gram`, `output_rms`, `derivative_rms`; no atom stats |
+| Training constructor | `RationalLocalBasisFFN(..., 'rlb_fused_global_rational', ...)` constructs `RationalFusedGlobalA5_4` |
+| MatrixPolicy group collector | returns `coeff_logits=None` |
+| CPU fallback forward/backward | finite output and finite rational gradients |
 
-Interpretation: the queued ablation is the intended global-only rational control, not plain SiLU and not removal of the RLB wrapper. The earlier raw rows are retained as a warning signal; the current queue uses the clean `rlb_fused_rational_only` alias and will be monitored as a full requested ablation.
-
+Interpretation: the corrected queue is the intended global-only rational control, not plain SiLU and not removal of the RLB wrapper. It specifically removes the R-local atom path and the atom parameter group, while preserving the fused grouped rational evaluation path for timing.
 
 ## MatrixPolicy Safe Muon-Off Speed P0 Pilot
 Queued: 2026-06-22 20:54:36 EDT. Completed: 2026-06-22 22:32:09 EDT. Decision: pass as an implementation-speed validation and prune the temporary P0 manifest.
