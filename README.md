@@ -27,9 +27,9 @@ experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo a
 
 ## Completed Runtime Summary
 
-Per optimizer/activation-combo runtimes for completed paper cells are tracked in `experiments/results/iclr26_runtime_summary_2026_06_11/`. The E1 MatrixPolicy timing row now uses the completed safe-speed rerun. Other E1 methods use completed main-manifest JSONL attempt times after auditing the restarted FineWeb-Edu seed `2027` job. E2 timing remains from the completed original MatrixPolicy rows until the queued safe-speed E2 rerun finishes. The initial E2 odd-chain job `810093` was cancelled because it ran on a non-NVLink allocation at about 4x slower per-step time; its partial JSONL was archived by replacement job `812522` and must not be used for timing. The clean E2 safe-speed queue is the original even chain ending at `810106` plus the NVLink-constrained replacement odd chain `812522`-`812528`; the pending even-chain jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` were also updated in Slurm with `Features=nvlink` before they could start.
+Per optimizer/activation-combo runtimes for completed paper cells are tracked in `experiments/results/iclr26_runtime_summary_2026_06_11/`. E1 MatrixPolicy and E2 MatrixPolicy timing now use the completed safe-speed reruns. Other E1 methods use completed main-manifest JSONL attempt times after auditing the restarted FineWeb-Edu seed `2027` job and overlaying the clean NVLink repair rows `812529`-`812536`. The initial E2 odd-chain job `810093` was cancelled because it ran on a non-NVLink allocation at about 4x slower per-step time with `Restarts=0`; its partial JSONL was archived by replacement job `812522` and is excluded from timing. The clean E2 safe-speed aggregate uses the original even chain ending at `810106` plus the NVLink-constrained replacement odd chain `812522`-`812528`; all completed with `Restarts=0`.
 
-For job `158117`, rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are not assigned inferred row times because six Slurm preemptions and partial JSONLs make the true per-row runtimes unrecoverable from the existing artifacts. The original repair jobs `811802`-`811809` were cancelled when old E2 terminal job `810105` was replaced; clean NVLink-constrained repair jobs `812529`-`812536` are queued after E2 safe-speed terminal jobs `810106` and `812528`. Their manifest is `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`. Until those complete, SOAP, ADeMaMix, CAME, and ScheduleFree remain at 14 E1 runtime rows.
+For job `158117`, rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are not assigned inferred row times because six Slurm preemptions and partial JSONLs make the true per-row runtimes unrecoverable from the existing artifacts. The clean NVLink-constrained repair jobs `812529`-`812536` completed on 2026-06-24 with `Restarts=0`, restoring SOAP, ADeMaMix, CAME, and ScheduleFree to 15 E1 runtime rows.
 
 The runtime metric is the JSONL `summary.total_seconds` training-harness wall time per manifest row. This excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, pre-restart partial attempts, and the skipped original restart-contaminated rows. The manifest launcher now refuses timing-critical safe-speed/repair rows on non-NVLink nodes before archiving or writing JSONL artifacts, unless `ALLOW_NON_NVLINK_TIMING=1` is explicitly set.
 
@@ -44,14 +44,14 @@ The runtime metric is the JSONL `summary.total_seconds` training-harness wall ti
 | RLB+Muon | 15 | 33.9 min | 5.0 min | 25.1 min-40.4 min | 0.6349 | 52890.2 |
 | SiLU+Lion | 15 | 27.9 min | 6.2 min | 18.1 min-40.1 min | 0.5304 | 65164.9 |
 | RLB+Lion | 15 | 32.5 min | 5.8 min | 23.3 min-44.3 min | 0.6091 | 55659.8 |
-| SiLU+SOAP | 14 | 31.1 min | 5.5 min | 22.1 min-38.8 min | 0.5928 | 57179.6 |
-| RLB+SOAP | 14 | 32.4 min | 5.1 min | 24.0 min-40.0 min | 0.6076 | 55439.4 |
-| SiLU+ADeMaMix | 14 | 27.6 min | 5.5 min | 18.6 min-35.1 min | 0.5244 | 65288.4 |
-| RLB+ADeMaMix | 14 | 33.7 min | 5.2 min | 26.2 min-40.3 min | 0.6049 | 55715.5 |
-| SiLU+CAME | 14 | 28.9 min | 5.5 min | 19.9 min-36.3 min | 0.5507 | 61913.4 |
-| RLB+CAME | 14 | 33.8 min | 5.0 min | 25.4 min-39.9 min | 0.6342 | 52903.9 |
-| SiLU+ScheduleFree | 14 | 27.3 min | 5.4 min | 18.4 min-33.9 min | 0.5196 | 65899.0 |
-| RLB+ScheduleFree | 14 | 32.3 min | 5.0 min | 23.7 min-38.3 min | 0.6042 | 55739.4 |
+| SiLU+SOAP | 15 | 30.5 min | 5.9 min | 21.4 min-38.8 min | 0.5802 | 58784.6 |
+| RLB+SOAP | 15 | 32.0 min | 5.3 min | 24.0 min-40.0 min | 0.5986 | 56363.9 |
+| SiLU+ADeMaMix | 15 | 26.9 min | 5.8 min | 18.0 min-35.1 min | 0.5119 | 67431.3 |
+| RLB+ADeMaMix | 15 | 33.4 min | 5.2 min | 26.2 min-40.3 min | 0.5958 | 56664.4 |
+| SiLU+CAME | 15 | 28.3 min | 5.8 min | 19.3 min-36.3 min | 0.5382 | 63804.1 |
+| RLB+CAME | 15 | 33.4 min | 5.1 min | 25.4 min-39.9 min | 0.6254 | 53724.4 |
+| SiLU+ScheduleFree | 15 | 26.7 min | 5.8 min | 17.8 min-33.9 min | 0.5072 | 68064.2 |
+| RLB+ScheduleFree | 15 | 31.6 min | 5.4 min | 23.0 min-38.3 min | 0.5921 | 57193.3 |
 
 ## Current E2 300M Results
 

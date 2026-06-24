@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-23 20:43:47 EDT
+Updated: 2026-06-24 11:28:47 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -113,7 +113,7 @@ Per-row results:
 
 
 ## E2 MatrixPolicy Safe-Speed Timing Rerun
-Queued: 2026-06-23 20:06:40 EDT. Initial status: jobs `810092` and `810093` running; jobs `810094`-`810106` dependency-pending. Corrected on 2026-06-23 21:36 EDT: job `810093` was cancelled as timing-contaminated after running about 4x slower on non-NVLink `monakhova-compute-01` with `Restarts=0`. The clean E2 queue is now the original even chain ending at `810106` plus the NVLink-constrained replacement odd chain `812522`-`812528`. The remaining pending even-chain jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` were updated with `Features=nvlink` on 2026-06-23 21:41 EDT and verified before they started.
+Queued: 2026-06-23 20:06:40 EDT. Completed: 2026-06-24 05:52:29 EDT. Initial status: jobs `810092` and `810093` running; jobs `810094`-`810106` dependency-pending. Corrected on 2026-06-23 21:36 EDT: job `810093` was cancelled as timing-contaminated after running about 4x slower on non-NVLink `monakhova-compute-01` with `Restarts=0`. The clean E2 aggregate uses the original even chain ending at `810106` plus the NVLink-constrained replacement odd chain `812522`-`812528`; all clean jobs completed with exit `0:0` and `Restarts=0`. The pending even-chain jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` were updated with `Features=nvlink` on 2026-06-23 21:41 EDT and verified before they started.
 
 This is not a new method. It reruns only original `rlb_matrixpolicy_original` E2 MatrixPolicy rows under the accepted safe Muon-off implementation so the E2 runtime table can use the same speed-fixed code path as E1.
 
@@ -128,8 +128,9 @@ This is not a new method. It reruns only original `rlb_matrixpolicy_original` E2
 | Clean replacement | `812522` row 1 started on `abdelfattah-compute-03` with `--constraint=nvlink`; its startup archived the slow partial JSONL as `.incomplete_812522_0_20260623213620` |
 | Even-chain constraint fix | pending jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` now have `Features=nvlink` |
 | Launcher guard | timing-critical safe-speed/repair phases now exit before JSONL archive/write if the node lacks `nvlink`, unless `ALLOW_NON_NVLINK_TIMING=1` is explicitly set |
+| Jobs | `810092`, `810094`, `810096`, `810098`, `810100`, `810102`, `810104`, `810106`, and `812522`-`812528`; all completed `0:0`, `Restarts=0` |
 
-Current clean submitted jobs:
+Completed clean jobs:
 
 | Row | Job | Dependency |
 | ---: | ---: | --- |
@@ -149,11 +150,11 @@ Current clean submitted jobs:
 | 13 | `812528` | afterok:`812527`; replaces cancelled `810105` |
 | 14 | `810106` | afterok:`810104` |
 
-Estimated runtime from the completed safe E1 aggregate (`0.5102` s/step) is about `78` minutes per `9150`-step row before dataset/node variation. With two chains of 8 and 7 rows, a no-preemption, no-wait rough finish window is about `9-12` hours after queue time. This is an estimate only; the dependency layout limits any preemption loss to a single row.
+Final clean rows finished without Slurm restarts. The generated runtime summary now replaces the original E2 MatrixPolicy timing rows with these safe-speed JSONL `summary.total_seconds` records. Mean E2 MatrixPolicy runtime by dataset is `67.0`-`69.6` minutes, with mean s/step `0.4141`-`0.4304`.
 
 ## E1 FineWeb-Edu Runtime Repair Rerun
 
-Queued: 2026-06-23 20:43:47 EDT. Original jobs `811802`-`811809` were dependency-pending behind old E2 terminals `810105` and `810106`. Corrected on 2026-06-23 21:37 EDT: old terminal `810105` was cancelled with the timing-contaminated odd chain, so repair jobs `811802`-`811809` were cancelled and replaced by NVLink-constrained jobs `812529`-`812536` behind clean E2 terminals `810106` and `812528`.
+Queued: 2026-06-23 20:43:47 EDT. Completed: 2026-06-24 07:39:58 EDT. Original jobs `811802`-`811809` were dependency-pending behind old E2 terminals `810105` and `810106`. Corrected on 2026-06-23 21:37 EDT: old terminal `810105` was cancelled with the timing-contaminated odd chain, so repair jobs `811802`-`811809` were cancelled and replaced by NVLink-constrained jobs `812529`-`812536` behind clean E2 terminals `810106` and `812528`. All replacement repair jobs completed with exit `0:0` and `Restarts=0`.
 
 Purpose: cleanly rerun original E1 FineWeb-Edu seed `2027` rows `81-88`. Slurm job `158117` had six preemptions, and the existing original artifacts cannot reconstruct trusted per-row runtimes for those rows. Rows `75-80` remain retained from the original main manifest; row `89` is replaced by the accepted safe-speed MatrixPolicy rerun.
 
@@ -163,10 +164,11 @@ Purpose: cleanly rerun original E1 FineWeb-Edu seed `2027` rows `81-88`. Slurm j
 | Phase | `E1_fineweb_edu_seed2027_runtime_repair_100m` |
 | Coverage | original rows `81-88`, FineWeb-Edu seed `2027`, methods `silu_soap`, `rlb_soap`, `silu_ademamix`, `rlb_ademamix`, `silu_came`, `rlb_came`, `silu_schedulefree`, `rlb_schedulefree` |
 | Budget | `3050` steps, about `100M` train tokens per row |
-| Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs after E2 safe-speed finishes |
+| Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs after E2 safe-speed terminals |
 | Initial dependency | `afterok:810106:812528` |
+| Jobs | `812529`-`812536`; all completed `0:0`, `Restarts=0` |
 
-Current clean submitted jobs:
+Completed clean jobs:
 
 | Repair manifest offset | Original row | Job | Dependency |
 | ---: | ---: | ---: | --- |
@@ -179,17 +181,17 @@ Current clean submitted jobs:
 | 6 | 87 | `812535` | afterok:`812533` |
 | 7 | 88 | `812536` | afterok:`812534` |
 
-When all eight repair jobs complete, `experiments/scripts/summarize_iclr26_runtimes.py` overlays these clean rows into the E1 runtime table and restores 15 runs for SOAP, ADeMaMix, CAME, and ScheduleFree. Until then, those methods correctly remain at 14 E1 runtime rows.
+All eight repair jobs completed cleanly. `experiments/scripts/summarize_iclr26_runtimes.py` overlays these rows into the E1 runtime table and restores 15 runs for SOAP, ADeMaMix, CAME, and ScheduleFree.
 
 ## Completed Runtime Summary
 
-Generated: 2026-06-23.
+Generated: 2026-06-24.
 
 This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, and pre-restart partial attempts.
 
 Included in tracked runtime aggregates:
 
-- E1 M0/100M clean rows: `217` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `0/8`. Row `89` is replaced by the completed safe-speed MatrixPolicy rerun when available.
+- E1 M0/100M clean rows: `225` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `8/8`. Row `89` is replaced by the completed safe-speed MatrixPolicy rerun when available.
 - E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb completed cell: `45` rows, one dataset x three seeds x 15 methods.
@@ -198,12 +200,12 @@ Included in tracked runtime aggregates:
 
 Excluded from tracked runtime aggregates:
 
-- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `8` rows skipped from the main manifest runtime source. They are overlaid only from `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv` after clean repair reruns complete.
+- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `8` rows skipped from the main manifest runtime source. They are overlaid from the completed clean repair manifest `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`.
 - Rows `465+` are outside E2.
 
 No raw Slurm-elapsed E1 aggregate is tracked in this package. Runtime aggregates use completed JSONL `summary.total_seconds` only for clean row attempts; original restart-contaminated rows `81-88` are not assigned inferred row times.
 
-Clean rows summarized: `442`.
+Clean rows summarized: `450`.
 
 ## E1 M0/100M All Datasets
 
@@ -216,20 +218,20 @@ Clean rows summarized: `442`.
 | RLB+Muon | 15 | 33.9 min | 5.0 min | 25.1 min-40.4 min | 0.6349 | 52890.2 |
 | SiLU+Lion | 15 | 27.9 min | 6.2 min | 18.1 min-40.1 min | 0.5304 | 65164.9 |
 | RLB+Lion | 15 | 32.5 min | 5.8 min | 23.3 min-44.3 min | 0.6091 | 55659.8 |
-| SiLU+SOAP | 14 | 31.1 min | 5.5 min | 22.1 min-38.8 min | 0.5928 | 57179.6 |
-| RLB+SOAP | 14 | 32.4 min | 5.1 min | 24.0 min-40.0 min | 0.6076 | 55439.4 |
-| SiLU+ADeMaMix | 14 | 27.6 min | 5.5 min | 18.6 min-35.1 min | 0.5244 | 65288.4 |
-| RLB+ADeMaMix | 14 | 33.7 min | 5.2 min | 26.2 min-40.3 min | 0.6049 | 55715.5 |
-| SiLU+CAME | 14 | 28.9 min | 5.5 min | 19.9 min-36.3 min | 0.5507 | 61913.4 |
-| RLB+CAME | 14 | 33.8 min | 5.0 min | 25.4 min-39.9 min | 0.6342 | 52903.9 |
-| SiLU+ScheduleFree | 14 | 27.3 min | 5.4 min | 18.4 min-33.9 min | 0.5196 | 65899.0 |
-| RLB+ScheduleFree | 14 | 32.3 min | 5.0 min | 23.7 min-38.3 min | 0.6042 | 55739.4 |
+| SiLU+SOAP | 15 | 30.5 min | 5.9 min | 21.4 min-38.8 min | 0.5802 | 58784.6 |
+| RLB+SOAP | 15 | 32.0 min | 5.3 min | 24.0 min-40.0 min | 0.5986 | 56363.9 |
+| SiLU+ADeMaMix | 15 | 26.9 min | 5.8 min | 18.0 min-35.1 min | 0.5119 | 67431.3 |
+| RLB+ADeMaMix | 15 | 33.4 min | 5.2 min | 26.2 min-40.3 min | 0.5958 | 56664.4 |
+| SiLU+CAME | 15 | 28.3 min | 5.8 min | 19.3 min-36.3 min | 0.5382 | 63804.1 |
+| RLB+CAME | 15 | 33.4 min | 5.1 min | 25.4 min-39.9 min | 0.6254 | 53724.4 |
+| SiLU+ScheduleFree | 15 | 26.7 min | 5.8 min | 17.8 min-33.9 min | 0.5072 | 68064.2 |
+| RLB+ScheduleFree | 15 | 31.6 min | 5.4 min | 23.0 min-38.3 min | 0.5921 | 57193.3 |
 
 ## E2 M0/300M DCLM
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 84.8 min | 10.3 min | 78.8 min-96.7 min | 0.5293 | 62518.4 |
+| RLB+MatrixPolicy | 3 | 69.6 min | 2.8 min | 66.4 min-71.3 min | 0.4304 | 76212.4 |
 | SiLU+AdamW | 3 | 70.9 min | 10.0 min | 61.1 min-81.2 min | 0.4478 | 74246.1 |
 | RLB+AdamW | 3 | 83.6 min | 10.9 min | 77.3 min-96.3 min | 0.5188 | 63911.7 |
 | SiLU+Muon | 3 | 71.4 min | 14.8 min | 59.4 min-87.9 min | 0.4497 | 74940.2 |
@@ -249,7 +251,7 @@ Clean rows summarized: `442`.
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 91.3 min | 10.6 min | 79.1 min-97.7 min | 0.5713 | 57960.3 |
+| RLB+MatrixPolicy | 3 | 69.6 min | 2.9 min | 66.3 min-71.4 min | 0.4304 | 76215.7 |
 | SiLU+AdamW | 3 | 75.2 min | 14.0 min | 61.4 min-89.4 min | 0.4754 | 70683.2 |
 | RLB+AdamW | 3 | 100.6 min | 8.5 min | 95.7 min-110.4 min | 0.6304 | 52246.8 |
 | SiLU+Muon | 3 | 72.8 min | 12.9 min | 63.8 min-87.6 min | 0.4585 | 72920.4 |
@@ -269,7 +271,7 @@ Clean rows summarized: `442`.
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 77.4 min | 2.9 min | 74.1 min-79.4 min | 0.4808 | 68224.0 |
+| RLB+MatrixPolicy | 3 | 67.1 min | 3.5 min | 65.0 min-71.2 min | 0.4146 | 79179.4 |
 | SiLU+AdamW | 3 | 76.4 min | 18.9 min | 60.2 min-97.1 min | 0.4840 | 70588.2 |
 | RLB+AdamW | 3 | 76.3 min | 1.3 min | 74.8 min-77.2 min | 0.4700 | 69737.2 |
 | SiLU+Muon | 3 | 69.7 min | 6.2 min | 65.6 min-76.8 min | 0.4385 | 75078.6 |
@@ -289,7 +291,7 @@ Clean rows summarized: `442`.
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 84.5 min | 12.0 min | 75.3 min-98.1 min | 0.5266 | 63110.0 |
+| RLB+MatrixPolicy | 3 | 69.2 min | 3.7 min | 64.9 min-71.4 min | 0.4278 | 76744.9 |
 | SiLU+AdamW | 3 | 63.5 min | 6.1 min | 58.4 min-70.3 min | 0.3991 | 82647.8 |
 | RLB+AdamW | 3 | 86.0 min | 9.7 min | 76.3 min-95.7 min | 0.5332 | 62059.0 |
 | SiLU+Muon | 3 | 78.0 min | 21.0 min | 64.2 min-102.2 min | 0.4937 | 69498.1 |
@@ -309,7 +311,7 @@ Clean rows summarized: `442`.
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 91.6 min | 11.0 min | 78.9 min-98.6 min | 0.5739 | 57743.7 |
+| RLB+MatrixPolicy | 3 | 67.0 min | 3.7 min | 64.8 min-71.3 min | 0.4141 | 79286.3 |
 | SiLU+AdamW | 3 | 73.1 min | 13.1 min | 58.0 min-81.0 min | 0.4623 | 72773.1 |
 | RLB+AdamW | 3 | 87.3 min | 19.6 min | 74.8 min-109.9 min | 0.5431 | 62415.6 |
 | SiLU+Muon | 3 | 78.1 min | 16.1 min | 59.6 min-88.2 min | 0.4937 | 68698.4 |
@@ -330,7 +332,6 @@ Clean rows summarized: `442`.
 - `runtime_by_scope_method_clean.csv`: clean per-combo aggregate.
 - `runtime_by_dataset_method_clean.csv`: clean per-combo aggregate split by dataset.
 - `runtime_per_row.csv`: one record per clean included manifest row.
-
 ## E1 Scheduler State
 
 E1 used whole matched 15-row cells. Each job used 4 A6000. The dependency chain completed through the final single C4 cell.

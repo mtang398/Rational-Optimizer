@@ -668,11 +668,13 @@ Replacement odd-chain jobs:
 
 The E2 safe-speed terminal jobs are now `810106` for the original even chain and `812528` for the replacement odd chain. At 2026-06-23 21:41 EDT, the still-pending original even-chain jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` were updated with `Features=nvlink`; `scontrol show job` verified the constraint on all six jobs before they started. The manifest launcher also has a timing-row NVLink guard: phases `E1_matrixpolicy_safe_speed_100m`, `E2_matrixpolicy_safe_speed_300m`, and `E1_fineweb_edu_seed2027_runtime_repair_100m` exit before JSONL archive/write if the allocated node lacks the `nvlink` feature, unless `ALLOW_NON_NVLINK_TIMING=1` is explicitly set.
 
+Completion note on 2026-06-24: clean E2 safe-speed jobs `810092`, `810094`, `810096`, `810098`, `810100`, `810102`, `810104`, `810106`, and replacement odd-chain jobs `812522`-`812528` all completed with exit `0:0` and `Restarts=0`. The runtime summary now uses these JSONL `summary.total_seconds` rows for E2 RLB+MatrixPolicy timing and excludes cancelled non-NVLink job `810093` plus its cancelled odd-chain descendants.
+
 ## E1 FineWeb-Edu Seed 2027 Runtime Repair Submission
 
 Submitted: 2026-06-23 20:43:47 EDT. Manifest: `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`. This is a clean timing repair for original E1 rows `81-88`; the original job `158117` was preempted six times, so those original row artifacts are not used as trusted runtime measurements.
 
-The repair rows were submitted as two parity dependency chains after the E2 safe-speed terminal jobs `810105` and `810106`, so the repair starts only after the currently queued E2 safe-speed work finishes.
+The repair rows were initially submitted as two parity dependency chains after E2 safe-speed terminal jobs `810105` and `810106`; after `810105` was cancelled with the contaminated odd chain, the replacement repair rows depended on clean terminals `810106` and `812528`.
 
 Submission template:
 
@@ -713,6 +715,8 @@ Replacement repair jobs:
 | 5 | 86 | `812534` | afterok:`812532` |
 | 6 | 87 | `812535` | afterok:`812533` |
 | 7 | 88 | `812536` | afterok:`812534` |
+
+Completion note on 2026-06-24: replacement repair jobs `812529`-`812536` all completed with exit `0:0` and `Restarts=0`. The regenerated runtime summary overlays these eight rows and restores SOAP, ADeMaMix, CAME, and ScheduleFree to 15 E1 timing runs.
 
 ## Internal Per-Row Command Shape
 
