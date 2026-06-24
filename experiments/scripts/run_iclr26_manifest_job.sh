@@ -120,7 +120,7 @@ archive_incomplete_jsonl() {
 
 require_nvlink_for_timing_row() {
   case "${ROW_PHASE}" in
-    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_fineweb_edu_seed2027_runtime_repair_100m)
+    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_fineweb_edu_seed2027_runtime_repair_100m|E1_rational_only_100m|E2_rational_only_300m)
       ;;
     *)
       return 0

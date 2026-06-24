@@ -489,8 +489,8 @@ class RationalFusedLocalBasisA5_4(nn.Module):
         if hidden_dim // groups > 256:
             raise ValueError("fused local-basis rational supports group width <= 256")
         centers = tuple(float(c) for c in centers)
-        if len(centers) < 1 or len(centers) > 4:
-            raise ValueError("fused local-basis rational supports 1 to 4 centers")
+        if len(centers) > 4:
+            raise ValueError("fused local-basis rational supports 0 to 4 centers")
 
         numerator, denominator = _load_init(_VERSION_A_INIT_TABLE, init, fit_range)
         numerator_tensor, denominator_tensor = _repeat_init(numerator, denominator, groups)
@@ -590,29 +590,36 @@ class RationalFusedLocalBasisA5_4(nn.Module):
         num_gram = torch.einsum("gni,gnj->gij", num_flat, num_flat) / max(1, num_flat.size(1))
         den_gram = torch.einsum("gni,gnj->gij", den_flat, den_flat) / max(1, den_flat.size(1))
 
-        centers = self.centers.float().view(1, self.groups, 1, -1)
-        beta = self.beta.float().view(1, self.groups, 1, -1)
-        u = t.unsqueeze(-1) - centers
-        den = 1.0 + beta * u.square()
-        odd = u / den
-        zero = (1.0 + beta * centers.square()).reciprocal()
-        bump = den.reciprocal() - zero
-        den2 = den.square().clamp_min(self.eps)
-        odd_dt = (1.0 - beta * u.square()) / den2
-        bump_dt = -2.0 * beta * u / den2
-        coeff = self.coeff_limit * torch.tanh(self.coeff_logits.detach().float()).view(1, self.groups, 1, -1, 2)
-        output = base_output + (coeff[..., 0] * odd + coeff[..., 1] * bump).sum(dim=-1)
-        derivative = base_derivative + (coeff[..., 0] * odd_dt + coeff[..., 1] * bump_dt).sum(dim=-1)
+        basis_count = int(self.centers.size(1))
+        if basis_count > 0:
+            centers = self.centers.float().view(1, self.groups, 1, basis_count)
+            beta = self.beta.float().view(1, self.groups, 1, basis_count)
+            u = t.unsqueeze(-1) - centers
+            den = 1.0 + beta * u.square()
+            odd = u / den
+            zero = (1.0 + beta * centers.square()).reciprocal()
+            bump = den.reciprocal() - zero
+            den2 = den.square().clamp_min(self.eps)
+            odd_dt = (1.0 - beta * u.square()) / den2
+            bump_dt = -2.0 * beta * u / den2
+            coeff = self.coeff_limit * torch.tanh(self.coeff_logits.detach().float()).view(1, self.groups, 1, basis_count, 2)
+            output = base_output + (coeff[..., 0] * odd + coeff[..., 1] * bump).sum(dim=-1)
+            derivative = base_derivative + (coeff[..., 0] * odd_dt + coeff[..., 1] * bump_dt).sum(dim=-1)
+            atom_basis = torch.stack((odd, bump), dim=-1)
+            atom_rms = torch.sqrt(atom_basis.square().mean(dim=(0, 2)) + self.eps)
+            atom_flat = atom_basis.permute(1, 0, 2, 3, 4).reshape(self.groups, -1, basis_count * 2)
+            atom_gram = torch.einsum("gni,gnj->gij", atom_flat, atom_flat) / max(1, atom_flat.size(1))
+            coeff_gain = self.coeff_limit * (1.0 - torch.tanh(self.coeff_logits.detach().float()).square())
+            coeff_gain = coeff_gain.reshape(self.groups, -1)
+            atom_gram = atom_gram * coeff_gain.unsqueeze(-1) * coeff_gain.unsqueeze(-2)
+            atom_rms = atom_rms * coeff_gain.view(self.groups, atom_rms.size(1), atom_rms.size(2)).clamp_min(self.eps)
+        else:
+            output = base_output
+            derivative = base_derivative
+            atom_gram = torch.empty((self.groups, 0, 0), device=t.device, dtype=torch.float32)
+            atom_rms = torch.empty((self.groups, 0, 2), device=t.device, dtype=torch.float32)
         output_rms = torch.sqrt(output.square().mean(dim=(0, 2)) + self.eps)
         derivative_rms = torch.sqrt(derivative.square().mean(dim=(0, 2)) + self.eps)
-        atom_basis = torch.stack((odd, bump), dim=-1)
-        atom_rms = torch.sqrt(atom_basis.square().mean(dim=(0, 2)) + self.eps)
-        atom_flat = atom_basis.permute(1, 0, 2, 3, 4).reshape(self.groups, -1, atom_basis.size(-2) * atom_basis.size(-1))
-        atom_gram = torch.einsum("gni,gnj->gij", atom_flat, atom_flat) / max(1, atom_flat.size(1))
-        coeff_gain = self.coeff_limit * (1.0 - torch.tanh(self.coeff_logits.detach().float()).square())
-        coeff_gain = coeff_gain.reshape(self.groups, -1)
-        atom_gram = atom_gram * coeff_gain.unsqueeze(-1) * coeff_gain.unsqueeze(-2)
-        atom_rms = atom_rms * coeff_gain.view(self.groups, atom_rms.size(1), atom_rms.size(2)).clamp_min(self.eps)
 
         self._rlb_optimizer_stats = {
             "abs_moments": abs_moments.detach(),

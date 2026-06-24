@@ -179,7 +179,7 @@ torch::Tensor rational_local_basis_forward(torch::Tensor x,
   check_matrix(denominator, "denominator", groups, kDenominator, x);
   TORCH_CHECK(centers.dim() == 2, "centers must be 2-D");
   const int64_t basis_count = centers.size(1);
-  TORCH_CHECK(basis_count > 0 && basis_count <= 4, "basis_count must be in [1, 4]");
+  TORCH_CHECK(basis_count >= 0 && basis_count <= 4, "basis_count must be in [0, 4]");
   check_matrix(centers, "centers", groups, basis_count, x);
   check_matrix(beta, "beta", groups, basis_count, x);
   check_tensor3(coeff_logits, "coeff_logits", groups, basis_count, 2, x);
@@ -213,7 +213,7 @@ std::vector<torch::Tensor> rational_local_basis_backward(torch::Tensor grad_outp
   check_matrix(denominator, "denominator", groups, kDenominator, x);
   TORCH_CHECK(centers.dim() == 2, "centers must be 2-D");
   const int64_t basis_count = centers.size(1);
-  TORCH_CHECK(basis_count > 0 && basis_count <= 4, "basis_count must be in [1, 4]");
+  TORCH_CHECK(basis_count >= 0 && basis_count <= 4, "basis_count must be in [0, 4]");
   check_matrix(centers, "centers", groups, basis_count, x);
   check_matrix(beta, "beta", groups, basis_count, x);
   check_tensor3(coeff_logits, "coeff_logits", groups, basis_count, 2, x);
