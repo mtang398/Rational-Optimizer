@@ -229,6 +229,7 @@ RLB_ACTIVATIONS = {
     "rlb_fused_fast_h2640_ffn",
     "rlb_fused_fast_h2560_ffn",
     "rlb_fused_fixed_strong_ffn",
+    "rlb_fused_rational_only",
     "rlb_fused_rational_only_ffn",
     "rlb_fused_fixed_strong_h2880_ffn",
     "rlb_fused_fixed_strong_h2816_ffn",
@@ -2248,7 +2249,7 @@ def rlb_settings(activation, ffn_dim, group_size, max_groups):
         input_affine = False
         train_centers = False
         fused = True
-    elif activation == "rlb_fused_rational_only_ffn":
+    elif activation in {"rlb_fused_rational_only", "rlb_fused_rational_only_ffn"}:
         centers = ()
         coeff_limit = 0.60
         odd_init = 0.0
@@ -5572,6 +5573,7 @@ def parse_args():
             "rlb_fused_fast_h2640_ffn",
             "rlb_fused_fast_h2560_ffn",
             "rlb_fused_fixed_strong_ffn",
+            "rlb_fused_rational_only",
             "rlb_fused_rational_only_ffn",
             "rlb_fused_fixed_strong_h2880_ffn",
             "rlb_fused_fixed_strong_h2816_ffn",

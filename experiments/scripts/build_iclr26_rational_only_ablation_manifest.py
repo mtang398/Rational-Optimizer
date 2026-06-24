@@ -8,7 +8,7 @@ from pathlib import Path
 
 from build_iclr26_main_manifest import FIELDNAMES, MAIN_DATASETS, SEEDS, add_row, write_manifest
 
-RATIONAL_ONLY_ACTIVATION = "rlb_fused_rational_only_ffn"
+RATIONAL_ONLY_ACTIVATION = "rlb_fused_rational_only"
 MATRIX_POLICY_ARGS = (
     "--rational-matrix-policy-backbone-optimizer adamw "
     "--rational-matrix-policy-adam-lr-scale 3.0 "
