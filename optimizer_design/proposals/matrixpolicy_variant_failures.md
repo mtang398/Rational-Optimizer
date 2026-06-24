@@ -22,7 +22,7 @@ Status: retained negative-result state only. All V2-V12 proposal files, standalo
 
 | Ablation | What was tried | Outcome | Failure reason |
 | --- | --- | --- | --- |
-| Rational-only RLB | `rlb_fused_rational_only`: remove local rational atoms (`centers=()`) while keeping the grouped SiLU-fitted P5/Q4 rational scalar and original MatrixPolicy settings. | Failed short E1 probe. | Two DCLM E1 seeds had finite validation loss at step `50`, `NaN` validation loss from step `100` onward, no summary record, and `NaN` train loss by logged step `250`; the E1/E2 queue was stopped. This supports keeping the local basis in the paper anchor; the early speed readout is not a valid runtime result because quality failed. |
+| Rational-only RLB | `rlb_fused_rational_only`: keep the RLB single-branch wrapper and grouped SiLU-fitted global P5/Q4 rational scalar, but remove local rational atoms with `centers=()`. | Full E1/E2 ablation queued by user request after a failed short probe. | Prior DCLM E1 seeds had finite validation loss at step `50`, `NaN` validation loss from step `100` onward, no summary record, and `NaN` train loss by logged step `250`; the current full queue is retained as an explicit ablation despite this warning. |
 
 ## Decision
 

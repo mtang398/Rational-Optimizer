@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-24 15:17:49 EDT
+Updated: 2026-06-24 15:38:32 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -30,29 +30,30 @@ Raw row outputs are JSONL files under `experiments/runs/iclr26_main/<phase>/<dat
 Rejected MatrixPolicy proposal artifacts were pruned from the active repo surface and raw run tree on 2026-06-23. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; this status file keeps only the accepted safe-speed MatrixPolicy records and paper-facing completed-suite summaries.
 
 ## Rational-Only RLB Ablation Status
-Checked: 2026-06-24 15:17:49 EDT. Decision: halted; do not queue the full E1/E2 ablation manifest unless the method is redesigned.
+Queued: 2026-06-24 15:36 EDT. Checked: 2026-06-24 15:38:32 EDT. Decision: queued by user request; monitor closely because the earlier short probe showed NaNs.
 
-Purpose: test whether the local RLB basis can be removed, leaving only the grouped SiLU-fitted rational scalar with the original MatrixPolicy optimizer settings.
+Purpose: test whether RLB needs local rational atoms. This ablation keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted global rational P5/Q4, telemetry, gauge/stat hooks, and original MatrixPolicy optimizer settings, but removes the local atom basis by setting `centers=()`.
 
 | Field | Value |
 | --- | --- |
 | Manifest | `experiments/manifests/iclr26_rational_only_ablation_manifest.csv` |
 | Planned scope | E1 + E2, five datasets x three seeds per phase |
 | Clean activation alias | `rlb_fused_rational_only` |
-| Existing raw phase | `E1_rational_only_100m` |
-| Existing raw rows | DCLM seeds `1337` and `2027` |
-| Outcome | failed before E1 completion; no valid summary rows |
-| Failure signal | validation loss is finite at step `50`, then `NaN` at step `100` and later; train loss is `NaN` by the logged step `250` |
-| Scheduler state | no active Slurm jobs at this check |
+| Definition | global grouped rational P/Q only; no local RLB atoms |
+| Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs |
+| Jobs | `830651`-`830717` |
+| Terminal jobs | even chain `830715`, odd chain `830717` |
+| Current scheduler state | `830651` and `830653` running; remaining rows dependency-held at this check |
+| Constraint | `--constraint=nvlink`; launcher also guards rational-only timing rows for NVLink |
 
-Observed rows:
+Prior probe warning:
 
 | Dataset | Seed | Last logged train step | Final logged train loss | Eval losses |
 | --- | ---: | ---: | ---: | --- |
 | DCLM | 1337 | 250 | NaN | step 1: `10.923668`; step 50: `8.145039`; step 100+: `NaN` |
 | DCLM | 2027 | 250 | NaN | step 1: `10.910393`; step 50: `8.129251`; step 100+: `NaN` |
 
-Interpretation: this is a method/activation ablation failure, not a missing run, preemption, or timing-row problem. Removing the local RLB basis breaks stability while keeping the original MatrixPolicy optimizer settings, so the local basis is not an optional detail for the current paper anchor.
+Interpretation: the queued ablation is the intended global-only rational control, not plain SiLU and not removal of the RLB wrapper. The earlier raw rows are retained as a warning signal; the current queue uses the clean `rlb_fused_rational_only` alias and will be monitored as a full requested ablation.
 
 
 ## MatrixPolicy Safe Muon-Off Speed P0 Pilot

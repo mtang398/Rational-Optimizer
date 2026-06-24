@@ -184,11 +184,22 @@ E1 completion note: all jobs `155411`, `155412`, `158114`, `158115`, `158117`, `
 
 Rejected proposal launch artifacts have been pruned from the active repo surface and raw run tree. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; detailed rejected-variant submission blocks are intentionally not retained here.
 
-## Rational-Only RLB Ablation Halt Note
+## Rational-Only RLB Ablation Full Queue
 
-Checked: 2026-06-24 15:17:49 EDT. Manifest: `experiments/manifests/iclr26_rational_only_ablation_manifest.csv`. Planned scope was E1 + E2 across five datasets x three seeds per phase using clean activation alias `rlb_fused_rational_only` and the original `rational_matrix_policy_onpolicy` optimizer settings.
+Submitted: 2026-06-24 15:36 EDT. Manifest: `experiments/manifests/iclr26_rational_only_ablation_manifest.csv`. Scope: E1 + E2 across five datasets x three seeds per phase using clean activation alias `rlb_fused_rational_only` and the original `rational_matrix_policy_onpolicy` optimizer settings.
 
-No new full-suite jobs were submitted at this check. Two existing DCLM E1 rows from `E1_rational_only_100m` already failed the ablation gate: seeds `1337` and `2027` have finite validation loss at step `50`, `NaN` validation loss from step `100` onward, no JSONL summary record, and `NaN` train loss by logged step `250`. This is recorded as a method failure in `ICLR_RUN_STATUS.md` and `optimizer_design/proposals/matrixpolicy_variant_failures.md`, not as a preemption gap.
+Definition: this is the intended global-only rational RLB control. It keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted global rational P5/Q4, telemetry, gauge/stat hooks, and MatrixPolicy settings, while removing local RLB atoms by setting `centers=()`.
+
+Submission shape: one manifest row per Slurm job, two parity dependency chains, `--constraint=nvlink`, and at most two active 4-A6000 jobs. The launcher has an NVLink timing guard for `E1_rational_only_100m` and `E2_rational_only_300m`.
+
+Submitted jobs:
+
+| Rows | Jobs | Chain |
+| --- | --- | --- |
+| even rows `0,2,...,28` | `830651`, `830655`, `830659`, `830664`, `830670`, `830675`, `830679`, `830683`, `830688`, `830693`, `830698`, `830703`, `830707`, `830711`, `830715` | terminal `830715` |
+| odd rows `1,3,...,29` | `830653`, `830657`, `830661`, `830667`, `830672`, `830677`, `830681`, `830685`, `830690`, `830695`, `830701`, `830705`, `830709`, `830713`, `830717` | terminal `830717` |
+
+Initial state at 2026-06-24 15:38 EDT: jobs `830651` and `830653` were running; all later rows were dependency-held.
 
 
 ## MatrixPolicy Safe Muon-Off Speed P0 Submission
