@@ -18,6 +18,12 @@ Status: retained negative-result state only. All V2-V12 proposal files, standalo
 | V11 | Late global matrix Adam beta2 decay after the Muon window. | P0 failed. | Faster second-moment adaptation worsened quality and did not give a reliable speed win. |
 | V12 | Late beta2 decay only for input-selector matrices. | P0 failed. | Role-selective beta2 change worsened final loss/AUC against fresh controls. |
 
+## Related Activation Ablation
+
+| Ablation | What was tried | Outcome | Failure reason |
+| --- | --- | --- | --- |
+| Rational-only RLB | `rlb_fused_rational_only_ffn`: remove local rational atoms (`centers=()`) while keeping the grouped SiLU-fitted P5/Q4 rational scalar and original MatrixPolicy settings. | Failed short E1 probe. | Two DCLM E1 seeds became nonfinite by train step `70` and validation step `100`, so the E1/E2 queue was stopped. This supports keeping the local basis in the paper anchor; the early fused speed readout is not a valid runtime result because quality failed. |
+
 ## Decision
 
 Do not revive V2-V12 or queue E1/E2 work for them. Future MatrixPolicy candidates must start as short paired pilots against the current original MatrixPolicy implementation, pass both quality and runtime gates, and be pruned immediately if they fail. Engineering-only speed work should remain separate from optimizer-method claims.

@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 PHASE = "E2_m0_300m"
+MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
 
 DATASETS = [
     ("dclm", "DCLM"),
@@ -65,13 +66,45 @@ XTICKS = [1000, 2000, 4000, 6000, 8000, 9000]
 CHECKPOINT_STEPS = [1000, 2000, 4000, 6000, 8000, 9150]
 
 
-def parse_jsonl_runs(manifest_path: Path, run_root: Path):
-    curves = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"train": {}, "eval": {}})))
+def _read_curve_jsonl(jsonl_path: Path, dataset: str, method: str, seed: int, curves) -> None:
+    with jsonl_path.open("r", errors="replace") as jsonl:
+        for raw in jsonl:
+            if not raw.startswith("{"):
+                continue
+            try:
+                record = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            event = record.get("event")
+            step = record.get("step")
+            if event not in {"train", "eval"} or not isinstance(step, int):
+                continue
+            if step < START_STEP or step > END_STEP:
+                continue
+            if event == "train":
+                value = record.get("loss")
+                if isinstance(value, (int, float)) and math.isfinite(value):
+                    curves[dataset][method][seed]["train"][step] = float(value)
+            else:
+                loss = record.get("val_loss")
+                ppl = record.get("val_ppl")
+                if isinstance(loss, (int, float)) and math.isfinite(loss):
+                    curves[dataset][method][seed]["eval"].setdefault(step, {})["val_loss"] = float(loss)
+                if isinstance(ppl, (int, float)) and math.isfinite(ppl):
+                    curves[dataset][method][seed]["eval"].setdefault(step, {})["val_ppl"] = float(ppl)
+
+
+def _load_manifest_rows(
+    manifest_path: Path,
+    run_root: Path,
+    curves,
+    phase: str,
+    wanted_methods: set[str],
+) -> None:
     wanted_datasets = {dataset for dataset, _ in DATASETS}
-    wanted_methods = {method for method, *_ in ALL_METHODS} | {method for method, _ in TABLE_METHODS}
     with manifest_path.open(newline="") as handle:
         for row in csv.DictReader(handle):
-            if row.get("phase") != PHASE:
+            if row.get("phase") != phase:
                 continue
             dataset = row.get("dataset", "")
             method = row.get("method", "")
@@ -81,33 +114,28 @@ def parse_jsonl_runs(manifest_path: Path, run_root: Path):
             jsonl_path = run_root / dataset / row["row_id"] / f"{row['activation']}.jsonl"
             if not jsonl_path.exists():
                 continue
-            with jsonl_path.open("r", errors="replace") as jsonl:
-                for raw in jsonl:
-                    if not raw.startswith("{"):
-                        continue
-                    try:
-                        record = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-                    event = record.get("event")
-                    step = record.get("step")
-                    if event not in {"train", "eval"} or not isinstance(step, int):
-                        continue
-                    if step < START_STEP or step > END_STEP:
-                        continue
-                    if event == "train":
-                        value = record.get("loss")
-                        if isinstance(value, (int, float)) and math.isfinite(value):
-                            curves[dataset][method][seed]["train"][step] = float(value)
-                    else:
-                        loss = record.get("val_loss")
-                        ppl = record.get("val_ppl")
-                        if isinstance(loss, (int, float)) and math.isfinite(loss):
-                            curves[dataset][method][seed]["eval"].setdefault(step, {})["val_loss"] = float(loss)
-                        if isinstance(ppl, (int, float)) and math.isfinite(ppl):
-                            curves[dataset][method][seed]["eval"].setdefault(step, {})["val_ppl"] = float(ppl)
-    return curves
+            _read_curve_jsonl(jsonl_path, dataset, method, seed, curves)
 
+
+def parse_jsonl_runs(
+    manifest_path: Path,
+    run_root: Path,
+    matrixpolicy_manifest: Path | None = None,
+    matrixpolicy_run_root: Path | None = None,
+    matrixpolicy_phase: str | None = None,
+):
+    curves = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"train": {}, "eval": {}})))
+    wanted_methods = {method for method, *_ in ALL_METHODS} | {method for method, _ in TABLE_METHODS}
+    _load_manifest_rows(manifest_path, run_root, curves, PHASE, wanted_methods)
+    if matrixpolicy_manifest is not None and matrixpolicy_run_root is not None and matrixpolicy_phase is not None:
+        _load_manifest_rows(
+            matrixpolicy_manifest,
+            matrixpolicy_run_root,
+            curves,
+            matrixpolicy_phase,
+            {MATRIXPOLICY_METHOD},
+        )
+    return curves
 
 def aggregate_values(curves, dataset: str, method: str, metric: str):
     seed_data = curves.get(dataset, {}).get(method, {})
@@ -238,6 +266,8 @@ def write_readme(out_dir: Path, curves) -> None:
         "",
         f"Completed E2 M0/300M datasets: {completed}. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.",
         "",
+        "MatrixPolicy curves use the accepted safe-speed replacement JSONL rows when the generator is called with `--matrixpolicy-manifest`; all other methods use the main E2 manifest rows.",
+        "",
         final_snapshot(curves),
     ]
     for dataset, label in DATASETS:
@@ -276,10 +306,19 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, default=Path("experiments/manifests/iclr26_main_manifest.csv"))
     parser.add_argument("--run-root", type=Path, default=Path("experiments/runs/iclr26_main/E2_m0_300m"))
+    parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
+    parser.add_argument("--matrixpolicy-run-root", type=Path, default=None)
+    parser.add_argument("--matrixpolicy-phase", type=str, default=None)
     parser.add_argument("--out-dir", type=Path, default=Path("experiments/results/iclr26_e2_figures"))
     args = parser.parse_args()
 
-    curves = parse_jsonl_runs(args.manifest, args.run_root)
+    curves = parse_jsonl_runs(
+        args.manifest,
+        args.run_root,
+        args.matrixpolicy_manifest,
+        args.matrixpolicy_run_root,
+        args.matrixpolicy_phase,
+    )
     suffixes = {
         "val_loss": "validation_loss_mean_std.svg",
         "val_ppl": "validation_ppl_mean_std.svg",

@@ -1,14 +1,15 @@
 # ICLR26 E2 FineWeb 300M Summary
 
-Completed: 2026-06-14. Manifest rows `330-374` are the full FineWeb E2 M0/300M cell: 3 seeds x 15 fixed methods. All 45 rows completed with final eval at step `9150`.
+Completed: 2026-06-15. Manifest rows `330-374` define the full FineWeb E2 M0/300M cell: 3 seeds x 15 fixed methods. All 45 paper-facing rows have final eval at step `9150`.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 FineWeb slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
+MatrixPolicy entries use the accepted safe-speed replacement JSONL rows for the same method and seed; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 ## Final Validation Loss
 
 | Method | Final val loss mean +/- sample std | Min | Max | Notes |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 3.965590 +/- 0.008530 | 3.959470 | 3.975334 |  |
+| rlb_matrixpolicy_original | 3.964892 +/- 0.009459 | 3.959276 | 3.975813 |  |
 | rlb_muon | 4.001245 +/- 0.011375 | 3.991416 | 4.013704 |  |
 | rlb_lion | 4.001381 +/- 0.012800 | 3.991274 | 4.015774 |  |
 | silu_lion | 4.001499 +/- 0.008463 | 3.995715 | 4.011213 |  |
@@ -24,15 +25,15 @@ Each row uses `32768` global tokens/step for about `299.8M` train tokens. Valida
 | silu_ademamix | 1361.414062 +/- 0.000000 | 1361.414062 | 1361.414062 | 2 diverged/non-finite seeds |
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three FineWeb E2 seeds. Mean final val loss is `3.965590 +/- 0.008530`; the next-best aggregate methods are `rlb_muon` at `4.001245 +/- 0.011375`, `rlb_lion` at `4.001381 +/- 0.012800`, `silu_lion` at `4.001499 +/- 0.008463`.
+MatrixPolicy is best on all three FineWeb E2 seeds. Mean final val loss is `3.964892 +/- 0.009459`; the next-best aggregate methods are `rlb_muon` at `4.001245 +/- 0.011375`, `rlb_lion` at `4.001381 +/- 0.012800`, `silu_lion` at `4.001499 +/- 0.008463`.
 
 ## Per-Seed MatrixPolicy Gap
 
 | Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
 | ---: | ---: | --- | ---: | ---: |
-| 1337 | 3.975334 | silu_lion | 4.011213 | 0.035879 |
-| 2027 | 3.959470 | rlb_lion | 3.991274 | 0.031804 |
-| 3407 | 3.961966 | rlb_lion | 3.997095 | 0.035129 |
+| 1337 | 3.975813 | silu_lion | 4.011213 | 0.035400 |
+| 2027 | 3.959276 | rlb_lion | 3.991274 | 0.031998 |
+| 3407 | 3.959586 | rlb_lion | 3.997095 | 0.037509 |
 
 ## Runtime Summary
 
@@ -42,11 +43,11 @@ MatrixPolicy is best on all three FineWeb E2 seeds. Mean final val loss is `3.96
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | silu_schedulefree | 3 | 61.7 min | 0.4 min | 61.3-62.1 min | 0.3875 | 84557.5 |
 | silu_lion | 3 | 64.6 min | 6.3 min | 61.0-71.9 min | 0.4066 | 81108.9 |
+| rlb_matrixpolicy_original | 3 | 67.1 min | 3.5 min | 65.0-71.2 min | 0.4146 | 79179.4 |
 | silu_muon | 3 | 69.7 min | 6.2 min | 65.6-76.8 min | 0.4385 | 75078.6 |
 | silu_soap | 3 | 72.3 min | 0.6 min | 71.7-72.9 min | 0.4571 | 71696.4 |
 | rlb_adamw | 3 | 76.3 min | 1.3 min | 74.8-77.2 min | 0.4700 | 69737.2 |
 | silu_adamw | 3 | 76.4 min | 18.9 min | 60.2-97.1 min | 0.4840 | 70588.2 |
-| rlb_matrixpolicy_original | 3 | 77.4 min | 2.9 min | 74.1-79.4 min | 0.4808 | 68224.0 |
 | rlb_lion | 3 | 79.6 min | 14.1 min | 68.6-95.5 min | 0.4920 | 68070.8 |
 | rlb_muon | 3 | 85.0 min | 14.3 min | 74.0-101.2 min | 0.5263 | 63461.5 |
 | rlb_soap | 3 | 85.4 min | 11.1 min | 76.9-97.9 min | 0.5299 | 62572.7 |
@@ -84,10 +85,10 @@ This table asks how many training tokens were needed to first reach a validation
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
 | 4.40 | 83.6M | 83.6M -> 87.9M (3/3) | 4.4M | 5.0% | 83.6M -> 102.1M (3/3) | 18.6M | 18.2% |
 | 4.30 | 112.5M | 112.5M -> 113.0M (3/3) | 0.5M | 0.5% | 112.5M -> 132.2M (3/3) | 19.7M | 14.9% |
-| 4.20 | 143.6M | 143.6M -> 148.5M (3/3) | 4.9M | 3.3% | 143.6M -> 173.1M (3/3) | 29.5M | 17.0% |
-| 4.10 | 187.3M | 187.3M -> 196.6M (3/3) | 9.3M | 4.7% | 187.3M -> 241.4M (3/3) | 54.1M | 22.4% |
+| 4.20 | 143.1M | 143.1M -> 148.5M (3/3) | 5.5M | 3.7% | 143.1M -> 173.1M (3/3) | 30.0M | 17.4% |
+| 4.10 | 186.8M | 186.8M -> 196.6M (3/3) | 9.8M | 5.0% | 186.8M -> 241.4M (3/3) | 54.6M | 22.6% |
 | 4.05 | 214.6M | 214.6M -> 232.1M (3/3) | 17.5M | 7.5% | not reached (0/3) | not reached | n/a |
-| 4.00 | 252.9M | 248.2M -> 285.9M (2/3) | 37.7M | 13.2% | not reached (0/3) | not reached | n/a |
+| 4.00 | 252.3M | 247.4M -> 285.9M (2/3) | 38.5M | 13.5% | not reached (0/3) | not reached | n/a |
 
 ## Files
 

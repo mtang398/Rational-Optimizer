@@ -43,6 +43,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--completed-date", default="2026-06-12")
     parser.add_argument("--targets", type=float, nargs="*", default=None)
+    parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
+    parser.add_argument("--matrixpolicy-phase", type=str, default=None)
     return parser.parse_args()
 
 
@@ -97,11 +99,19 @@ def read_jsonl(path: Path) -> tuple[list[dict[str, object]], dict[str, object] |
     return evals, summary
 
 
-def load_rows(manifest: Path, run_root: Path, dataset: str) -> list[dict[str, object]]:
+def _load_phase_rows(
+    manifest: Path,
+    run_root: Path,
+    dataset: str,
+    phase: str,
+    wanted_methods: set[str] | None = None,
+) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     with manifest.open(newline="") as handle:
         for row in csv.DictReader(handle):
-            if row["phase"] != PHASE or row["dataset"] != dataset:
+            if row["phase"] != phase or row["dataset"] != dataset:
+                continue
+            if wanted_methods is not None and row["method"] not in wanted_methods:
                 continue
             jsonl_path = run_root / row["phase"] / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
             evals, summary = read_jsonl(jsonl_path)
@@ -117,8 +127,12 @@ def load_rows(manifest: Path, run_root: Path, dataset: str) -> list[dict[str, ob
             )
             rows.append(
                 {
+                    "dataset": row["dataset"],
                     "row": int(row["row_index"]),
                     "row_id": row["row_id"],
+                    "source_phase": row["phase"],
+                    "source_row_index": int(row["row_index"]),
+                    "source_row_id": row["row_id"],
                     "seed": int(row["seed"]),
                     "method": row["method"],
                     "activation": row["activation"],
@@ -137,8 +151,29 @@ def load_rows(manifest: Path, run_root: Path, dataset: str) -> list[dict[str, ob
                     "summary": summary,
                 }
             )
-    return sorted(rows, key=lambda row: int(row["row"]))
+    return rows
 
+
+def load_rows(
+    manifest: Path,
+    run_root: Path,
+    dataset: str,
+    matrixpolicy_manifest: Path | None = None,
+    matrixpolicy_phase: str | None = None,
+) -> list[dict[str, object]]:
+    rows = _load_phase_rows(manifest, run_root, dataset, PHASE)
+    if matrixpolicy_manifest is not None and matrixpolicy_phase is not None:
+        overrides = _load_phase_rows(matrixpolicy_manifest, run_root, dataset, matrixpolicy_phase, {MATRIXPOLICY_METHOD})
+        by_key = {(int(row["seed"]), str(row["method"])): row for row in rows}
+        for row in overrides:
+            key = (int(row["seed"]), str(row["method"]))
+            original = by_key.get(key)
+            if original is not None:
+                row["row"] = original["row"]
+                row["row_id"] = original["row_id"]
+            by_key[key] = row
+        rows = list(by_key.values())
+    return sorted(rows, key=lambda row: int(row["row"]))
 
 def final_summary(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     grouped: dict[str, list[dict[str, object]]] = defaultdict(list)
@@ -485,12 +520,22 @@ def write_readme(
         for row in next_best
     )
 
+    matrixpolicy_replaced = any(
+        row["method"] == MATRIXPOLICY_METHOD and row.get("source_phase") != PHASE
+        for row in rows
+    )
+    replacement_note = (
+        "\nMatrixPolicy entries use the accepted safe-speed replacement JSONL rows for the same method and seed; "
+        "the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.\n"
+        if matrixpolicy_replaced
+        else ""
+    )
+
     text = f"""# ICLR26 E2 {label} 300M Summary
 
-Completed: {completed_date}. Manifest rows `{row_start}-{row_end}` are the full {label} E2 M0/300M cell: 3 seeds x 15 fixed methods. All 45 rows completed with final eval at step `{steps}`.
+Completed: {completed_date}. Manifest rows `{row_start}-{row_end}` define the full {label} E2 M0/300M cell: 3 seeds x 15 fixed methods. All 45 paper-facing rows have final eval at step `{steps}`.
 
-Each row uses `{tokens_per_step}` global tokens/step for about `{total_tokens / 1_000_000:.1f}M` train tokens. Validation uses the E2 {label} slice from the manifest: `val_skip_tokens={val_skip_tokens}`, `val_tokens={val_tokens}`, `eval_interval={eval_interval}`.
-
+Each row uses `{tokens_per_step}` global tokens/step for about `{total_tokens / 1_000_000:.1f}M` train tokens. Validation uses the E2 {label} slice from the manifest: `val_skip_tokens={val_skip_tokens}`, `val_tokens={val_tokens}`, `eval_interval={eval_interval}`.{replacement_note}
 ## Final Validation Loss
 
 {final_summary_markdown(final_rows)}
@@ -533,7 +578,13 @@ def main() -> None:
     if not targets:
         raise SystemExit(f"No default targets for dataset {args.dataset}; pass --targets.")
 
-    rows = load_rows(args.manifest, args.run_root, args.dataset)
+    rows = load_rows(
+        args.manifest,
+        args.run_root,
+        args.dataset,
+        args.matrixpolicy_manifest,
+        args.matrixpolicy_phase,
+    )
     if not rows:
         raise SystemExit(f"No {PHASE} rows found for dataset {args.dataset}.")
     incomplete = [row for row in rows if not bool(row["complete"])]
@@ -552,6 +603,9 @@ def main() -> None:
         [
             "row",
             "row_id",
+            "source_phase",
+            "source_row_index",
+            "source_row_id",
             "seed",
             "method",
             "activation",

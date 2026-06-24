@@ -15,7 +15,7 @@ Included in tracked runtime aggregates:
 
 Excluded from tracked runtime aggregates:
 
-- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `8` rows skipped from the main manifest runtime source. They are overlaid from the completed clean repair manifest `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`.
+- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `8` rows skipped from the main manifest runtime source. They are overlaid only from `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv` after clean repair reruns complete.
 - Rows `465+` are outside E2.
 
 No raw Slurm-elapsed E1 aggregate is tracked in this package. Runtime aggregates use completed JSONL `summary.total_seconds` only for clean row attempts; original restart-contaminated rows `81-88` are not assigned inferred row times.

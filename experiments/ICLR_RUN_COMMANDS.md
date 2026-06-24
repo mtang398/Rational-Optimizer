@@ -718,43 +718,6 @@ Replacement repair jobs:
 
 Completion note on 2026-06-24: replacement repair jobs `812529`-`812536` all completed with exit `0:0` and `Restarts=0`. The regenerated runtime summary overlays these eight rows and restores SOAP, ADeMaMix, CAME, and ScheduleFree to 15 E1 timing runs.
 
-## Rational-Only RLB Ablation Submission
-
-Submitted: 2026-06-24 11:40:53 EDT. Manifest: `experiments/manifests/iclr26_rational_only_ablation_manifest.csv`. This ablation removes RLB local basis atoms while keeping the grouped SiLU-fitted P5/Q4 rational scalar and the same `rational_matrix_policy_onpolicy` optimizer settings as `rlb_matrixpolicy_original`.
-
-Initial correction: row `821379` was submitted as an NVLink-constrained build row with `BUILD_EXT=1` because the login node has no CUDA toolkit. It successfully rebuilt `activation/rational_opt/_C.cpython-312-x86_64-linux-gnu.so` at 2026-06-24 11:43, then failed inside torchrun because `rlb_fused_rational_only_ffn` was missing from the argparse choices list. Slurm recorded `821379` as `COMPLETED 0:0`, but it produced no valid training row and must be excluded. Initial dependent jobs `821380`-`821408` were cancelled; `821380` and `821381` had started for about six seconds and produced no valid row. Commit `0495325` fixes the parser registration.
-
-Clean replacement submission: rows `0-29` were resubmitted on 2026-06-24 11:46 EDT as two NVLink-constrained one-row dependency chains with `BUILD_EXT=0`, using the rebuilt extension. At most two 4-A6000 jobs were active.
-
-Submission template:
-
-```bash
-sbatch --parsable \
-  --constraint=nvlink \
-  --job-name=ro-ablate-rerun-<row> \
-  --dependency=afterok:<previous-chain-job> \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_rational_only_ablation_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-```
-
-Final action after failure evidence:
-
-```bash
-scancel 821439 821440 821441 821442 821443 821444 821445 821446 821447 821448 821449 821450 821451 821452 821453 821454 821455 821456 821457 821458 821459 821460 821461 821462 821463 821464 821465 821466 821467 821468
-```
-
-Outcome table:
-
-| Row(s) | Job(s) | State | Evidence / note |
-| ---: | --- | --- | --- |
-| 0 | `821379` | Slurm `COMPLETED 0:0`, excluded | Extension build only; torchrun rejected activation before training |
-| 1-29 | `821380`-`821408` | cancelled | Old dependent chain cancelled after parser issue; no valid rows |
-| 0 | `821439` | cancelled after 3:13 | Clean DCLM E1 seed `1337`; val loss `8.145039` at step `50`, train loss NaN at step `70`, val loss NaN at step `100` |
-| 1 | `821440` | cancelled after 3:13 | Clean DCLM E1 seed `2027`; val loss `8.129251` at step `50`, train loss NaN at step `70`, val loss NaN at step `100` |
-| 2-29 | `821441`-`821468` | cancelled before start | Dependency-pending rows cancelled to avoid running a confirmed-invalid ablation over E1/E2 |
-
-Decision: rational-only RLB is a failed negative ablation under the same MatrixPolicy settings. It should not be summarized in completed E1/E2 result tables except as a failure note.
-
 ## Internal Per-Row Command Shape
 
 The manifest launcher converts each CSV row into environment variables and executes this
@@ -781,13 +744,18 @@ E1 figures and checkpoint tables:
 
 ```bash
 python3 experiments/scripts/plot_iclr26_e1_curves.py \
+  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv \
+  --matrixpolicy-run-root experiments/runs/iclr26_main/E1_matrixpolicy_safe_speed_100m \
+  --matrixpolicy-phase E1_matrixpolicy_safe_speed_100m \
   --status-md experiments/ICLR_RUN_STATUS.md
 ```
 
 E1 token-to-target savings:
 
 ```bash
-python3 experiments/scripts/summarize_iclr26_e1_token_savings.py
+python3 experiments/scripts/summarize_iclr26_e1_token_savings.py \
+  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv \
+  --matrixpolicy-phase E1_matrixpolicy_safe_speed_100m
 ```
 
 E2 completed-cell summaries:
@@ -796,33 +764,46 @@ E2 completed-cell summaries:
 python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
   --dataset dclm \
   --output-dir experiments/results/iclr26_e2_dclm_2026_06_10 \
-  --completed-date 2026-06-10
+  --completed-date 2026-06-10 \
+  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
+  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
 
 python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
   --dataset fineweb_edu \
   --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12 \
-  --completed-date 2026-06-12
+  --completed-date 2026-06-12 \
+  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
+  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
 
 python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
   --dataset fineweb \
   --output-dir experiments/results/iclr26_e2_fineweb_2026_06_15 \
-  --completed-date 2026-06-15
+  --completed-date 2026-06-15 \
+  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
+  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
 
 python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
   --dataset dolma_sample \
   --output-dir experiments/results/iclr26_e2_dolma_sample_2026_06_17 \
-  --completed-date 2026-06-17
+  --completed-date 2026-06-17 \
+  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
+  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
 
 python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
   --dataset c4_en \
   --output-dir experiments/results/iclr26_e2_c4_2026_06_19 \
-  --completed-date 2026-06-19
+  --completed-date 2026-06-19 \
+  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
+  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
 ```
 
 E2 dense curve figures and checkpoint tables:
 
 ```bash
-python3 experiments/scripts/plot_iclr26_e2_curves.py
+python3 experiments/scripts/plot_iclr26_e2_curves.py \
+  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
+  --matrixpolicy-run-root experiments/runs/iclr26_main/E2_matrixpolicy_safe_speed_300m \
+  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
 ```
 
 Clean runtime tables for completed paper cells:

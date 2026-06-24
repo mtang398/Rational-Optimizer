@@ -8,7 +8,6 @@ Paper-facing results in this README include the completed E1 matched main suite 
 
 Rejected MatrixPolicy V2-V12 artifacts have been pruned from the live repo and raw run tree; the single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`. Original `rational_matrix_policy_onpolicy` remains the paper anchor and the only active MatrixPolicy optimizer. Its method-preserving safe Muon-off implementation completed a full 15-row E1 rerun on 2026-06-23 with quality-neutral losses and a clean runtime aggregate of `27.3` min, `0.5102` s/step, and `67,078.3` tokens/s.
 
-Rational-only RLB ablation status: `rlb_fused_rational_only_ffn` was implemented as the no-local-basis control (`centers=()`) while keeping the grouped SiLU-fitted P5/Q4 rational scalar and the same `rational_matrix_policy_onpolicy` settings. The E1/E2 manifest was submitted on 2026-06-24, but the first two DCLM E1 seeds both diverged to nonfinite loss by train step `70` and validation step `100`; the remaining chain was cancelled. This is recorded as a negative ablation, not a completed result or a replacement for the RLB paper anchor.
 
 ## Result Pointers
 
@@ -57,28 +56,28 @@ The runtime metric is the JSONL `summary.total_seconds` training-harness wall ti
 
 ## Current E2 300M Results
 
-E2 M0/300M is complete for DCLM rows `240-284`, FineWeb-Edu rows `285-329`, FineWeb rows `330-374`, Dolma-sample rows `375-419`, and C4 rows `420-464`: each completed cell has three seeds, 15 fixed methods per seed, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per run. Rows `465+` are E3 and were not queued.
+E2 M0/300M is complete for DCLM rows `240-284`, FineWeb-Edu rows `285-329`, FineWeb rows `330-374`, Dolma-sample rows `375-419`, and C4 rows `420-464`: each completed cell has three seeds, 15 fixed methods per seed, final eval at step `9150`, `32768` global tokens/step, and about `299.8M` train tokens per run. Rows `465+` are E3 and were not queued. MatrixPolicy entries in the E2 summaries and figures use the accepted safe-speed replacement JSONL rows for the same method and seed; comparator methods use the main E2 rows.
 
 ### DCLM
 
 Tracked package: `experiments/results/iclr26_e2_dclm_2026_06_10/`.
 
-MatrixPolicy is best on all three DCLM E2 seeds. Mean final val loss is `3.957627 +/- 0.030713`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, `rlb_lion` at `3.994293 +/- 0.030088`.
+MatrixPolicy is best on all three DCLM E2 seeds. Mean final val loss is `3.956069 +/- 0.030752`; the next-best aggregate methods are `silu_lion` at `3.993430 +/- 0.023038`, `rlb_muon` at `3.993489 +/- 0.029634`, `rlb_lion` at `3.994293 +/- 0.030088`.
 
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
 | 4.40 | 74.3M | 74.3M -> 80.8M (3/3) | 6.6M | 8.1% | 74.3M -> 93.4M (3/3) | 19.1M | 20.5% |
-| 4.30 | 101.0M | 101.0M -> 104.9M (3/3) | 3.8M | 3.6% | 101.0M -> 120.7M (3/3) | 19.7M | 16.3% |
+| 4.30 | 102.1M | 102.1M -> 104.9M (3/3) | 2.7M | 2.6% | 102.1M -> 120.7M (3/3) | 18.6M | 15.4% |
 | 4.20 | 133.3M | 133.3M -> 139.3M (3/3) | 6.0M | 4.3% | 133.3M -> 161.1M (3/3) | 27.9M | 17.3% |
-| 4.10 | 176.4M | 176.4M -> 187.9M (3/3) | 11.5M | 6.1% | 176.4M -> 227.7M (3/3) | 51.3M | 22.5% |
-| 4.05 | 205.3M | 205.3M -> 222.8M (3/3) | 17.5M | 7.8% | 185.1M -> 244.1M (1/3) | 59.0M | 24.2% |
-| 4.00 | 244.7M | 232.7M -> 267.9M (2/3) | 35.2M | 13.1% | not reached (0/3) | not reached | n/a |
+| 4.10 | 175.9M | 175.9M -> 187.9M (3/3) | 12.0M | 6.4% | 175.9M -> 227.7M (3/3) | 51.9M | 22.8% |
+| 4.05 | 204.3M | 204.3M -> 222.8M (3/3) | 18.6M | 8.3% | 183.5M -> 244.1M (1/3) | 60.6M | 24.8% |
+| 4.00 | 243.6M | 231.8M -> 267.9M (2/3) | 36.0M | 13.5% | not reached (0/3) | not reached | n/a |
 
 ### FineWeb-Edu
 
 Tracked package: `experiments/results/iclr26_e2_fineweb_edu_2026_06_12/`.
 
-MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `3.706480 +/- 0.020263`; the next-best aggregate methods are `rlb_muon` at `3.738164 +/- 0.021014`, `silu_lion` at `3.744017 +/- 0.020802`, `rlb_lion` at `3.745142 +/- 0.021429`.
+MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `3.707768 +/- 0.018711`; the next-best aggregate methods are `rlb_muon` at `3.738164 +/- 0.021014`, `silu_lion` at `3.744017 +/- 0.020802`, `rlb_lion` at `3.745142 +/- 0.021429`.
 
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
@@ -86,46 +85,46 @@ MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `
 | 4.10 | 100.5M | 100.5M -> 102.7M (3/3) | 2.2M | 2.1% | 100.5M -> 118.0M (3/3) | 17.5M | 14.8% |
 | 4.00 | 127.8M | 127.8M -> 130.5M (3/3) | 2.7M | 2.1% | 127.8M -> 151.8M (3/3) | 24.0M | 15.8% |
 | 3.90 | 163.3M | 163.3M -> 167.7M (3/3) | 4.4M | 2.6% | 163.3M -> 200.4M (3/3) | 37.1M | 18.5% |
-| 3.85 | 185.1M | 185.1M -> 191.1M (3/3) | 6.0M | 3.1% | 185.1M -> 237.0M (3/3) | 51.9M | 21.9% |
+| 3.85 | 185.7M | 185.7M -> 191.1M (3/3) | 5.5M | 2.9% | 185.7M -> 237.0M (3/3) | 51.3M | 21.7% |
 | 3.80 | 211.9M | 211.9M -> 224.5M (3/3) | 12.6M | 5.6% | 205.6M -> 287.5M (2/3) | 81.9M | 28.5% |
-| 3.75 | 247.4M | 237.6M -> 262.1M (2/3) | 24.6M | 9.4% | not reached (0/3) | not reached | n/a |
+| 3.75 | 248.5M | 239.2M -> 262.1M (2/3) | 22.9M | 8.8% | not reached (0/3) | not reached | n/a |
 
 ### FineWeb
 
 Tracked package: `experiments/results/iclr26_e2_fineweb_2026_06_15/`.
 
-MatrixPolicy is best on all three FineWeb E2 seeds. Mean final val loss is `3.965590 +/- 0.008530`; the next-best aggregate methods are `rlb_muon` at `4.001245 +/- 0.011375`, `rlb_lion` at `4.001381 +/- 0.012800`, `silu_lion` at `4.001499 +/- 0.008463`.
+MatrixPolicy is best on all three FineWeb E2 seeds. Mean final val loss is `3.964892 +/- 0.009459`; the next-best aggregate methods are `rlb_muon` at `4.001245 +/- 0.011375`, `rlb_lion` at `4.001381 +/- 0.012800`, `silu_lion` at `4.001499 +/- 0.008463`.
 
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
 | 4.40 | 83.6M | 83.6M -> 87.9M (3/3) | 4.4M | 5.0% | 83.6M -> 102.1M (3/3) | 18.6M | 18.2% |
 | 4.30 | 112.5M | 112.5M -> 113.0M (3/3) | 0.5M | 0.5% | 112.5M -> 132.2M (3/3) | 19.7M | 14.9% |
-| 4.20 | 143.6M | 143.6M -> 148.5M (3/3) | 4.9M | 3.3% | 143.6M -> 173.1M (3/3) | 29.5M | 17.0% |
-| 4.10 | 187.3M | 187.3M -> 196.6M (3/3) | 9.3M | 4.7% | 187.3M -> 241.4M (3/3) | 54.1M | 22.4% |
+| 4.20 | 143.1M | 143.1M -> 148.5M (3/3) | 5.5M | 3.7% | 143.1M -> 173.1M (3/3) | 30.0M | 17.4% |
+| 4.10 | 186.8M | 186.8M -> 196.6M (3/3) | 9.8M | 5.0% | 186.8M -> 241.4M (3/3) | 54.6M | 22.6% |
 | 4.05 | 214.6M | 214.6M -> 232.1M (3/3) | 17.5M | 7.5% | not reached (0/3) | not reached | n/a |
-| 4.00 | 252.9M | 248.2M -> 285.9M (2/3) | 37.7M | 13.2% | not reached (0/3) | not reached | n/a |
+| 4.00 | 252.3M | 247.4M -> 285.9M (2/3) | 38.5M | 13.5% | not reached (0/3) | not reached | n/a |
 
 ### Dolma-sample
 
 Tracked package: `experiments/results/iclr26_e2_dolma_sample_2026_06_17/`.
 
-MatrixPolicy is best on all three Dolma-sample E2 seeds. Mean final val loss is `3.809853 +/- 0.005709`; the next-best aggregate methods are `rlb_lion` at `3.842503 +/- 0.009333`, `silu_lion` at `3.847523 +/- 0.009363`, `rlb_muon` at `3.848206 +/- 0.008937`. Both ADeMaMix variants diverged/non-finite on all three Dolma-sample seeds and are marked as such in the package.
+MatrixPolicy is best on all three Dolma-sample E2 seeds. Mean final val loss is `3.808954 +/- 0.006442`; the next-best aggregate methods are `rlb_lion` at `3.842503 +/- 0.009333`, `silu_lion` at `3.847523 +/- 0.009363`, `rlb_muon` at `3.848206 +/- 0.008937`.
 
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
 | 4.20 | 93.9M | 93.9M -> 94.5M (3/3) | 0.5M | 0.6% | 93.9M -> 110.9M (3/3) | 16.9M | 15.3% |
 | 4.10 | 123.4M | 123.4M -> 124.0M (3/3) | 0.5M | 0.4% | 123.4M -> 145.3M (3/3) | 21.8M | 15.0% |
-| 4.00 | 158.4M | 158.4M -> 163.8M (3/3) | 5.5M | 3.3% | 158.4M -> 195.0M (3/3) | 36.6M | 18.8% |
+| 4.00 | 158.9M | 158.9M -> 163.8M (3/3) | 4.9M | 3.0% | 158.9M -> 195.0M (3/3) | 36.0M | 18.5% |
 | 3.95 | 181.9M | 181.9M -> 190.6M (3/3) | 8.7M | 4.6% | 181.9M -> 232.7M (3/3) | 50.8M | 21.8% |
 | 3.90 | 209.7M | 209.7M -> 223.9M (3/3) | 14.2M | 6.3% | 204.8M -> 283.4M (1/3) | 78.6M | 27.7% |
 | 3.85 | 246.3M | 244.9M -> 276.9M (2/3) | 31.9M | 11.5% | not reached (0/3) | not reached | n/a |
-| 3.82 | 282.4M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+| 3.82 | 280.2M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
 
 ### C4
 
 Tracked package: `experiments/results/iclr26_e2_c4_2026_06_19/`.
 
-MatrixPolicy is best on all three C4 E2 seeds. Mean final val loss is `3.882593 +/- 0.013925`; the next-best aggregate methods are `rlb_muon` at `3.915858 +/- 0.016066`, `rlb_lion` at `3.919576 +/- 0.014201`, `silu_lion` at `3.921326 +/- 0.010538`. Both ADeMaMix variants diverged/non-finite on all three C4 seeds and are marked as such in the package.
+MatrixPolicy is best on all three C4 E2 seeds. Mean final val loss is `3.883021 +/- 0.014134`; the next-best aggregate methods are `rlb_muon` at `3.915858 +/- 0.016066`, `rlb_lion` at `3.919576 +/- 0.014201`, `silu_lion` at `3.921326 +/- 0.010538`.
 
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
@@ -133,14 +132,14 @@ MatrixPolicy is best on all three C4 E2 seeds. Mean final val loss is `3.882593 
 | 4.30 | 90.7M | 90.7M -> 93.4M (3/3) | 2.7M | 2.9% | 90.7M -> 108.1M (3/3) | 17.5M | 16.2% |
 | 4.20 | 118.5M | 118.5M -> 119.1M (3/3) | 0.5M | 0.5% | 118.5M -> 139.8M (3/3) | 21.3M | 15.2% |
 | 4.10 | 151.3M | 151.3M -> 156.2M (3/3) | 4.9M | 3.1% | 151.3M -> 185.1M (3/3) | 33.9M | 18.3% |
-| 4.05 | 170.9M | 170.9M -> 179.1M (3/3) | 8.2M | 4.6% | 170.9M -> 216.3M (3/3) | 45.3M | 21.0% |
+| 4.05 | 171.5M | 171.5M -> 179.1M (3/3) | 7.6M | 4.3% | 171.5M -> 216.3M (3/3) | 44.8M | 20.7% |
 | 4.00 | 196.1M | 196.1M -> 207.5M (3/3) | 11.5M | 5.5% | 196.1M -> 264.9M (3/3) | 68.8M | 26.0% |
 
 Runtime tables are included in each E2 dataset package and in `experiments/results/iclr26_runtime_summary_2026_06_11/`.
 
 ### E2 Dense Curve Figures
 
-The completed E2 curve package is tracked under `experiments/results/iclr26_e2_figures/`. The figures use every native JSONL log point from step 500 through 9150; shaded bands are mean +/- 1 sample std over three seeds.
+The completed E2 curve package is tracked under `experiments/results/iclr26_e2_figures/`. The figures use every native JSONL log point from step 500 through 9150; shaded bands are mean +/- 1 sample std over three seeds. MatrixPolicy curves use the accepted safe-speed replacement JSONL rows.
 
 #### DCLM
 
@@ -457,14 +456,14 @@ The manifest generator verifies that every main cell has the required method row
 Regenerate paper-facing completed-cell tables and figures from raw JSONL with:
 
 ```bash
-python3 experiments/scripts/plot_iclr26_e1_curves.py --status-md experiments/ICLR_RUN_STATUS.md
-python3 experiments/scripts/summarize_iclr26_e1_token_savings.py
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset dclm --output-dir experiments/results/iclr26_e2_dclm_2026_06_10 --completed-date 2026-06-10
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset fineweb_edu --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12 --completed-date 2026-06-12
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset fineweb --output-dir experiments/results/iclr26_e2_fineweb_2026_06_15 --completed-date 2026-06-15
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset dolma_sample --output-dir experiments/results/iclr26_e2_dolma_sample_2026_06_17 --completed-date 2026-06-17
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset c4_en --output-dir experiments/results/iclr26_e2_c4_2026_06_19 --completed-date 2026-06-19
-python3 experiments/scripts/plot_iclr26_e2_curves.py
+python3 experiments/scripts/plot_iclr26_e1_curves.py --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv --matrixpolicy-run-root experiments/runs/iclr26_main/E1_matrixpolicy_safe_speed_100m --matrixpolicy-phase E1_matrixpolicy_safe_speed_100m --status-md experiments/ICLR_RUN_STATUS.md
+python3 experiments/scripts/summarize_iclr26_e1_token_savings.py --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv --matrixpolicy-phase E1_matrixpolicy_safe_speed_100m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset dclm --output-dir experiments/results/iclr26_e2_dclm_2026_06_10 --completed-date 2026-06-10 --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset fineweb_edu --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12 --completed-date 2026-06-12 --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset fineweb --output-dir experiments/results/iclr26_e2_fineweb_2026_06_15 --completed-date 2026-06-15 --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset dolma_sample --output-dir experiments/results/iclr26_e2_dolma_sample_2026_06_17 --completed-date 2026-06-17 --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py --dataset c4_en --output-dir experiments/results/iclr26_e2_c4_2026_06_19 --completed-date 2026-06-19 --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/plot_iclr26_e2_curves.py --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv --matrixpolicy-run-root experiments/runs/iclr26_main/E2_matrixpolicy_safe_speed_300m --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
 python3 experiments/scripts/summarize_iclr26_runtimes.py
 ```
 
