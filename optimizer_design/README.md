@@ -2,7 +2,7 @@
 
 This directory contains the rational-specific optimizer implementations plus self-contained broad optimizer baselines for the language-model harness. The current research optimizer is `RationalMatrixPolicyOptimizer`, exposed in training as `rational_matrix_policy_onpolicy`.
 
-The rejected V2/V3/V4/V5 branches and failed V7/V8/V9/V10/V11/V12 P0 pilots have been removed from the live optimizer surface. The completed V3/V4/V5 E1 rerun summaries and V7/V8/V9/V10/V11/V12 P0 results are retained as negative/neutral evidence in `../experiments/ICLR_RUN_STATUS.md`, but proposal files and standalone manifests were deleted after rejection. V6 stayed proposal-only and was removed without a pilot. The current paper anchor remains original `rational_matrix_policy_onpolicy`; no live Vx alias is active.
+The rejected V2-V12 branches have been removed from the live optimizer surface and raw run tree. Their only retained state is the compact failure log in `proposals/matrixpolicy_variant_failures.md`. The current paper anchor remains original `rational_matrix_policy_onpolicy`; no live Vx alias is active.
 
 ## Current Result Anchor
 
@@ -215,62 +215,29 @@ Retained source files are limited to the current training surface: `matrix_polic
 
 ## Empirical Readout
 
-Current E1 M0/100M manifest-suite readout:
+Current E1 M0/100M manifest-suite readout, with the MatrixPolicy row replaced by the completed safe-speed rerun:
 
 | Dataset | MatrixPolicy final val loss | next best current method | gap |
 | --- | ---: | ---: | ---: |
-| DCLM | 4.256224 +/- 0.004972 | rlb_lion 4.305728 +/- 0.005836 | 0.049505 |
-| FineWeb-Edu | 4.088240 +/- 0.009434 | rlb_lion 4.142669 +/- 0.006812 | 0.054429 |
-| FineWeb | 4.318581 +/- 0.010914 | rlb_lion 4.367062 +/- 0.007532 | 0.048481 |
-| Dolma-sample | 4.323851 +/- 0.004565 | rlb_lion 4.369254 +/- 0.005561 | 0.045403 |
-| C4 | 4.285119 +/- 0.020677 | rlb_lion 4.335663 +/- 0.020917 | 0.050544 |
+| DCLM | 4.256989 +/- 0.004197 | rlb_lion 4.305728 +/- 0.005836 | 0.048739 |
+| FineWeb-Edu | 4.088287 +/- 0.009169 | rlb_lion 4.142669 +/- 0.006812 | 0.054382 |
+| FineWeb | 4.319472 +/- 0.012370 | rlb_lion 4.367062 +/- 0.007532 | 0.047590 |
+| Dolma-sample | 4.323933 +/- 0.005168 | rlb_lion 4.369254 +/- 0.005561 | 0.045321 |
+| C4 | 4.286446 +/- 0.019324 | rlb_lion 4.335663 +/- 0.020917 | 0.049217 |
 
 Full mean +/- std tables and curves are in `../experiments/ICLR_RUN_STATUS.md` and `../experiments/results/iclr26_e1_figures/`.
 
 The paper story should be: RLB creates optimizer-visible geometry, and MatrixPolicy uses it. It should not be sold as an activation-only result or a generic Muon result.
 
-## Rejected V3/V4/V5 Tests
-`matrixpolicyV3` kept the original winning MatrixPolicy recipe, added a modest horizontal gauge projection, and added a small confidence-gated Muon tail. The completed E1 rerun did not improve final validation loss on any dataset mean:
+## Rejected Variant Log
 
-| Dataset | V3 final val loss | Original MatrixPolicy | Delta |
-| --- | ---: | ---: | ---: |
-| DCLM | 4.257245 +/- 0.003457 | 4.256224 | +0.001021 |
-| FineWeb-Edu | 4.089219 +/- 0.006443 | 4.088240 | +0.000979 |
-| FineWeb | 4.318981 +/- 0.009135 | 4.318581 | +0.000400 |
-| Dolma-sample | 4.324203 +/- 0.004118 | 4.323851 | +0.000352 |
-| C4 | 4.288422 +/- 0.015948 | 4.285119 | +0.003304 |
-
-`matrixpolicyV4` kept the original MatrixPolicy mechanics and added a functional-balance proxy. It near-tied original MatrixPolicy, but it did not produce a useful new mechanism:
-
-| Dataset | V4 final val loss | Original MatrixPolicy | Delta |
-| --- | ---: | ---: | ---: |
-| DCLM | 4.255052 +/- 0.002431 | 4.256224 +/- 0.004972 | -0.001172 |
-| FineWeb-Edu | 4.088879 +/- 0.009448 | 4.088240 +/- 0.009434 | +0.000639 |
-| FineWeb | 4.317874 +/- 0.011026 | 4.318581 +/- 0.010914 | -0.000706 |
-| Dolma-sample | 4.323299 +/- 0.005749 | 4.323851 +/- 0.004565 | -0.000552 |
-| C4 | 4.287153 +/- 0.019124 | 4.285119 +/- 0.020677 | +0.002035 |
-
-The V4 telemetry is the decisive negative evidence: all `4590` recorded functional-balance log-ratio values were clipped at `+0.47`. Since V4 multiplies per-group scales and then geometrically centers inside each role, a role-wise constant clipped signal is normalized away. V4 is therefore rejected as a neutral test of a bad proxy, not as evidence against MatrixPolicy itself.
-
-`matrixpolicyV5` then tested a joint functional-metric MatrixPolicy. It did preserve A/B role-level scaling instead of centering it away role-by-role, but the completed E1 loss result did not pass the acceptance gate:
-
-| Dataset | V5 final val loss | Original MatrixPolicy | Delta |
-| --- | ---: | ---: | ---: |
-| DCLM | 4.257406 +/- 0.004169 | 4.256224 +/- 0.004972 | +0.001182 |
-| FineWeb-Edu | 4.086836 +/- 0.007661 | 4.088240 +/- 0.009434 | -0.001404 |
-| FineWeb | 4.319513 +/- 0.010019 | 4.318581 +/- 0.010914 | +0.000932 |
-| Dolma-sample | 4.324036 +/- 0.005130 | 4.323851 +/- 0.004565 | +0.000185 |
-| C4 | 4.285666 +/- 0.020566 | 4.285119 +/- 0.020677 | +0.000547 |
-
-V5 telemetry was real: final role-scale means were consistently around `in=0.817-0.819`, `out=1.221-1.224`. The rejection is therefore not the V4 failure mode. It says a near-constant inverse sensitivity A/B reallocation is not enough to beat the original MatrixPolicy recipe.
+Rejected V2-V12 method attempts are consolidated in `proposals/matrixpolicy_variant_failures.md`. Their source hooks, standalone manifests, proposal files, and raw run directories are no longer part of the active repo state.
 
 ## Next Proposal Direction
 
-V7/V8/V9 are useful negative results. V7 slightly improved the 500-step DCLM pilot loss, but the gain was too small for the runtime penalty. V8 shortened the Muon window and worsened loss/AUC. V9 lowered Muon Newton-Schulz accuracy inside the original window and also worsened loss/AUC for negligible same-node speed. Together they say the early full-quality MatrixPolicy conditioning direction matters, and the next optimizer-design candidate should not simply weaken or shorten Muon.
-
 The current implementation includes a method-preserving speed fix: once every MatrixPolicy Muon group has passed its decay end and `final_muon=min_muon=0`, `RationalMatrixPolicyOptimizer` skips the otherwise zero-LR Muon step. P0 validated this as quality-neutral with lower optimizer-step overhead. The full `E1_matrixpolicy_safe_speed_100m` rerun completed all 15 rows on 2026-06-23: final losses match the original MatrixPolicy E1 table within seed/dataset noise, and the clean harness runtime aggregate improved to `27.3` min, `0.5102` s/step, and `67,078.3` tokens/s over 15 rows. This is the paper-facing implementation of the original MatrixPolicy, not a new Vx method.
 
-The next method candidate should be a MatrixPolicy rule that is explainable from existing optimizer/RLB quantities and does not add expensive hooks, extra forward/backward passes, or matrix snapshots. It must pass the fast paired P0 gate before any P1 or E1 expansion. No current Vx proposal file is retained; new candidate artifacts should stay temporary and be pruned immediately if the pilot fails.
+The next method candidate should be a MatrixPolicy rule that is explainable from existing optimizer/RLB quantities and does not add expensive hooks, extra forward/backward passes, or matrix snapshots. It must pass a fast paired pilot before any E1 expansion.
 
 ## Telemetry Status
 

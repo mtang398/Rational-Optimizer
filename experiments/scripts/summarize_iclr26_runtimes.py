@@ -15,6 +15,9 @@ from statistics import mean, stdev
 DEFAULT_OUTPUT = Path("experiments/results/iclr26_runtime_summary_2026_06_11")
 MANIFEST = Path("experiments/manifests/iclr26_main_manifest.csv")
 RUN_ROOT = Path("experiments/runs/iclr26_main")
+SAFE_E1_MATRIXPOLICY_MANIFEST = Path("experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv")
+SAFE_E2_MATRIXPOLICY_MANIFEST = Path("experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv")
+MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
 
 # E1 FineWeb-Edu seed 2027 ran as Slurm job 158117 with Restarts=6.
 # Those rows are excluded from all tracked runtime aggregates and per-row
@@ -81,6 +84,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, default=MANIFEST)
     parser.add_argument("--run-root", type=Path, default=RUN_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--safe-e1-matrixpolicy-manifest", type=Path, default=SAFE_E1_MATRIXPOLICY_MANIFEST)
+    parser.add_argument("--safe-e2-matrixpolicy-manifest", type=Path, default=SAFE_E2_MATRIXPOLICY_MANIFEST)
     return parser.parse_args()
 
 
@@ -224,7 +229,7 @@ This package summarizes clean per optimizer/activation-combo runtime from comple
 
 Included in tracked runtime aggregates:
 
-- E1 M0/100M clean rows: `{e1_total}` rows. E1 FineWeb-Edu seed `2027` rows `75-89` are excluded because Slurm job `158117` completed with `Restarts=6` and produced restart/node-contaminated throughput outliers.
+- E1 M0/100M clean rows: `{e1_total}` rows. E1 FineWeb-Edu seed `2027` rows `75-89` are excluded because Slurm job `158117` completed with `Restarts=6` and produced restart/node-contaminated throughput outliers. The MatrixPolicy row is replaced by the completed safe-speed rerun when available.
 {e2_bullets}
 
 Excluded from tracked runtime aggregates:
@@ -247,9 +252,70 @@ Clean rows summarized: `{clean_row_count}`.
     (output_dir / "README.md").write_text(text)
 
 
+def override_scope_for(row: dict[str, str]) -> str | None:
+    phase = row["phase"]
+    dataset = row["dataset"]
+    if phase == "E1_matrixpolicy_safe_speed_100m":
+        return "E1_m0_100m_all_datasets"
+    if phase == "E2_matrixpolicy_safe_speed_300m" and dataset in COMPLETED_E2_DATASET_SCOPES:
+        return COMPLETED_E2_DATASET_SCOPES[dataset]
+    return None
+
+
+def runtime_row_from_manifest(row: dict[str, str], scope: str, run_root: Path) -> dict[str, object] | None:
+    jsonl_path = run_root / row["phase"] / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
+    summary = read_summary(jsonl_path)
+    if summary is None:
+        return None
+    total_seconds = float(summary["total_seconds"])
+    return {
+        "scope": scope,
+        "phase": row["phase"],
+        "dataset": row["dataset"],
+        "row_index": int(row["row_index"]),
+        "row_id": row["row_id"],
+        "seed": int(row["seed"]),
+        "method": row["method"],
+        "method_label": METHOD_LABEL.get(row["method"], row["method"]),
+        "activation": row["activation"],
+        "optimizer": row["optimizer"],
+        "steps": int(summary["steps"]),
+        "completed_steps": int(summary["completed_steps"]),
+        "train_tokens": int(row["train_tokens"]),
+        "total_seconds": total_seconds,
+        "total_minutes": total_seconds / 60.0,
+        "total_hours": total_seconds / 3600.0,
+        "mean_seconds_per_step": float(summary["mean_seconds_per_step"]),
+        "tokens_per_second": float(summary["tokens_per_second"]),
+        "stopped_early": bool(summary.get("stopped_early", False)),
+        "jsonl": str(jsonl_path),
+    }
+
+
+def overlay_completed_matrixpolicy_rows(
+    per_row_by_key: dict[tuple[str, str, int, str], dict[str, object]],
+    manifest: Path,
+    run_root: Path,
+) -> None:
+    if not manifest.exists():
+        return
+    with manifest.open(newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("method") != MATRIXPOLICY_METHOD:
+                continue
+            scope = override_scope_for(row)
+            if scope is None:
+                continue
+            item = runtime_row_from_manifest(row, scope, run_root)
+            if item is None:
+                continue
+            key = (scope, str(item["dataset"]), int(item["seed"]), str(item["method"]))
+            per_row_by_key[key] = item
+
+
 def main() -> None:
     args = parse_args()
-    per_row: list[dict[str, object]] = []
+    per_row_by_key: dict[tuple[str, str, int, str], dict[str, object]] = {}
     excluded = 0
     with args.manifest.open(newline="") as handle:
         for row in csv.DictReader(handle):
@@ -260,38 +326,17 @@ def main() -> None:
             if row_index in RESTART_AFFECTED_ROWS:
                 excluded += 1
                 continue
-            jsonl_path = args.run_root / row["phase"] / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
-            summary = read_summary(jsonl_path)
-            if summary is None:
+            item = runtime_row_from_manifest(row, scope, args.run_root)
+            if item is None:
                 continue
-            total_seconds = float(summary["total_seconds"])
-            per_row.append(
-                {
-                    "scope": scope,
-                    "phase": row["phase"],
-                    "dataset": row["dataset"],
-                    "row_index": row_index,
-                    "row_id": row["row_id"],
-                    "seed": int(row["seed"]),
-                    "method": row["method"],
-                    "method_label": METHOD_LABEL.get(row["method"], row["method"]),
-                    "activation": row["activation"],
-                    "optimizer": row["optimizer"],
-                    "steps": int(summary["steps"]),
-                    "completed_steps": int(summary["completed_steps"]),
-                    "train_tokens": int(row["train_tokens"]),
-                    "total_seconds": total_seconds,
-                    "total_minutes": total_seconds / 60.0,
-                    "total_hours": total_seconds / 3600.0,
-                    "mean_seconds_per_step": float(summary["mean_seconds_per_step"]),
-                    "tokens_per_second": float(summary["tokens_per_second"]),
-                    "stopped_early": bool(summary.get("stopped_early", False)),
-                    "jsonl": str(jsonl_path),
-                }
-            )
+            key = (scope, str(item["dataset"]), int(item["seed"]), str(item["method"]))
+            per_row_by_key[key] = item
+
+    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e1_matrixpolicy_manifest, args.run_root)
+    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e2_matrixpolicy_manifest, args.run_root)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    per_row = sorted(per_row, key=lambda r: (str(r["scope"]), str(r["dataset"]), int(r["row_index"])))
+    per_row = sorted(per_row_by_key.values(), key=lambda r: (str(r["scope"]), str(r["dataset"]), int(r["row_index"]), str(r["method"])))
     by_scope = aggregate(per_row, ("scope", "method"))
     by_dataset = aggregate(per_row, ("scope", "phase", "dataset", "method"))
 
@@ -344,7 +389,6 @@ def main() -> None:
     write_csv(args.output_dir / "runtime_by_scope_method_clean.csv", by_scope, [f for f in aggregate_fields if f not in {"phase", "dataset"}])
     write_csv(args.output_dir / "runtime_by_dataset_method_clean.csv", by_dataset, aggregate_fields)
     write_readme(args.output_dir, by_scope, len(per_row), excluded)
-
 
 if __name__ == "__main__":
     main()

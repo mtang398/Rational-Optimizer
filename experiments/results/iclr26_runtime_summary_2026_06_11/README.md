@@ -1,17 +1,18 @@
 # ICLR26 Runtime Summary
 
-Generated: 2026-06-19.
+Generated: 2026-06-23.
 
 This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
 
 Included in tracked runtime aggregates:
 
-- E1 M0/100M clean rows: `210` rows. E1 FineWeb-Edu seed `2027` rows `75-89` are excluded because Slurm job `158117` completed with `Restarts=6` and produced restart/node-contaminated throughput outliers.
+- E1 M0/100M clean rows: `211` rows. E1 FineWeb-Edu seed `2027` rows `75-89` are excluded because Slurm job `158117` completed with `Restarts=6` and produced restart/node-contaminated throughput outliers. The MatrixPolicy row is replaced by the completed safe-speed rerun when available.
 - E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M Dolma-sample completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M C4 completed cell: `45` rows, one dataset x three seeds x 15 methods.
+- E2 MatrixPolicy safe-speed timing rerun is queued as jobs `810092`-`810106`; E2 MatrixPolicy aggregate rows will remain from the completed original rows until that rerun finishes.
 
 Excluded from tracked runtime aggregates:
 
@@ -20,13 +21,13 @@ Excluded from tracked runtime aggregates:
 
 No raw all-completed E1 aggregate is tracked in this package. The contaminated E1 rows are omitted from both aggregate CSVs and `runtime_per_row.csv`.
 
-Clean rows summarized: `435`.
+Clean rows summarized: `436`.
 
 ## E1 M0/100M All Datasets
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 14 | 32.0 min | 4.9 min | 23.4 min-38.3 min | 0.6032 | 55759.6 |
+| RLB+MatrixPolicy | 15 | 27.3 min | 6.0 min | 22.1 min-37.2 min | 0.5102 | 67078.3 |
 | SiLU+AdamW | 14 | 27.2 min | 5.3 min | 18.2 min-33.1 min | 0.5162 | 66240.2 |
 | RLB+AdamW | 14 | 31.8 min | 4.9 min | 23.4 min-38.1 min | 0.5945 | 56615.9 |
 | SiLU+Muon | 14 | 29.0 min | 5.4 min | 20.1 min-36.3 min | 0.5524 | 61608.8 |

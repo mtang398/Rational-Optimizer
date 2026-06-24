@@ -182,226 +182,7 @@ E1 completion note: all jobs `155411`, `155412`, `158114`, `158115`, `158117`, `
 
 ## Rejected MatrixPolicy Variant Artifact Note
 
-As of 2026-06-22, rejected V3/V4/V5 proposal files and standalone manifests have been deleted from the active repo surface. The paths in the historical command log below document what was submitted at the time; they are not live launch artifacts.
-
-## matrixpolicyV3 E1 100M Submission
-
-This is a separate E1-only rerun for the replacement RLB optimizer proposal. It uses `experiments/manifests/iclr26_matrixpolicyV3_e1_manifest.csv`, phase `E1_matrixpolicyV3_100m`, method `rlb_matrixpolicyV3`, activation `rlb_fused_fixed_strong_ffn`, optimizer `matrixpolicyV3`, and one manifest row per Slurm job.
-
-The rows were submitted as two parity dependency chains so at most two 4-A6000 jobs from this set can run at once and preemption loss is limited to one row. `BUILD_EXT=0` was used because the extension had already been built and V3 is Python-side optimizer logic.
-
-Submission template:
-
-```bash
-sbatch --parsable \
-  --job-name=mpV3-e1-<row> \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV3_e1_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
-  [--dependency=afterok:<previous-chain-job>] \
-  experiments/scripts/run_iclr26_manifest_job.sh
-```
-
-Submitted jobs:
-
-| Row | Job | Dependency |
-| ---: | ---: | --- |
-| 0 | `690946` | none |
-| 1 | `690947` | none |
-| 2 | `690948` | afterok:`690946` |
-| 3 | `690949` | afterok:`690947` |
-| 4 | `690950` | afterok:`690948` |
-| 5 | `690951` | afterok:`690949` |
-| 6 | `690952` | afterok:`690950` |
-| 7 | `690953` | afterok:`690951` |
-| 8 | `690954` | afterok:`690952` |
-| 9 | `690955` | afterok:`690953` |
-| 10 | `690956` | afterok:`690954` |
-| 11 | `690957` | afterok:`690955` |
-| 12 | `690958` | afterok:`690956` |
-| 13 | `690959` | afterok:`690957` |
-| 14 | `690960` | afterok:`690958` |
-
-Completion note: all jobs `690946`-`690960` completed with exit `0:0`. Job `690953` reported `Restarts=1`; its JSONL restarted cleanly and produced a final summary, but its full-step throughput is restart contaminated. The completed E1 aggregate is slightly worse than original MatrixPolicy on every dataset mean, so V3 is rejected/superseded and no V3 E2 jobs should be queued.
-
-V3 is rejected. Its proposal/manifest artifacts were later removed from the active repo surface after V5 also failed.
-
-## matrixpolicyV4 E1 100M Submission
-
-This is a separate E1-only rerun for the functional-balance RLB optimizer proposal. It uses `experiments/manifests/iclr26_matrixpolicyV4_e1_manifest.csv`, phase `E1_matrixpolicyV4_100m`, method `rlb_matrixpolicyV4`, activation `rlb_fused_fixed_strong_ffn`, optimizer `matrixpolicyV4`, and one manifest row per Slurm job.
-
-The rows were submitted as two parity dependency chains so at most two 4-A6000 jobs from this set can run at once and preemption loss is limited to one row. `BUILD_EXT=0` was used because the extension had already been built and V4 is Python-side optimizer logic.
-
-Submission template:
-
-```bash
-sbatch --parsable \
-  --job-name=mpV4-e1-<row> \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV4_e1_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
-  [--dependency=afterok:<previous-chain-job>] \
-  experiments/scripts/run_iclr26_manifest_job.sh
-```
-
-Invalid first submitted jobs:
-
-| Row | Job | Dependency |
-| ---: | ---: | --- |
-| 0 | `715013` | none |
-| 1 | `715014` | none |
-| 2 | `715015` | afterok:`715013` |
-| 3 | `715016` | afterok:`715014` |
-| 4 | `715017` | afterok:`715015` |
-| 5 | `715018` | afterok:`715016` |
-| 6 | `715019` | afterok:`715017` |
-| 7 | `715020` | afterok:`715018` |
-| 8 | `715021` | afterok:`715019` |
-| 9 | `715022` | afterok:`715020` |
-| 10 | `715023` | afterok:`715021` |
-| 11 | `715024` | afterok:`715022` |
-| 12 | `715025` | afterok:`715023` |
-| 13 | `715026` | afterok:`715024` |
-| 14 | `715027` | afterok:`715025` |
-
-The first submission is invalid: rows `0-8` exited before training because `training/run_lm_optimizer_sweep.sbatch` did not yet include `matrixpolicyV4` in its hard-coded optimizer allowlist; rows `9-14` were cancelled. No JSONL outputs were produced. The wrapper fix was committed as `94d1352`.
-
-Replacement submitted jobs:
-
-| Row | Job | Dependency |
-| ---: | ---: | --- |
-| 0 | `715054` | none |
-| 1 | `715055` | none |
-| 2 | `715056` | afterok:`715054` |
-| 3 | `715057` | afterok:`715055` |
-| 4 | `715058` | afterok:`715056` |
-| 5 | `715059` | afterok:`715057` |
-| 6 | `715060` | afterok:`715058` |
-| 7 | `715061` | afterok:`715059` |
-| 8 | `715062` | afterok:`715060` |
-| 9 | `715063` | afterok:`715061` |
-| 10 | `715064` | afterok:`715062` |
-| 11 | `715065` | afterok:`715063` |
-| 12 | `715066` | afterok:`715064` |
-| 13 | `715067` | afterok:`715065` |
-| 14 | `715068` | afterok:`715066` |
-
-Completion note: replacement jobs `715054`-`715068` all completed with exit `0:0` by `2026-06-21 16:53:52 EDT`. Jobs `715054` and `715055` had `Restarts=1` with incomplete pre-restart JSONLs archived; jobs `715056`-`715068` had `Restarts=0`. V4 near-tied original MatrixPolicy but is rejected/superseded because all `4590` recorded functional-balance log-ratio telemetry values clipped to `+0.47`, making the role-wise signal effectively constant and centered away. V4 is rejected. Its proposal/manifest artifacts were later removed from the active repo surface after V5 also failed.
-
-## matrixpolicyV5 E1 100M Submission
-
-Submitted: 2026-06-21 17:06:55 EDT. Commit: `70233f9`. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicyV5_e1_manifest.csv`. This was an E1-only optimizer-geometry test. It later failed E1, no V5 E2 jobs were queued, and the proposal/manifest artifacts were removed from the active repo surface. The proposal explicitly disallowed engineering/fusion/kernel/cache speedups as optimizer evidence.
-
-Submitted jobs:
-
-| Row | Job | Dependency |
-| ---: | ---: | --- |
-| 0 | `716298` | none |
-| 1 | `716299` | none |
-| 2 | `716300` | afterok:`716298` |
-| 3 | `716301` | afterok:`716299` |
-| 4 | `716302` | afterok:`716300` |
-| 5 | `716303` | afterok:`716301` |
-| 6 | `716304` | afterok:`716302` |
-| 7 | `716305` | afterok:`716303` |
-| 8 | `716306` | afterok:`716304` |
-| 9 | `716307` | afterok:`716305` |
-| 10 | `716308` | afterok:`716306` |
-| 11 | `716309` | afterok:`716307` |
-| 12 | `716310` | afterok:`716308` |
-| 13 | `716311` | afterok:`716309` |
-| 14 | `716312` | afterok:`716310` |
-
-Initial scheduler state after submission: jobs `716298` and `716299` were pending on priority; jobs `716300`-`716312` were dependency-held behind their parity-chain predecessors.
-
-Launch-health update at `2026-06-21 17:12:02 EDT`: row `0` job `716298` was preempted once before training at `2026-06-21T17:07:38` on `monakhova-compute-01`, then requeued and restarted cleanly at `2026-06-21T17:10:38` with `Restarts=1`. Row `1` job `716299` is running on `sun-compute-03` with `Restarts=0`. The row `1` JSONL reached step `450` and logged nontrivial V5 role scaling (`in ~= 0.866`, `out ~= 1.155`), confirming the `matrixpolicyV5` optimizer path and functional-metric telemetry are active.
-
-Completion note: all V5 E1 jobs `716298`-`716312` completed with exit `0:0` by `2026-06-21T22:37:04`. Jobs `716298` and `716304` had `Restarts=1` and clean final JSONL summaries; all other V5 jobs had `Restarts=0`. V5 failed the E1 acceptance gate: it improved only FineWeb-Edu (`-0.001404` vs original MatrixPolicy) and was neutral/slightly worse on DCLM, FineWeb, Dolma-sample, and C4. No V5 E2 jobs were queued.
-
-## matrixpolicyV7 P0 500-Step Pilot Submission
-
-Corrected submission: 2026-06-22 18:52:42 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv`. This is a P0 mechanism/loss smoke, not a full E1 run. It compares a fresh V1 control against `matrixpolicyV7` on DCLM seed `1337` for `500` steps. First submission jobs `727119` and `727120` were cancelled before run files were produced because the manifest used `val_tokens=1000000`; the corrected manifest uses the existing `val_tokens=4000000` DCLM validation cache.
-
-```bash
-sbatch --parsable \
-  --job-name=mpV7-p0-v1 \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727161
-
-sbatch --parsable \
-  --job-name=mpV7-p0-cand \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV7_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727162
-```
-
-Corrected scheduler state at submission: both jobs were pending on resources immediately after submission.
-
-Completion note: jobs `727161` and `727162` completed with exit `0:0` and `Restarts=0`. V7 was rejected after P0 because its final/AUC loss improvement was small while runtime was about `1.085x` paired V1; the V7 source hook, proposal file, and standalone manifest were pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
-
-
-## matrixpolicyV8 Fast-Pulse P0 Submission
-
-Submitted: 2026-06-22 19:07:51 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV8_fastpulse_p0_manifest.csv`. This is a three-row P0 pilot using the existing `rational_matrix_policy_onpolicy` optimizer only: V1 control, role-staged fast pulse, and lower-peak fast pulse.
-
-```bash
-sbatch --parsable \
-  --job-name=mpV8-p0-v1 \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV8_fastpulse_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727338
-
-sbatch --parsable \
-  --job-name=mpV8-p0-fast \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV8_fastpulse_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727339
-
-sbatch --parsable \
-  --job-name=mpV8-p0-low \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV8_fastpulse_p0_manifest.csv,ROW_START=2,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727340
-```
-
-Scheduler state at 2026-06-22 19:15:48 EDT: all three jobs were pending on priority with no logs yet.
-
-Completion note: jobs `727338`, `727339`, and `727340` completed with exit `0:0` and `Restarts=0`. V8 was rejected after P0: fast pulse worsened final loss/AUC with no same-node speedup, and lower-peak fast pulse was faster only on a different node while also worsening loss/AUC. The temporary V8 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
-
-
-## matrixpolicyV9 Approximate-Muon P0 Submission
-
-Submitted: 2026-06-22 20:28:38 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicyV9_approx_muon_p0_manifest.csv`. This is a three-row P0 pilot using the existing `rational_matrix_policy_onpolicy` optimizer only: V1 control, Muon NS=3, and Muon NS=2.
-
-```bash
-sbatch --parsable \
-  --job-name=mpV9-p0-v1 \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV9_approx_muon_p0_manifest.csv,ROW_START=0,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727913
-
-sbatch --parsable \
-  --job-name=mpV9-p0-ns3 \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV9_approx_muon_p0_manifest.csv,ROW_START=1,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727914
-
-sbatch --parsable \
-  --job-name=mpV9-p0-ns2 \
-  --time=02:00:00 \
-  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicyV9_approx_muon_p0_manifest.csv,ROW_START=2,ROW_LIMIT=1,BUILD_EXT=0 \
-  experiments/scripts/run_iclr26_manifest_job.sh
-# returned 727915
-```
-
-Scheduler state at 2026-06-22 20:28:38 EDT: all three jobs were pending on priority. Estimated starts were `727913` at `20:33:55`, `727914` at `22:34:00`, and `727915` at `2026-06-23 00:34:00` EDT.
-
-Completion note: jobs `727913`, `727914`, and `727915` completed with exit `0:0` and `Restarts=0` by `2026-06-22 20:43:48 EDT`. V9 was rejected after P0: NS=3 gave only a `0.45%` same-node total-time reduction while worsening final loss/AUC, and NS=2 worsened final loss/AUC further with non-comparable slower-node wall time. The temporary V9 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
-
+Rejected V2-V12 launch artifacts have been pruned from the active repo surface and raw run tree. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; detailed rejected-variant submission blocks are intentionally not retained here.
 
 ## MatrixPolicy Safe Muon-Off Speed P0 Submission
 
@@ -416,44 +197,6 @@ Submitted jobs:
 | 2 | `727992` | `rlb_matrixpolicy_original` speed-fixed |
 
 Completion note: jobs `727990`, `727991`, and `727992` completed with exit `0:0` and `Restarts=0` by `2026-06-22 22:32:09 EDT`. The MatrixPolicy speed-fixed row retained the expected 500-step quality band and improved mean optimizer-step time from the earlier same-node pre-speed control by about `17.5%`. The temporary P0 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
-
-## matrixpolicyV10 Switch-Clean P0 Submission
-
-Submitted: 2026-06-22 20:58:38 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicyV10_switchclean_p0_manifest.csv`. This was a two-row DCLM seed `1337`, `500`-step P0 method pilot: original MatrixPolicy control and a switch-clean candidate that added only `--rational-matrix-policy-muon-reset-adam-state` to the original MatrixPolicy flags. It used the existing optimizer path; no new source alias was added.
-
-Submitted jobs:
-
-| Row | Job | Method |
-| ---: | ---: | --- |
-| 0 | `728006` | `rlb_matrixpolicy_original` |
-| 1 | `728007` | `rlb_matrixpolicyV10_switchclean` |
-
-Completion note: jobs `728006` and `728007` completed with exit `0:0` and `Restarts=0`. V10 was rejected after P0 because final loss worsened from `5.391717` to `5.424358` and AUC worsened from `6.367025` to `6.401291`. The temporary V10 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
-
-## matrixpolicyV11 State-Adaptive Beta2 P0 Submission
-
-Submitted: 2026-06-22 21:02:34 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicyV11_stateadapt_p0_manifest.csv`. This was a two-row DCLM seed `1337`, `500`-step P0 method pilot: original MatrixPolicy control and a state-adaptive beta2 candidate that added only `--rational-matrix-policy-adam-beta2-final 0.98 --rational-matrix-policy-adam-beta2-decay-start 0.36 --rational-matrix-policy-adam-beta2-decay-end 0.50` to the original MatrixPolicy flags. It used the existing optimizer path; no new source alias was added.
-
-Submitted jobs:
-
-| Row | Job | Method |
-| ---: | ---: | --- |
-| 0 | `728025` | `rlb_matrixpolicy_original` |
-| 1 | `728026` | `rlb_matrixpolicyV11_stateadapt_b98` |
-
-Completion note: jobs `728025` and `728026` completed with exit `0:0` and `Restarts=0`. V11 was rejected after P0 because final loss worsened from `5.391785` to `5.394934` and AUC worsened from `6.367712` to `6.374737`; it also did not show a speed win. The temporary V11 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
-
-## matrixpolicyV12 Selector-Beta2 P0 Submission
-
-Submitted: 2026-06-22 21:07:09 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicyV12_selector_beta2_p0_manifest.csv`. This was a one-row DCLM seed `1337`, `500`-step candidate-only P0 method pilot. It added only `--rational-matrix-policy-adam-beta2-input-final 0.98 --rational-matrix-policy-adam-beta2-decay-start 0.36 --rational-matrix-policy-adam-beta2-decay-end 0.50` to the original MatrixPolicy flags. It used fresh MatrixPolicy controls from the same pilot batch for comparison; no new source alias was added.
-
-Submitted job:
-
-| Row | Job | Method |
-| ---: | ---: | --- |
-| 0 | `728038` | `rlb_matrixpolicyV12_selector_beta2_b98` |
-
-Completion note: job `728038` completed with exit `0:0` and `Restarts=0`. V12 was rejected after P0 because it worsened final loss and AUC against the clean fresh-control mean. The temporary V12 manifest was pruned after the result was recorded in `ICLR_RUN_STATUS.md`.
 
 ## E1 MatrixPolicy Safe-Speed Full Rerun Submission
 
@@ -869,6 +612,45 @@ Current scheduler state immediately after submission: job `476451` was pending o
 
 C4 E2 completion note on `2026-06-19`: all jobs `476451`-`476495` completed with exit `0:0`; the last job was `476495`, ending at `2026-06-19T03:12:51`. Jobs `476453`, `476455`, `476476`, and `476481` show `Restarts=1`, but every C4 JSONL has exactly one complete summary record and final eval at step `9150`. The final E2 C4 package is tracked at `experiments/results/iclr26_e2_c4_2026_06_19/`.
 
+
+
+## E2 MatrixPolicy Safe-Speed Timing Rerun Submission
+
+Submitted: 2026-06-23 20:06:40 EDT. Manifest: `experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv`. This is the E2 timing rerun for original `rlb_matrixpolicy_original` under the accepted method-preserving safe Muon-off implementation. It mirrors the completed E2 MatrixPolicy rows only: five datasets x three seeds, `300M` train tokens per row, one manifest row per Slurm job.
+
+The rows were submitted as two parity dependency chains, so at most two 4-A6000 jobs from this set run at once and preemption loss is limited to one row.
+
+Submission template:
+
+```bash
+sbatch --parsable \
+  --job-name=mp-safe-e2-<row> \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0 \
+  [--dependency=afterok:<previous-chain-job>] \
+  experiments/scripts/run_iclr26_manifest_job.sh
+```
+
+Submitted jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 0 | `810092` | none |
+| 1 | `810093` | none |
+| 2 | `810094` | afterok:`810092` |
+| 3 | `810095` | afterok:`810093` |
+| 4 | `810096` | afterok:`810094` |
+| 5 | `810097` | afterok:`810095` |
+| 6 | `810098` | afterok:`810096` |
+| 7 | `810099` | afterok:`810097` |
+| 8 | `810100` | afterok:`810098` |
+| 9 | `810101` | afterok:`810099` |
+| 10 | `810102` | afterok:`810100` |
+| 11 | `810103` | afterok:`810101` |
+| 12 | `810104` | afterok:`810102` |
+| 13 | `810105` | afterok:`810103` |
+| 14 | `810106` | afterok:`810104` |
+
+Initial scheduler state after submission: jobs `810092` and `810093` were running on `lancer-compute-01` and `monakhova-compute-01`; jobs `810094`-`810106` were dependency-held.
 
 ## Internal Per-Row Command Shape
 

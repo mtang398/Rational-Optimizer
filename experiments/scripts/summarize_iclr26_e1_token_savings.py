@@ -41,6 +41,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, default=MANIFEST)
     parser.add_argument("--run-root", type=Path, default=RUN_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
+    parser.add_argument("--matrixpolicy-phase", type=str, default=None)
     return parser.parse_args()
 
 
@@ -72,12 +74,14 @@ def read_jsonl(path: Path) -> tuple[list[dict[str, object]], dict[str, object] |
     return evals, summary
 
 
-def load_rows(manifest: Path, run_root: Path) -> list[dict[str, object]]:
-    wanted = {dataset for dataset, _ in DATASETS}
+def _load_phase_rows(manifest: Path, run_root: Path, phase: str, wanted_methods: set[str] | None = None) -> list[dict[str, object]]:
+    wanted_datasets = {dataset for dataset, _ in DATASETS}
     rows: list[dict[str, object]] = []
     with manifest.open(newline="") as handle:
         for row in csv.DictReader(handle):
-            if row["phase"] != PHASE or row["dataset"] not in wanted:
+            if row["phase"] != phase or row["dataset"] not in wanted_datasets:
+                continue
+            if wanted_methods is not None and row["method"] not in wanted_methods:
                 continue
             jsonl_path = run_root / row["phase"] / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
             evals, summary = read_jsonl(jsonl_path)
@@ -99,8 +103,23 @@ def load_rows(manifest: Path, run_root: Path) -> list[dict[str, object]]:
                     "summary": summary,
                 }
             )
-    return sorted(rows, key=lambda row: int(row["row"]))
+    return rows
 
+
+def load_rows(
+    manifest: Path,
+    run_root: Path,
+    matrixpolicy_manifest: Path | None = None,
+    matrixpolicy_phase: str | None = None,
+) -> list[dict[str, object]]:
+    rows = _load_phase_rows(manifest, run_root, PHASE)
+    if matrixpolicy_manifest is not None and matrixpolicy_phase is not None:
+        overrides = _load_phase_rows(matrixpolicy_manifest, run_root, matrixpolicy_phase, {MATRIXPOLICY_METHOD})
+        by_key = {(str(row["dataset"]), int(row["seed"]), str(row["method"])): row for row in rows}
+        for row in overrides:
+            by_key[(str(row["dataset"]), int(row["seed"]), str(row["method"]))] = row
+        rows = list(by_key.values())
+    return sorted(rows, key=lambda row: (str(row["dataset"]), int(row["seed"]), str(row["method"])))
 
 def first_hit_tokens(row: dict[str, object] | None, target: float) -> tuple[int | None, int | None]:
     if row is None:
@@ -294,7 +313,7 @@ Each row uses `{tokens_per_step}` global tokens/step and the native E1 eval cade
 
 def main() -> None:
     args = parse_args()
-    rows = load_rows(args.manifest, args.run_root)
+    rows = load_rows(args.manifest, args.run_root, args.matrixpolicy_manifest, args.matrixpolicy_phase)
     if not rows:
         raise SystemExit("No E1 rows found.")
     token_rows, token_seed_rows = summarize(rows)

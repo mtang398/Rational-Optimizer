@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 PHASE = "E1_m0_100m"
+MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
 
 DATASETS = [
     ("dclm", "DCLM"),
@@ -68,13 +69,45 @@ XTICKS = [500, 1000, 1500, 2000, 2500, 3000]
 CHECKPOINT_STEPS = [500, 1000, 1500, 2000, 2500, 3050]
 
 
-def parse_jsonl_runs(manifest_path: Path, run_root: Path):
-    curves = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"train": {}, "eval": {}})))
+def _read_curve_jsonl(jsonl_path: Path, dataset: str, method: str, seed: int, curves) -> None:
+    with jsonl_path.open("r", errors="replace") as jsonl:
+        for raw in jsonl:
+            if not raw.startswith("{"):
+                continue
+            try:
+                record = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            event = record.get("event")
+            step = record.get("step")
+            if event not in {"train", "eval"} or not isinstance(step, int):
+                continue
+            if step < START_STEP or step > END_STEP:
+                continue
+            if event == "train":
+                value = record.get("loss")
+                if isinstance(value, (int, float)) and math.isfinite(value):
+                    curves[dataset][method][seed]["train"][step] = float(value)
+            elif event == "eval":
+                loss = record.get("val_loss")
+                ppl = record.get("val_ppl")
+                if isinstance(loss, (int, float)) and math.isfinite(loss):
+                    curves[dataset][method][seed]["eval"].setdefault(step, {})["val_loss"] = float(loss)
+                if isinstance(ppl, (int, float)) and math.isfinite(ppl):
+                    curves[dataset][method][seed]["eval"].setdefault(step, {})["val_ppl"] = float(ppl)
+
+
+def _load_manifest_rows(
+    manifest_path: Path,
+    run_root: Path,
+    curves,
+    phase: str,
+    wanted_methods: set[str],
+) -> None:
     wanted_datasets = {dataset for dataset, _ in DATASETS}
-    wanted_methods = {method for method, *_ in ALL_METHODS} | {method for method, _ in TABLE_METHODS}
     with manifest_path.open(newline="") as handle:
         for row in csv.DictReader(handle):
-            if row.get("phase") != PHASE:
+            if row.get("phase") != phase:
                 continue
             dataset = row.get("dataset", "")
             method = row.get("method", "")
@@ -84,37 +117,32 @@ def parse_jsonl_runs(manifest_path: Path, run_root: Path):
             run_dir = run_root / dataset / row["row_id"]
             jsonl_path = run_dir / f"{row['activation']}.jsonl"
             if not jsonl_path.exists():
-                matches = sorted(run_dir.glob("*.jsonl"))
+                matches = sorted(path for path in run_dir.glob("*.jsonl") if ".incomplete_" not in path.name)
                 if not matches:
                     continue
                 jsonl_path = matches[0]
-            with jsonl_path.open("r", errors="replace") as jsonl:
-                for raw in jsonl:
-                    if not raw.startswith("{"):
-                        continue
-                    try:
-                        record = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-                    event = record.get("event")
-                    step = record.get("step")
-                    if event not in {"train", "eval"} or not isinstance(step, int):
-                        continue
-                    if step < START_STEP or step > END_STEP:
-                        continue
-                    if event == "train":
-                        value = record.get("loss")
-                        if isinstance(value, (int, float)) and math.isfinite(value):
-                            curves[dataset][method][seed]["train"][step] = float(value)
-                    elif event == "eval":
-                        loss = record.get("val_loss")
-                        ppl = record.get("val_ppl")
-                        if isinstance(loss, (int, float)) and math.isfinite(loss):
-                            curves[dataset][method][seed]["eval"].setdefault(step, {})["val_loss"] = float(loss)
-                        if isinstance(ppl, (int, float)) and math.isfinite(ppl):
-                            curves[dataset][method][seed]["eval"].setdefault(step, {})["val_ppl"] = float(ppl)
-    return curves
+            _read_curve_jsonl(jsonl_path, dataset, method, seed, curves)
 
+
+def parse_jsonl_runs(
+    manifest_path: Path,
+    run_root: Path,
+    matrixpolicy_manifest: Path | None = None,
+    matrixpolicy_run_root: Path | None = None,
+    matrixpolicy_phase: str | None = None,
+):
+    curves = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"train": {}, "eval": {}})))
+    wanted_methods = {method for method, *_ in ALL_METHODS} | {method for method, _ in TABLE_METHODS}
+    _load_manifest_rows(manifest_path, run_root, curves, PHASE, wanted_methods)
+    if matrixpolicy_manifest is not None and matrixpolicy_run_root is not None and matrixpolicy_phase is not None:
+        _load_manifest_rows(
+            matrixpolicy_manifest,
+            matrixpolicy_run_root,
+            curves,
+            matrixpolicy_phase,
+            {MATRIXPOLICY_METHOD},
+        )
+    return curves
 
 def aggregate_values(curves, dataset: str, method: str, metric: str):
     seed_data = curves.get(dataset, {}).get(method, {})
@@ -250,11 +278,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, default=Path("experiments/manifests/iclr26_main_manifest.csv"))
     parser.add_argument("--run-root", type=Path, default=Path("experiments/runs/iclr26_main/E1_m0_100m"))
+    parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
+    parser.add_argument("--matrixpolicy-run-root", type=Path, default=None)
+    parser.add_argument("--matrixpolicy-phase", type=str, default=None)
     parser.add_argument("--out-dir", type=Path, default=Path("experiments/results/iclr26_e1_figures"))
     parser.add_argument("--status-md", type=Path, default=None)
     args = parser.parse_args()
 
-    curves = parse_jsonl_runs(args.manifest, args.run_root)
+    curves = parse_jsonl_runs(
+        args.manifest,
+        args.run_root,
+        args.matrixpolicy_manifest,
+        args.matrixpolicy_run_root,
+        args.matrixpolicy_phase,
+    )
     if args.status_md is not None:
         update_status_tables(args.status_md, curves)
 
