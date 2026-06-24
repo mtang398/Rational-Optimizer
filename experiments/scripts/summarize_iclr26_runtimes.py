@@ -17,13 +17,19 @@ MANIFEST = Path("experiments/manifests/iclr26_main_manifest.csv")
 RUN_ROOT = Path("experiments/runs/iclr26_main")
 SAFE_E1_MATRIXPOLICY_MANIFEST = Path("experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv")
 SAFE_E2_MATRIXPOLICY_MANIFEST = Path("experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv")
+E1_RESTART_REPAIR_MANIFEST = Path("experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv")
 MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
 
 # E1 FineWeb-Edu seed 2027 ran as Slurm job 158117 with Restarts=6.
-# Those rows are excluded from all tracked runtime aggregates and per-row
-# runtime CSVs; keeping contaminated timing as a headline or raw aggregate is
-# misleading for optimizer/activation throughput comparisons.
-RESTART_AFFECTED_ROWS = set(range(75, 90))
+# Rows 75-80 completed before the final restart and match adjacent seed timing.
+# Rows 81-88 cannot provide trusted per-row runtime from the original artifacts:
+# sacct --duplicates shows six preempted allocations and partial JSONLs for row
+# 81, so the original row summaries are not clean timing records. They are
+# skipped from the main manifest and overlaid only from the clean repair manifest
+# once those reruns finish. Row 89 is replaced by the safe-speed MatrixPolicy
+# rerun through the method-key overlay below.
+RESTART_AFFECTED_ROWS = set(range(81, 89))
+
 
 COMPLETED_E2_DATASET_SCOPES = {
     "dclm": "E2_m0_300m_dclm",
@@ -86,6 +92,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--safe-e1-matrixpolicy-manifest", type=Path, default=SAFE_E1_MATRIXPOLICY_MANIFEST)
     parser.add_argument("--safe-e2-matrixpolicy-manifest", type=Path, default=SAFE_E2_MATRIXPOLICY_MANIFEST)
+    parser.add_argument("--e1-restart-repair-manifest", type=Path, default=E1_RESTART_REPAIR_MANIFEST)
     return parser.parse_args()
 
 
@@ -204,7 +211,8 @@ def write_readme(
     output_dir: Path,
     scope_rows: list[dict[str, object]],
     clean_row_count: int,
-    excluded_row_count: int,
+    skipped_original_row_count: int,
+    repair_overlay_count: int,
 ) -> None:
     e1_total = sum(int(row["runs"]) for row in scope_rows if row["scope"] == "E1_m0_100m_all_datasets")
     e2_totals = {
@@ -221,23 +229,26 @@ def write_readme(
         f"## {SCOPE_LABEL[scope]}\n\n{markdown_table(scope_rows, scope)}"
         for scope in ["E1_m0_100m_all_datasets", *COMPLETED_E2_DATASET_SCOPES.values()]
     )
+    repair_line = (
+        f"Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `{repair_overlay_count}/8`."
+    )
     text = f"""# ICLR26 Runtime Summary
 
 Generated: {generated}.
 
-This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, and pre-restart partial attempts.
 
 Included in tracked runtime aggregates:
 
-- E1 M0/100M clean rows: `{e1_total}` rows. E1 FineWeb-Edu seed `2027` rows `75-89` are excluded because Slurm job `158117` completed with `Restarts=6` and produced restart/node-contaminated throughput outliers. The MatrixPolicy row is replaced by the completed safe-speed rerun when available.
+- E1 M0/100M clean rows: `{e1_total}` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. {repair_line} Row `89` is replaced by the completed safe-speed MatrixPolicy rerun when available.
 {e2_bullets}
 
 Excluded from tracked runtime aggregates:
 
-- E1 FineWeb-Edu seed `2027` rows `75-89`: `{excluded_row_count}` rows, restart-contaminated.
+- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `{skipped_original_row_count}` rows skipped from the main manifest runtime source. They are overlaid only from `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv` after clean repair reruns complete.
 - Rows `465+` are outside E2.
 
-No raw all-completed E1 aggregate is tracked in this package. The contaminated E1 rows are omitted from both aggregate CSVs and `runtime_per_row.csv`.
+No raw Slurm-elapsed E1 aggregate is tracked in this package. Runtime aggregates use completed JSONL `summary.total_seconds` only for clean row attempts; original restart-contaminated rows `81-88` are not assigned inferred row times.
 
 Clean rows summarized: `{clean_row_count}`.
 
@@ -255,7 +266,7 @@ Clean rows summarized: `{clean_row_count}`.
 def override_scope_for(row: dict[str, str]) -> str | None:
     phase = row["phase"]
     dataset = row["dataset"]
-    if phase == "E1_matrixpolicy_safe_speed_100m":
+    if phase in {"E1_matrixpolicy_safe_speed_100m", "E1_fineweb_edu_seed2027_runtime_repair_100m"}:
         return "E1_m0_100m_all_datasets"
     if phase == "E2_matrixpolicy_safe_speed_300m" and dataset in COMPLETED_E2_DATASET_SCOPES:
         return COMPLETED_E2_DATASET_SCOPES[dataset]
@@ -296,9 +307,10 @@ def overlay_completed_matrixpolicy_rows(
     per_row_by_key: dict[tuple[str, str, int, str], dict[str, object]],
     manifest: Path,
     run_root: Path,
-) -> None:
+) -> int:
     if not manifest.exists():
-        return
+        return 0
+    count = 0
     with manifest.open(newline="") as handle:
         for row in csv.DictReader(handle):
             if row.get("method") != MATRIXPOLICY_METHOD:
@@ -311,12 +323,36 @@ def overlay_completed_matrixpolicy_rows(
                 continue
             key = (scope, str(item["dataset"]), int(item["seed"]), str(item["method"]))
             per_row_by_key[key] = item
+            count += 1
+    return count
+
+
+def overlay_completed_repair_rows(
+    per_row_by_key: dict[tuple[str, str, int, str], dict[str, object]],
+    manifest: Path,
+    run_root: Path,
+) -> int:
+    if not manifest.exists():
+        return 0
+    count = 0
+    with manifest.open(newline="") as handle:
+        for row in csv.DictReader(handle):
+            scope = override_scope_for(row)
+            if scope is None:
+                continue
+            item = runtime_row_from_manifest(row, scope, run_root)
+            if item is None:
+                continue
+            key = (scope, str(item["dataset"]), int(item["seed"]), str(item["method"]))
+            per_row_by_key[key] = item
+            count += 1
+    return count
 
 
 def main() -> None:
     args = parse_args()
     per_row_by_key: dict[tuple[str, str, int, str], dict[str, object]] = {}
-    excluded = 0
+    skipped_original_rows = 0
     with args.manifest.open(newline="") as handle:
         for row in csv.DictReader(handle):
             scope = scope_for(row)
@@ -324,7 +360,7 @@ def main() -> None:
                 continue
             row_index = int(row["row_index"])
             if row_index in RESTART_AFFECTED_ROWS:
-                excluded += 1
+                skipped_original_rows += 1
                 continue
             item = runtime_row_from_manifest(row, scope, args.run_root)
             if item is None:
@@ -334,6 +370,7 @@ def main() -> None:
 
     overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e1_matrixpolicy_manifest, args.run_root)
     overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e2_matrixpolicy_manifest, args.run_root)
+    repair_overlay_count = overlay_completed_repair_rows(per_row_by_key, args.e1_restart_repair_manifest, args.run_root)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     per_row = sorted(per_row_by_key.values(), key=lambda r: (str(r["scope"]), str(r["dataset"]), int(r["row_index"]), str(r["method"])))
@@ -388,7 +425,7 @@ def main() -> None:
     ]
     write_csv(args.output_dir / "runtime_by_scope_method_clean.csv", by_scope, [f for f in aggregate_fields if f not in {"phase", "dataset"}])
     write_csv(args.output_dir / "runtime_by_dataset_method_clean.csv", by_dataset, aggregate_fields)
-    write_readme(args.output_dir, by_scope, len(per_row), excluded)
+    write_readme(args.output_dir, by_scope, len(per_row), skipped_original_rows, repair_overlay_count)
 
 if __name__ == "__main__":
     main()

@@ -652,6 +652,37 @@ Submitted jobs:
 
 Initial scheduler state after submission: jobs `810092` and `810093` were running on `lancer-compute-01` and `monakhova-compute-01`; jobs `810094`-`810106` were dependency-held.
 
+## E1 FineWeb-Edu Seed 2027 Runtime Repair Submission
+
+Submitted: 2026-06-23 20:43:47 EDT. Manifest: `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`. This is a clean timing repair for original E1 rows `81-88`; the original job `158117` was preempted six times, so those original row artifacts are not used as trusted runtime measurements.
+
+The repair rows were submitted as two parity dependency chains after the E2 safe-speed terminal jobs `810105` and `810106`, so the repair starts only after the currently queued E2 safe-speed work finishes.
+
+Submission template:
+
+```bash
+sbatch --parsable \
+  --job-name=e1-time-repair-<original-row> \
+  --dependency=afterok:<previous-or-e2-terminal-jobs> \
+  --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv,ROW_START=<repair-offset>,ROW_LIMIT=1,BUILD_EXT=0 \
+  experiments/scripts/run_iclr26_manifest_job.sh
+```
+
+Submitted jobs:
+
+| Repair offset | Original row | Job | Dependency |
+| ---: | ---: | ---: | --- |
+| 0 | 81 | `811802` | afterok:`810105`:`810106` |
+| 1 | 82 | `811803` | afterok:`810105`:`810106` |
+| 2 | 83 | `811804` | afterok:`811802` |
+| 3 | 84 | `811805` | afterok:`811803` |
+| 4 | 85 | `811806` | afterok:`811804` |
+| 5 | 86 | `811807` | afterok:`811805` |
+| 6 | 87 | `811808` | afterok:`811806` |
+| 7 | 88 | `811809` | afterok:`811807` |
+
+Initial scheduler state after submission: jobs `811802`-`811809` were dependency-held behind the E2 safe-speed chain; jobs `810092` and `810093` were running, while `810094`-`810106` were still dependency-held.
+
 ## Internal Per-Row Command Shape
 
 The manifest launcher converts each CSV row into environment variables and executes this

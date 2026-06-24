@@ -2,38 +2,37 @@
 
 Generated: 2026-06-23.
 
-This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, and pre-restart partial attempts.
 
 Included in tracked runtime aggregates:
 
-- E1 M0/100M clean rows: `211` rows. E1 FineWeb-Edu seed `2027` rows `75-89` are excluded because Slurm job `158117` completed with `Restarts=6` and produced restart/node-contaminated throughput outliers. The MatrixPolicy row is replaced by the completed safe-speed rerun when available.
+- E1 M0/100M clean rows: `217` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `0/8`. Row `89` is replaced by the completed safe-speed MatrixPolicy rerun when available.
 - E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M Dolma-sample completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M C4 completed cell: `45` rows, one dataset x three seeds x 15 methods.
-- E2 MatrixPolicy safe-speed timing rerun is queued as jobs `810092`-`810106`; E2 MatrixPolicy aggregate rows will remain from the completed original rows until that rerun finishes.
 
 Excluded from tracked runtime aggregates:
 
-- E1 FineWeb-Edu seed `2027` rows `75-89`: `15` rows, restart-contaminated.
+- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `8` rows skipped from the main manifest runtime source. They are overlaid only from `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv` after clean repair reruns complete.
 - Rows `465+` are outside E2.
 
-No raw all-completed E1 aggregate is tracked in this package. The contaminated E1 rows are omitted from both aggregate CSVs and `runtime_per_row.csv`.
+No raw Slurm-elapsed E1 aggregate is tracked in this package. Runtime aggregates use completed JSONL `summary.total_seconds` only for clean row attempts; original restart-contaminated rows `81-88` are not assigned inferred row times.
 
-Clean rows summarized: `436`.
+Clean rows summarized: `442`.
 
 ## E1 M0/100M All Datasets
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | RLB+MatrixPolicy | 15 | 27.3 min | 6.0 min | 22.1 min-37.2 min | 0.5102 | 67078.3 |
-| SiLU+AdamW | 14 | 27.2 min | 5.3 min | 18.2 min-33.1 min | 0.5162 | 66240.2 |
-| RLB+AdamW | 14 | 31.8 min | 4.9 min | 23.4 min-38.1 min | 0.5945 | 56615.9 |
-| SiLU+Muon | 14 | 29.0 min | 5.4 min | 20.1 min-36.3 min | 0.5524 | 61608.8 |
-| RLB+Muon | 14 | 33.5 min | 5.0 min | 25.1 min-40.4 min | 0.6275 | 53497.1 |
-| SiLU+Lion | 14 | 27.0 min | 5.4 min | 18.1 min-34.1 min | 0.5134 | 66772.1 |
-| RLB+Lion | 14 | 31.7 min | 5.0 min | 23.3 min-38.5 min | 0.5927 | 56845.1 |
+| SiLU+AdamW | 15 | 27.6 min | 5.3 min | 18.2 min-33.7 min | 0.5248 | 65212.8 |
+| RLB+AdamW | 15 | 32.2 min | 5.1 min | 23.4 min-38.5 min | 0.6032 | 55854.1 |
+| SiLU+Muon | 15 | 29.4 min | 5.4 min | 20.1 min-36.3 min | 0.5604 | 60754.1 |
+| RLB+Muon | 15 | 33.9 min | 5.0 min | 25.1 min-40.4 min | 0.6349 | 52890.2 |
+| SiLU+Lion | 15 | 27.9 min | 6.2 min | 18.1 min-40.1 min | 0.5304 | 65164.9 |
+| RLB+Lion | 15 | 32.5 min | 5.8 min | 23.3 min-44.3 min | 0.6091 | 55659.8 |
 | SiLU+SOAP | 14 | 31.1 min | 5.5 min | 22.1 min-38.8 min | 0.5928 | 57179.6 |
 | RLB+SOAP | 14 | 32.4 min | 5.1 min | 24.0 min-40.0 min | 0.6076 | 55439.4 |
 | SiLU+ADeMaMix | 14 | 27.6 min | 5.5 min | 18.6 min-35.1 min | 0.5244 | 65288.4 |

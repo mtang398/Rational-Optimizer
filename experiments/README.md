@@ -27,23 +27,23 @@ results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo anchor
 
 ## Completed Runtime Summary
 
-Per optimizer/activation-combo runtimes for completed paper cells are tracked in `results/iclr26_runtime_summary_2026_06_11/`. The E1 MatrixPolicy timing row now uses the completed safe-speed rerun; other E1 methods still use the clean non-contaminated main-manifest rows. E2 timing remains from the completed original MatrixPolicy rows until the queued safe-speed E2 rerun (`810092`-`810106`) finishes.
+Per optimizer/activation-combo runtimes for completed paper cells are tracked in `results/iclr26_runtime_summary_2026_06_11/`. The E1 MatrixPolicy timing row now uses the completed safe-speed rerun. Other E1 methods use completed main-manifest JSONL attempt times after auditing the restarted FineWeb-Edu seed `2027` job. E2 timing remains from the completed original MatrixPolicy rows until the queued safe-speed E2 rerun (`810092`-`810106`) finishes.
 
-No raw all-completed E1 timing aggregate is tracked. The contaminated E1 rows are omitted from aggregate CSVs and `runtime_per_row.csv`.
+For job `158117`, rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are not assigned inferred row times because six Slurm preemptions and partial JSONLs make the true per-row runtimes unrecoverable from the existing artifacts. Clean repair jobs `811802`-`811809` are queued after E2 safe-speed terminal jobs `810105` and `810106`; their manifest is `manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`. Until those complete, SOAP, ADeMaMix, CAME, and ScheduleFree remain at 14 E1 runtime rows.
 
-The runtime metric is the JSONL `summary.total_seconds` training-harness wall time per manifest row. This excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+The runtime metric is the JSONL `summary.total_seconds` training-harness wall time per manifest row. This excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, pre-restart partial attempts, and the skipped original restart-contaminated rows.
 
 ### E1 Runtime Table
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | RLB+MatrixPolicy | 15 | 27.3 min | 6.0 min | 22.1 min-37.2 min | 0.5102 | 67078.3 |
-| SiLU+AdamW | 14 | 27.2 min | 5.3 min | 18.2 min-33.1 min | 0.5162 | 66240.2 |
-| RLB+AdamW | 14 | 31.8 min | 4.9 min | 23.4 min-38.1 min | 0.5945 | 56615.9 |
-| SiLU+Muon | 14 | 29.0 min | 5.4 min | 20.1 min-36.3 min | 0.5524 | 61608.8 |
-| RLB+Muon | 14 | 33.5 min | 5.0 min | 25.1 min-40.4 min | 0.6275 | 53497.1 |
-| SiLU+Lion | 14 | 27.0 min | 5.4 min | 18.1 min-34.1 min | 0.5134 | 66772.1 |
-| RLB+Lion | 14 | 31.7 min | 5.0 min | 23.3 min-38.5 min | 0.5927 | 56845.1 |
+| SiLU+AdamW | 15 | 27.6 min | 5.3 min | 18.2 min-33.7 min | 0.5248 | 65212.8 |
+| RLB+AdamW | 15 | 32.2 min | 5.1 min | 23.4 min-38.5 min | 0.6032 | 55854.1 |
+| SiLU+Muon | 15 | 29.4 min | 5.4 min | 20.1 min-36.3 min | 0.5604 | 60754.1 |
+| RLB+Muon | 15 | 33.9 min | 5.0 min | 25.1 min-40.4 min | 0.6349 | 52890.2 |
+| SiLU+Lion | 15 | 27.9 min | 6.2 min | 18.1 min-40.1 min | 0.5304 | 65164.9 |
+| RLB+Lion | 15 | 32.5 min | 5.8 min | 23.3 min-44.3 min | 0.6091 | 55659.8 |
 | SiLU+SOAP | 14 | 31.1 min | 5.5 min | 22.1 min-38.8 min | 0.5928 | 57179.6 |
 | RLB+SOAP | 14 | 32.4 min | 5.1 min | 24.0 min-40.0 min | 0.6076 | 55439.4 |
 | SiLU+ADeMaMix | 14 | 27.6 min | 5.5 min | 18.6 min-35.1 min | 0.5244 | 65288.4 |

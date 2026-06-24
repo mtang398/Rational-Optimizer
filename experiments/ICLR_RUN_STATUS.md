@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-23 20:06:40 EDT
+Updated: 2026-06-23 20:43:47 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -148,15 +148,45 @@ Submitted jobs:
 
 Estimated runtime from the completed safe E1 aggregate (`0.5102` s/step) is about `78` minutes per `9150`-step row before dataset/node variation. With two chains of 8 and 7 rows, a no-preemption, no-wait rough finish window is about `9-12` hours after queue time. This is an estimate only; the dependency layout limits any preemption loss to a single row.
 
+## E1 FineWeb-Edu Runtime Repair Rerun
+
+Queued: 2026-06-23 20:43:47 EDT. Status at queue check: jobs `811802`-`811809` are dependency-pending behind the E2 safe-speed terminal jobs `810105` and `810106`.
+
+Purpose: cleanly rerun original E1 FineWeb-Edu seed `2027` rows `81-88`. Slurm job `158117` had six preemptions, and the existing original artifacts cannot reconstruct trusted per-row runtimes for those rows. Rows `75-80` remain retained from the original main manifest; row `89` is replaced by the accepted safe-speed MatrixPolicy rerun.
+
+| Field | Value |
+| --- | --- |
+| Manifest | `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv` |
+| Phase | `E1_fineweb_edu_seed2027_runtime_repair_100m` |
+| Coverage | original rows `81-88`, FineWeb-Edu seed `2027`, methods `silu_soap`, `rlb_soap`, `silu_ademamix`, `rlb_ademamix`, `silu_came`, `rlb_came`, `silu_schedulefree`, `rlb_schedulefree` |
+| Budget | `3050` steps, about `100M` train tokens per row |
+| Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs after E2 safe-speed finishes |
+| Initial dependency | `afterok:810105:810106` |
+
+Submitted jobs:
+
+| Repair manifest offset | Original row | Job | Dependency |
+| ---: | ---: | ---: | --- |
+| 0 | 81 | `811802` | afterok:`810105`:`810106` |
+| 1 | 82 | `811803` | afterok:`810105`:`810106` |
+| 2 | 83 | `811804` | afterok:`811802` |
+| 3 | 84 | `811805` | afterok:`811803` |
+| 4 | 85 | `811806` | afterok:`811804` |
+| 5 | 86 | `811807` | afterok:`811805` |
+| 6 | 87 | `811808` | afterok:`811806` |
+| 7 | 88 | `811809` | afterok:`811807` |
+
+When all eight repair jobs complete, `experiments/scripts/summarize_iclr26_runtimes.py` overlays these clean rows into the E1 runtime table and restores 15 runs for SOAP, ADeMaMix, CAME, and ScheduleFree. Until then, those methods correctly remain at 14 E1 runtime rows.
+
 ## Completed Runtime Summary
 
 Generated: 2026-06-23.
 
-This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, and pre-restart partial attempts.
 
 Included in tracked runtime aggregates:
 
-- E1 M0/100M clean rows: `211` rows. E1 FineWeb-Edu seed `2027` rows `75-89` are excluded because Slurm job `158117` completed with `Restarts=6` and produced restart/node-contaminated throughput outliers. The MatrixPolicy row is replaced by the completed safe-speed rerun when available.
+- E1 M0/100M clean rows: `217` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `0/8`. Row `89` is replaced by the completed safe-speed MatrixPolicy rerun when available.
 - E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb completed cell: `45` rows, one dataset x three seeds x 15 methods.
@@ -165,24 +195,24 @@ Included in tracked runtime aggregates:
 
 Excluded from tracked runtime aggregates:
 
-- E1 FineWeb-Edu seed `2027` rows `75-89`: `15` rows, restart-contaminated.
+- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `8` rows skipped from the main manifest runtime source. They are overlaid only from `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv` after clean repair reruns complete.
 - Rows `465+` are outside E2.
 
-No raw all-completed E1 aggregate is tracked in this package. The contaminated E1 rows are omitted from both aggregate CSVs and `runtime_per_row.csv`.
+No raw Slurm-elapsed E1 aggregate is tracked in this package. Runtime aggregates use completed JSONL `summary.total_seconds` only for clean row attempts; original restart-contaminated rows `81-88` are not assigned inferred row times.
 
-Clean rows summarized: `436`.
+Clean rows summarized: `442`.
 
 ## E1 M0/100M All Datasets
 
 | Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | RLB+MatrixPolicy | 15 | 27.3 min | 6.0 min | 22.1 min-37.2 min | 0.5102 | 67078.3 |
-| SiLU+AdamW | 14 | 27.2 min | 5.3 min | 18.2 min-33.1 min | 0.5162 | 66240.2 |
-| RLB+AdamW | 14 | 31.8 min | 4.9 min | 23.4 min-38.1 min | 0.5945 | 56615.9 |
-| SiLU+Muon | 14 | 29.0 min | 5.4 min | 20.1 min-36.3 min | 0.5524 | 61608.8 |
-| RLB+Muon | 14 | 33.5 min | 5.0 min | 25.1 min-40.4 min | 0.6275 | 53497.1 |
-| SiLU+Lion | 14 | 27.0 min | 5.4 min | 18.1 min-34.1 min | 0.5134 | 66772.1 |
-| RLB+Lion | 14 | 31.7 min | 5.0 min | 23.3 min-38.5 min | 0.5927 | 56845.1 |
+| SiLU+AdamW | 15 | 27.6 min | 5.3 min | 18.2 min-33.7 min | 0.5248 | 65212.8 |
+| RLB+AdamW | 15 | 32.2 min | 5.1 min | 23.4 min-38.5 min | 0.6032 | 55854.1 |
+| SiLU+Muon | 15 | 29.4 min | 5.4 min | 20.1 min-36.3 min | 0.5604 | 60754.1 |
+| RLB+Muon | 15 | 33.9 min | 5.0 min | 25.1 min-40.4 min | 0.6349 | 52890.2 |
+| SiLU+Lion | 15 | 27.9 min | 6.2 min | 18.1 min-40.1 min | 0.5304 | 65164.9 |
+| RLB+Lion | 15 | 32.5 min | 5.8 min | 23.3 min-44.3 min | 0.6091 | 55659.8 |
 | SiLU+SOAP | 14 | 31.1 min | 5.5 min | 22.1 min-38.8 min | 0.5928 | 57179.6 |
 | RLB+SOAP | 14 | 32.4 min | 5.1 min | 24.0 min-40.0 min | 0.6076 | 55439.4 |
 | SiLU+ADeMaMix | 14 | 27.6 min | 5.5 min | 18.6 min-35.1 min | 0.5244 | 65288.4 |
@@ -297,53 +327,6 @@ Clean rows summarized: `436`.
 - `runtime_by_scope_method_clean.csv`: clean per-combo aggregate.
 - `runtime_by_dataset_method_clean.csv`: clean per-combo aggregate split by dataset.
 - `runtime_per_row.csv`: one record per clean included manifest row.
-
-## Scheduler State
-
-| Job | Phase rows | State | Exit | GPUs | Elapsed | Node |
-| --- | --- | --- | --- | --- | --- | --- |
-| `151609` | E0 rows 0-8 | completed | `0:0` | 4 A6000 | 00:38:17 | `ma-compute-02` |
-| `151610` | E0 rows 9-14 | completed | `0:0` | 4 A6000 | 00:17:14 | `bala-compute-02` |
-
-E0 is complete. E1 M0/100M is complete for all whole matched 15-row cells.
-
-## E0 Preflight
-
-E0 is a 15-row smoke pass: 5 corpora times 3 matched methods. Each dataset cell uses the same outer training config across `silu_adamw`, `rlb_adamw`, and `rlb_matrixpolicy_original`: `lr=0.0003`, `min_lr=0.00003`, `weight_decay=0.10`, seed `1337`, `steps=80`, `eval_interval=40`, 4 A6000.
-
-All rows have three eval points: step 1, step 40, and step 80.
-
-## E0 Final Loss Summary
-
-| Dataset | SiLU AdamW | RLB AdamW | MatrixPolicy original | MP gap vs SiLU | MP gap vs RLB AdamW |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| dclm | 7.346231 | 7.238834 | 7.121294 | 0.224937 | 0.117540 |
-| fineweb_edu | 7.426810 | 7.211745 | 7.035759 | 0.391051 | 0.175986 |
-| fineweb | 7.527949 | 7.257327 | 7.101671 | 0.426279 | 0.155656 |
-| dolma_sample | 8.201650 | 8.212225 | 8.189895 | 0.011755 | 0.022330 |
-| c4_en | 7.579340 | 7.278966 | 7.207716 | 0.371624 | 0.071249 |
-
-## E0 Row Table With Runtime, Params, And Eval Curves
-
-`Run time` is `summary.total_seconds` from the JSONL record for that row. The Slurm job wall times above include dataset preparation and sequential row execution.
-
-| Row | Dataset | Method | Params | Run time s | Mean s/step | Final val loss | Tokens/s | Eval curve `step:val_loss` |
-| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| 0 | dclm | silu_adamw | 123,551,232 | 53.20 | 0.6213 | 7.346231 | 52741.71 | 1:10.798578, 40:7.553685, 80:7.346231 |
-| 1 | dclm | rlb_adamw | 123,553,824 | 60.56 | 0.6929 | 7.238834 | 47290.45 | 1:10.533360, 40:7.471305, 80:7.238834 |
-| 2 | dclm | rlb_matrixpolicy_original | 123,553,824 | 60.86 | 0.6975 | 7.121294 | 46977.61 | 1:10.301031, 40:7.391489, 80:7.121294 |
-| 3 | fineweb_edu | silu_adamw | 123,551,232 | 53.14 | 0.6177 | 7.426810 | 53050.87 | 1:10.775492, 40:7.637898, 80:7.426810 |
-| 4 | fineweb_edu | rlb_adamw | 123,553,824 | 60.63 | 0.6932 | 7.211745 | 47273.08 | 1:10.528216, 40:7.452968, 80:7.211745 |
-| 5 | fineweb_edu | rlb_matrixpolicy_original | 123,553,824 | 61.41 | 0.7033 | 7.035759 | 46593.49 | 1:10.283565, 40:7.335752, 80:7.035759 |
-| 6 | fineweb | silu_adamw | 123,551,232 | 52.99 | 0.6195 | 7.527949 | 52895.84 | 1:10.824485, 40:7.717688, 80:7.527949 |
-| 7 | fineweb | rlb_adamw | 123,553,824 | 60.51 | 0.6893 | 7.257327 | 47540.86 | 1:10.569622, 40:7.519713, 80:7.257327 |
-| 8 | fineweb | rlb_matrixpolicy_original | 123,553,824 | 61.12 | 0.7009 | 7.101671 | 46753.24 | 1:10.334897, 40:7.368423, 80:7.101671 |
-| 9 | dolma_sample | silu_adamw | 123,551,232 | 53.77 | 0.6234 | 8.201650 | 52563.79 | 1:10.863197, 40:8.279759, 80:8.201650 |
-| 10 | dolma_sample | rlb_adamw | 123,553,824 | 61.00 | 0.6954 | 8.212225 | 47123.59 | 1:10.679456, 40:8.226797, 80:8.212225 |
-| 11 | dolma_sample | rlb_matrixpolicy_original | 123,553,824 | 61.00 | 0.7008 | 8.189895 | 46758.65 | 1:10.488925, 40:8.187285, 80:8.189895 |
-| 12 | c4_en | silu_adamw | 123,551,232 | 53.37 | 0.6232 | 7.579340 | 52581.93 | 1:10.825615, 40:7.731586, 80:7.579340 |
-| 13 | c4_en | rlb_adamw | 123,553,824 | 60.63 | 0.6931 | 7.278966 | 47277.57 | 1:10.567333, 40:7.533151, 80:7.278966 |
-| 14 | c4_en | rlb_matrixpolicy_original | 123,553,824 | 60.86 | 0.6994 | 7.207716 | 46848.39 | 1:10.340908, 40:7.446258, 80:7.207716 |
 
 ## E1 Scheduler State
 
