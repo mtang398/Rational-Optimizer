@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-24 16:04:49 EDT
+Updated: 2026-06-24 16:06:29 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -30,7 +30,7 @@ Raw row outputs are JSONL files under `experiments/runs/iclr26_main/<phase>/<dat
 Rejected MatrixPolicy proposal artifacts were pruned from the active repo surface and raw run tree on 2026-06-23. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; this status file keeps only the accepted safe-speed MatrixPolicy records and paper-facing completed-suite summaries.
 
 ## Rational-Only RLB Ablation Status
-Queued corrected: 2026-06-24 16:02 EDT. Checked: 2026-06-24 16:04:49 EDT. Decision: rerun from scratch with a true no-atom activation; exclude the flawed earlier queue.
+Queued corrected: 2026-06-24 16:02 EDT. Checked: 2026-06-24 16:06:29 EDT. Decision: rerun from scratch with a true no-atom activation; exclude the flawed earlier queue.
 
 Purpose: test whether RLB needs the local rational atoms. This ablation keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted global rational P5/Q4, telemetry, gauge/stat hooks, and original MatrixPolicy optimizer settings, but removes the R-local atom path entirely.
 
@@ -60,6 +60,15 @@ Verification before queue:
 | Training constructor | `RationalLocalBasisFFN(..., 'rlb_fused_global_rational', ...)` constructs `RationalFusedGlobalA5_4` |
 | MatrixPolicy group collector | returns `coeff_logits=None` |
 | CPU fallback forward/backward | finite output and finite rational gradients |
+
+Startup verification from active JSONLs at 2026-06-24 16:06 EDT:
+
+| Row | Last train step/loss | Last eval step/loss | Atom telemetry |
+| --- | ---: | ---: | --- |
+| DCLM seed `1337`, job `835104` | step `230`, loss `5.876466` | step `200`, val loss `6.068120` | all `null` |
+| DCLM seed `2027`, job `835128` | step `180`, loss `6.223627` | step `150`, val loss `6.384042` | all `null` |
+
+Both active rows report `activation=rlb_fused_global_rational`, `rlb_centers=[]`, and `rlb_coeff_limit=0.0`; this confirms the corrected ablation got past the old step-63/100 nonfinite point without atom stats or an atom parameter path.
 
 Interpretation: the corrected queue is the intended global-only rational control, not plain SiLU and not removal of the RLB wrapper. It specifically removes the R-local atom path and the atom parameter group, while preserving the fused grouped rational evaluation path for timing.
 
