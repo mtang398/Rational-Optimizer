@@ -8,6 +8,8 @@ Paper-facing results in this README include the completed E1 matched main suite 
 
 Rejected MatrixPolicy V2-V12 artifacts have been pruned from the live repo and raw run tree; the single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`. Original `rational_matrix_policy_onpolicy` remains the paper anchor and the only active MatrixPolicy optimizer. Its method-preserving safe Muon-off implementation completed a full 15-row E1 rerun on 2026-06-23 with quality-neutral losses and a clean runtime aggregate of `27.3` min, `0.5102` s/step, and `67,078.3` tokens/s.
 
+Rational-only RLB ablation status: `rlb_fused_rational_only_ffn` was implemented as the no-local-basis control (`centers=()`) while keeping the grouped SiLU-fitted P5/Q4 rational scalar and the same `rational_matrix_policy_onpolicy` settings. The E1/E2 manifest was submitted on 2026-06-24, but the first two DCLM E1 seeds both diverged to nonfinite loss by train step `70` and validation step `100`; the remaining chain was cancelled. This is recorded as a negative ablation, not a completed result or a replacement for the RLB paper anchor.
+
 ## Result Pointers
 
 ```text

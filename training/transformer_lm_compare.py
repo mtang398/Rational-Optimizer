@@ -6521,6 +6521,20 @@ def main():
         mean_loss = reduce_mean(local_loss / args.grad_accum, device, is_distributed)
         loss_since_log += mean_loss
         steps_since_log += 1
+        if not math.isfinite(mean_loss):
+            stop_reason = "nonfinite_train_loss"
+            stop_step = step + 1
+            stop_record = {
+                "event": "stopped_early",
+                "activation": args.activation,
+                "step": stop_step,
+                "reason": stop_reason,
+                "loss": mean_loss,
+            }
+            rank0_print(rank, json.dumps(stop_record, sort_keys=True))
+            if rank == 0:
+                write_jsonl(out_path, stop_record)
+            break
 
         if will_log:
             recent = step_times[-args.log_interval :]
@@ -6576,20 +6590,24 @@ def main():
 
             current_step = step + 1
             previous_best = best_val_loss
-            if math.isfinite(val_loss):
+            nonfinite_val = not math.isfinite(val_loss)
+            if not nonfinite_val:
                 best_val_loss = min(best_val_loss, val_loss)
             min_step_met = current_step >= max(1, int(args.early_stop_min_step))
             max_loss = float(args.early_stop_max_val_loss)
             loss_increase = float(args.early_stop_loss_increase)
-            too_large = max_loss > 0.0 and (not math.isfinite(val_loss) or val_loss > max_loss)
+            too_large = max_loss > 0.0 and val_loss > max_loss
             worsened = (
                 loss_increase > 0.0
                 and math.isfinite(previous_best)
-                and math.isfinite(val_loss)
+                and not nonfinite_val
                 and val_loss > previous_best + loss_increase
             )
-            if min_step_met and (too_large or worsened):
-                stop_reason = "val_loss_above_threshold" if too_large else "val_loss_regressed_from_best"
+            if nonfinite_val or (min_step_met and (too_large or worsened)):
+                if nonfinite_val:
+                    stop_reason = "nonfinite_val_loss"
+                else:
+                    stop_reason = "val_loss_above_threshold" if too_large else "val_loss_regressed_from_best"
                 stop_step = current_step
                 stop_record = {
                     "event": "stopped_early",
