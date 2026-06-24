@@ -666,7 +666,7 @@ Replacement odd-chain jobs:
 | 11 | `812527` | afterok:`812526` |
 | 13 | `812528` | afterok:`812527` |
 
-The E2 safe-speed terminal jobs are now `810106` for the original even chain and `812528` for the replacement odd chain. At 2026-06-23 21:41 EDT, the still-pending original even-chain jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` were updated with `Features=nvlink`; `scontrol show job` verified the constraint on all six jobs before they started.
+The E2 safe-speed terminal jobs are now `810106` for the original even chain and `812528` for the replacement odd chain. At 2026-06-23 21:41 EDT, the still-pending original even-chain jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` were updated with `Features=nvlink`; `scontrol show job` verified the constraint on all six jobs before they started. The manifest launcher also has a timing-row NVLink guard: phases `E1_matrixpolicy_safe_speed_100m`, `E2_matrixpolicy_safe_speed_300m`, and `E1_fineweb_edu_seed2027_runtime_repair_100m` exit before JSONL archive/write if the allocated node lacks the `nvlink` feature, unless `ALLOW_NON_NVLINK_TIMING=1` is explicitly set.
 
 ## E1 FineWeb-Edu Seed 2027 Runtime Repair Submission
 

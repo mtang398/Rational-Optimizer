@@ -31,7 +31,7 @@ Per optimizer/activation-combo runtimes for completed paper cells are tracked in
 
 For job `158117`, rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are not assigned inferred row times because six Slurm preemptions and partial JSONLs make the true per-row runtimes unrecoverable from the existing artifacts. The original repair jobs `811802`-`811809` were cancelled when old E2 terminal job `810105` was replaced; clean NVLink-constrained repair jobs `812529`-`812536` are queued after E2 safe-speed terminal jobs `810106` and `812528`. Their manifest is `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`. Until those complete, SOAP, ADeMaMix, CAME, and ScheduleFree remain at 14 E1 runtime rows.
 
-The runtime metric is the JSONL `summary.total_seconds` training-harness wall time per manifest row. This excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, pre-restart partial attempts, and the skipped original restart-contaminated rows.
+The runtime metric is the JSONL `summary.total_seconds` training-harness wall time per manifest row. This excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, pre-restart partial attempts, and the skipped original restart-contaminated rows. The manifest launcher now refuses timing-critical safe-speed/repair rows on non-NVLink nodes before archiving or writing JSONL artifacts, unless `ALLOW_NON_NVLINK_TIMING=1` is explicitly set.
 
 ### E1 Runtime Table
 

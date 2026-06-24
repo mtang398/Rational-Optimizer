@@ -127,6 +127,7 @@ This is not a new method. It reruns only original `rlb_matrixpolicy_original` E2
 | Running at queue check | initial: `810092` row 0 on `lancer-compute-01`; rejected: `810093` row 1 on `monakhova-compute-01` |
 | Clean replacement | `812522` row 1 started on `abdelfattah-compute-03` with `--constraint=nvlink`; its startup archived the slow partial JSONL as `.incomplete_812522_0_20260623213620` |
 | Even-chain constraint fix | pending jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` now have `Features=nvlink` |
+| Launcher guard | timing-critical safe-speed/repair phases now exit before JSONL archive/write if the node lacks `nvlink`, unless `ALLOW_NON_NVLINK_TIMING=1` is explicitly set |
 
 Current clean submitted jobs:
 

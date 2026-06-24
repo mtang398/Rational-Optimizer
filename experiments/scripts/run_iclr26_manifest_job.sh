@@ -118,6 +118,40 @@ archive_incomplete_jsonl() {
   mv "${path}" "${archive_path}"
 }
 
+require_nvlink_for_timing_row() {
+  case "${ROW_PHASE}" in
+    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_fineweb_edu_seed2027_runtime_repair_100m)
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  if [[ "${ALLOW_NON_NVLINK_TIMING:-0}" == "1" ]]; then
+    echo "=== ALLOW_NON_NVLINK_TIMING=1; allowing timing row ${ROW_ROW_ID} without NVLink guard ==="
+    return 0
+  fi
+
+  local node="${SLURMD_NODENAME:-${SLURM_NODELIST:-}}"
+  if [[ -z "${node}" ]]; then
+    echo "Refusing timing row ${ROW_ROW_ID}: cannot determine Slurm node for NVLink guard." >&2
+    exit 87
+  fi
+  if ! command -v scontrol >/dev/null 2>&1; then
+    echo "Refusing timing row ${ROW_ROW_ID}: scontrol unavailable for NVLink guard." >&2
+    exit 87
+  fi
+
+  local node_info
+  node_info="$(scontrol show node "${node}" 2>/dev/null || true)"
+  if [[ "${node_info}" != *"nvlink"* ]]; then
+    echo "Refusing timing row ${ROW_ROW_ID}: node ${node} lacks nvlink feature; not writing timing JSONL." >&2
+    echo "${node_info}" | sed -n '1,6p' >&2
+    exit 87
+  fi
+  echo "=== NVLink timing guard passed for ${ROW_ROW_ID} on ${node} ==="
+}
+
 run_manifest_row() {
   local index="$1"
   local row_env
@@ -135,6 +169,7 @@ run_manifest_row() {
     echo "Row ${ROW_ROW_ID} eval interval ${ROW_EVAL_INTERVAL} exceeds max ${MAX_EVAL_INTERVAL}" >&2
     exit 2
   fi
+  require_nvlink_for_timing_row
 
   local run_dir="${OUTPUT_ROOT}/${ROW_PHASE}/${ROW_DATASET}/${ROW_ROW_ID}"
   local jsonl="${run_dir}/${ROW_ACTIVATION}.jsonl"
