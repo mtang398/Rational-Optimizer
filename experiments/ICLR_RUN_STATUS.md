@@ -113,7 +113,7 @@ Per-row results:
 
 
 ## E2 MatrixPolicy Safe-Speed Timing Rerun
-Queued: 2026-06-23 20:06:40 EDT. Initial status: jobs `810092` and `810093` running; jobs `810094`-`810106` dependency-pending. Corrected on 2026-06-23 21:36 EDT: job `810093` was cancelled as timing-contaminated after running about 4x slower on non-NVLink `monakhova-compute-01` with `Restarts=0`. The clean E2 queue is now the original even chain ending at `810106` plus the NVLink-constrained replacement odd chain `812522`-`812528`.
+Queued: 2026-06-23 20:06:40 EDT. Initial status: jobs `810092` and `810093` running; jobs `810094`-`810106` dependency-pending. Corrected on 2026-06-23 21:36 EDT: job `810093` was cancelled as timing-contaminated after running about 4x slower on non-NVLink `monakhova-compute-01` with `Restarts=0`. The clean E2 queue is now the original even chain ending at `810106` plus the NVLink-constrained replacement odd chain `812522`-`812528`. The remaining pending even-chain jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` were updated with `Features=nvlink` on 2026-06-23 21:41 EDT and verified before they started.
 
 This is not a new method. It reruns only original `rlb_matrixpolicy_original` E2 MatrixPolicy rows under the accepted safe Muon-off implementation so the E2 runtime table can use the same speed-fixed code path as E1.
 
@@ -126,6 +126,7 @@ This is not a new method. It reruns only original `rlb_matrixpolicy_original` E2
 | Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs |
 | Running at queue check | initial: `810092` row 0 on `lancer-compute-01`; rejected: `810093` row 1 on `monakhova-compute-01` |
 | Clean replacement | `812522` row 1 started on `abdelfattah-compute-03` with `--constraint=nvlink`; its startup archived the slow partial JSONL as `.incomplete_812522_0_20260623213620` |
+| Even-chain constraint fix | pending jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` now have `Features=nvlink` |
 
 Current clean submitted jobs:
 
