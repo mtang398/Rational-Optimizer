@@ -113,7 +113,7 @@ Per-row results:
 
 
 ## E2 MatrixPolicy Safe-Speed Timing Rerun
-Queued: 2026-06-23 20:06:40 EDT. Status at queue check: jobs `810092` and `810093` running; jobs `810094`-`810106` dependency-pending.
+Queued: 2026-06-23 20:06:40 EDT. Initial status: jobs `810092` and `810093` running; jobs `810094`-`810106` dependency-pending. Corrected on 2026-06-23 21:36 EDT: job `810093` was cancelled as timing-contaminated after running about 4x slower on non-NVLink `monakhova-compute-01` with `Restarts=0`. The clean E2 queue is now the original even chain ending at `810106` plus the NVLink-constrained replacement odd chain `812522`-`812528`.
 
 This is not a new method. It reruns only original `rlb_matrixpolicy_original` E2 MatrixPolicy rows under the accepted safe Muon-off implementation so the E2 runtime table can use the same speed-fixed code path as E1.
 
@@ -124,33 +124,34 @@ This is not a new method. It reruns only original `rlb_matrixpolicy_original` E2
 | Dataset/seed coverage | 5 datasets x 3 seeds, all `rlb_matrixpolicy_original` |
 | Budget | `9150` steps, about `300M` train tokens per row |
 | Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs |
-| Running at queue check | `810092` row 0 on `lancer-compute-01`; `810093` row 1 on `monakhova-compute-01` |
+| Running at queue check | initial: `810092` row 0 on `lancer-compute-01`; rejected: `810093` row 1 on `monakhova-compute-01` |
+| Clean replacement | `812522` row 1 started on `abdelfattah-compute-03` with `--constraint=nvlink`; its startup archived the slow partial JSONL as `.incomplete_812522_0_20260623213620` |
 
-Submitted jobs:
+Current clean submitted jobs:
 
 | Row | Job | Dependency |
 | ---: | ---: | --- |
 | 0 | `810092` | none |
-| 1 | `810093` | none |
+| 1 | `812522` | none; replaces cancelled `810093` |
 | 2 | `810094` | afterok:`810092` |
-| 3 | `810095` | afterok:`810093` |
+| 3 | `812523` | afterok:`812522`; replaces cancelled `810095` |
 | 4 | `810096` | afterok:`810094` |
-| 5 | `810097` | afterok:`810095` |
+| 5 | `812524` | afterok:`812523`; replaces cancelled `810097` |
 | 6 | `810098` | afterok:`810096` |
-| 7 | `810099` | afterok:`810097` |
+| 7 | `812525` | afterok:`812524`; replaces cancelled `810099` |
 | 8 | `810100` | afterok:`810098` |
-| 9 | `810101` | afterok:`810099` |
+| 9 | `812526` | afterok:`812525`; replaces cancelled `810101` |
 | 10 | `810102` | afterok:`810100` |
-| 11 | `810103` | afterok:`810101` |
+| 11 | `812527` | afterok:`812526`; replaces cancelled `810103` |
 | 12 | `810104` | afterok:`810102` |
-| 13 | `810105` | afterok:`810103` |
+| 13 | `812528` | afterok:`812527`; replaces cancelled `810105` |
 | 14 | `810106` | afterok:`810104` |
 
 Estimated runtime from the completed safe E1 aggregate (`0.5102` s/step) is about `78` minutes per `9150`-step row before dataset/node variation. With two chains of 8 and 7 rows, a no-preemption, no-wait rough finish window is about `9-12` hours after queue time. This is an estimate only; the dependency layout limits any preemption loss to a single row.
 
 ## E1 FineWeb-Edu Runtime Repair Rerun
 
-Queued: 2026-06-23 20:43:47 EDT. Status at queue check: jobs `811802`-`811809` are dependency-pending behind the E2 safe-speed terminal jobs `810105` and `810106`.
+Queued: 2026-06-23 20:43:47 EDT. Original jobs `811802`-`811809` were dependency-pending behind old E2 terminals `810105` and `810106`. Corrected on 2026-06-23 21:37 EDT: old terminal `810105` was cancelled with the timing-contaminated odd chain, so repair jobs `811802`-`811809` were cancelled and replaced by NVLink-constrained jobs `812529`-`812536` behind clean E2 terminals `810106` and `812528`.
 
 Purpose: cleanly rerun original E1 FineWeb-Edu seed `2027` rows `81-88`. Slurm job `158117` had six preemptions, and the existing original artifacts cannot reconstruct trusted per-row runtimes for those rows. Rows `75-80` remain retained from the original main manifest; row `89` is replaced by the accepted safe-speed MatrixPolicy rerun.
 
@@ -161,20 +162,20 @@ Purpose: cleanly rerun original E1 FineWeb-Edu seed `2027` rows `81-88`. Slurm j
 | Coverage | original rows `81-88`, FineWeb-Edu seed `2027`, methods `silu_soap`, `rlb_soap`, `silu_ademamix`, `rlb_ademamix`, `silu_came`, `rlb_came`, `silu_schedulefree`, `rlb_schedulefree` |
 | Budget | `3050` steps, about `100M` train tokens per row |
 | Submission shape | one row per Slurm job, two parity dependency chains, at most two active jobs after E2 safe-speed finishes |
-| Initial dependency | `afterok:810105:810106` |
+| Initial dependency | `afterok:810106:812528` |
 
-Submitted jobs:
+Current clean submitted jobs:
 
 | Repair manifest offset | Original row | Job | Dependency |
 | ---: | ---: | ---: | --- |
-| 0 | 81 | `811802` | afterok:`810105`:`810106` |
-| 1 | 82 | `811803` | afterok:`810105`:`810106` |
-| 2 | 83 | `811804` | afterok:`811802` |
-| 3 | 84 | `811805` | afterok:`811803` |
-| 4 | 85 | `811806` | afterok:`811804` |
-| 5 | 86 | `811807` | afterok:`811805` |
-| 6 | 87 | `811808` | afterok:`811806` |
-| 7 | 88 | `811809` | afterok:`811807` |
+| 0 | 81 | `812529` | afterok:`810106`:`812528` |
+| 1 | 82 | `812530` | afterok:`810106`:`812528` |
+| 2 | 83 | `812531` | afterok:`812529` |
+| 3 | 84 | `812532` | afterok:`812530` |
+| 4 | 85 | `812533` | afterok:`812531` |
+| 5 | 86 | `812534` | afterok:`812532` |
+| 6 | 87 | `812535` | afterok:`812533` |
+| 7 | 88 | `812536` | afterok:`812534` |
 
 When all eight repair jobs complete, `experiments/scripts/summarize_iclr26_runtimes.py` overlays these clean rows into the E1 runtime table and restores 15 runs for SOAP, ADeMaMix, CAME, and ScheduleFree. Until then, those methods correctly remain at 14 E1 runtime rows.
 

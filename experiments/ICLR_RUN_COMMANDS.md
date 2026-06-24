@@ -652,6 +652,22 @@ Submitted jobs:
 
 Initial scheduler state after submission: jobs `810092` and `810093` were running on `lancer-compute-01` and `monakhova-compute-01`; jobs `810094`-`810106` were dependency-held.
 
+Correction on 2026-06-23 21:36 EDT: job `810093` showed real per-step runtime around `1.8-2.0` s/step on `monakhova-compute-01`, while `810092`/`810094` on NVLink nodes were around `0.44-0.46` s/step. Slurm reported `Restarts=0`, so this was not a restart-accounting artifact. The row was rejected as a timing-contaminated allocation, and jobs `810093`, `810095`, `810097`, `810099`, `810101`, `810103`, and `810105` were cancelled. Replacement odd-chain rows were submitted with `--constraint=nvlink`; replacement job `812522` archived the partial JSONL as `rlb_fused_fixed_strong_ffn.jsonl.incomplete_812522_0_20260623213620`.
+
+Replacement odd-chain jobs:
+
+| Row | Job | Dependency |
+| ---: | ---: | --- |
+| 1 | `812522` | none |
+| 3 | `812523` | afterok:`812522` |
+| 5 | `812524` | afterok:`812523` |
+| 7 | `812525` | afterok:`812524` |
+| 9 | `812526` | afterok:`812525` |
+| 11 | `812527` | afterok:`812526` |
+| 13 | `812528` | afterok:`812527` |
+
+The E2 safe-speed terminal jobs are now `810106` for the original even chain and `812528` for the replacement odd chain.
+
 ## E1 FineWeb-Edu Seed 2027 Runtime Repair Submission
 
 Submitted: 2026-06-23 20:43:47 EDT. Manifest: `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`. This is a clean timing repair for original E1 rows `81-88`; the original job `158117` was preempted six times, so those original row artifacts are not used as trusted runtime measurements.
@@ -682,6 +698,21 @@ Submitted jobs:
 | 7 | 88 | `811809` | afterok:`811807` |
 
 Initial scheduler state after submission: jobs `811802`-`811809` were dependency-held behind the E2 safe-speed chain; jobs `810092` and `810093` were running, while `810094`-`810106` were still dependency-held.
+
+Correction on 2026-06-23 21:37 EDT: because old E2 terminal job `810105` was cancelled with the timing-contaminated odd chain, repair jobs `811802`-`811809` were cancelled and replaced with NVLink-constrained jobs depending on the clean E2 terminals `810106` and `812528`. Internal repair-chain dependencies were verified as explicit `afterok`.
+
+Replacement repair jobs:
+
+| Repair offset | Original row | Job | Dependency |
+| ---: | ---: | ---: | --- |
+| 0 | 81 | `812529` | afterok:`810106`:`812528` |
+| 1 | 82 | `812530` | afterok:`810106`:`812528` |
+| 2 | 83 | `812531` | afterok:`812529` |
+| 3 | 84 | `812532` | afterok:`812530` |
+| 4 | 85 | `812533` | afterok:`812531` |
+| 5 | 86 | `812534` | afterok:`812532` |
+| 6 | 87 | `812535` | afterok:`812533` |
+| 7 | 88 | `812536` | afterok:`812534` |
 
 ## Internal Per-Row Command Shape
 
