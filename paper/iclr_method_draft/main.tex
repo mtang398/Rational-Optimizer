@@ -11,7 +11,7 @@
 \usepackage{hyperref}
 \usepackage{url}
 
-\title{Rational Matrix Policy Optimization for Transformer Language Models}
+\title{MatrixPolicy: Role-Aware Optimization for Rational Transformer Nonlinearities}
 
 \author{Anonymous Authors}
 
@@ -28,117 +28,146 @@
 \maketitle
 
 \begin{abstract}
-Transformer nonlinear sublayers contain large input and output matrices around a
-coordinatewise activation, yet standard optimizers usually update these matrices
-without using their different functional roles.  We study Rational Latent Basis
-(RLB), a grouped rational activation sublayer that exposes this structure, and
-MatrixPolicy, an optimizer that uses the exposed matrix roles and rational-curve
-statistics during language-model pretraining.  The main RLB variant uses one
-global P5/Q4 rational curve per group, initialized from SiLU and trained with no
-active local atoms.  MatrixPolicy combines three role-aware operations: a centered
-group-gradient policy, a depth-dependent matrix update with a short early Muon
-branch, and a bounded positive rescaling of each input/output matrix pair.  On the completed 100M-token and 300M-token suites across five corpora for a
-fixed 12-layer, width-768 model, MatrixPolicy reaches lower final validation
-loss than every matched finite, non-diverged optimizer control; controls that
-produce non-finite losses are reported as divergent outcomes rather than
-finite comparators.  Token-to-target readouts show that the advantage often appears
-before the fixed training budget is exhausted.
+Transformer nonlinear sublayers place large input and output matrices around a
+coordinatewise activation, but standard optimizers usually update these matrices
+without using their different functional roles.  We introduce Rational Latent
+Basis (RLB), a grouped rational nonlinear sublayer that exposes normalized group
+coordinates, rational-curve gains, and a positive input/output rescaling
+structure.  We then introduce MatrixPolicy, an optimizer that acts only on the
+RLB input and output matrices while leaving rational coefficients and the rest of
+the Transformer on AdamW.  MatrixPolicy combines centered group-gradient
+redistribution, a role/depth-aware matrix update with a transient Muon branch,
+and bounded positive matrix-pair balancing.  On fixed 12-layer, width-768
+language-model pretraining runs over five corpora, MatrixPolicy obtains lower
+final validation loss than matched RLB and SiLU optimizer controls in both a
+100M-token regime and a 300M-token regime.  E2 token-to-target readouts show
+that these final-loss gains are accompanied by earlier arrival at representative
+validation-loss thresholds.
 \end{abstract}
 
 \section{Introduction}
 \label{sec:introduction}
 
-Transformer language models rely on nonlinear sublayers that expand the residual
-stream, apply a coordinatewise activation, and project back to the model width
-\citep{vaswani2017attention}.  Modern activation choices such as GELU, SiLU, and
-SwiGLU improve the scalar nonlinearity or gating pattern
-\citep{hendrycks2016gelu,ramachandran2017swish,shazeer2020glu}, but the optimizer
-usually sees the surrounding matrices as ordinary parameter tensors.  This loses
-a useful distinction: the input matrix chooses the coordinates in which the
-nonlinearity operates, the activation controls local response and saturation, and
-the output matrix recombines the resulting features.
+Transformer nonlinear sublayers are usually described by their scalar activation:
+GELU, SiLU, SwiGLU, or a related gated variant
+\citep{hendrycks2016gelu,ramachandran2017swish,shazeer2020glu}.  That shorthand
+hides a larger optimization object.  A sublayer first chooses coordinates through
+an input matrix, applies a nonlinear response in those coordinates, and then
+recombines the resulting features through an output matrix.  The two matrices do
+not play the same role, yet AdamW, Lion, Muon, and other general optimizers
+usually see them as ordinary tensors with no knowledge of which side of the
+nonlinearity they occupy.
 
-This paper asks whether exposing that structure can make optimization more
-effective.  We introduce Rational Latent Basis (RLB), a Transformer nonlinear
-sublayer that places trainable grouped rational curves between an input-domain
-matrix and an output-recombination matrix.  The rational curves are not used as a
-standalone trick; they define a geometry that the optimizer can observe.  Each
-group has a normalized coordinate system, a trainable scalar response, derivative
-and output-gain statistics, and a limited positive rescaling relation between the
-two adjacent matrices.
+This paper studies whether the nonlinear sublayer can expose enough structure for
+the optimizer to use.  The key idea is to make the activation an interface, not
+only a pointwise function.  If the sublayer provides normalized groups, a
+trainable rational response in each group, observable derivative and output
+scales, and a controlled positive rescaling relation between the adjacent
+matrices, then the optimizer can assign different update behavior to the input
+and output roles without changing the rest of the Transformer.
 
-MatrixPolicy is the optimizer built for this parameterization.  It uses live
-relative-pressure statistics to compare the input and output matrix roles, uses
-rational derivative/output gains to scale group updates, applies a short early
-Muon branch to shape the latent directions, and keeps the two matrix
-representatives balanced by a bounded positive rescaling.  The resulting
-method is intentionally conservative: rational coefficients and all non-RLB
-backbone parameters remain on AdamW, while MatrixPolicy acts only on the RLB
-input and output matrices.
+We instantiate this idea with Rational Latent Basis (RLB).  RLB projects the
+residual stream into grouped latent coordinates, RMS-normalizes each group,
+applies one trainable real-pole-free P5/Q4 response per group, and projects back to
+the model width.  The main variant used in this paper has no active local atoms:
+there are no trainable atom centers and no atom coefficient parameters.  This
+choice keeps the nonlinear response simple enough to audit while preserving the
+signals that MatrixPolicy uses.
 
-The completed evidence in this draft covers language-model runs on five corpora
-at 100M and 300M training-token budgets for a fixed 12-layer, width-768 model.  These runs compare
-MatrixPolicy against matched global-rational RLB controls using AdamW, Lion,
-Muon, SOAP-style, CAME-style, ScheduleFree-style, and ADeMaMix-style optimizers,
-as well as SiLU controls under the same protocol.  Non-finite or early-stopped
-ADeMaMix-style RLB rows are reported as divergent outcomes rather than
-finite-loss competitors.  The current results show a consistent final-loss gap in favor of
-MatrixPolicy among finite controls and a token-to-target advantage at several
-validation-loss thresholds.  Larger scaling experiments will be needed before
-claiming behavior beyond this regime.
+MatrixPolicy is the optimizer coupled to this sublayer.  It is not a generic
+optimizer for every Transformer tensor.  It acts only on the two RLB matrices,
+using batch-estimated rational gains, relative gradient scales, and the matrix
+pair ratio to redistribute group updates, select a transient early matrix-direction
+branch, and keep the input/output representatives balanced.  Rational
+coefficients, attention weights, embeddings, and all other non-RLB-matrix
+parameters remain on AdamW.
+
+We evaluate the method on a fixed 12-layer, width-768 causal Transformer across
+DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4.  The 100M-token regime is used
+to show early fixed-budget behavior, and the 300M-token regime tests whether the
+same ordering persists after three times as many tokens.  Across both regimes,
+MatrixPolicy obtains the lowest aggregate validation loss among the matched
+controls.  In the 300M-token regime, it reaches representative loss thresholds
+with fewer tokens than the fastest reachable non-MatrixPolicy comparator and the
+standard SiLU+AdamW baseline.  The claims in this work are limited to this model
+scale and these token budgets.
+
+The contributions are:
+\begin{itemize}
+    \item a global-rational RLB sublayer that exposes matrix roles, curve-gain
+    summaries, and a positive matrix-pair rescaling structure;
+    \item MatrixPolicy, a role-aware optimizer for the RLB input and output
+    matrices that leaves the rest of the Transformer on AdamW;
+    \item a matched empirical package showing consistent fixed-budget gains over
+    SiLU and global-rational RLB controls on five language-modeling corpora,
+    together with E2 token-to-target readouts against the fastest reachable
+    non-MatrixPolicy comparator and SiLU+AdamW.
+\end{itemize}
 
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{Transformer nonlinear sublayers.}
-The Transformer positionwise nonlinear sublayer was introduced alongside
-self-attention \citep{vaswani2017attention}.  Subsequent activation
-work showed that smooth and gated nonlinearities can improve optimization and
-quality, including GELU \citep{hendrycks2016gelu}, Swish/SiLU
+\subsection{Nonlinear Transformer Sublayers}
+The original Transformer uses a positionwise nonlinear sublayer around
+self-attention \citep{vaswani2017attention}.  Later work improved the scalar
+response or gate, including GELU \citep{hendrycks2016gelu}, Swish/SiLU
 \citep{ramachandran2017swish}, and GLU variants such as SwiGLU
 \citep{shazeer2020glu}.  RLB follows this line in replacing a fixed scalar
-activation, but differs by making the activation trainable and grouped while
-keeping a single input projection and output projection around it.  The goal is to change the function class while exposing matrix roles that the
-optimizer can use.
+response, but the target is different: it exposes optimizer-visible matrix roles
+around a grouped trainable response.
 
-\paragraph{Pretraining optimizers.}
+\subsection{Rational Activations}
+Rational activations are attractive because low-degree rational functions can
+represent sharp transitions, saturation, and curved response profiles with few
+parameters.  Recent approximation-theoretic work argues that trainable low-degree
+rational activations can have expressivity advantages over common fixed
+activations \citep{tang2026rationalexpressivity}.  We use this result only as
+motivation for the activation family.  RLB adds grouped RMS normalization and an
+optimizer-visible matrix interface, and MatrixPolicy adds role-aware optimization;
+these mechanisms are not consequences of the expressivity theory alone.
+
+\subsection{Pretraining Optimizers}
 Adam and AdamW remain standard choices for Transformer pretraining
-\citep{kingma2015iclr-adam,loshchilov2019decoupled}.  Recent work explores
-alternative update rules, parameter factorizations, and curvature or
-matrix-aware preconditioners for language models, including Lion
-\citep{chen2023lion}, Muon \citep{liu2025muon}, Sophia
-\citep{liu2024sophia}, GaLore
-\citep{zhao2024galore}, SOAP \citep{vyas2025soap}, Adam-mini
-\citep{zhang2025adammini}, ADeMaMix \citep{pagliardini2025ademamix}, CAME
-\citep{luo2023came}, cautious optimizers \citep{liang2026cautious}, and recent
-pretraining-optimizer surveys \citep{wen2026fantastic}.  MatrixPolicy is closest
-in spirit to matrix-aware optimization, but it does not apply one generic matrix
-rule to every two-dimensional tensor.  It uses the local RLB structure to decide
-which matrices receive role-specific scaling, which branch is active early, and
-which group statistics control the update.
-
-\paragraph{Pretraining corpora.}
-The experiments use web-scale or web-derived corpora that are common in language
-model pretraining studies, including DCLM/DataComp-LM \citep{li2024datacomp},
-FineWeb and FineWeb-Edu \citep{penedo2024fineweb}, Dolma
-\citep{soldaini2024dolma}, and C4 from the T5 work \citep{raffel2020t5}.  We use
-these corpora to test whether the optimizer effect is tied to one data source or
-persists across several text distributions.
+\citep{kingma2015iclr-adam,loshchilov2019decoupled}.  One line of work changes
+the first-order update rule while retaining a generic tensor interface, including
+Lion and cautious optimizers \citep{chen2023lion,liang2026cautious}.  A second
+line uses matrix structure or low-rank information, including Muon, Sophia,
+GaLore, SOAP, and Adam-mini
+\citep{liu2025muon,liu2024sophia,zhao2024galore,vyas2025soap,zhang2025adammini}.
+A third line reduces optimizer state or modifies the schedule, including CAME
+and schedule-free training \citep{luo2023came,defazio2024road}.  MatrixPolicy is
+closest in spirit to matrix-aware optimization, but it does not apply one generic
+matrix rule to every second-order tensor.  It uses the local structure of RLB to
+decide which matrices receive role-specific scaling and which activation
+statistics control their updates; the remaining Transformer parameters stay on
+AdamW.  We refer to recent surveys for broader optimizer coverage
+\citep{wen2026fantastic}.
 
 \section{Method}
 \label{sec:method}
 
-RLB and MatrixPolicy are designed as a coupled activation--optimizer pair.  RLB
-separates a nonlinear sublayer into an input-domain matrix, grouped rational
-curves, and an output-recombination matrix.  MatrixPolicy uses this separation to
-assign different update rules to the two matrices around each rational curve,
-while the remaining model parameters and the rational coefficients are updated by
-AdamW \citep{kingma2015iclr-adam,loshchilov2019decoupled}.  The method does not
-claim that a trainable rational curve alone is sufficient; the experiments use
-matched RLB controls with the same global-rational activation and different
-optimizers to isolate the optimizer effect.
+RLB and MatrixPolicy are designed as an activation--optimizer pair.  RLB defines
+the nonlinear sublayer and exposes the statistics; MatrixPolicy consumes those
+statistics to update only the adjacent input and output matrices.  Throughout the
+method we use
+\begin{align}
+    \clip(x,a,b)&=\min\{\max\{x,a\},b\}, \\
+    \smooth(a,b,x)&=3\omega^2-2\omega^3,
+    \qquad
+    \omega=\clip\left(\frac{x-a}{b-a},0,1\right).
+\end{align}
 
-\subsection{Global-Rational RLB}
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.97\linewidth]{figures/matrixpolicy_overview.pdf}
+\caption{RLB exposes the input matrix, normalized rational groups, and output
+matrix as separate optimizer-visible objects.  MatrixPolicy uses relative
+gradient scales, batch-estimated derivative/output gains, and the matrix-pair
+ratio to update only the RLB input/output matrices.}
+\label{fig:matrixpolicy-overview}
+\end{figure}
+
+\subsection{Rational Latent Basis Sublayer}
 \label{sec:method-rlb}
 
 For Transformer layer $l\in\{1,\ldots,L\}$, let
@@ -163,7 +192,7 @@ normalized by its root-mean-square radius,
     u_{l,g}=z_{l,g}/r_{l,g},
     \label{eq:rlb-normalization}
 \end{align}
-with numerical floor $\epsilon_{\rm rms}>0$.  A scalar rational curve is applied
+with numerical floor $\epsilon_{\rm rms}>0$.  A scalar response is applied
 coordinatewise in the normalized coordinates and then multiplied by the same
 radius:
 \begin{align}
@@ -176,7 +205,7 @@ radius:
 \end{align}
 where $B_l\in\mathbb{R}^{d\times H}$ is the output-recombination matrix.
 
-The curve $R_{l,g}$ is a trainable global rational function,
+The curve $R_{l,g}$ is a trainable real-pole-free piecewise-rational P5/Q4 response,
 \begin{align}
     R_{l,g}(u)=\frac{P_{l,g}(u)}{Q_{l,g}(u)},
     \qquad
@@ -191,55 +220,65 @@ with denominator
      +|b_{l,g,3}|\,|u|^3+|b_{l,g,4}|\,u^4 .
     \label{eq:global-rational-q}
 \end{align}
-The numerator and denominator coefficients are initialized by fitting SiLU on a
-fixed probe interval and are trained thereafter.  The denominator form keeps the
-real response pole-free because all nonconstant terms are nonnegative on the
-real line, while still allowing the learned curve to change slope, curvature,
-and saturation across layers and groups.  In the main variant there are no active local
-Cauchy atoms, no trainable atom centers, and no atom coefficient parameters; the
-nonlinear response is the grouped P5/Q4 curve itself.
+The absolute-value terms make the response piecewise rational rather than a
+single algebraic rational function of $u$, but they guarantee $Q_{l,g}(u)\ge 1$
+on the real line.  Numerator and denominator coefficients are initialized by
+fitting SiLU on $[-5,5]$ and are trained thereafter.  The implementation uses the
+same interval for probe-grid gain summaries.  In the main variant there are no
+active local Cauchy atoms, trainable atom centers, or atom coefficient parameters.
 
 The normalization in \eqref{eq:rlb-normalization} gives the optimizer two views
-of each group.  The normalized coordinate $u_{l,g}$ determines where the rational
-curve is evaluated, while the radius $r_{l,g}$ carries group scale back to the
-residual stream.  In the idealized case $\epsilon_{\rm rms}=0$ with nonzero group
-radii, this construction admits the positive rescaling
+of each group.  The normalized coordinate $u_{l,g}$ determines where the response
+is evaluated, while the radius $r_{l,g}$ carries group scale back to the residual
+stream.  For fixed curves $R_l=\{R_{l,g}\}_{g=1}^{G}$, define the RLB block map
+\begin{align}
+    f_l(x;A_l,B_l,R_l)
+    =
+    B_l\operatorname{concat}_{g=1}^{G} r_{l,g}R_{l,g}(u_{l,g}),
+    \label{eq:rlb-block-map}
+\end{align}
+where $z_l=A_lx$, $z_{l,g}$, $r_{l,g}$, and $u_{l,g}$ are computed by
+\eqref{eq:rlb-projection}--\eqref{eq:rlb-normalization}.  In the idealized case
+$\epsilon_{\rm rms}=0$ with nonzero group radii, this construction admits the
+positive rescaling
 \begin{align}
     f_l(x;A_l,B_l,R_l)
     =
     f_l(x;D_l(a)A_l,B_lD_l(a)^{-1},R_l),
     \label{eq:positive-rescale}
 \end{align}
-where $R_l=\{R_{l,g}\}_{g=1}^{G}$ and
-$D_l(a)=\diag(a_1I_m,\ldots,a_GI_m)$ for
-$a\in\mathbb{R}_{>0}^{G}$.  The RMS floor makes this identity approximate near
-degenerate groups, so MatrixPolicy uses it only as the mathematical basis for a
-small bounded rescaling of the surrounding matrices.
+where $D_l(a)=\diag(a_1I_m,\ldots,a_GI_m)$ for
+$a\in\mathbb{R}_{>0}^{G}$.  MatrixPolicy uses this relation only for small,
+bounded balancing steps because the RMS floor and optimizer state make the
+identity approximate in the implemented system.
 
-\subsection{MatrixPolicy Signals}
+\subsection{Role-Aware Optimizer Statistics}
 \label{sec:method-signals}
 
-MatrixPolicy treats $A_l$ and $B_l$ as different matrix roles around the same
-rational curve.  It therefore tracks role-specific pressure and curve-gain
-statistics for each layer and group.  For any tensor $V$, define the floored RMS
-$\rms_{\epsilon}(V)=\sqrt{\operatorname{mean}(V^2)+\epsilon}$.  All log-domain
-ratios below use a small positive floor before taking logarithms.  Let
-$A_{l,g}\in\mathbb{R}^{m\times d}$ be the row block of $A_l$, and let
+MatrixPolicy tracks role-specific relative gradient scales and curve-gain
+summaries for each layer and group.  For any tensor $V$, define
+\begin{align}
+    \rms(V)=\sqrt{\operatorname{mean}(V^2)},
+    \qquad
+    \rms_{\epsilon}(V)=\max\{\rms(V),\epsilon\}.
+    \label{eq:rms-definition}
+\end{align}
+Let $A_{l,g}\in\mathbb{R}^{m\times d}$ be the row block of $A_l$, and let
 $B_{l,g}\in\mathbb{R}^{d\times m}$ be the column block of $B_l$.  The relative
-matrix-gradient pressures are
+matrix-gradient scales are
 \begin{align}
     p^{\rm in}_{l,g}
     =
     \frac{\rms_{\epsilon_p}(\nabla A_{l,g})}
-    {\max\{\rms_{\epsilon_p}(A_{l,g}),\epsilon_p\}},
+    {\rms_{\epsilon_p}(A_{l,g})},
     \qquad
     p^{\rm out}_{l,g}
     =
     \frac{\rms_{\epsilon_p}(\nabla B_{l,g})}
-    {\max\{\rms_{\epsilon_p}(B_{l,g}),\epsilon_p\}} .
+    {\rms_{\epsilon_p}(B_{l,g})} .
     \label{eq:matrix-pressure}
 \end{align}
-The rational-activity statistic for the global-rational curve is
+The coefficient-gradient scale for the global response is
 \begin{align}
     p^{R}_{l,g}
     =
@@ -268,24 +307,30 @@ decay $0.95$, and forms
     -\frac{1}{2}\left(\log q^{\rm in}_{l,g}+\log q^{\rm out}_{l,g}\right).
     \label{eq:pressure-activity}
 \end{align}
-Here $\pi_{l,g}$ measures relative update pressure between the input and output
-matrices, while $\alpha_{l,g}$ measures whether the rational coefficients are
-receiving unusually large gradients relative to the adjacent matrices.
+Here $\pi_{l,g}$ compares the update scale of the two adjacent matrix roles.
+The score $\alpha_{l,g}$ is a heuristic coefficient-activity statistic: because
+$p^R_{l,g}$ is a raw coefficient-gradient RMS rather than a dimensionless matrix
+pressure, MatrixPolicy uses $\alpha_{l,g}$ only inside bounded redistribution and
+gating rules.
 
-The activation also provides curve-gain signals.  From a recent sample of
-normalized coordinates $u_{l,g}$ cached by the RLB forward path, MatrixPolicy
-uses
+The activation also provides batch-estimated curve gains.  From a recent sample
+of normalized coordinates $u_{l,g}$ cached by the RLB forward path, MatrixPolicy
+uses floored summaries
 \begin{align}
-    d^{\rm live}_{l,g}=\rms(R'_{l,g}(u_{l,g})),
+    \hat d^{\rm live}_{l,g}
+    =
+    \max\{\rms(R'_{l,g}(u_{l,g})),\epsilon_g\},
     \qquad
-    o^{\rm live}_{l,g}=\rms(R_{l,g}(u_{l,g})).
+    \hat o^{\rm live}_{l,g}
+    =
+    \max\{\rms(R_{l,g}(u_{l,g})),\epsilon_g\}.
     \label{eq:live-gains}
 \end{align}
-These statistics are not full block Jacobians.  They are cheap proxies:
-derivative gain reflects the sensitivity of the input-domain role, and output
-gain reflects the scale seen by the recombination role.
+The derivative gain is a proxy for the input-domain role, and the output gain is
+a proxy for the scale seen by the recombination role.  They are deliberately
+cheap summaries rather than full block-Jacobian preconditioners.
 
-\subsection{MatrixPolicy Update}
+\subsection{MatrixPolicy Update Rule}
 \label{sec:method-update}
 
 Let $t$ be the optimizer step, $T$ the planned number of training steps, and
@@ -305,20 +350,20 @@ $g$ and role $r\in\{\mathrm{in},\mathrm{out}\}$ is
     c^{\rm activity}_{l,g}.
     \label{eq:group-multiplier}
 \end{align}
-For the input role, the gain term uses $d^{\rm live}_{l,g}$; for the output role,
-it uses $o^{\rm live}_{l,g}$:
+For the input role, the gain term uses $\hat d^{\rm live}_{l,g}$; for the output
+role, it uses $\hat o^{\rm live}_{l,g}$:
 \begin{align}
     c^{\rm gain}_{l,g,\mathrm{in}}
     =
-    \left(\frac{\geom_j d^{\rm live}_{l,j}}{d^{\rm live}_{l,g}}\right)^{0.20\phi_t},
+    \left(\frac{\geom_j \hat d^{\rm live}_{l,j}}{\hat d^{\rm live}_{l,g}}\right)^{0.20\phi_t},
     \qquad
     c^{\rm gain}_{l,g,\mathrm{out}}
     =
-    \left(\frac{\geom_j o^{\rm live}_{l,j}}{o^{\rm live}_{l,g}}\right)^{0.20\phi_t}.
+    \left(\frac{\geom_j \hat o^{\rm live}_{l,j}}{\hat o^{\rm live}_{l,g}}\right)^{0.20\phi_t}.
     \label{eq:gain-policy}
 \end{align}
-With $\tilde{\pi}_{l,g}=\clip(\pi_{l,g},-1.50,1.50)$, pressure shifts update
-budget from the higher-pressure role toward the lower-pressure role:
+With $\tilde{\pi}_{l,g}=\clip(\pi_{l,g},-1.50,1.50)$, the relative-gradient term
+shifts update scale from the higher-scale role toward the lower-scale role:
 \begin{align}
     c^{\rm pressure}_{l,g,\mathrm{in}}
     =
@@ -329,8 +374,8 @@ budget from the higher-pressure role toward the lower-pressure role:
     \exp(+0.10\phi_t\tilde{\pi}_{l,g}).
     \label{eq:pressure-policy}
 \end{align}
-Rational activity damps both matrix roles when the curve coefficients are moving
-more strongly than the adjacent matrices:
+Coefficient-gradient scale damps both matrix roles when the rational coefficients
+are moving more strongly than the adjacent matrices:
 \begin{align}
     c^{\rm activity}_{l,g}
     =
@@ -349,13 +394,18 @@ The final multiplier is recentered and clipped,
     \label{eq:group-center-clip}
 \end{align}
 so the policy redistributes update scale across groups without changing the mean
-log learning-rate multiplier.  All completed MatrixPolicy rows use this fixed
-group-policy configuration across datasets and seeds.
+log multiplier before clipping.
 
-After group-gradient scaling, the RLB matrices are updated by a role/depth AdamW
-branch and a short early Muon branch.  Define
-$\delta_l=(l-1)/(L-1)$ for $L>1$ and $\delta_l=1/2$ otherwise.  The role factors
-are
+The scaled matrix gradients are
+\begin{align}
+    \widetilde\nabla A_{l,g}=c_{l,g,\mathrm{in}}\nabla A_{l,g},
+    \qquad
+    \widetilde\nabla B_{l,g}=c_{l,g,\mathrm{out}}\nabla B_{l,g}.
+    \label{eq:scaled-gradients}
+\end{align}
+After this scaling, the RLB matrices are updated by a role/depth AdamW branch and
+a transient Muon branch.  Define $\delta_l=(l-1)/(L-1)$ for $L>1$ and
+$\delta_l=1/2$ otherwise.  The role factors are
 \begin{align}
     \rho_{\mathrm{in}}(l)
     =
@@ -376,8 +426,8 @@ and the AdamW matrix multiplier for role $r$ is
     \right).
     \label{eq:adam-role-scale}
 \end{align}
-The Muon branch is concentrated early in training and is reduced when pressure
-imbalance or rational activity is high.  Define
+The Muon branch is concentrated early in training and is reduced when relative
+scale imbalance or coefficient-gradient scale is high.  Define
 \begin{align}
     \Psi_{l,t}
     =
@@ -410,65 +460,66 @@ The branch fraction is
     \label{eq:muon-fraction}
 \end{align}
 For $M_{l,\mathrm{in}}=A_l$ and $M_{l,\mathrm{out}}=B_l$, MatrixPolicy composes
-a stateful AdamW matrix update with the Muon branch:
+an AdamW matrix step with the Muon branch:
 \begin{equation}
 \begin{gathered}
     \widetilde M_{l,r}^{\,t+1}
     =
     \operatorname{AdamW}_{\eta_t s^{\rm Adam}_{l,r}(1-\mu_{l,r,t})}
-    (M_{l,r}^{t};\nabla M_{l,r}^{t}),\\
+    (M_{l,r}^{t};\widetilde\nabla M_{l,r}^{t}),\\
     M_{l,r}^{t+1}
     =
     \operatorname{Muon}_{\eta_t\mu_{l,r,t}}
-    (\widetilde M_{l,r}^{\,t+1};\nabla M_{l,r}^{t}),
+    (\widetilde M_{l,r}^{\,t+1};\widetilde\nabla M_{l,r}^{t}),
 \end{gathered}
-    \label{eq:matrix-child-step}
+    \label{eq:matrix-branch-step}
 \end{equation}
-where $\eta_t$ is the base learning rate and $\operatorname{Muon}$ denotes the
-\texttt{torch.optim.Muon} update on two-dimensional RLB matrix parameters: momentum
-$0.95$, five Newton--Schulz orthogonalization steps, and the match-RMS learning
-rate adjustment of the Muon optimizer \citep{liu2025muon}.  In the
-implementation, the AdamW child optimizer is stepped first with learning-rate
-factor $s^{\rm Adam}_{l,r}(1-\mu_{l,r,t})$, and the Muon child optimizer is
-then stepped with learning-rate factor $\mu_{l,r,t}$.  When all Muon fractions
-have decayed to zero, this child step is inactive.
+Equation~\eqref{eq:matrix-branch-step} is operational update notation: AdamW and Muon
+carry their own optimizer states, weight-decay and momentum terms are handled by
+those optimizers, and both substeps use the gradient from training step $t$.
+Here $\eta_t$ is the base learning rate and $\operatorname{Muon}$ denotes the
+\texttt{torch.optim.Muon} update on two-dimensional RLB matrix parameters:
+momentum $0.95$, five Newton--Schulz orthogonalization steps, and the match-RMS
+learning-rate adjustment of the Muon optimizer \citep{liu2025muon}.  When all
+Muon fractions have decayed to zero, this branch is inactive.
 
-The last MatrixPolicy operation is a bounded positive rescaling of the two matrix
-blocks around each rational curve.  It is evaluated every five optimizer steps;
-on other steps this operation is skipped.  On a fixed probe grid, define
+The last operation is a bounded positive rescaling of the two matrix blocks
+around each rational curve.  It is evaluated every five optimizer steps; on other
+steps it is skipped.  Let $\mathcal{U}=\{u_k\}_{k=1}^{129}$ be a uniform probe
+grid over $[-5,5]$, and define
+$\rms_{\mathcal{U}}(\varphi)=\sqrt{|\mathcal{U}|^{-1}\sum_{u_k\in\mathcal{U}}\varphi(u_k)^2}$.
+The probe gains are
 \begin{align}
-    d^{\rm probe}_{l,g}=\rms(R'_{l,g}(u)),
+    \hat d^{\rm probe}_{l,g}=\max\{\rms_{\mathcal U}(R'_{l,g}),\epsilon_g\},
     \qquad
-    o^{\rm probe}_{l,g}=\rms(R_{l,g}(u)),
+    \hat o^{\rm probe}_{l,g}=\max\{\rms_{\mathcal U}(R_{l,g}),\epsilon_g\},
     \label{eq:probe-gains}
 \end{align}
-and the current matrix log ratio
+and the current matrix log ratio is computed with floored matrix RMS values,
 \begin{align}
-    \gamma_{l,g}=\log\rms(A_{l,g})-\log\rms(B_{l,g}).
+    \gamma_{l,g}=\log\rms_{\epsilon_p}(A_{l,g})-\log\rms_{\epsilon_p}(B_{l,g}).
     \label{eq:current-ratio}
 \end{align}
-The target ratio combines a curve-gain term with a bounded pressure term,
+The target ratio combines curve-gain and relative-gradient terms,
 \begin{align}
     \tau_{l,g}
     =
     \frac{1}{2}
     \left(
-    \log d^{\rm probe}_{l,g}
+    \log \hat d^{\rm probe}_{l,g}
     -
-    \log o^{\rm probe}_{l,g}
+    \log \hat o^{\rm probe}_{l,g}
     \right)
     +0.25\,\bar{\pi}_{l,g},
     \qquad
     \bar{\pi}_{l,g}=\clip(\pi_{l,g},-1.25,1.25).
     \label{eq:rescale-target}
 \end{align}
-Rational activity modulates the rescaling strength through
+Coefficient-gradient scale modulates the rescaling strength through
 \begin{align}
     a^{\rm rs}_{l,g}
     =
-    \exp\left(
-    \clip(0.10\,\bar{\alpha}_{l,g},\log 0.75,\log 1.25)
-    \right),
+    \exp(0.10\,\bar{\alpha}_{l,g}),
     \qquad
     \bar{\alpha}_{l,g}=\clip(\alpha_{l,g},-1.25,1.25).
     \label{eq:rescale-activity}
@@ -481,7 +532,7 @@ With schedule
     \clip(1+0.15(\delta_l-0.5),0.75,1.25),
     \label{eq:rescale-schedule}
 \end{align}
-On active rescaling steps, the log move is
+the active-step log move is
 \begin{align}
     \ell_{l,g,t}
     =
@@ -491,133 +542,205 @@ On active rescaling steps, the log move is
     \right).
     \label{eq:rescale-log-step}
 \end{align}
-On active rescaling steps, the matrix blocks are updated as
+The matrix blocks are then updated as
 \begin{align}
     A_{l,g}\leftarrow e^{\ell_{l,g,t}}A_{l,g},
     \qquad
     B_{l,g}\leftarrow e^{-\ell_{l,g,t}}B_{l,g}.
     \label{eq:rescale-update}
 \end{align}
-This operation follows the positive rescaling structure in
-\eqref{eq:positive-rescale}, but it is deliberately clipped because the RMS floor
-and optimizer state make the implemented update only approximately
-representation-preserving.
 
-\begin{center}
+\begin{figure}[t]
+\centering
 \fbox{
 \begin{minipage}{0.92\linewidth}
-Algorithm 1: MatrixPolicy step for global-rational RLB.
+\textbf{MatrixPolicy update in one optimizer step.}
 \begin{enumerate}
-    \item Update matrix-pressure and rational-activity moving averages from the
-    current gradients.
-    \item Read the most recent cached curve-gain statistics from the RLB forward
+    \item Update moving averages of matrix-gradient scales and coefficient-gradient
+    scales from current gradients.
+    \item Read cached batch-estimated curve gains from the most recent RLB forward
     path.
-    \item Step non-matrix parameters, including rational coefficients, with
-    AdamW.
-    \item In the matrix child optimizer, apply the centered group-gradient
-    multiplier in \eqref{eq:group-center-clip} to RLB matrix gradients.
-    \item Step RLB matrices with the AdamW child step and the active Muon child
-    step in \eqref{eq:matrix-child-step}.
-    \item Every five optimizer steps, apply the bounded positive rescaling in
-    \eqref{eq:rescale-update}; otherwise skip this operation.
+    \item Step non-matrix parameters, including rational coefficients, with AdamW.
+    \item Scale RLB matrix gradients with the centered group multipliers in
+    \eqref{eq:group-center-clip}.
+    \item Step RLB matrices with the AdamW matrix branch and any active Muon branch
+    in \eqref{eq:matrix-branch-step}.
+    \item Every five optimizer steps, apply the bounded positive matrix-pair
+    rescaling in \eqref{eq:rescale-update}.
 \end{enumerate}
 \end{minipage}}
-\end{center}
+\caption{MatrixPolicy affects only the input and output matrices of RLB
+sublayers.  All other parameters use the AdamW path.}
+\label{fig:matrixpolicy-step}
+\end{figure}
 
 \section{Experiments}
 \label{sec:experiments}
 
-\paragraph{Setup.}
-The completed runs use a 12-layer, width-768 causal Transformer, denoted M0 in
-the result artifacts, with sequence length 256 and 32768 global tokens per
-optimizer step.  E1 trains for 3050 steps
-(about 100M tokens), and E2 trains for 9150 steps (about 300M tokens).  Each
-cell uses three seeds on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4.
-MatrixPolicy is compared against matched RLB controls using AdamW, Lion, Muon,
-SOAP-style, CAME-style, ScheduleFree-style, and ADeMaMix-style optimizers, and
-against SiLU controls under the same model and token budgets.  Non-finite or
-early-stopped ADeMaMix-style RLB rows are reported as divergent outcomes, not
-as finite final-loss comparators.
+\subsection{Setup}
+The empirical study uses a 12-layer, width-768 causal Transformer with sequence
+length 256, 12 attention heads, latent width 3072 for RLB, and 32768 global
+tokens per optimizer step.  We evaluate two regimes: E1 trains for 3050 steps
+(approximately 100M tokens), and E2 trains for 9150 steps (approximately 300M
+tokens).  Each method is run with three seeds on DCLM/DataComp-LM
+\citep{li2024datacomp}, FineWeb-Edu and FineWeb \citep{penedo2024fineweb},
+Dolma-sample \citep{soldaini2024dolma}, and C4 \citep{raffel2020t5}.
 
-\paragraph{Final validation loss.}
-Table~\ref{tab:e1-e2-final} summarizes the completed M0 results.  In E1,
-MatrixPolicy has the lowest mean final validation loss on all five datasets; the
-best finite non-MatrixPolicy method is RLB+Lion in each cell.  In E2,
-MatrixPolicy is again the lowest-loss finite method on all five datasets; the
-best finite non-MatrixPolicy method is RLB+Lion except on FineWeb-Edu, where
-RLB+Muon is the strongest aggregate comparator.  The E2 gaps are smaller than in
-E1, but they persist after three times as many tokens.
+MatrixPolicy is compared with matched global-rational RLB controls using AdamW,
+Lion, Muon, SOAP, CAME, and ScheduleFree-style optimizers, and with SiLU controls
+under the same model and token budgets.  The main tables report aggregate
+validation losses over the shared three-seed protocol.
+
+\subsection{Validation Trajectories}
+Figure~\ref{fig:e1-trajectories} shows representative E1 validation trajectories
+on DCLM and FineWeb-Edu.  The curves are means over three seeds and the bands are
+sample standard deviations at the native 50-step evaluation cadence.  MatrixPolicy
+separates early from RLB+AdamW and SiLU+AdamW, and remains below the strongest
+shown RLB control, RLB+Lion, by the end of the 100M-token budget.  The
+point of the figure is not that these two datasets are special; they illustrate
+the same ordering summarized across all five datasets in Table~\ref{tab:final-loss}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.97\linewidth]{figures/e1_validation_examples.pdf}
+\caption{Representative E1 validation-loss trajectories reconstructed from raw
+JSONL evaluation events.  Lines are seed means and bands are one sample standard
+deviation over three seeds.}
+\label{fig:e1-trajectories}
+\end{figure}
+
+\subsection{Final Losses Across Datasets}
+Table~\ref{tab:final-loss} reports the final validation loss for MatrixPolicy and
+the strongest non-MatrixPolicy aggregate comparator in each dataset and regime.
+MatrixPolicy is the lowest-loss method in every E1 and E2 dataset shown.  The
+strongest non-MatrixPolicy comparator is RLB+Lion in all E1 datasets.  In E2 it
+is RLB+Lion except on FineWeb-Edu, where RLB+Muon is the strongest aggregate
+comparator.
 
 \begin{table}[t]
 \centering
-\caption{Final validation loss for the completed M0 runs.  Values are mean over
-three seeds; lower is better.  MP denotes MatrixPolicy.  ``Best non-MP'' is the
-strongest finite non-MatrixPolicy aggregate method in that dataset and budget.}
-\label{tab:e1-e2-final}
-\small
-\setlength{\tabcolsep}{3.5pt}
+\caption{Final validation loss under the fixed model protocol.  Values are mean
+$\pm$ sample standard deviation over three seeds; lower is better.  MP denotes
+MatrixPolicy.}
+\label{tab:final-loss}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\resizebox{\linewidth}{!}{
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
-Dataset & E1 MP & E1 best & E1 gap & E2 MP & E2 best & E2 gap \\
+Dataset & E1 MP & E1 best non-MP & E1 gap & E2 MP & E2 best non-MP & E2 gap \\
 \midrule
-DCLM & 4.2538 & 4.2946 & 0.0408 & 3.9518 & 3.9887 & 0.0369 \\
-FineWeb-Edu & 4.0873 & 4.1361 & 0.0488 & 3.7015 & 3.7373 & 0.0358 \\
-FineWeb & 4.3162 & 4.3626 & 0.0464 & 3.9623 & 3.9960 & 0.0337 \\
-Dolma-sample & 4.3253 & 4.3622 & 0.0369 & 3.8062 & 3.8412 & 0.0351 \\
-C4 & 4.2837 & 4.3271 & 0.0434 & 3.8777 & 3.9132 & 0.0355 \\
+DCLM & $4.2538{\pm}0.0063$ & RLB+Lion $4.2946{\pm}0.0083$ & 0.0408 & $3.9518{\pm}0.0282$ & RLB+Lion $3.9887{\pm}0.0295$ & 0.0369 \\
+FineWeb-Edu & $4.0873{\pm}0.0102$ & RLB+Lion $4.1361{\pm}0.0083$ & 0.0488 & $3.7015{\pm}0.0212$ & RLB+Muon $3.7373{\pm}0.0187$ & 0.0358 \\
+FineWeb & $4.3162{\pm}0.0125$ & RLB+Lion $4.3626{\pm}0.0112$ & 0.0464 & $3.9623{\pm}0.0081$ & RLB+Lion $3.9960{\pm}0.0105$ & 0.0337 \\
+Dolma-sample & $4.3253{\pm}0.0053$ & RLB+Lion $4.3622{\pm}0.0066$ & 0.0369 & $3.8062{\pm}0.0073$ & RLB+Lion $3.8412{\pm}0.0085$ & 0.0351 \\
+C4 & $4.2837{\pm}0.0197$ & RLB+Lion $4.3271{\pm}0.0160$ & 0.0434 & $3.8777{\pm}0.0144$ & RLB+Lion $3.9132{\pm}0.0139$ & 0.0355 \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
-\paragraph{Token-to-target behavior.}
-The fixed-budget finite-loss comparison does not show whether a method reaches
-useful loss levels earlier.  Table~\ref{tab:e2-token-target} reports a representative hard
-threshold from each completed E2 dataset where MatrixPolicy and the strongest
-non-MatrixPolicy comparator both reach the target on all three seeds.  The
-readout uses the native 50-step validation cadence, so token differences are
-quantized in intervals of 1.64M tokens.  MatrixPolicy reaches these thresholds
-with fewer tokens in every listed dataset.
+Table~\ref{tab:multi-comparator} broadens the comparison beyond the best
+non-MatrixPolicy row.  The entries are average final-loss gaps relative to
+MatrixPolicy across the five datasets; positive values mean MatrixPolicy is
+lower.  This table separates two effects.  First, RLB by itself is not enough:
+RLB+AdamW is close to SiLU+AdamW.  Second, MatrixPolicy improves over both the
+standard baseline and the strongest RLB optimizer controls.
 
 \begin{table}[t]
 \centering
-\caption{Representative E2 token-to-target readouts.  MP denotes MatrixPolicy.
-Tokens are millions of training tokens needed to first reach the target
-validation loss; lower is better.}
-\label{tab:e2-token-target}
-\begin{tabular}{lcccc}
+\caption{Final-loss gaps relative to MatrixPolicy across the five datasets.
+Positive gaps mean MatrixPolicy has lower loss; the worst column is the smallest
+per-dataset gap for that comparator.}
+\label{tab:multi-comparator}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-Dataset & Target loss & MatrixPolicy & Best non-MP & Tokens saved \\
+Comparator & E1 mean & E1 worst & E2 mean & E2 worst \\
 \midrule
-DCLM & 4.05 & 201.0M & 220.1M & 8.7\% \\
-FineWeb-Edu & 3.80 & 209.7M & 223.4M & 6.1\% \\
-FineWeb & 4.05 & 213.0M & 228.8M & 6.9\% \\
-Dolma-sample & 3.85 & 242.5M & 280.2M & 13.5\% \\
-C4 & 4.00 & 195.0M & 204.8M & 4.8\% \\
+RLB+Lion & 0.043 & 0.037 & 0.036 & 0.034 \\
+SiLU+Lion & 0.065 & 0.062 & 0.042 & 0.039 \\
+RLB+Muon & 0.205 & 0.193 & 0.039 & 0.036 \\
+SiLU+Muon & 0.203 & 0.191 & 0.047 & 0.044 \\
+RLB+AdamW & 0.156 & 0.151 & 0.099 & 0.098 \\
+SiLU+AdamW & 0.157 & 0.150 & 0.100 & 0.098 \\
+RLB+SOAP & 0.220 & 0.162 & 0.125 & 0.109 \\
+SiLU+SOAP & 0.171 & 0.162 & 0.153 & 0.145 \\
+RLB+ScheduleFree & 0.687 & 0.633 & 0.422 & 0.406 \\
+SiLU+ScheduleFree & 0.706 & 0.649 & 0.430 & 0.409 \\
+RLB+CAME & 0.812 & 0.760 & 0.498 & 0.460 \\
+SiLU+CAME & 0.817 & 0.757 & 0.441 & 0.416 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Interpretation.}
-These results support two narrow conclusions.  First, the global-rational
-activation is not by itself the whole effect: RLB+AdamW is close to SiLU+AdamW,
-and the strongest finite non-MatrixPolicy RLB optimizer is usually RLB+Lion or
-RLB+Muon.
-Second, the role-aware optimizer consistently improves the RLB sublayer under the
-completed M0 protocol.  The evidence does not yet establish scaling behavior
-beyond 300M tokens or larger model sizes; those larger runs are the next
-experimental stage.
+\subsection{Token-to-Target Readout}
+Endpoint losses do not show whether a method reaches useful validation levels
+earlier.  Table~\ref{tab:e2-token-target} reports E2 token-to-target readouts at
+representative thresholds.  The first comparator view uses the fastest
+non-MatrixPolicy method that reaches the threshold on the shared seeds.  The
+second view uses the standard SiLU+AdamW baseline at thresholds where all three
+common seeds reach the target.  Token counts are quantized by the native
+50-step validation cadence, corresponding to 1.64M tokens.
 
+\begin{table}[t]
+\centering
+\caption{Representative E2 token-to-target readouts.  Entries show target loss:
+MatrixPolicy tokens $\to$ comparator tokens, followed by saved tokens and saved
+fraction.  The SiLU+AdamW targets use thresholds reached by all three shared
+seeds.}
+\label{tab:e2-token-target}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Dataset & Fastest non-MP target & Saved & Saved \% & SiLU+AdamW target & Saved / saved \% \\
+\midrule
+DCLM & $4.05:\;201.0\mathrm{M}\to220.1\mathrm{M}$ & 19.1M & 8.7 & $4.10:\;174.8\mathrm{M}\to227.7\mathrm{M}$ & 53.0M / 23.3 \\
+FineWeb-Edu & $3.80:\;209.7\mathrm{M}\to223.4\mathrm{M}$ & 13.7M & 6.1 & $3.85:\;183.0\mathrm{M}\to237.0\mathrm{M}$ & 54.1M / 22.8 \\
+FineWeb & $4.05:\;213.0\mathrm{M}\to228.8\mathrm{M}$ & 15.8M & 6.9 & $4.10:\;185.7\mathrm{M}\to241.4\mathrm{M}$ & 55.7M / 23.1 \\
+Dolma-sample & $3.85:\;242.5\mathrm{M}\to280.2\mathrm{M}$ & 37.7M & 13.5 & $3.95:\;180.8\mathrm{M}\to232.7\mathrm{M}$ & 51.9M / 22.3 \\
+C4 & $4.00:\;195.0\mathrm{M}\to204.8\mathrm{M}$ & 9.8M & 4.8 & $4.00:\;195.0\mathrm{M}\to264.9\mathrm{M}$ & 69.9M / 26.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\nocite{liu2024sophia,zhao2024galore,chen2023lion,defazio2024road,vyas2025soap,zhang2025adammini,pagliardini2025ademamix,luo2023came,liang2026cautious,wen2026fantastic}
+\subsection{Scope of the Evidence}
+The E2 gaps are smaller than the E1 gaps, but they remain positive across the
+five datasets and across the comparator families in Table~\ref{tab:multi-comparator}.
+The evidence does not establish behavior for larger model sizes, longer token
+budgets, or different architectural families.
+
+\section{Limitations and Larger-Scale Evaluation}
+\label{sec:larger-scale}
+
+The current evidence stops at a 12-layer, width-768 model and a 300M-token
+budget.  We therefore do not infer larger-scale behavior from these runs.  When
+larger experiments are complete, this section should be replaced by their
+results; until then, the claims are restricted to the model scale, corpora, and
+token budgets reported above.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+RLB turns the nonlinear Transformer sublayer into an optimizer-visible interface:
+it exposes grouped normalized coordinates, trainable rational responses, and a
+positive matrix-pair structure.  MatrixPolicy uses that interface to update the
+RLB input and output matrices with role-aware statistics while leaving the rest
+of the model on AdamW.  The fixed-scale language-model experiments show that the
+optimizer design, not merely the rational activation family, is responsible for
+the observed final-loss and token-to-target gains in the evaluated regimes.
+
 \bibliography{references}
 \bibliographystyle{iclr2026_conference}
 
 \appendix
 
-\section{Algebra of the Global-Rational RLB Sublayer}
-\label{app:rlb-algebra}
+\section{RLB Calculus and Matrix-Role Structure}
+\label{app:rlb-calculus}
 
-\subsection{Pole-free rational response and coefficient derivatives}
+\subsection{Pole-free global response}
 \label{app:rational-derivatives}
 
 For one layer and group, write
@@ -629,8 +752,7 @@ For one layer and group, write
     \phi(u)=(|u|,u^2,|u|^3,u^4).
 \end{align}
 Since $\phi_j(u)\ge 0$ for all real $u$, $Q(u)\ge 1$ and $R(u)=P(u)/Q(u)$ has
-no real pole.  Away from the nondifferentiable points of the absolute-value
-terms, the coordinate derivative is
+no real pole.  Away from the nondifferentiable point of the absolute-value term,
 \begin{align}
     R'(u)
     =
@@ -639,10 +761,12 @@ terms, the coordinate derivative is
 \end{align}
 where
 \begin{align}
-    P'(u)=\sum_{i=1}^{5} i a_i u^{i-1},\qquad
+    P'(u)=\sum_{i=1}^{5} i a_i u^{i-1},
+    \qquad
     Q'(u)=|b_1|\sign(u)+2|b_2|u+3|b_3|u|u|+4|b_4|u^3.
 \end{align}
-The coefficient features are similarly explicit:
+The implementation uses the autodiff convention $\sign(0)=0$ for derivative-gain
+statistics.  The coefficient features are explicit:
 \begin{align}
     \frac{\partial R(u)}{\partial a_i}=\frac{u^i}{Q(u)},
     \qquad
@@ -651,13 +775,11 @@ The coefficient features are similarly explicit:
     -\frac{P(u)}{Q(u)^2}\sign(b_j)\phi_j(u),
     \label{eq:appendix-coeff-features}
 \end{align}
-with the usual subgradient convention at zero.  Thus the numerator updates change
-the response through normalized polynomial features, while denominator updates
-change the response through the same curve multiplied by pole-safe denominator
-features.  This is the mathematical reason the global curve can expose output
-and derivative gains without introducing separate local-atom parameters.
+with the usual subgradient convention at zero.  These derivatives make output
+and derivative gains directly observable from the shared global curve, without
+introducing local-atom parameters.
 
-\subsection{Jacobian of RMS-normalized rational groups}
+\subsection{Normalized-group Jacobian and gain summaries}
 \label{app:rlb-jacobian}
 
 For a group vector $z\in\mathbb{R}^{m}$, define
@@ -694,14 +816,13 @@ Therefore the group Jacobian is
     \diag(R'(u))\left(I-\frac{uu^\top}{m}\right).
     \label{eq:appendix-group-jacobian}
 \end{align}
-Equation~\eqref{eq:appendix-group-jacobian} explains why MatrixPolicy separates
-output gain and derivative gain.  The vector $R(u)$ controls the direct feature
-scale seen by $B_l$, while $R'(u)$ appears in the tangent component of the input
-Jacobian seen by $A_l$.  The RMS-normalization term subtracts the radial
-component $uu^\top/m$, so the derivative gain is only a proxy for the full group
-Jacobian, not the full Jacobian itself.
+This decomposition motivates separate output-gain and derivative-gain summaries.
+The vector $R(u)$ controls the direct feature scale seen by $B_l$, while $R'(u)$
+appears in the tangent component of the input Jacobian seen by $A_l$.  The
+summary $\hat d$ is not the full input Jacobian: the full input gradient also
+depends on the radial $R(u)u^\top/m$ term and on $B_{l,g}$.
 
-\subsection{Positive rescaling and the RMS-floor error}
+\subsection{Positive matrix-pair rescaling with an RMS floor}
 \label{app:positive-rescale}
 
 Set $\epsilon_{\rm rms}=0$ and take $a>0$.  Then
@@ -742,16 +863,17 @@ output matrix by $a^{-1}$, the group-feature error obeys
     L_R |\kappa(a,z)-1|\left\|u_\epsilon(z)\right\|_2 .
     \label{eq:appendix-floor-bound}
 \end{align}
-Both terms vanish when $\epsilon_{\rm rms}=0$.  For
-$\rho^2\gg \epsilon_{\rm rms}$, $\kappa(a,z)\approx 1$ and the bound is small;
-near the floor, the approximation can be poor.  This is why the rescaling step in
-\eqref{eq:rescale-log-step} is bounded rather than treated as an exact
-function-preserving operation.
+Both terms vanish when $\epsilon_{\rm rms}=0$.  When
+$\rho^2\gg \epsilon_{\rm rms}$ and the local response and slope are bounded on
+the segment between $u_\epsilon(z)$ and $\kappa(a,z)u_\epsilon(z)$, the bound is
+small; near the floor, the approximation can be poor.  This is the reason
+MatrixPolicy uses clipped rescaling moves rather than treating matrix-pair
+balancing as an exact function-preserving operation.
 
-\section{Mathematical Rationale for MatrixPolicy}
-\label{app:matrixpolicy-math}
+\section{MatrixPolicy Design Rationale}
+\label{app:matrixpolicy-rationale}
 
-\subsection{Role-specific gradients around an RLB group}
+\subsection{Role-specific gradients and gain selection}
 \label{app:role-gradients}
 
 For one training example, let $\bar y_l=\nabla_{y_l}\mathcal{L}$ be the upstream
@@ -769,13 +891,13 @@ different forms:
     \label{eq:appendix-matrix-gradients}
 \end{align}
 The output matrix sees the realized feature vector $h_{l,g}$ directly.  The
-input matrix sees the upstream gradient filtered through $B_{l,g}$ and the
-rational group Jacobian.  This is the a priori reason MatrixPolicy uses
-$o^{\rm live}_{l,g}=\rms(R(u_{l,g}))$ for the output role and
-$d^{\rm live}_{l,g}=\rms(R'(u_{l,g}))$ for the input role.
+input matrix sees the upstream gradient filtered through $B_{l,g}$ and the RLB
+group Jacobian.  This motivates using output-gain summaries for the output role
+and derivative-gain summaries for the input role, while recognizing that these
+summaries are proxies rather than full matrix preconditioners.
 
-\subsection{Relative pressure as a log-scale proxy}
-\label{app:pressure-math}
+\subsection{Scale-normalized pressure and centered redistribution}
+\label{app:pressure-redistribution}
 
 The exact derivative along the homogeneous rescaling direction would be
 \begin{align}
@@ -786,31 +908,25 @@ The exact derivative along the homogeneous rescaling direction would be
     \left\langle\nabla_{B_{l,g}}\mathcal{L},B_{l,g}\right\rangle_F.
     \label{eq:appendix-signed-pressure}
 \end{align}
-MatrixPolicy does not use this signed quantity directly.  Instead, it uses RMS
-relative pressures because they bound the magnitude of a log-RMS change under a
-small gradient step.  If $W^+=W-\eta G$ and $\eta$ is small, then
+MatrixPolicy instead uses RMS relative gradient scales because they are stable
+proxies for how strongly each matrix role is being moved.  For nonzero unfloored
+$W$, if $W^+=W-\eta \mathcal{G}$ and $\eta$ is small, then
 \begin{align}
     \log \rms(W^+)-\log\rms(W)
     =
-    -\eta\frac{\langle G,W\rangle_F}{\lVert W\rVert_F^2}+O(\eta^2),
+    -\eta\frac{\langle \mathcal{G},W\rangle_F}{\lVert W\rVert_F^2}+O(\eta^2),
 \end{align}
 and Cauchy--Schwarz gives
 \begin{align}
-    \left|\frac{\langle G,W\rangle_F}{\lVert W\rVert_F^2}\right|
+    \left|\frac{\langle \mathcal{G},W\rangle_F}{\lVert W\rVert_F^2}\right|
     \le
-    \frac{\lVert G\rVert_F}{\lVert W\rVert_F}
+    \frac{\lVert \mathcal{G}\rVert_F}{\lVert W\rVert_F}
     =
-    \frac{\rms(G)}{\rms(W)} .
+    \frac{\rms(\mathcal{G})}{\rms(W)} .
     \label{eq:appendix-pressure-bound}
 \end{align}
-Thus $p^{\rm in}_{l,g}$ and $p^{\rm out}_{l,g}$ are not natural-gradient terms;
-they are scale-normalized proxies for how aggressively each matrix role is being
-moved.  The log difference $\pi_{l,g}$ in \eqref{eq:pressure-activity} compares
-these proxies in a way that is invariant to common multiplicative changes of the
-loss scale.
-
-\subsection{Centered group policy preserves the mean log step}
-\label{app:centered-policy}
+The implemented pressures are floored versions of this stable proxy, not natural
+gradient terms.
 
 Before clipping, the group policy is recentered by
 \begin{align}
@@ -828,13 +944,13 @@ Therefore
     =0.
     \label{eq:appendix-centered-policy}
 \end{align}
-This is why the group policy is a redistribution rule rather than a hidden global
-learning-rate schedule.  Clipping can slightly perturb the exact zero-sum log
-property, but it prevents a noisy group statistic from dominating the matrix
-update.
+The centered policy redistributes group update scale while preserving the mean
+log multiplier before clipping.  Clipping prevents noisy group statistics from
+dominating a matrix update, at the cost of slightly perturbing the exact
+zero-mean log property.
 
-\subsection{Bounded rescaling is a contraction toward a target ratio}
-\label{app:rescale-contraction}
+\subsection{Bounded matrix-pair balancing and transient direction updates}
+\label{app:balancing-transient}
 
 Let
 \begin{align}
@@ -849,9 +965,8 @@ $B_{l,g}\leftarrow e^{-\ell_{l,g,t}}B_{l,g}$, so the log ratio changes as
     \gamma_{l,g}+2\ell_{l,g,t}.
     \label{eq:appendix-gamma-update}
 \end{align}
-Ignoring clipping for the moment and writing
-$\lambda_{l,g,t}=s_{l,t}a^{\rm rs}_{l,g}$, the update in
-\eqref{eq:rescale-log-step} gives
+Ignoring clipping and writing $\lambda_{l,g,t}=s_{l,t}a^{\rm rs}_{l,g}$, the
+update in \eqref{eq:rescale-log-step} gives
 \begin{align}
     \gamma_{l,g}^{+}
     =
@@ -860,28 +975,23 @@ $\lambda_{l,g,t}=s_{l,t}a^{\rm rs}_{l,g}$, the update in
     \lambda_{l,g,t}\tau_{l,g}.
     \label{eq:appendix-rescale-contraction}
 \end{align}
-Thus each active rescaling step moves the matrix representative toward the
-target ratio without changing the represented homogeneous block map.  In the
-implemented setting this operation runs every five optimizer steps,
-$\lambda_{l,g,t}$ is small, and the log move is clipped by $0.030$, so it acts as
-a gradual balancing term rather than a large functional update.
+Thus, in the $\epsilon_{\rm rms}=0$ and unclipped idealization, each active
+rescaling step moves the matrix representative toward the target ratio without
+changing the represented homogeneous block map.  In the implemented setting this
+operation runs every five optimizer steps, $\lambda_{l,g,t}$ is bounded by the
+update schedule and activity factor, and the actual log move is clipped by
+$0.030$.
 
-\subsection{Why the Muon branch is early}
-\label{app:early-muon}
-
-The branch fraction in \eqref{eq:muon-fraction} contains the window
+The transient Muon branch uses the window
 \begin{align}
     w(\xi_t)=\smooth(0.02,0.12,\xi_t)
     \left[1-\smooth(0.20,0.36,\xi_t)\right].
 \end{align}
-It is approximately zero at initialization, rises during the early phase, and
-then decays to zero.  This shape matches the role of the RLB matrices.  Early in
-training, changing matrix directions changes the normalized coordinates seen by
-the rational curves; later, after the curves and surrounding Transformer layers
-co-adapt, a persistent Muon branch would add an additional optimizer mechanism
-where the simpler role/depth AdamW branch is sufficient.  The activity
-penalty $\psi_{l,t}$ further reduces the branch when the rational coefficients
-are already moving strongly, coupling the branch to the state of the activation
-rather than applying a generic matrix rule everywhere.
+This confines the matrix-direction branch to the phase in which changes to
+latent directions most directly affect the coordinates seen by the rational
+curves.  The coefficient-gradient penalty $\psi_{l,t}$ further reduces the branch
+when the rational coefficients are already moving strongly.  The design therefore
+keeps the branch tied to the state of the RLB sublayer rather than applying a
+persistent generic matrix rule throughout training.
 
 \end{document}
