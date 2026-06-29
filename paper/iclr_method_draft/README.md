@@ -7,9 +7,9 @@ The draft should use the manifest-first matched runs described in `../../experim
 ## Current Paper Position
 
 ```text
-abstract: method-facing abstract
-method: rewritten paper-quality description of global-rational RLB and MatrixPolicy
-appendix: rewritten exact properties, design rationale, active/inactive branches, and hyperparameters
+abstract: method-facing abstract aligned to the global-rational/no-local-atom result anchor
+method: post-audit rewrite of global-rational RLB and MatrixPolicy with manifest-enabled group policy, code-matched pressure floors, cached-stat wording, and bounded positive rescaling with explicit heuristic boundaries
+appendix: math-checked exact properties, explicit heuristic boundaries, runtime/failure accounting, and inactive-branch boundaries
 experiments/data source: completed E1 plus completed E2 packages with global-rational/no-local-atom (`rlb_fused_global_rational`) MatrixPolicy and non-MatrixPolicy RLB-control overlays
 not rendered here yet: introduction, related work, experiments, discussion, and conclusion
 ```
