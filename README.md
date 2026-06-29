@@ -1,6 +1,6 @@
 # RationalOPT
 
-RationalOPT studies Rational Local Basis (RLB) variants inside causal Transformer language models and the `rational_matrix_policy_onpolicy` optimizer for pretraining.
+RationalOPT studies Rational Latent Basis (RLB) variants inside causal Transformer language models and the `rational_matrix_policy_onpolicy` optimizer for pretraining.
 
 Paper-facing results in this README include the completed E1 matched main suite and the completed E2 DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 M0/300M cells. WikiText is kept as a small demo anchor. All E1/E2 MatrixPolicy rows and non-MatrixPolicy RLB optimizer-control rows in the paper-facing tables, curves, token-savings readouts, and runtime summaries use the corrected global-rational/no-local-atom RLB source (`rlb_fused_global_rational`); SiLU controls remain the fixed main-manifest controls.
 
