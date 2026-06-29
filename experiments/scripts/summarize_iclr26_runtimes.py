@@ -348,7 +348,7 @@ This package summarizes clean per optimizer/activation-combo runtime from JSONL 
 Included in tracked runtime aggregates:
 
 - E1 M0/100M clean rows: `{e1_total}` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. {repair_line} Row `89` is replaced by the completed MatrixPolicy replacement rerun when available.
-- Non-MatrixPolicy RLB optimizer controls overlaid from global-rational/no-local-atom runs: `{global_rational_rows}` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `{early_stop_rows}`.
+- Non-MatrixPolicy RLB optimizer controls overlaid from global-rational/no-local-atom (`rlb_fused_global_rational`) runs: `{global_rational_rows}` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `{early_stop_rows}`.
 {e2_bullets}
 
 Excluded from tracked runtime aggregates:

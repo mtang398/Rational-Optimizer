@@ -6,7 +6,7 @@ Rejected proposal branches have been removed from the live optimizer surface and
 
 ## Current Result Anchor
 
-The current paper-facing optimizer evidence is the completed E1 matched main suite plus completed E2 M0/300M cells on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy values use corrected global-rational/no-local-atom replacement rows from `../experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv`; non-MatrixPolicy RLB controls use matched global-rational rows from `../experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the fixed main-manifest rows.
+The current paper-facing optimizer evidence is the completed E1 matched main suite plus completed E2 M0/300M cells on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy values use corrected global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows from `../experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv`; non-MatrixPolicy RLB controls use matched global-rational rows from `../experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the fixed main-manifest rows.
 
 E1 M0/100M final validation-loss anchor:
 
@@ -237,7 +237,7 @@ Retained source files are limited to the current training surface: `matrix_polic
 
 ## Empirical Readout
 
-Current E1 M0/100M manifest-suite readout, with the MatrixPolicy row replaced by the completed global-rational/no-local-atom overlay:
+Current E1 M0/100M manifest-suite readout, with the MatrixPolicy row replaced by the completed global-rational/no-local-atom (`rlb_fused_global_rational`) overlay:
 
 | Dataset | MatrixPolicy final val loss | next best current method | gap |
 | --- | ---: | ---: | ---: |

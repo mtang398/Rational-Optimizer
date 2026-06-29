@@ -288,7 +288,7 @@ def write_readme(out_dir: Path, curves, uses_global_rational_controls: bool) -> 
         "",
         "MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`."
         + (
-            " Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows."
+            " Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows."
             if uses_global_rational_controls
             else " Other methods use the main E2 manifest rows."
         ),

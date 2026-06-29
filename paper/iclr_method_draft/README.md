@@ -11,7 +11,7 @@ abstract: placeholder
 introduction: placeholder
 background and related work: placeholder
 method: current substantive section
-experiments: placeholder text; data source is completed E1 plus completed E2 packages with global-rational/no-local-atom MatrixPolicy and non-MatrixPolicy RLB-control overlays
+experiments: placeholder text; data source is completed E1 plus completed E2 packages with global-rational/no-local-atom (`rlb_fused_global_rational`) MatrixPolicy and non-MatrixPolicy RLB-control overlays
 discussion: placeholder
 conclusion: placeholder
 proof appendix: placeholder until the empirical claim and theory are stable

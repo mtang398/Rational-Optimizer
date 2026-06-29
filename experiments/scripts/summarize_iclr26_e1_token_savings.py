@@ -315,7 +315,7 @@ Generated from completed E1 M0/100M JSONL eval records. All rows still trained t
 
 Each row uses `{tokens_per_step}` global tokens/step and the native E1 eval cadence of {eval_interval} steps, or `{tokens_per_step * eval_interval / 1_000_000:.2f}M` tokens per readout interval.
 
-`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational/no-local-atom rows.
+`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational/no-local-atom (`rlb_fused_global_rational`) rows.
 
 {"\n\n".join(sections)}
 

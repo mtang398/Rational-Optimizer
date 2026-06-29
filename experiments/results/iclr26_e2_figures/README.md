@@ -2,7 +2,7 @@
 
 Completed E2 M0/300M datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
-MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
+MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
 
 Final validation-loss overview across completed E2 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 

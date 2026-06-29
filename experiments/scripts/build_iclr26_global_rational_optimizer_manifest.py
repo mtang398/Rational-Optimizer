@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the ICLR26 global-rational/no-local-atom RLB optimizer-control manifest."""
+"""Build the ICLR26 global-rational/no-local-atom (`rlb_fused_global_rational`) RLB optimizer-control manifest."""
 
 from __future__ import annotations
 

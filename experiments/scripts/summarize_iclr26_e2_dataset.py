@@ -660,7 +660,7 @@ def write_readme(
     if matrixpolicy_replaced:
         replacement_bits.append("MatrixPolicy entries use replacement JSONL rows for the same method and seed")
     if rlb_controls_replaced:
-        replacement_bits.append("non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows")
+        replacement_bits.append("non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows")
     replacement_note = (
         "\n" + "; ".join(replacement_bits) + "; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.\n"
         if replacement_bits

@@ -34,7 +34,7 @@ This package summarizes clean per optimizer/activation-combo runtime from JSONL 
 Included in tracked runtime aggregates:
 
 - E1 M0/100M clean rows: `225` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `8/8`. Row `89` is replaced by the completed MatrixPolicy replacement rerun when available.
-- Non-MatrixPolicy RLB optimizer controls overlaid from global-rational/no-local-atom runs: `210` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `30`.
+- Non-MatrixPolicy RLB optimizer controls overlaid from global-rational/no-local-atom (`rlb_fused_global_rational`) runs: `210` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `30`.
 - E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb completed cell: `45` rows, one dataset x three seeds x 15 methods.
@@ -80,7 +80,7 @@ Generated from completed E1 M0/100M JSONL eval records. All rows still trained t
 
 Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 steps, or `1.64M` tokens per readout interval.
 
-`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational/no-local-atom rows.
+`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational/no-local-atom (`rlb_fused_global_rational`) rows.
 
 #### DCLM
 
@@ -146,7 +146,7 @@ Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 st
 
 Completed E1 M0/100M datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. Figures use every native JSONL log point from step 500 through 3050. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
-MatrixPolicy curves and tables use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom replacement rows passed with `--replacement-manifest`; SiLU controls use the clean main E1 rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable.
+MatrixPolicy curves and tables use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows passed with `--replacement-manifest`; SiLU controls use the clean main E1 rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable.
 
 Final validation-loss overview across completed E1 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 
@@ -369,7 +369,7 @@ Tracked package: `results/iclr26_e2_dclm_2026_06_10/`.
 Completed: 2026-06-10. Manifest rows `240-284` define the full DCLM E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 DCLM slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -471,7 +471,7 @@ Tracked package: `results/iclr26_e2_fineweb_edu_2026_06_12/`.
 Completed: 2026-06-12. Manifest rows `285-329` define the full FineWeb-Edu E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 FineWeb-Edu slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -574,7 +574,7 @@ Tracked package: `results/iclr26_e2_fineweb_2026_06_15/`.
 Completed: 2026-06-15. Manifest rows `330-374` define the full FineWeb E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 FineWeb slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -676,7 +676,7 @@ Tracked package: `results/iclr26_e2_dolma_sample_2026_06_17/`.
 Completed: 2026-06-17. Manifest rows `375-419` define the full Dolma-sample E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 Dolma-sample slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -779,7 +779,7 @@ Tracked package: `results/iclr26_e2_c4_2026_06_19/`.
 Completed: 2026-06-19. Manifest rows `420-464` define the full C4 E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 C4 slice from the manifest: `val_skip_tokens=0`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -980,7 +980,7 @@ This table asks how many training tokens were needed to first reach a validation
 
 Completed E2 M0/300M datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
-MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
+MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
 
 Final validation-loss overview across completed E2 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 
