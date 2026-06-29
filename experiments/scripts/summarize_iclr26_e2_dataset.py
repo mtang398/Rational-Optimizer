@@ -14,8 +14,18 @@ from statistics import mean, stdev
 
 MANIFEST = Path("experiments/manifests/iclr26_main_manifest.csv")
 RUN_ROOT = Path("experiments/runs/iclr26_main")
+TIMING_NODE_OVERRIDES = Path("experiments/manifests/iclr26_timing_node_overrides.csv")
 PHASE = "E2_m0_300m"
 MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
+REPLACEMENT_RLB_METHODS = {
+    "rlb_adamw",
+    "rlb_lion",
+    "rlb_soap",
+    "rlb_muon",
+    "rlb_schedulefree",
+    "rlb_came",
+    "rlb_ademamix",
+}
 ADAMW_METHOD = "silu_adamw"
 
 DEFAULT_TARGETS = {
@@ -45,6 +55,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--targets", type=float, nargs="*", default=None)
     parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
     parser.add_argument("--matrixpolicy-phase", type=str, default=None)
+    parser.add_argument("--replacement-manifest", type=Path, default=None)
+    parser.add_argument("--replacement-phase", type=str, default=None)
+    parser.add_argument("--timing-node-overrides", type=Path, default=TIMING_NODE_OVERRIDES)
+    parser.add_argument("--matrixpolicy-max-seconds-per-step", type=float, default=0.0)
+    parser.add_argument("--matrixpolicy-denylist-nodes", default="sablab-gpu-12")
+    parser.add_argument("--allow-timing-anomalies", action="store_true")
     return parser.parse_args()
 
 
@@ -79,11 +95,40 @@ def safe_float(value: object) -> float:
         return math.nan
 
 
+def load_timing_node_overrides(path: Path) -> dict[str, dict[str, str]]:
+    if not path.exists():
+        return {}
+    with path.open(newline="") as handle:
+        return {row["row_id"]: row for row in csv.DictReader(handle) if row.get("row_id")}
+
+
+def apply_timing_node_override(
+    row: dict[str, str],
+    summary: dict[str, object] | None,
+    overrides: dict[str, dict[str, str]],
+) -> dict[str, object] | None:
+    if summary is None or summary.get("slurm_node"):
+        return summary
+    override = overrides.get(row.get("row_id", ""))
+    if not override:
+        return summary
+    updated = dict(summary)
+    updated["slurm_job_id"] = override.get("slurm_job_id", updated.get("slurm_job_id", ""))
+    updated["slurm_restart_count"] = override.get("slurm_restarts", updated.get("slurm_restart_count", ""))
+    updated["slurm_node"] = override.get("slurm_node", updated.get("slurm_node", ""))
+    updated["timing_node_override_reason"] = override.get("reason", "")
+    return updated
+
+
 def read_jsonl(path: Path) -> tuple[list[dict[str, object]], dict[str, object] | None]:
     evals: list[dict[str, object]] = []
-    summary = None
+    summaries: list[dict[str, object]] = []
+    config_count = 0
+    timing_guard_failed = False
+    train_steps: list[int] = []
+    eval_steps: list[int] = []
     if not path.exists():
-        return evals, summary
+        return evals, None
     with path.open("r", errors="replace") as handle:
         for raw in handle:
             if not raw.startswith("{"):
@@ -92,11 +137,64 @@ def read_jsonl(path: Path) -> tuple[list[dict[str, object]], dict[str, object] |
                 record = json.loads(raw)
             except json.JSONDecodeError:
                 continue
-            if record.get("event") == "eval":
+            event = record.get("event")
+            if event == "config":
+                config_count += 1
+            elif event == "eval":
                 evals.append(record)
-            elif record.get("event") == "summary":
-                summary = record
+                if record.get("step") is not None:
+                    eval_steps.append(int(record["step"]))
+            elif event == "summary":
+                summaries.append(record)
+            elif event == "timing_guard_failed":
+                timing_guard_failed = True
+            elif event == "train" and record.get("step") is not None:
+                train_steps.append(int(record["step"]))
+    if not summaries:
+        return evals, None
+    summary = dict(summaries[-1])
+    summary["_jsonl_config_count"] = config_count
+    summary["_jsonl_summary_count"] = len(summaries)
+    summary["_jsonl_train_duplicate_steps"] = len(train_steps) - len(set(train_steps))
+    summary["_jsonl_eval_duplicate_steps"] = len(eval_steps) - len(set(eval_steps))
+    summary["_jsonl_timing_guard_failed"] = timing_guard_failed
     return evals, summary
+
+
+TIMING_VALIDATED_MATRIXPOLICY_PHASES = {
+    "E2_matrixpolicy_safe_speed_300m",
+    "E2_rational_only_300m",
+}
+
+
+def timing_integrity_issues(
+    row: dict[str, str],
+    summary: dict[str, object] | None,
+    max_matrixpolicy_sps: float,
+    denylist_nodes: set[str],
+) -> list[str]:
+    if summary is None:
+        return []
+    issues = []
+    if int(summary.get("_jsonl_config_count", 0)) != 1:
+        issues.append(f"config_count={summary.get('_jsonl_config_count')}")
+    if int(summary.get("_jsonl_summary_count", 0)) != 1:
+        issues.append(f"summary_count={summary.get('_jsonl_summary_count')}")
+    if int(summary.get("_jsonl_train_duplicate_steps", 0)) != 0:
+        issues.append(f"duplicate_train_steps={summary.get('_jsonl_train_duplicate_steps')}")
+    if int(summary.get("_jsonl_eval_duplicate_steps", 0)) != 0:
+        issues.append(f"duplicate_eval_steps={summary.get('_jsonl_eval_duplicate_steps')}")
+    if bool(summary.get("_jsonl_timing_guard_failed", False)):
+        issues.append("timing_guard_failed_event_present")
+    if row.get("optimizer") == "rational_matrix_policy_onpolicy" and row.get("phase") in TIMING_VALIDATED_MATRIXPOLICY_PHASES:
+        node = str(summary.get("slurm_node", "") or "")
+        if node in denylist_nodes:
+            issues.append(f"denylisted_slurm_node={node}")
+        if max_matrixpolicy_sps > 0.0:
+            sps = float(summary.get("mean_seconds_per_step", 0.0))
+            if sps > max_matrixpolicy_sps:
+                issues.append(f"matrixpolicy_mean_seconds_per_step={sps:.4f}>{max_matrixpolicy_sps:.4f}")
+    return issues
 
 
 def _load_phase_rows(
@@ -105,6 +203,10 @@ def _load_phase_rows(
     dataset: str,
     phase: str,
     wanted_methods: set[str] | None = None,
+    max_matrixpolicy_sps: float = 0.0,
+    denylist_nodes: set[str] | None = None,
+    node_overrides: dict[str, dict[str, str]] | None = None,
+    allow_timing_anomalies: bool = False,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     with manifest.open(newline="") as handle:
@@ -115,6 +217,11 @@ def _load_phase_rows(
                 continue
             jsonl_path = run_root / row["phase"] / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
             evals, summary = read_jsonl(jsonl_path)
+            summary = apply_timing_node_override(row, summary, {} if node_overrides is None else node_overrides)
+            issues = timing_integrity_issues(row, summary, max_matrixpolicy_sps, set() if denylist_nodes is None else denylist_nodes)
+            if issues and not allow_timing_anomalies:
+                joined = "; ".join(issues)
+                raise RuntimeError(f"Timing integrity check failed for {jsonl_path}: {joined}. Rerun/repair this row; do not exclude it from aggregates.")
             target_step = int(row["steps"])
             final_eval = next((item for item in reversed(evals) if int(item.get("step", -1)) == target_step), None)
             final_loss = safe_float(final_eval.get("val_loss")) if final_eval else math.nan
@@ -147,6 +254,14 @@ def _load_phase_rows(
                     "val_tokens": int(row["val_tokens"]),
                     "eval_interval": int(row["eval_interval"]),
                     "jsonl": str(jsonl_path),
+                    "timing_integrity_issues": ";".join(issues),
+                    "stopped_early": False if summary is None else bool(summary.get("stopped_early", False)),
+                    "early_stop_reason": "" if summary is None else summary.get("early_stop_reason", ""),
+                    "slurm_job_id": "" if summary is None else summary.get("slurm_job_id", ""),
+                    "slurm_restart_count": "" if summary is None else summary.get("slurm_restart_count", ""),
+                    "slurm_node": "" if summary is None else summary.get("slurm_node", ""),
+                    "timing_attempt_id": "" if summary is None else summary.get("timing_attempt_id", ""),
+                    "timing_node_override_reason": "" if summary is None else summary.get("timing_node_override_reason", ""),
                     "evals": evals,
                     "summary": summary,
                 }
@@ -160,11 +275,17 @@ def load_rows(
     dataset: str,
     matrixpolicy_manifest: Path | None = None,
     matrixpolicy_phase: str | None = None,
+    replacement_manifest: Path | None = None,
+    replacement_phase: str | None = None,
+    max_matrixpolicy_sps: float = 0.0,
+    denylist_nodes: set[str] | None = None,
+    node_overrides: dict[str, dict[str, str]] | None = None,
+    allow_timing_anomalies: bool = False,
 ) -> list[dict[str, object]]:
-    rows = _load_phase_rows(manifest, run_root, dataset, PHASE)
-    if matrixpolicy_manifest is not None and matrixpolicy_phase is not None:
-        overrides = _load_phase_rows(matrixpolicy_manifest, run_root, dataset, matrixpolicy_phase, {MATRIXPOLICY_METHOD})
-        by_key = {(int(row["seed"]), str(row["method"])): row for row in rows}
+    rows = _load_phase_rows(manifest, run_root, dataset, PHASE, max_matrixpolicy_sps=max_matrixpolicy_sps, denylist_nodes=denylist_nodes, node_overrides=node_overrides, allow_timing_anomalies=allow_timing_anomalies)
+    by_key = {(int(row["seed"]), str(row["method"])): row for row in rows}
+
+    def overlay(overrides: list[dict[str, object]]) -> None:
         for row in overrides:
             key = (int(row["seed"]), str(row["method"]))
             original = by_key.get(key)
@@ -172,8 +293,12 @@ def load_rows(
                 row["row"] = original["row"]
                 row["row_id"] = original["row_id"]
             by_key[key] = row
-        rows = list(by_key.values())
-    return sorted(rows, key=lambda row: int(row["row"]))
+
+    if matrixpolicy_manifest is not None and matrixpolicy_phase is not None:
+        overlay(_load_phase_rows(matrixpolicy_manifest, run_root, dataset, matrixpolicy_phase, {MATRIXPOLICY_METHOD}, max_matrixpolicy_sps=max_matrixpolicy_sps, denylist_nodes=denylist_nodes, node_overrides=node_overrides, allow_timing_anomalies=allow_timing_anomalies))
+    if replacement_manifest is not None and replacement_phase is not None:
+        overlay(_load_phase_rows(replacement_manifest, run_root, dataset, replacement_phase, REPLACEMENT_RLB_METHODS, max_matrixpolicy_sps=max_matrixpolicy_sps, denylist_nodes=denylist_nodes, node_overrides=node_overrides, allow_timing_anomalies=allow_timing_anomalies))
+    return sorted(by_key.values(), key=lambda row: int(row["row"]))
 
 def final_summary(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     grouped: dict[str, list[dict[str, object]]] = defaultdict(list)
@@ -232,6 +357,7 @@ def runtime_summary(rows: list[dict[str, object]]) -> list[dict[str, object]]:
                 "activation": first["activation"],
                 "optimizer": first["optimizer"],
                 "runs": len(totals),
+                "early_stop_runs": sum(1 for row in group if bool(row.get("stopped_early", False))),
                 "total_seconds_mean": mean(totals),
                 "total_seconds_std": sample_std(totals),
                 "total_seconds_min": min(totals),
@@ -412,14 +538,15 @@ def per_seed_gap_markdown(rows: list[dict[str, object]]) -> tuple[str, bool]:
 
 def runtime_summary_markdown(rows: list[dict[str, object]]) -> str:
     lines = [
-        "| Method | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Method | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
-            "| {method} | {runs} | {mean:.1f} min | {std:.1f} min | {minv:.1f}-{maxv:.1f} min | {sps:.4f} | {tps:.1f} |".format(
+            "| {method} | {runs} | {early} | {mean:.1f} min | {std:.1f} min | {minv:.1f}-{maxv:.1f} min | {sps:.4f} | {tps:.1f} |".format(
                 method=row["method"],
                 runs=row["runs"],
+                early=row.get("early_stop_runs", 0),
                 mean=float(row["total_seconds_mean"]) / 60.0,
                 std=float(row["total_seconds_std"]) / 60.0,
                 minv=float(row["total_seconds_min"]) / 60.0,
@@ -524,16 +651,30 @@ def write_readme(
         row["method"] == MATRIXPOLICY_METHOD and row.get("source_phase") != PHASE
         for row in rows
     )
+    rlb_controls_replaced = any(
+        str(row["method"]) in REPLACEMENT_RLB_METHODS and row.get("source_phase") != PHASE
+        for row in rows
+    )
+    stopped_early_count = sum(1 for row in rows if bool(row.get("stopped_early", False)))
+    replacement_bits = []
+    if matrixpolicy_replaced:
+        replacement_bits.append("MatrixPolicy entries use replacement JSONL rows for the same method and seed")
+    if rlb_controls_replaced:
+        replacement_bits.append("non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows")
     replacement_note = (
-        "\nMatrixPolicy entries use the accepted safe-speed replacement JSONL rows for the same method and seed; "
-        "the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.\n"
-        if matrixpolicy_replaced
+        "\n" + "; ".join(replacement_bits) + "; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.\n"
+        if replacement_bits
         else ""
+    )
+    completion_sentence = (
+        f"All 45 paper-facing rows have final eval at step `{steps}`."
+        if stopped_early_count == 0
+        else f"The cell contains 45 paper-facing rows; `{stopped_early_count}` stopped early and are reported as diverged/non-finite rather than excluded."
     )
 
     text = f"""# ICLR26 E2 {label} 300M Summary
 
-Completed: {completed_date}. Manifest rows `{row_start}-{row_end}` define the full {label} E2 M0/300M cell: 3 seeds x 15 fixed methods. All 45 paper-facing rows have final eval at step `{steps}`.
+Completed: {completed_date}. Manifest rows `{row_start}-{row_end}` define the full {label} E2 M0/300M cell: 3 seeds x 15 fixed methods. {completion_sentence}
 
 Each row uses `{tokens_per_step}` global tokens/step for about `{total_tokens / 1_000_000:.1f}M` train tokens. Validation uses the E2 {label} slice from the manifest: `val_skip_tokens={val_skip_tokens}`, `val_tokens={val_tokens}`, `eval_interval={eval_interval}`.{replacement_note}
 ## Final Validation Loss
@@ -548,7 +689,7 @@ Each row uses `{tokens_per_step}` global tokens/step for about `{total_tokens / 
 
 ## Runtime Summary
 
-`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion.
 
 {runtime_summary_markdown(runtime_rows)}
 
@@ -574,6 +715,8 @@ This table asks how many training tokens were needed to first reach a validation
 
 def main() -> None:
     args = parse_args()
+    denylist_nodes = {node.strip() for node in args.matrixpolicy_denylist_nodes.split(",") if node.strip()}
+    node_overrides = load_timing_node_overrides(args.timing_node_overrides)
     targets = args.targets if args.targets is not None else DEFAULT_TARGETS.get(args.dataset)
     if not targets:
         raise SystemExit(f"No default targets for dataset {args.dataset}; pass --targets.")
@@ -584,13 +727,19 @@ def main() -> None:
         args.dataset,
         args.matrixpolicy_manifest,
         args.matrixpolicy_phase,
+        args.replacement_manifest,
+        args.replacement_phase,
+        args.matrixpolicy_max_seconds_per_step,
+        denylist_nodes,
+        node_overrides,
+        args.allow_timing_anomalies,
     )
     if not rows:
         raise SystemExit(f"No {PHASE} rows found for dataset {args.dataset}.")
-    incomplete = [row for row in rows if not bool(row["complete"])]
+    incomplete = [row for row in rows if not bool(row["complete"]) and not bool(row.get("stopped_early", False))]
     if incomplete:
         missing = ", ".join(str(row["row"]) for row in incomplete)
-        raise SystemExit(f"Dataset {args.dataset} is incomplete; missing complete rows: {missing}")
+        raise SystemExit(f"Dataset {args.dataset} is incomplete; missing complete rows without early-stop summaries: {missing}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     final_rows = final_summary(rows)
@@ -616,6 +765,12 @@ def main() -> None:
             "steps",
             "global_tokens_per_step",
             "total_tokens",
+            "slurm_job_id",
+            "slurm_restart_count",
+            "slurm_node",
+            "timing_attempt_id",
+            "timing_node_override_reason",
+            "timing_integrity_issues",
             "jsonl",
         ],
     )
@@ -640,6 +795,7 @@ def main() -> None:
             "activation",
             "optimizer",
             "runs",
+            "early_stop_runs",
             "total_seconds_mean",
             "total_seconds_std",
             "total_seconds_min",

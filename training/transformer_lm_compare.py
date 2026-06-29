@@ -4452,6 +4452,13 @@ def reduce_mean(value, device, is_distributed):
     return float(tensor.item())
 
 
+def reduce_max(value, device, is_distributed):
+    tensor = torch.tensor(float(value), device=device)
+    if is_distributed:
+        dist.all_reduce(tensor, op=dist.ReduceOp.MAX)
+    return float(tensor.item())
+
+
 def unwrap_model(model):
     return model.module if isinstance(model, nn.parallel.DistributedDataParallel) else model
 
@@ -5938,6 +5945,8 @@ def parse_args():
     parser.add_argument("--early-stop-min-step", type=int, default=0)
     parser.add_argument("--early-stop-max-val-loss", type=float, default=0.0)
     parser.add_argument("--early-stop-loss-increase", type=float, default=0.0)
+    parser.add_argument("--timing-guard-max-seconds-per-step", type=float, default=0.0)
+    parser.add_argument("--timing-guard-min-step", type=int, default=0)
     parser.add_argument("--probe-batch-size", type=int, default=2)
     parser.add_argument("--telemetry-rlb-stat-every", type=int, default=4)
     parser.add_argument("--telemetry-rlb-stat-samples", type=int, default=512)
@@ -6117,9 +6126,20 @@ def main():
         args.rational_max_groups,
     )
 
+    slurm_job_id = os.environ.get("SLURM_JOB_ID")
+    slurm_restart_count = int(os.environ.get("SLURM_RESTART_COUNT", "0") or 0)
+    slurm_node = os.environ.get("SLURMD_NODENAME") or os.environ.get("SLURM_NODELIST")
+    timing_attempt_id = f"{slurm_job_id or 'manual'}:{slurm_restart_count}:{int(time.time())}"
+
     config_record = {
         "event": "config",
         "activation": args.activation,
+        "slurm_job_id": slurm_job_id,
+        "slurm_restart_count": slurm_restart_count,
+        "slurm_node": slurm_node,
+        "timing_attempt_id": timing_attempt_id,
+        "timing_guard_max_seconds_per_step": args.timing_guard_max_seconds_per_step,
+        "timing_guard_min_step": args.timing_guard_min_step,
         "batch_size_per_gpu": args.batch_size,
         "birational_alpha_init": args.birational_alpha_init,
         "birational_denominator_init": args.birational_denominator_init,
@@ -6597,6 +6617,31 @@ def main():
             if rank == 0:
                 write_jsonl(out_path, record)
 
+            guard_limit = float(args.timing_guard_max_seconds_per_step)
+            guard_min_step = max(1, int(args.timing_guard_min_step))
+            if guard_limit > 0.0 and step + 1 >= guard_min_step:
+                guard_step_time = reduce_max(mean_recent_step, device, is_distributed)
+                if guard_step_time > guard_limit:
+                    guard_record = {
+                        "event": "timing_guard_failed",
+                        "activation": args.activation,
+                        "step": step + 1,
+                        "seconds_per_step": guard_step_time,
+                        "max_seconds_per_step": guard_limit,
+                        "timing_guard_min_step": guard_min_step,
+                        "slurm_job_id": slurm_job_id,
+                        "slurm_restart_count": slurm_restart_count,
+                        "slurm_node": slurm_node,
+                        "timing_attempt_id": timing_attempt_id,
+                    }
+                    rank0_print(rank, json.dumps(guard_record, sort_keys=True))
+                    if rank == 0:
+                        write_jsonl(out_path, guard_record)
+                    if is_distributed:
+                        dist.barrier()
+                    cleanup_distributed(is_distributed)
+                    raise SystemExit(88)
+
         if will_eval:
             val_loss = evaluate(model, val_tokens, args, offsets, rank, world_size, device, is_distributed)
             record = {
@@ -6659,6 +6704,12 @@ def main():
     summary = {
         "event": "summary",
         "activation": args.activation,
+        "slurm_job_id": slurm_job_id,
+        "slurm_restart_count": slurm_restart_count,
+        "slurm_node": slurm_node,
+        "timing_attempt_id": timing_attempt_id,
+        "timing_guard_max_seconds_per_step": args.timing_guard_max_seconds_per_step,
+        "timing_guard_min_step": args.timing_guard_min_step,
         "mean_seconds_per_step": mean_step,
         "tokens_per_second": global_tokens / mean_step,
         "total_seconds": total_time,

@@ -15,6 +15,15 @@ import numpy as np
 
 PHASE = "E2_m0_300m"
 MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
+REPLACEMENT_RLB_METHODS = {
+    "rlb_adamw",
+    "rlb_lion",
+    "rlb_soap",
+    "rlb_muon",
+    "rlb_schedulefree",
+    "rlb_came",
+    "rlb_ademamix",
+}
 
 DATASETS = [
     ("dclm", "DCLM"),
@@ -123,6 +132,9 @@ def parse_jsonl_runs(
     matrixpolicy_manifest: Path | None = None,
     matrixpolicy_run_root: Path | None = None,
     matrixpolicy_phase: str | None = None,
+    replacement_manifest: Path | None = None,
+    replacement_run_root: Path | None = None,
+    replacement_phase: str | None = None,
 ):
     curves = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"train": {}, "eval": {}})))
     wanted_methods = {method for method, *_ in ALL_METHODS} | {method for method, _ in TABLE_METHODS}
@@ -134,6 +146,14 @@ def parse_jsonl_runs(
             curves,
             matrixpolicy_phase,
             {MATRIXPOLICY_METHOD},
+        )
+    if replacement_manifest is not None and replacement_run_root is not None and replacement_phase is not None:
+        _load_manifest_rows(
+            replacement_manifest,
+            replacement_run_root,
+            curves,
+            replacement_phase,
+            REPLACEMENT_RLB_METHODS,
         )
     return curves
 
@@ -256,7 +276,7 @@ def plot_dataset(curves, dataset: str, dataset_label: str, metric: str, out_path
     return True
 
 
-def write_readme(out_dir: Path, curves) -> None:
+def write_readme(out_dir: Path, curves, uses_global_rational_controls: bool) -> None:
     if len(DATASETS) == 1:
         completed = DATASETS[0][1]
     else:
@@ -266,7 +286,12 @@ def write_readme(out_dir: Path, curves) -> None:
         "",
         f"Completed E2 M0/300M datasets: {completed}. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.",
         "",
-        "MatrixPolicy curves use the accepted safe-speed replacement JSONL rows when the generator is called with `--matrixpolicy-manifest`; all other methods use the main E2 manifest rows.",
+        "MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`."
+        + (
+            " Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows."
+            if uses_global_rational_controls
+            else " Other methods use the main E2 manifest rows."
+        ),
         "",
         final_snapshot(curves),
     ]
@@ -309,6 +334,9 @@ def main() -> int:
     parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
     parser.add_argument("--matrixpolicy-run-root", type=Path, default=None)
     parser.add_argument("--matrixpolicy-phase", type=str, default=None)
+    parser.add_argument("--replacement-manifest", type=Path, default=None)
+    parser.add_argument("--replacement-run-root", type=Path, default=None)
+    parser.add_argument("--replacement-phase", type=str, default=None)
     parser.add_argument("--out-dir", type=Path, default=Path("experiments/results/iclr26_e2_figures"))
     args = parser.parse_args()
 
@@ -318,6 +346,9 @@ def main() -> int:
         args.matrixpolicy_manifest,
         args.matrixpolicy_run_root,
         args.matrixpolicy_phase,
+        args.replacement_manifest,
+        args.replacement_run_root,
+        args.replacement_phase,
     )
     suffixes = {
         "val_loss": "validation_loss_mean_std.svg",
@@ -335,7 +366,13 @@ def main() -> int:
                 out_path = args.out_dir / f"{dataset}_{variant}_{suffix}"
                 if plot_dataset(curves, dataset, label, metric, out_path, methods, variant_label):
                     made.append(out_path)
-    write_readme(args.out_dir, curves)
+    write_readme(
+        args.out_dir,
+        curves,
+        args.replacement_manifest is not None
+        and args.replacement_run_root is not None
+        and args.replacement_phase is not None,
+    )
     for path in made:
         print(path)
     print(args.out_dir / "README.md")

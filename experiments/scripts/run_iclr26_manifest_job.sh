@@ -37,6 +37,11 @@ MAX_REPO_GIB="${MAX_REPO_GIB:-190}"
 MAX_EVAL_INTERVAL="${MAX_EVAL_INTERVAL:-50}"
 BUILD_EXT="${BUILD_EXT:-1}"
 COMMON_EXTRA_ARGS="${COMMON_EXTRA_ARGS:-}"
+TIMING_NODE_DENYLIST="${TIMING_NODE_DENYLIST:-sablab-gpu-12}"
+TIMING_GUARD_MIN_STEP="${TIMING_GUARD_MIN_STEP:-300}"
+TIMING_GUARD_MAX_SECONDS_PER_STEP="${TIMING_GUARD_MAX_SECONDS_PER_STEP:-0.0}"
+TIMING_GUARD_MAX_REQUEUES="${TIMING_GUARD_MAX_REQUEUES:-4}"
+FORCE_RERUN_COMPLETE_JSONL="${FORCE_RERUN_COMPLETE_JSONL:-0}"
 
 request_requeue() {
   echo "=== received USR1 at $(date -Is); requesting requeue for job ${SLURM_JOB_ID:-manual} ==="
@@ -46,6 +51,25 @@ request_requeue() {
   exit 0
 }
 trap request_requeue USR1
+
+request_timing_requeue() {
+  local reason="$1"
+  local restart_count="${SLURM_RESTART_COUNT:-0}"
+  echo "=== timing guard requesting requeue at $(date -Is): ${reason}; restart_count=${restart_count}; max=${TIMING_GUARD_MAX_REQUEUES} ===" >&2
+  if [[ "${DISABLE_TIMING_GUARD_REQUEUE:-0}" == "1" ]]; then
+    echo "=== DISABLE_TIMING_GUARD_REQUEUE=1; failing timing row instead of requeueing ===" >&2
+    exit 88
+  fi
+  if [[ -n "${SLURM_JOB_ID:-}" ]] && command -v scontrol >/dev/null 2>&1 && (( restart_count < TIMING_GUARD_MAX_REQUEUES )); then
+    if scontrol requeue "${SLURM_JOB_ID}"; then
+      exit 0
+    fi
+    echo "=== scontrol requeue failed for timing row ${SLURM_JOB_ID}; failing timing row ===" >&2
+    exit 88
+  fi
+  echo "=== timing guard could not requeue safely; failing timing row ===" >&2
+  exit 88
+}
 
 check_repo_size() {
   local used_kib
@@ -120,7 +144,7 @@ archive_incomplete_jsonl() {
 
 require_nvlink_for_timing_row() {
   case "${ROW_PHASE}" in
-    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_fineweb_edu_seed2027_runtime_repair_100m|E1_rational_only_100m|E2_rational_only_300m)
+    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_fineweb_edu_seed2027_runtime_repair_100m|E1_rational_only_100m|E2_rational_only_300m|E1_global_rational_optimizers_100m|E2_global_rational_optimizers_300m)
       ;;
     *)
       return 0
@@ -137,6 +161,12 @@ require_nvlink_for_timing_row() {
     echo "Refusing timing row ${ROW_ROW_ID}: cannot determine Slurm node for NVLink guard." >&2
     exit 87
   fi
+  local bad_node
+  for bad_node in ${TIMING_NODE_DENYLIST//,/ }; do
+    if [[ -n "${bad_node}" && "${node}" == "${bad_node}" ]]; then
+      request_timing_requeue "timing row ${ROW_ROW_ID} landed on denylisted node ${node}"
+    fi
+  done
   if ! command -v scontrol >/dev/null 2>&1; then
     echo "Refusing timing row ${ROW_ROW_ID}: scontrol unavailable for NVLink guard." >&2
     exit 87
@@ -174,14 +204,32 @@ run_manifest_row() {
   local run_dir="${OUTPUT_ROOT}/${ROW_PHASE}/${ROW_DATASET}/${ROW_ROW_ID}"
   local jsonl="${run_dir}/${ROW_ACTIVATION}.jsonl"
   if jsonl_complete "${jsonl}" "${ROW_STEPS}"; then
-    echo "=== row ${ROW_ROW_INDEX} ${ROW_ROW_ID} already complete; skipping ==="
-    return 0
+    if [[ "${FORCE_RERUN_COMPLETE_JSONL}" == "1" ]]; then
+      local stamp
+      stamp="$(date +%Y%m%d%H%M%S)"
+      local archive_path="${jsonl}.rerun_${SLURM_JOB_ID:-manual}_${SLURM_RESTART_COUNT:-0}_${stamp}"
+      echo "=== FORCE_RERUN_COMPLETE_JSONL=1; archiving complete ${jsonl} -> ${archive_path} ==="
+      mv "${jsonl}" "${archive_path}"
+    else
+      echo "=== row ${ROW_ROW_INDEX} ${ROW_ROW_ID} already complete; skipping ==="
+      return 0
+    fi
   fi
   archive_incomplete_jsonl "${jsonl}"
   mkdir -p "${run_dir}"
 
+  local timing_guard_extra=""
+  case "${ROW_PHASE}" in
+    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_rational_only_100m|E2_rational_only_300m)
+      if [[ "${ROW_OPTIMIZER}" == "rational_matrix_policy_onpolicy" ]]; then
+        timing_guard_extra="--timing-guard-min-step ${TIMING_GUARD_MIN_STEP} --timing-guard-max-seconds-per-step ${TIMING_GUARD_MAX_SECONDS_PER_STEP}"
+      fi
+      ;;
+  esac
+
   echo "=== row=${ROW_ROW_INDEX}; id=${ROW_ROW_ID}; phase=${ROW_PHASE}; dataset=${ROW_DATASET}; method=${ROW_METHOD}; seed=${ROW_SEED}; one job uses 4 A6000s ==="
 
+  set +e
   RUN_NAME="${ROW_ROW_ID}" \
   STEPS="${ROW_STEPS}" \
   SEEDS="${ROW_SEED}" \
@@ -192,8 +240,14 @@ run_manifest_row() {
   LOG_INTERVAL="10" \
   NPROC_PER_NODE="4" \
   SKIP_BUILD_EXT="1" \
-  EXTRA_ARGS="--dataset-name ${ROW_DATASET_NAME} --dataset-config ${ROW_DATASET_CONFIG} --dataset-streaming --dataset-text-column ${ROW_TEXT_COLUMN} --train-split ${ROW_TRAIN_SPLIT} --validation-split ${ROW_VAL_SPLIT} --validation-skip-tokens ${ROW_VAL_SKIP_TOKENS} --cache-dir ${TOKEN_CACHE_DIR}/${ROW_DATASET} --output-dir ${OUTPUT_ROOT}/${ROW_PHASE}/${ROW_DATASET} --max-train-tokens ${ROW_TRAIN_TOKENS} --max-val-tokens ${ROW_VAL_TOKENS} --batch-size ${ROW_BATCH_SIZE} --grad-accum ${ROW_GRAD_ACCUM} --layers ${ROW_LAYERS} --d-model ${ROW_D_MODEL} --heads ${ROW_HEADS} --ffn-dim ${ROW_FFN_DIM} --lr ${ROW_LR} --min-lr ${ROW_MIN_LR} --weight-decay ${ROW_WEIGHT_DECAY} --probe-batch-size 1 --matrix-spectrum-interval 250 ${ROW_EXTRA_ARGS} ${COMMON_EXTRA_ARGS}" \
+  EXTRA_ARGS="--dataset-name ${ROW_DATASET_NAME} --dataset-config ${ROW_DATASET_CONFIG} --dataset-streaming --dataset-text-column ${ROW_TEXT_COLUMN} --train-split ${ROW_TRAIN_SPLIT} --validation-split ${ROW_VAL_SPLIT} --validation-skip-tokens ${ROW_VAL_SKIP_TOKENS} --cache-dir ${TOKEN_CACHE_DIR}/${ROW_DATASET} --output-dir ${OUTPUT_ROOT}/${ROW_PHASE}/${ROW_DATASET} --max-train-tokens ${ROW_TRAIN_TOKENS} --max-val-tokens ${ROW_VAL_TOKENS} --batch-size ${ROW_BATCH_SIZE} --grad-accum ${ROW_GRAD_ACCUM} --layers ${ROW_LAYERS} --d-model ${ROW_D_MODEL} --heads ${ROW_HEADS} --ffn-dim ${ROW_FFN_DIM} --lr ${ROW_LR} --min-lr ${ROW_MIN_LR} --weight-decay ${ROW_WEIGHT_DECAY} --probe-batch-size 1 --matrix-spectrum-interval 250 ${ROW_EXTRA_ARGS} ${COMMON_EXTRA_ARGS} ${timing_guard_extra}" \
   bash training/run_lm_optimizer_sweep.sbatch
+  local status=$?
+  set -e
+  if (( status == 88 )); then
+    request_timing_requeue "training timing guard failed for ${ROW_ROW_ID}"
+  fi
+  return "${status}"
 }
 
 if [[ "${CONFIRM_ICLR26_MANIFEST}" != "1" ]]; then

@@ -15,6 +15,15 @@ import numpy as np
 
 PHASE = "E1_m0_100m"
 MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
+REPLACEMENT_RLB_METHODS = {
+    "rlb_adamw",
+    "rlb_lion",
+    "rlb_soap",
+    "rlb_muon",
+    "rlb_schedulefree",
+    "rlb_came",
+    "rlb_ademamix",
+}
 
 DATASETS = [
     ("dclm", "DCLM"),
@@ -130,6 +139,9 @@ def parse_jsonl_runs(
     matrixpolicy_manifest: Path | None = None,
     matrixpolicy_run_root: Path | None = None,
     matrixpolicy_phase: str | None = None,
+    replacement_manifest: Path | None = None,
+    replacement_run_root: Path | None = None,
+    replacement_phase: str | None = None,
 ):
     curves = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"train": {}, "eval": {}})))
     wanted_methods = {method for method, *_ in ALL_METHODS} | {method for method, _ in TABLE_METHODS}
@@ -141,6 +153,14 @@ def parse_jsonl_runs(
             curves,
             matrixpolicy_phase,
             {MATRIXPOLICY_METHOD},
+        )
+    if replacement_manifest is not None and replacement_run_root is not None and replacement_phase is not None:
+        _load_manifest_rows(
+            replacement_manifest,
+            replacement_run_root,
+            curves,
+            replacement_phase,
+            REPLACEMENT_RLB_METHODS,
         )
     return curves
 
@@ -221,8 +241,9 @@ def update_status_tables(status_path: Path, curves) -> None:
         table_start = text.index("\n\n|", start)
         next_section_candidates = [
             idx for idx in (
+                text.find("\n#### ", table_start + 1),
                 text.find("\n### ", table_start + 1),
-                text.find("\n## E1 Results Snapshot", table_start + 1),
+                text.find("\n## ", table_start + 1),
             )
             if idx != -1
         ]
@@ -292,24 +313,30 @@ def plot_dataset(curves, dataset: str, dataset_label: str, metric: str, out_path
     return True
 
 
-def write_readme(out_dir: Path, curves, uses_safe_matrixpolicy: bool) -> None:
+def write_readme(out_dir: Path, curves, uses_safe_matrixpolicy: bool, uses_global_rational_controls: bool) -> None:
     if len(DATASETS) == 1:
         completed = DATASETS[0][1]
     else:
         completed = ", ".join(label for _, label in DATASETS[:-1]) + f", and {DATASETS[-1][1]}"
     matrixpolicy_note = (
-        "MatrixPolicy curves and tables use the accepted E1 safe-speed replacement JSONL rows when "
-        "the generator is called with `--matrixpolicy-manifest`; all other methods use the clean main "
-        "E1 rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable."
+        "MatrixPolicy curves and tables use the replacement JSONL rows passed with "
+        "`--matrixpolicy-manifest`."
         if uses_safe_matrixpolicy
         else "MatrixPolicy curves and tables use the manifest rows passed to this generator."
+    )
+    control_note = (
+        " Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom "
+        "replacement rows passed with `--replacement-manifest`; SiLU controls use the clean main E1 rows "
+        "plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable."
+        if uses_global_rational_controls
+        else " Other methods use the clean main E1 rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable."
     )
     sections = [
         "# ICLR26 E1 Dense Curve Figures",
         "",
         f"Completed E1 M0/100M datasets: {completed}. Figures use every native JSONL log point from step 500 through 3050. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.",
         "",
-        matrixpolicy_note,
+        matrixpolicy_note + control_note,
         "",
         final_snapshot(curves),
     ]
@@ -352,6 +379,9 @@ def main() -> int:
     parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
     parser.add_argument("--matrixpolicy-run-root", type=Path, default=None)
     parser.add_argument("--matrixpolicy-phase", type=str, default=None)
+    parser.add_argument("--replacement-manifest", type=Path, default=None)
+    parser.add_argument("--replacement-run-root", type=Path, default=None)
+    parser.add_argument("--replacement-phase", type=str, default=None)
     parser.add_argument("--out-dir", type=Path, default=Path("experiments/results/iclr26_e1_figures"))
     parser.add_argument("--status-md", type=Path, default=None)
     args = parser.parse_args()
@@ -362,6 +392,9 @@ def main() -> int:
         args.matrixpolicy_manifest,
         args.matrixpolicy_run_root,
         args.matrixpolicy_phase,
+        args.replacement_manifest,
+        args.replacement_run_root,
+        args.replacement_phase,
     )
     if args.status_md is not None:
         update_status_tables(args.status_md, curves)
@@ -388,6 +421,9 @@ def main() -> int:
         args.matrixpolicy_manifest is not None
         and args.matrixpolicy_run_root is not None
         and args.matrixpolicy_phase is not None,
+        args.replacement_manifest is not None
+        and args.replacement_run_root is not None
+        and args.replacement_phase is not None,
     )
     for path in made:
         print(path)

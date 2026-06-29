@@ -44,7 +44,7 @@ RLB + Muon
 RLB + rational_matrix_policy_onpolicy
 ```
 
-The current public tables use `silu` and `rlb_fused_fixed_strong_ffn` as the two activation rows.
+The original main manifest uses `silu` and `rlb_fused_fixed_strong_ffn` as the fixed activation rows. Current paper-facing MatrixPolicy and non-MatrixPolicy RLB optimizer-control overlays use `rlb_fused_global_rational` with no local atom path, sourced from `../experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv` and `../experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the completed main-manifest rows.
 
 The harness now exposes these additional broad baselines for matched paper runs:
 

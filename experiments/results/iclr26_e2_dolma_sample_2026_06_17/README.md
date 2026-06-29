@@ -1,61 +1,61 @@
 # ICLR26 E2 Dolma-sample 300M Summary
 
-Completed: 2026-06-17. Manifest rows `375-419` define the full Dolma-sample E2 M0/300M cell: 3 seeds x 15 fixed methods. All 45 paper-facing rows have final eval at step `9150`.
+Completed: 2026-06-17. Manifest rows `375-419` define the full Dolma-sample E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 Dolma-sample slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use the accepted safe-speed replacement JSONL rows for the same method and seed; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 ## Final Validation Loss
 
 | Method | Final val loss mean +/- sample std | Min | Max | Notes |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 3.808954 +/- 0.006442 | 3.801525 | 3.813003 |  |
-| rlb_lion | 3.842503 +/- 0.009333 | 3.832392 | 3.850787 |  |
+| rlb_matrixpolicy_original | 3.806155 +/- 0.007278 | 3.797840 | 3.811364 |  |
+| rlb_lion | 3.841206 +/- 0.008478 | 3.831467 | 3.846927 |  |
 | silu_lion | 3.847523 +/- 0.009363 | 3.836884 | 3.854513 |  |
-| rlb_muon | 3.848206 +/- 0.008937 | 3.838500 | 3.856095 |  |
+| rlb_muon | 3.847789 +/- 0.004708 | 3.843204 | 3.852611 |  |
 | silu_muon | 3.858114 +/- 0.010066 | 3.846854 | 3.866242 |  |
 | silu_adamw | 3.903690 +/- 0.009091 | 3.893635 | 3.911328 |  |
-| rlb_adamw | 3.906369 +/- 0.007279 | 3.898687 | 3.913164 |  |
-| rlb_soap | 3.920517 +/- 0.011663 | 3.909389 | 3.932650 |  |
+| rlb_adamw | 3.904543 +/- 0.008210 | 3.896088 | 3.912484 |  |
+| rlb_soap | 3.926881 +/- 0.012526 | 3.915837 | 3.940492 |  |
 | silu_soap | 3.956834 +/- 0.009319 | 3.946098 | 3.962839 |  |
-| rlb_schedulefree | 4.205442 +/- 0.010523 | 4.193336 | 4.212402 |  |
+| rlb_schedulefree | 4.212122 +/- 0.011229 | 4.199156 | 4.218638 |  |
 | silu_schedulefree | 4.215105 +/- 0.005319 | 4.210405 | 4.220879 |  |
 | silu_came | 4.249166 +/- 0.026981 | 4.223768 | 4.277492 |  |
-| rlb_came | 4.285696 +/- 0.038229 | 4.241558 | 4.308310 |  |
+| rlb_came | 4.266527 +/- 0.040923 | 4.233150 | 4.312184 |  |
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 | silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three Dolma-sample E2 seeds. Mean final val loss is `3.808954 +/- 0.006442`; the next-best aggregate methods are `rlb_lion` at `3.842503 +/- 0.009333`, `silu_lion` at `3.847523 +/- 0.009363`, `rlb_muon` at `3.848206 +/- 0.008937`.
+MatrixPolicy is best on all three Dolma-sample E2 seeds. Mean final val loss is `3.806155 +/- 0.007278`; the next-best aggregate methods are `rlb_lion` at `3.841206 +/- 0.008478`, `silu_lion` at `3.847523 +/- 0.009363`, `rlb_muon` at `3.847789 +/- 0.004708`.
 
 ## Per-Seed MatrixPolicy Gap
 
 | Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
 | ---: | ---: | --- | ---: | ---: |
-| 1337 | 3.813003 | rlb_lion | 3.850787 | 0.037784 |
-| 2027 | 3.812334 | rlb_lion | 3.844330 | 0.031996 |
-| 3407 | 3.801525 | rlb_lion | 3.832392 | 0.030867 |
+| 1337 | 3.811364 | rlb_lion | 3.846927 | 0.035563 |
+| 2027 | 3.809262 | rlb_lion | 3.845225 | 0.035963 |
+| 3407 | 3.797840 | rlb_lion | 3.831467 | 0.033627 |
 
 ## Runtime Summary
 
-`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead.
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion.
 
-| Method | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| silu_schedulefree | 3 | 60.3 min | 1.9 min | 58.7-62.4 min | 0.3777 | 86810.7 |
-| silu_lion | 3 | 62.8 min | 5.2 min | 58.5-68.5 min | 0.3942 | 83530.1 |
-| silu_adamw | 3 | 63.5 min | 6.1 min | 58.4-70.3 min | 0.3991 | 82647.8 |
-| silu_came | 3 | 65.6 min | 2.3 min | 63.7-68.2 min | 0.4116 | 79666.0 |
-| rlb_matrixpolicy_original | 3 | 69.2 min | 3.7 min | 64.9-71.4 min | 0.4278 | 76744.9 |
-| silu_muon | 3 | 78.0 min | 21.0 min | 64.2-102.2 min | 0.4937 | 69498.1 |
-| rlb_schedulefree | 3 | 78.7 min | 1.7 min | 76.8-80.2 min | 0.4858 | 67481.3 |
-| silu_soap | 3 | 79.6 min | 11.8 min | 71.5-93.2 min | 0.5025 | 66102.2 |
-| silu_ademamix | 3 | 79.7 min | 12.5 min | 70.9-94.0 min | 0.4279 | 78310.3 |
-| rlb_came | 3 | 84.5 min | 1.8 min | 82.8-86.4 min | 0.5235 | 62615.8 |
-| rlb_lion | 3 | 85.9 min | 10.7 min | 74.4-95.5 min | 0.5329 | 62238.9 |
-| rlb_adamw | 3 | 86.0 min | 9.7 min | 76.3-95.7 min | 0.5332 | 62059.0 |
-| rlb_soap | 3 | 87.9 min | 10.6 min | 76.7-97.6 min | 0.5462 | 60664.4 |
-| rlb_muon | 3 | 102.6 min | 11.5 min | 91.5-114.5 min | 0.6406 | 51656.8 |
-| rlb_ademamix | 3 | 112.1 min | 16.7 min | 100.5-131.2 min | 0.5596 | 60279.4 |
+| Method | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| rlb_ademamix | 3 | 3 | 5.4 min | 2.5 min | 3.8-8.3 min | 0.4134 | 79606.0 |
+| silu_schedulefree | 3 | 0 | 60.3 min | 1.9 min | 58.7-62.4 min | 0.3777 | 86810.7 |
+| silu_lion | 3 | 0 | 62.8 min | 5.2 min | 58.5-68.5 min | 0.3942 | 83530.1 |
+| silu_adamw | 3 | 0 | 63.5 min | 6.1 min | 58.4-70.3 min | 0.3991 | 82647.8 |
+| rlb_lion | 3 | 0 | 64.8 min | 5.6 min | 61.5-71.3 min | 0.4002 | 82307.0 |
+| rlb_adamw | 3 | 0 | 65.1 min | 5.8 min | 61.8-71.8 min | 0.4025 | 81843.6 |
+| silu_came | 3 | 0 | 65.6 min | 2.3 min | 63.7-68.2 min | 0.4116 | 79666.0 |
+| rlb_schedulefree | 3 | 0 | 66.1 min | 5.8 min | 62.7-72.7 min | 0.4085 | 80634.0 |
+| rlb_soap | 3 | 0 | 70.2 min | 5.8 min | 63.5-73.7 min | 0.4351 | 75686.6 |
+| rlb_muon | 3 | 0 | 73.5 min | 5.9 min | 66.7-77.1 min | 0.4562 | 72159.8 |
+| rlb_matrixpolicy_original | 3 | 0 | 73.8 min | 14.9 min | 62.5-90.7 min | 0.4600 | 73238.4 |
+| rlb_came | 3 | 0 | 74.1 min | 5.9 min | 67.3-77.6 min | 0.4608 | 71450.7 |
+| silu_muon | 3 | 0 | 78.0 min | 21.0 min | 64.2-102.2 min | 0.4937 | 69498.1 |
+| silu_soap | 3 | 0 | 79.6 min | 11.8 min | 71.5-93.2 min | 0.5025 | 66102.2 |
+| silu_ademamix | 3 | 0 | 79.7 min | 12.5 min | 70.9-94.0 min | 0.4279 | 78310.3 |
 
 ## Dense Curve Figures
 
@@ -83,13 +83,13 @@ This table asks how many training tokens were needed to first reach a validation
 
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
-| 4.20 | 93.9M | 93.9M -> 94.5M (3/3) | 0.5M | 0.6% | 93.9M -> 110.9M (3/3) | 16.9M | 15.3% |
-| 4.10 | 123.4M | 123.4M -> 124.0M (3/3) | 0.5M | 0.4% | 123.4M -> 145.3M (3/3) | 21.8M | 15.0% |
-| 4.00 | 158.9M | 158.9M -> 163.8M (3/3) | 4.9M | 3.0% | 158.9M -> 195.0M (3/3) | 36.0M | 18.5% |
-| 3.95 | 181.9M | 181.9M -> 190.6M (3/3) | 8.7M | 4.6% | 181.9M -> 232.7M (3/3) | 50.8M | 21.8% |
-| 3.90 | 209.7M | 209.7M -> 223.9M (3/3) | 14.2M | 6.3% | 204.8M -> 283.4M (1/3) | 78.6M | 27.7% |
-| 3.85 | 246.3M | 244.9M -> 276.9M (2/3) | 31.9M | 11.5% | not reached (0/3) | not reached | n/a |
-| 3.82 | 280.2M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+| 4.20 | 93.4M | 93.4M -> 94.5M (3/3) | 1.1M | 1.2% | 93.4M -> 110.9M (3/3) | 17.5M | 15.8% |
+| 4.10 | 122.3M | 122.3M -> 124.5M (3/3) | 2.2M | 1.8% | 122.3M -> 145.3M (3/3) | 22.9M | 15.8% |
+| 4.00 | 157.8M | 157.8M -> 162.7M (3/3) | 4.9M | 3.0% | 157.8M -> 195.0M (3/3) | 37.1M | 19.0% |
+| 3.95 | 180.8M | 180.8M -> 189.5M (3/3) | 8.7M | 4.6% | 180.8M -> 232.7M (3/3) | 51.9M | 22.3% |
+| 3.90 | 207.0M | 207.0M -> 222.8M (3/3) | 15.8M | 7.1% | 201.5M -> 283.4M (1/3) | 81.9M | 28.9% |
+| 3.85 | 242.5M | 242.5M -> 280.2M (3/3) | 37.7M | 13.5% | not reached (0/3) | not reached | n/a |
+| 3.82 | 274.7M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
 
 ## Files
 

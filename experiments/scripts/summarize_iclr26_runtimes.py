@@ -18,7 +18,18 @@ RUN_ROOT = Path("experiments/runs/iclr26_main")
 SAFE_E1_MATRIXPOLICY_MANIFEST = Path("experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv")
 SAFE_E2_MATRIXPOLICY_MANIFEST = Path("experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv")
 E1_RESTART_REPAIR_MANIFEST = Path("experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv")
+TIMING_NODE_OVERRIDES = Path("experiments/manifests/iclr26_timing_node_overrides.csv")
+GLOBAL_RATIONAL_OPTIMIZER_MANIFEST = Path("experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv")
 MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
+REPLACEMENT_RLB_METHODS = {
+    "rlb_adamw",
+    "rlb_lion",
+    "rlb_soap",
+    "rlb_muon",
+    "rlb_schedulefree",
+    "rlb_came",
+    "rlb_ademamix",
+}
 
 # E1 FineWeb-Edu seed 2027 ran as Slurm job 158117 with Restarts=6.
 # Rows 75-80 completed before the final restart and match adjacent seed timing.
@@ -93,6 +104,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--safe-e1-matrixpolicy-manifest", type=Path, default=SAFE_E1_MATRIXPOLICY_MANIFEST)
     parser.add_argument("--safe-e2-matrixpolicy-manifest", type=Path, default=SAFE_E2_MATRIXPOLICY_MANIFEST)
     parser.add_argument("--e1-restart-repair-manifest", type=Path, default=E1_RESTART_REPAIR_MANIFEST)
+    parser.add_argument("--global-rational-optimizer-manifest", type=Path, default=GLOBAL_RATIONAL_OPTIMIZER_MANIFEST)
+    parser.add_argument("--timing-node-overrides", type=Path, default=TIMING_NODE_OVERRIDES)
+    parser.add_argument("--matrixpolicy-max-seconds-per-step", type=float, default=0.0)
+    parser.add_argument("--matrixpolicy-denylist-nodes", default="sablab-gpu-12")
+    parser.add_argument("--allow-timing-anomalies", action="store_true")
     return parser.parse_args()
 
 
@@ -106,9 +122,39 @@ def scope_for(row: dict[str, str]) -> str | None:
     return None
 
 
+def load_timing_node_overrides(path: Path) -> dict[str, dict[str, str]]:
+    if not path.exists():
+        return {}
+    with path.open(newline="") as handle:
+        return {row["row_id"]: row for row in csv.DictReader(handle) if row.get("row_id")}
+
+
+def apply_timing_node_override(
+    row: dict[str, str],
+    summary: dict[str, object],
+    overrides: dict[str, dict[str, str]],
+) -> dict[str, object]:
+    if summary.get("slurm_node"):
+        return summary
+    override = overrides.get(row.get("row_id", ""))
+    if not override:
+        return summary
+    updated = dict(summary)
+    updated["slurm_job_id"] = override.get("slurm_job_id", updated.get("slurm_job_id", ""))
+    updated["slurm_restart_count"] = override.get("slurm_restarts", updated.get("slurm_restart_count", ""))
+    updated["slurm_node"] = override.get("slurm_node", updated.get("slurm_node", ""))
+    updated["timing_node_override_reason"] = override.get("reason", "")
+    return updated
+
+
 def read_summary(path: Path) -> dict[str, float | int | str | bool] | None:
     if not path.exists():
         return None
+    summaries = []
+    config_count = 0
+    timing_guard_failed = False
+    train_steps = []
+    eval_steps = []
     with path.open("r", errors="replace") as handle:
         for raw in handle:
             if not raw.startswith("{"):
@@ -117,9 +163,62 @@ def read_summary(path: Path) -> dict[str, float | int | str | bool] | None:
                 record = json.loads(raw)
             except json.JSONDecodeError:
                 continue
-            if record.get("event") == "summary":
-                return record
-    return None
+            event = record.get("event")
+            if event == "config":
+                config_count += 1
+            elif event == "summary":
+                summaries.append(record)
+            elif event == "timing_guard_failed":
+                timing_guard_failed = True
+            elif event == "train" and record.get("step") is not None:
+                train_steps.append(int(record["step"]))
+            elif event == "eval" and record.get("step") is not None:
+                eval_steps.append(int(record["step"]))
+    if not summaries:
+        return None
+    summary = dict(summaries[-1])
+    summary["_jsonl_config_count"] = config_count
+    summary["_jsonl_summary_count"] = len(summaries)
+    summary["_jsonl_train_duplicate_steps"] = len(train_steps) - len(set(train_steps))
+    summary["_jsonl_eval_duplicate_steps"] = len(eval_steps) - len(set(eval_steps))
+    summary["_jsonl_timing_guard_failed"] = timing_guard_failed
+    return summary
+
+
+TIMING_VALIDATED_MATRIXPOLICY_PHASES = {
+    "E1_matrixpolicy_safe_speed_100m",
+    "E2_matrixpolicy_safe_speed_300m",
+    "E1_rational_only_100m",
+    "E2_rational_only_300m",
+}
+
+
+def timing_integrity_issues(
+    row: dict[str, str],
+    summary: dict[str, object],
+    max_matrixpolicy_sps: float,
+    denylist_nodes: set[str],
+) -> list[str]:
+    issues = []
+    if int(summary.get("_jsonl_config_count", 0)) != 1:
+        issues.append(f"config_count={summary.get('_jsonl_config_count')}")
+    if int(summary.get("_jsonl_summary_count", 0)) != 1:
+        issues.append(f"summary_count={summary.get('_jsonl_summary_count')}")
+    if int(summary.get("_jsonl_train_duplicate_steps", 0)) != 0:
+        issues.append(f"duplicate_train_steps={summary.get('_jsonl_train_duplicate_steps')}")
+    if int(summary.get("_jsonl_eval_duplicate_steps", 0)) != 0:
+        issues.append(f"duplicate_eval_steps={summary.get('_jsonl_eval_duplicate_steps')}")
+    if bool(summary.get("_jsonl_timing_guard_failed", False)):
+        issues.append("timing_guard_failed_event_present")
+    if row.get("optimizer") == "rational_matrix_policy_onpolicy" and row.get("phase") in TIMING_VALIDATED_MATRIXPOLICY_PHASES:
+        node = str(summary.get("slurm_node", "") or "")
+        if node in denylist_nodes:
+            issues.append(f"denylisted_slurm_node={node}")
+        if max_matrixpolicy_sps > 0.0:
+            sps = float(summary.get("mean_seconds_per_step", 0.0))
+            if sps > max_matrixpolicy_sps:
+                issues.append(f"matrixpolicy_mean_seconds_per_step={sps:.4f}>{max_matrixpolicy_sps:.4f}")
+    return issues
 
 
 def fmt_minutes(value: float) -> str:
@@ -154,6 +253,7 @@ def aggregate(rows: list[dict[str, object]], keys: tuple[str, ...]) -> list[dict
                 "activation": first["activation"],
                 "optimizer": first["optimizer"],
                 "runs": len(group),
+                "early_stop_runs": sum(1 for r in group if bool(r.get("stopped_early", False))),
                 "steps": first["steps"],
                 "train_tokens_per_run": first["train_tokens"],
                 "total_seconds_mean": mean(totals),
@@ -188,14 +288,15 @@ def write_csv(path: Path, rows: list[dict[str, object]], fieldnames: list[str]) 
 def markdown_table(rows: list[dict[str, object]], scope: str) -> str:
     scoped = [row for row in rows if row["scope"] == scope]
     lines = [
-        "| Combo | Runs | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in scoped:
         lines.append(
-            "| {label} | {runs} | {mean_time} | {std_time} | {min_time}-{max_time} | {sps} | {tps} |".format(
+            "| {label} | {runs} | {early} | {mean_time} | {std_time} | {min_time}-{max_time} | {sps} | {tps} |".format(
                 label=row["method_label"],
                 runs=row["runs"],
+                early=row.get("early_stop_runs", 0),
                 mean_time=fmt_minutes(float(row["total_seconds_mean"])),
                 std_time=fmt_minutes(float(row["total_seconds_std"])),
                 min_time=fmt_minutes(float(row["total_seconds_min"])),
@@ -232,15 +333,22 @@ def write_readme(
     repair_line = (
         f"Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `{repair_overlay_count}/8`."
     )
+    global_rational_rows = sum(
+        int(row["runs"])
+        for row in scope_rows
+        if str(row.get("activation", "")) == "rlb_fused_global_rational" and str(row.get("method", "")) in REPLACEMENT_RLB_METHODS
+    )
+    early_stop_rows = sum(int(row.get("early_stop_runs", 0)) for row in scope_rows)
     text = f"""# ICLR26 Runtime Summary
 
 Generated: {generated}.
 
-This package summarizes clean per optimizer/activation-combo runtime from completed JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, and pre-restart partial attempts.
+This package summarizes clean per optimizer/activation-combo runtime from JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, and pre-restart partial attempts. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Early-stop rows are retained and counted explicitly rather than excluded.
 
 Included in tracked runtime aggregates:
 
-- E1 M0/100M clean rows: `{e1_total}` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. {repair_line} Row `89` is replaced by the completed safe-speed MatrixPolicy rerun when available.
+- E1 M0/100M clean rows: `{e1_total}` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. {repair_line} Row `89` is replaced by the completed MatrixPolicy replacement rerun when available.
+- Non-MatrixPolicy RLB optimizer controls overlaid from global-rational/no-local-atom runs: `{global_rational_rows}` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `{early_stop_rows}`.
 {e2_bullets}
 
 Excluded from tracked runtime aggregates:
@@ -266,18 +374,31 @@ Clean rows summarized: `{clean_row_count}`.
 def override_scope_for(row: dict[str, str]) -> str | None:
     phase = row["phase"]
     dataset = row["dataset"]
-    if phase in {"E1_matrixpolicy_safe_speed_100m", "E1_fineweb_edu_seed2027_runtime_repair_100m"}:
+    if phase in {"E1_matrixpolicy_safe_speed_100m", "E1_fineweb_edu_seed2027_runtime_repair_100m", "E1_rational_only_100m", "E1_global_rational_optimizers_100m"}:
         return "E1_m0_100m_all_datasets"
-    if phase == "E2_matrixpolicy_safe_speed_300m" and dataset in COMPLETED_E2_DATASET_SCOPES:
+    if phase in {"E2_matrixpolicy_safe_speed_300m", "E2_rational_only_300m", "E2_global_rational_optimizers_300m"} and dataset in COMPLETED_E2_DATASET_SCOPES:
         return COMPLETED_E2_DATASET_SCOPES[dataset]
     return None
 
 
-def runtime_row_from_manifest(row: dict[str, str], scope: str, run_root: Path) -> dict[str, object] | None:
+def runtime_row_from_manifest(
+    row: dict[str, str],
+    scope: str,
+    run_root: Path,
+    max_matrixpolicy_sps: float,
+    denylist_nodes: set[str],
+    node_overrides: dict[str, dict[str, str]],
+    allow_timing_anomalies: bool,
+) -> dict[str, object] | None:
     jsonl_path = run_root / row["phase"] / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
     summary = read_summary(jsonl_path)
     if summary is None:
         return None
+    summary = apply_timing_node_override(row, summary, node_overrides)
+    issues = timing_integrity_issues(row, summary, max_matrixpolicy_sps, denylist_nodes)
+    if issues and not allow_timing_anomalies:
+        joined = "; ".join(issues)
+        raise RuntimeError(f"Timing integrity check failed for {jsonl_path}: {joined}. Rerun/repair this row; do not exclude it from aggregates.")
     total_seconds = float(summary["total_seconds"])
     return {
         "scope": scope,
@@ -299,6 +420,12 @@ def runtime_row_from_manifest(row: dict[str, str], scope: str, run_root: Path) -
         "mean_seconds_per_step": float(summary["mean_seconds_per_step"]),
         "tokens_per_second": float(summary["tokens_per_second"]),
         "stopped_early": bool(summary.get("stopped_early", False)),
+        "slurm_job_id": summary.get("slurm_job_id", ""),
+        "slurm_restart_count": summary.get("slurm_restart_count", ""),
+        "slurm_node": summary.get("slurm_node", ""),
+        "timing_attempt_id": summary.get("timing_attempt_id", ""),
+        "timing_node_override_reason": summary.get("timing_node_override_reason", ""),
+        "timing_integrity_issues": ";".join(timing_integrity_issues(row, summary, max_matrixpolicy_sps, denylist_nodes)),
         "jsonl": str(jsonl_path),
     }
 
@@ -307,6 +434,10 @@ def overlay_completed_matrixpolicy_rows(
     per_row_by_key: dict[tuple[str, str, int, str], dict[str, object]],
     manifest: Path,
     run_root: Path,
+    max_matrixpolicy_sps: float,
+    denylist_nodes: set[str],
+    node_overrides: dict[str, dict[str, str]],
+    allow_timing_anomalies: bool,
 ) -> int:
     if not manifest.exists():
         return 0
@@ -318,7 +449,36 @@ def overlay_completed_matrixpolicy_rows(
             scope = override_scope_for(row)
             if scope is None:
                 continue
-            item = runtime_row_from_manifest(row, scope, run_root)
+            item = runtime_row_from_manifest(row, scope, run_root, max_matrixpolicy_sps, denylist_nodes, node_overrides, allow_timing_anomalies)
+            if item is None:
+                continue
+            key = (scope, str(item["dataset"]), int(item["seed"]), str(item["method"]))
+            per_row_by_key[key] = item
+            count += 1
+    return count
+
+
+def overlay_completed_replacement_rows(
+    per_row_by_key: dict[tuple[str, str, int, str], dict[str, object]],
+    manifest: Path,
+    run_root: Path,
+    max_matrixpolicy_sps: float,
+    denylist_nodes: set[str],
+    node_overrides: dict[str, dict[str, str]],
+    allow_timing_anomalies: bool,
+    wanted_methods: set[str] | None = None,
+) -> int:
+    if not manifest.exists():
+        return 0
+    count = 0
+    with manifest.open(newline="") as handle:
+        for row in csv.DictReader(handle):
+            if wanted_methods is not None and row.get("method") not in wanted_methods:
+                continue
+            scope = override_scope_for(row)
+            if scope is None:
+                continue
+            item = runtime_row_from_manifest(row, scope, run_root, max_matrixpolicy_sps, denylist_nodes, node_overrides, allow_timing_anomalies)
             if item is None:
                 continue
             key = (scope, str(item["dataset"]), int(item["seed"]), str(item["method"]))
@@ -331,6 +491,10 @@ def overlay_completed_repair_rows(
     per_row_by_key: dict[tuple[str, str, int, str], dict[str, object]],
     manifest: Path,
     run_root: Path,
+    max_matrixpolicy_sps: float,
+    denylist_nodes: set[str],
+    node_overrides: dict[str, dict[str, str]],
+    allow_timing_anomalies: bool,
 ) -> int:
     if not manifest.exists():
         return 0
@@ -340,7 +504,7 @@ def overlay_completed_repair_rows(
             scope = override_scope_for(row)
             if scope is None:
                 continue
-            item = runtime_row_from_manifest(row, scope, run_root)
+            item = runtime_row_from_manifest(row, scope, run_root, max_matrixpolicy_sps, denylist_nodes, node_overrides, allow_timing_anomalies)
             if item is None:
                 continue
             key = (scope, str(item["dataset"]), int(item["seed"]), str(item["method"]))
@@ -351,6 +515,8 @@ def overlay_completed_repair_rows(
 
 def main() -> None:
     args = parse_args()
+    denylist_nodes = {node.strip() for node in args.matrixpolicy_denylist_nodes.split(",") if node.strip()}
+    node_overrides = load_timing_node_overrides(args.timing_node_overrides)
     per_row_by_key: dict[tuple[str, str, int, str], dict[str, object]] = {}
     skipped_original_rows = 0
     with args.manifest.open(newline="") as handle:
@@ -362,15 +528,16 @@ def main() -> None:
             if row_index in RESTART_AFFECTED_ROWS:
                 skipped_original_rows += 1
                 continue
-            item = runtime_row_from_manifest(row, scope, args.run_root)
+            item = runtime_row_from_manifest(row, scope, args.run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies)
             if item is None:
                 continue
             key = (scope, str(item["dataset"]), int(item["seed"]), str(item["method"]))
             per_row_by_key[key] = item
 
-    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e1_matrixpolicy_manifest, args.run_root)
-    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e2_matrixpolicy_manifest, args.run_root)
-    repair_overlay_count = overlay_completed_repair_rows(per_row_by_key, args.e1_restart_repair_manifest, args.run_root)
+    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e1_matrixpolicy_manifest, args.run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies)
+    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e2_matrixpolicy_manifest, args.run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies)
+    repair_overlay_count = overlay_completed_repair_rows(per_row_by_key, args.e1_restart_repair_manifest, args.run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies)
+    overlay_completed_replacement_rows(per_row_by_key, args.global_rational_optimizer_manifest, args.run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies, REPLACEMENT_RLB_METHODS)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     per_row = sorted(per_row_by_key.values(), key=lambda r: (str(r["scope"]), str(r["dataset"]), int(r["row_index"]), str(r["method"])))
@@ -400,6 +567,12 @@ def main() -> None:
             "mean_seconds_per_step",
             "tokens_per_second",
             "stopped_early",
+            "slurm_job_id",
+            "slurm_restart_count",
+            "slurm_node",
+            "timing_attempt_id",
+            "timing_node_override_reason",
+            "timing_integrity_issues",
             "jsonl",
         ],
     )
@@ -412,6 +585,7 @@ def main() -> None:
         "activation",
         "optimizer",
         "runs",
+        "early_stop_runs",
         "steps",
         "train_tokens_per_run",
         "total_seconds_mean",

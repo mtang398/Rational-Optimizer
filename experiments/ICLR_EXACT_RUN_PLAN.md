@@ -104,6 +104,8 @@ The main manifest uses fixed method recipes. These are not LR/WD landscapes.
 
 The MatrixPolicy row is a fixed method row with the same outer LR/min-LR/WD as the AdamW fixed rows. It is not allowed to be compared against an AdamW grid unless the MatrixPolicy rows contain the same outer grid in the same cells and the section is explicitly a later paired sensitivity appendix.
 
+Current result-package note: the table above records the original main-manifest method recipes. The paper-facing generated MatrixPolicy summaries overlay the completed `rlb_fused_global_rational` no-local-atom replacement rows from `experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv`; non-MatrixPolicy RLB optimizer controls overlay the matched global-rational rows from `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`. SiLU controls remain the completed main-manifest rows, and RLB+ADeMaMix is retained as a divergent/early-stop negative row.
+
 ## Main Experiment Units
 
 ### E0: Manifest And Loader Preflight

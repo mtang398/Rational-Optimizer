@@ -17,6 +17,15 @@ MANIFEST = Path("experiments/manifests/iclr26_main_manifest.csv")
 RUN_ROOT = Path("experiments/runs/iclr26_main")
 DEFAULT_OUTPUT = Path("experiments/results/iclr26_e1_token_savings_2026_06_12")
 MATRIXPOLICY_METHOD = "rlb_matrixpolicy_original"
+REPLACEMENT_RLB_METHODS = {
+    "rlb_adamw",
+    "rlb_lion",
+    "rlb_soap",
+    "rlb_muon",
+    "rlb_schedulefree",
+    "rlb_came",
+    "rlb_ademamix",
+}
 ADAMW_METHOD = "silu_adamw"
 
 DATASETS = [
@@ -43,6 +52,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
     parser.add_argument("--matrixpolicy-phase", type=str, default=None)
+    parser.add_argument("--replacement-manifest", type=Path, default=None)
+    parser.add_argument("--replacement-phase", type=str, default=None)
     return parser.parse_args()
 
 
@@ -111,15 +122,20 @@ def load_rows(
     run_root: Path,
     matrixpolicy_manifest: Path | None = None,
     matrixpolicy_phase: str | None = None,
+    replacement_manifest: Path | None = None,
+    replacement_phase: str | None = None,
 ) -> list[dict[str, object]]:
     rows = _load_phase_rows(manifest, run_root, PHASE)
+    by_key = {(str(row["dataset"]), int(row["seed"]), str(row["method"])): row for row in rows}
     if matrixpolicy_manifest is not None and matrixpolicy_phase is not None:
         overrides = _load_phase_rows(matrixpolicy_manifest, run_root, matrixpolicy_phase, {MATRIXPOLICY_METHOD})
-        by_key = {(str(row["dataset"]), int(row["seed"]), str(row["method"])): row for row in rows}
         for row in overrides:
             by_key[(str(row["dataset"]), int(row["seed"]), str(row["method"]))] = row
-        rows = list(by_key.values())
-    return sorted(rows, key=lambda row: (str(row["dataset"]), int(row["seed"]), str(row["method"])))
+    if replacement_manifest is not None and replacement_phase is not None:
+        overrides = _load_phase_rows(replacement_manifest, run_root, replacement_phase, REPLACEMENT_RLB_METHODS)
+        for row in overrides:
+            by_key[(str(row["dataset"]), int(row["seed"]), str(row["method"]))] = row
+    return sorted(by_key.values(), key=lambda row: (str(row["dataset"]), int(row["seed"]), str(row["method"])))
 
 def first_hit_tokens(row: dict[str, object] | None, target: float) -> tuple[int | None, int | None]:
     if row is None:
@@ -299,7 +315,7 @@ Generated from completed E1 M0/100M JSONL eval records. All rows still trained t
 
 Each row uses `{tokens_per_step}` global tokens/step and the native E1 eval cadence of {eval_interval} steps, or `{tokens_per_step * eval_interval / 1_000_000:.2f}M` tokens per readout interval.
 
-`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target.
+`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational/no-local-atom rows.
 
 {"\n\n".join(sections)}
 
@@ -313,7 +329,14 @@ Each row uses `{tokens_per_step}` global tokens/step and the native E1 eval cade
 
 def main() -> None:
     args = parse_args()
-    rows = load_rows(args.manifest, args.run_root, args.matrixpolicy_manifest, args.matrixpolicy_phase)
+    rows = load_rows(
+        args.manifest,
+        args.run_root,
+        args.matrixpolicy_manifest,
+        args.matrixpolicy_phase,
+        args.replacement_manifest,
+        args.replacement_phase,
+    )
     if not rows:
         raise SystemExit("No E1 rows found.")
     token_rows, token_seed_rows = summarize(rows)

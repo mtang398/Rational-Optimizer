@@ -214,6 +214,29 @@ sbatch --parsable --constraint=nvlink [--dependency=afterok:<previous_same_parit
   experiments/scripts/run_iclr26_manifest_job.sh
 ```
 
+## Global-Rational RLB Optimizer-Control Sweep
+
+Submitted: 2026-06-25 15:10 EDT. Manifest: `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`. Scope: all non-MatrixPolicy RLB optimizer controls under the corrected global-rational/no-local-atom activation.
+
+Definition: this keeps each existing non-MatrixPolicy optimizer recipe fixed (`adamw`, `muon`, `lion`, `soap_adamw`, `ademamix`, `adafactor_came`, `schedule_free_adamw`) and swaps only the RLB activation to `rlb_fused_global_rational`. It has no R-local atom path and no atom/coefficient `Parameter`. MatrixPolicy rows are not in this manifest because the completed `E1_rational_only_100m` and `E2_rational_only_300m` rows already provide the global-rational MatrixPolicy overlay.
+
+Submission shape: one manifest row per Slurm job, two parity dependency chains with `afterany` dependencies, `--constraint=nvlink`, and at most two active 4-A6000 jobs. The launcher NVLink timing guard includes `E1_global_rational_optimizers_100m` and `E2_global_rational_optimizers_300m`.
+
+Submitted jobs:
+
+| Rows | Jobs | Chain |
+| --- | --- | --- |
+| even rows `0,2,...,208` | `982026`-`982236` scheduler range, excluding non-sweep gaps | terminal `982236` |
+| odd rows `1,3,...,209` | `982027`-`982237` scheduler range, excluding non-sweep gaps | terminal `982237` |
+
+Initial state at 2026-06-25 15:10 EDT: jobs `982026` and `982027` started on NVLink nodes; later rows were dependency-held. Early logs wrote global-rational JSONLs and confirmed atom telemetry is null. Completion note on 2026-06-29: the sweep finished with `180` full completions and `30` RLB+ADeMaMix early stops from non-finite loss; no JSONLs were missing, partial, or bad. The regenerated E1/E2 paper-facing packages now overlay these rows for every non-MatrixPolicy RLB optimizer control.
+
+The submission used this pattern, once per row with the previous same-parity job passed as `--dependency=afterany:<job>`:
+
+```bash
+sbatch --parsable --constraint=nvlink [--dependency=afterany:<previous_same_parity_job>]   --job-name=grlb-<row>   --export=ALL,CONFIRM_ICLR26_MANIFEST=1,MANIFEST=experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv,ROW_START=<row>,ROW_LIMIT=1,BUILD_EXT=0   experiments/scripts/run_iclr26_manifest_job.sh
+```
+
 ## MatrixPolicy Safe Muon-Off Speed P0 Submission
 
 Submitted: 2026-06-22 20:54:36 EDT. Manifest at submission time: `experiments/manifests/iclr26_matrixpolicy_safe_speed_p0_manifest.csv`. This was a three-row implementation-speed pilot using DCLM seed `1337` for `500` steps: SiLU+AdamW, RLB+AdamW, and original RLB+MatrixPolicy after commit `02b85d9` skips permanently inactive Muon steps. It was not a new optimizer method.
@@ -254,7 +277,7 @@ Submitted jobs:
 
 Initial scheduler state after submission: jobs `767136` and `767137` were running on `ma-compute-01` and `monakhova-compute-01`; jobs `767138`-`767150` were dependency-held.
 
-Completion note: all jobs `767136`-`767150` completed with exit `0:0` by `2026-06-23 18:16:55 EDT`. Job `767137` had `Restarts=1`; its preempted partial JSONL was archived as `.incomplete_767137_1_20260623150154`, and the final clean rerun is the only row included in aggregates. The completed rerun passes the E1 acceptance gate: final losses match the original MatrixPolicy E1 table within seed/dataset noise. The paper-facing runtime summary now uses the 15-row safe-speed MatrixPolicy aggregate (`27.3` min, `0.5102` s/step, `67,078.3` tokens/s) together with completed repair overlays that restore 15 E1 runs for every optimizer/activation combo.
+Completion note: all jobs `767136`-`767150` completed with exit `0:0` by `2026-06-23 18:16:55 EDT`. Job `767137` had `Restarts=1`; its preempted partial JSONL was archived as `.incomplete_767137_1_20260623150154`, and the final clean rerun is the only row included in aggregates. The completed rerun passes the E1 acceptance gate: final losses match the original MatrixPolicy E1 table within seed/dataset noise. This established the historical 15-row safe-speed MatrixPolicy aggregate (`27.3` min, `0.5102` s/step, `67,078.3` tokens/s); the current paper-facing runtime summary is later superseded by the global-rational/no-local-atom MatrixPolicy overlay.
 
 ## E2 Main 300M Submissions
 
@@ -698,7 +721,7 @@ Replacement odd-chain jobs:
 
 The E2 safe-speed terminal jobs are now `810106` for the original even chain and `812528` for the replacement odd chain. At 2026-06-23 21:41 EDT, the still-pending original even-chain jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` were updated with `Features=nvlink`; `scontrol show job` verified the constraint on all six jobs before they started. The manifest launcher also has a timing-row NVLink guard: phases `E1_matrixpolicy_safe_speed_100m`, `E2_matrixpolicy_safe_speed_300m`, and `E1_fineweb_edu_seed2027_runtime_repair_100m` exit before JSONL archive/write if the allocated node lacks the `nvlink` feature, unless `ALLOW_NON_NVLINK_TIMING=1` is explicitly set.
 
-Completion note on 2026-06-24: clean E2 safe-speed jobs `810092`, `810094`, `810096`, `810098`, `810100`, `810102`, `810104`, `810106`, and replacement odd-chain jobs `812522`-`812528` all completed with exit `0:0` and `Restarts=0`. The runtime summary now uses these JSONL `summary.total_seconds` rows for E2 RLB+MatrixPolicy timing and excludes cancelled non-NVLink job `810093` plus its cancelled odd-chain descendants.
+Completion note on 2026-06-24: clean E2 safe-speed jobs `810092`, `810094`, `810096`, `810098`, `810100`, `810102`, `810104`, `810106`, and replacement odd-chain jobs `812522`-`812528` all completed with exit `0:0` and `Restarts=0`. These JSONL `summary.total_seconds` rows validated clean E2 RLB+MatrixPolicy timing and exclude cancelled non-NVLink job `810093` plus its cancelled odd-chain descendants; the current paper-facing runtime summary is later superseded by the global-rational/no-local-atom MatrixPolicy overlay.
 
 ## E1 FineWeb-Edu Seed 2027 Runtime Repair Submission
 
@@ -748,6 +771,58 @@ Replacement repair jobs:
 
 Completion note on 2026-06-24: replacement repair jobs `812529`-`812536` all completed with exit `0:0` and `Restarts=0`. The regenerated runtime summary overlays these eight rows and restores SOAP, ADeMaMix, CAME, and ScheduleFree to 15 E1 timing runs.
 
+## Global-Rational MatrixPolicy Timing Node Repair
+
+Policy correction on 2026-06-25 15:54 EDT: repair is based on bad-node provenance, not a universal seconds-per-step cutoff. The old pending strict-cutoff repair jobs `984723`, `984724`, and `984725` were cancelled before starting. Downstream global-rational optimizer-control heads `982030` and `982031` were held during the replacement, then updated to depend on the new terminal repair job and released.
+
+Audited legacy-node mapping is recorded in `experiments/manifests/iclr26_timing_node_overrides.csv`; it is only used when a legacy JSONL lacks `slurm_node`. New repaired JSONLs carry their own Slurm metadata and bypass that override.
+
+Replacement submissions used `FORCE_RERUN_COMPLETE_JSONL=1`, `TIMING_NODE_DENYLIST=sablab-gpu-12`, `TIMING_GUARD_MAX_SECONDS_PER_STEP=0`, and `TIMING_GUARD_MAX_REQUEUES=6`:
+
+```bash
+env CONFIRM_ICLR26_MANIFEST=1 MANIFEST=experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv ROW_START=21 ROW_LIMIT=1 FORCE_RERUN_COMPLETE_JSONL=1 TIMING_NODE_DENYLIST=sablab-gpu-12 TIMING_GUARD_MAX_SECONDS_PER_STEP=0 TIMING_GUARD_MAX_REQUEUES=6 \
+  sbatch --parsable --job-name=mprepair-node-21 --constraint=nvlink --dependency=afterany:982028:982029 experiments/scripts/run_iclr26_manifest_job.sh
+# returned 986793
+
+env CONFIRM_ICLR26_MANIFEST=1 MANIFEST=experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv ROW_START=26 ROW_LIMIT=1 FORCE_RERUN_COMPLETE_JSONL=1 TIMING_NODE_DENYLIST=sablab-gpu-12 TIMING_GUARD_MAX_SECONDS_PER_STEP=0 TIMING_GUARD_MAX_REQUEUES=6 \
+  sbatch --parsable --job-name=mprepair-node-26 --constraint=nvlink --dependency=afterany:982028:982029 experiments/scripts/run_iclr26_manifest_job.sh
+# returned 986794
+
+env CONFIRM_ICLR26_MANIFEST=1 MANIFEST=experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv ROW_START=28 ROW_LIMIT=1 FORCE_RERUN_COMPLETE_JSONL=1 TIMING_NODE_DENYLIST=sablab-gpu-12 TIMING_GUARD_MAX_SECONDS_PER_STEP=0 TIMING_GUARD_MAX_REQUEUES=6 \
+  sbatch --parsable --job-name=mprepair-node-28 --constraint=nvlink --dependency=afterany:986793:986794 experiments/scripts/run_iclr26_manifest_job.sh
+# returned 986795
+
+scontrol update JobId=982030 Dependency=afterany:986795
+scontrol update JobId=982031 Dependency=afterany:986795
+scontrol release 982030 982031
+```
+
+Final dependency check after replacement:
+
+| Job | State | Reason | Name | Dependency |
+| ---: | --- | --- | --- | --- |
+| `986793` | PENDING | Dependency | `mprepair-node-21` | afterany:`982029` (`982028` already fulfilled) |
+| `986794` | PENDING | Dependency | `mprepair-node-26` | afterany:`982029` (`982028` already fulfilled) |
+| `986795` | PENDING | Dependency | `mprepair-node-28` | afterany:`986793`:`986794` |
+| `982030` | PENDING | Dependency | `grlb-004` | afterany:`986795` |
+| `982031` | PENDING | Dependency | `grlb-005` | afterany:`986795` |
+
+Verification commands now fail on the known legacy bad rows by node, not by speed threshold, until the repair jobs replace their JSONLs:
+
+```bash
+python3 experiments/scripts/summarize_iclr26_runtimes.py \
+  --safe-e1-matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv \
+  --safe-e2-matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv
+# RuntimeError: ... denylisted_slurm_node=sablab-gpu-12 ... Rerun/repair this row; do not exclude it from aggregates.
+
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
+  --dataset fineweb \
+  --output-dir /tmp/iclr26_e2_fineweb_node_guard_check \
+  --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv \
+  --matrixpolicy-phase E2_rational_only_300m
+# RuntimeError: ... denylisted_slurm_node=sablab-gpu-12 ... Rerun/repair this row; do not exclude it from aggregates.
+```
+
 ## Internal Per-Row Command Shape
 
 The manifest launcher converts each CSV row into environment variables and executes this
@@ -773,71 +848,37 @@ bash training/run_lm_optimizer_sweep.sbatch
 E1 figures and checkpoint tables:
 
 ```bash
-python3 experiments/scripts/plot_iclr26_e1_curves.py \
-  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv \
-  --matrixpolicy-run-root experiments/runs/iclr26_main/E1_matrixpolicy_safe_speed_100m \
-  --matrixpolicy-phase E1_matrixpolicy_safe_speed_100m \
-  --status-md experiments/ICLR_RUN_STATUS.md
+python3 experiments/scripts/plot_iclr26_e1_curves.py   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-run-root experiments/runs/iclr26_main/E1_rational_only_100m   --matrixpolicy-phase E1_rational_only_100m   --status-md experiments/ICLR_RUN_STATUS.md
 ```
 
 E1 token-to-target savings:
 
 ```bash
-python3 experiments/scripts/summarize_iclr26_e1_token_savings.py \
-  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e1_manifest.csv \
-  --matrixpolicy-phase E1_matrixpolicy_safe_speed_100m
+python3 experiments/scripts/summarize_iclr26_e1_token_savings.py   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E1_rational_only_100m
 ```
 
 E2 completed-cell summaries:
 
 ```bash
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
-  --dataset dclm \
-  --output-dir experiments/results/iclr26_e2_dclm_2026_06_10 \
-  --completed-date 2026-06-10 \
-  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
-  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset dclm   --output-dir experiments/results/iclr26_e2_dclm_2026_06_10   --completed-date 2026-06-10   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
 
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
-  --dataset fineweb_edu \
-  --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12 \
-  --completed-date 2026-06-12 \
-  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
-  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset fineweb_edu   --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12   --completed-date 2026-06-12   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
 
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
-  --dataset fineweb \
-  --output-dir experiments/results/iclr26_e2_fineweb_2026_06_15 \
-  --completed-date 2026-06-15 \
-  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
-  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset fineweb   --output-dir experiments/results/iclr26_e2_fineweb_2026_06_15   --completed-date 2026-06-15   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
 
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
-  --dataset dolma_sample \
-  --output-dir experiments/results/iclr26_e2_dolma_sample_2026_06_17 \
-  --completed-date 2026-06-17 \
-  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
-  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset dolma_sample   --output-dir experiments/results/iclr26_e2_dolma_sample_2026_06_17   --completed-date 2026-06-17   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
 
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
-  --dataset c4_en \
-  --output-dir experiments/results/iclr26_e2_c4_2026_06_19 \
-  --completed-date 2026-06-19 \
-  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
-  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset c4_en   --output-dir experiments/results/iclr26_e2_c4_2026_06_19   --completed-date 2026-06-19   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
 ```
 
 E2 dense curve figures and checkpoint tables:
 
 ```bash
-python3 experiments/scripts/plot_iclr26_e2_curves.py \
-  --matrixpolicy-manifest experiments/manifests/iclr26_matrixpolicy_safe_speed_e2_manifest.csv \
-  --matrixpolicy-run-root experiments/runs/iclr26_main/E2_matrixpolicy_safe_speed_300m \
-  --matrixpolicy-phase E2_matrixpolicy_safe_speed_300m
+python3 experiments/scripts/plot_iclr26_e2_curves.py   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-run-root experiments/runs/iclr26_main/E2_rational_only_300m   --matrixpolicy-phase E2_rational_only_300m
 ```
 
 Clean runtime tables for completed paper cells:
 
 ```bash
-python3 experiments/scripts/summarize_iclr26_runtimes.py
+python3 experiments/scripts/summarize_iclr26_runtimes.py   --safe-e1-matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --safe-e2-matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv
 ```

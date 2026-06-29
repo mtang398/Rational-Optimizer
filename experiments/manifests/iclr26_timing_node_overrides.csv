@@ -1,0 +1,4 @@
+row_id,slurm_job_id,slurm_node,slurm_restarts,source,reason
+E2_rational_only_300m_fineweb_m0_300m_seed1337_rlb_rational_only_matrixpolicy,835139,sablab-gpu-12,0,sacct_2026-06-25,legacy JSONL lacks Slurm metadata; sacct shows denylisted slow node
+E2_rational_only_300m_dolma_sample_m0_300m_seed3407_rlb_rational_only_matrixpolicy,835126,sablab-gpu-12,0,sacct_2026-06-25,legacy JSONL lacks Slurm metadata; sacct shows denylisted slow node
+E2_rational_only_300m_c4_en_m0_300m_seed2027_rlb_rational_only_matrixpolicy,835127,sablab-gpu-12,0,sacct_2026-06-25,legacy JSONL lacks Slurm metadata; sacct shows denylisted slow node

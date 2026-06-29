@@ -77,7 +77,7 @@ These are optimizer-diagnostic fields. They do not change the activation claim b
 
 ## Evidence Boundary
 
-The current paper-facing evidence is the manifest-based E1 M0/100M suite and E2 M0/300M suite on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. All MatrixPolicy values in the paper-facing packages use the accepted safe-speed replacement rows. Full E1 curves, token-savings, and checkpoint tables are in `../experiments/results/iclr26_e1_figures/` and `../experiments/results/iclr26_e1_token_savings_2026_06_12/`; full E2 final/runtime/token/curve tables are in `../experiments/results/iclr26_e2_*` and `../experiments/results/iclr26_e2_figures/`. This remains evidence for RLB plus MatrixPolicy, not an activation-only claim.
+The current paper-facing evidence is the manifest-based E1 M0/100M suite and E2 M0/300M suite on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy and non-MatrixPolicy RLB optimizer-control rows in the paper-facing packages use the corrected global-rational/no-local-atom activation: `rlb_fused_global_rational`, which keeps the single-branch RLB wrapper and grouped P5/Q4 rational but removes the R-local atom path and atom parameter group. Full E1 curves, token-savings, and checkpoint tables are in `../experiments/results/iclr26_e1_figures/` and `../experiments/results/iclr26_e1_token_savings_2026_06_12/`; full E2 final/runtime/token/curve tables are in `../experiments/results/iclr26_e2_*` and `../experiments/results/iclr26_e2_figures/`. This remains evidence for RLB plus MatrixPolicy and matched RLB controls, not an activation-only claim; RLB+ADeMaMix is retained as a divergent/early-stop negative row.
 
 ## Paper Use
 
