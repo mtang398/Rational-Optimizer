@@ -19,514 +19,693 @@
 \newcommand{\rms}{\operatorname{rms}}
 \newcommand{\geom}{\operatorname{geomean}}
 \newcommand{\relu}{\operatorname{ReLU}}
+\newcommand{\smooth}{\operatorname{smoothstep}}
+\newcommand{\matnorm}{\operatorname{MatNorm}}
 \newcommand{\RLB}{\mathrm{RLB}}
 
 
-%\iclrfinalcopy
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
+Transformer MLP sublayers contain large input and output matrices wrapped around
+a scalar nonlinearity.  Standard optimizers usually update these parameters with
+one nearly uniform rule, even when the nonlinearity exposes layerwise and
+groupwise structure.  We propose Rational Latent Basis (RLB), a global-rational
+Transformer sublayer whose grouped rational curves make this structure explicit,
+and MatrixPolicy, an optimizer that uses the resulting matrix roles, gain
+statistics, relative update pressures, and positive scale gauge.  The main
+experimental configuration uses the global-rational/no-local-atom RLB variant: a
+single-branch grouped P5/Q4 rational sublayer with no local atom path and no
+atom parameter group.  MatrixPolicy applies a centered group-gradient policy, a
+role/depth matrix update with a short early matrix-normalized branch, and a
+bounded post-step gauge rebalance while leaving non-matrix parameters on AdamW.
 \end{abstract}
 
-\section{Introduction}
-\label{sec:introduction}
-
-\section{Background and Related Work}
-\label{sec:related-work}
-
-
-
-\section{Rational Matrix Policy Optimization}
+\section{Method}
 \label{sec:method}
 
-Rational Latent Basis (RLB) parameterizes each Transformer MLP sublayer as
-grouped rational features with explicit input and output matrix factors.  The
-term latent refers to the learned projected coordinates $z_l$, not to local atom
-centers.  This exposes groupwise sensitivities, relative update pressures, and a
-positive scale gauge that a standard optimizer does not distinguish.
-MatrixPolicy is the corresponding matrix-specific optimizer rule.  Our main
-configuration uses the fused global-rational RLB variant: a single-branch RLB
-sublayer with grouped trainable degree-5 numerator and degree-4 denominator
-rational curves, no local atom branch, and no atom parameter group.
+This section defines the method used in the E1 and E2 experiments.  The method has two coupled parts.  The activation part is a
+global-rational RLB sublayer that replaces the usual Transformer MLP sublayer.
+The optimizer part is MatrixPolicy, which updates the RLB input and output
+matrices with rules that use the RLB geometry.  The activation alone is not the
+claim: matched RLB controls with the same global-rational sublayer and different
+optimizers are required to isolate the MatrixPolicy contribution.
 
 \subsection{Global-Rational RLB Sublayer}
-\label{sec:method-activation}
+\label{sec:method-rlb}
 
-For a Transformer layer $l$, let $x_l\in\mathbb{R}^d$ be the MLP input.  RLB
-replaces the usual gated/value activation by a single rational branch
+Consider Transformer layer $l\in\{1,\ldots,L\}$ with MLP-sublayer input
+$x_l\in\mathbb{R}^{d}$.  RLB uses a single projected hidden representation of
+width $H=Gm$, partitioned into $G$ groups of width $m$:
 \begin{align}
-    z_l=A_lx_l,\qquad z_{l,g}\in\mathbb{R}^m,\qquad H=Gm,
+    z_l=A_lx_l,\qquad
+    z_l=\operatorname{concat}_{g=1}^{G} z_{l,g},\qquad
+    z_{l,g}\in\mathbb{R}^{m},
+    \label{eq:rlb-projection}
 \end{align}
-where $A_l\in\mathbb{R}^{H\times d}$ and the hidden coordinates are partitioned
-into $G$ groups.  Each group is evaluated in normalized coordinates,
+where $A_l\in\mathbb{R}^{H\times d}$ is the input matrix.  Each group is
+normalized by its RMS radius,
 \begin{align}
     r_{l,g}=\sqrt{m^{-1}\lVert z_{l,g}\rVert_2^2+\epsilon_{\rm rms}},
-    \qquad u_{l,g}=z_{l,g}/r_{l,g},
+    \qquad
+    u_{l,g}=z_{l,g}/r_{l,g}.
+    \label{eq:rlb-normalization}
 \end{align}
-then mapped coordinatewise by a learned rational curve and rescaled by the same
-radius:
+The scalar rational curve $R_{l,g}$ is applied coordinatewise to $u_{l,g}$ and
+then multiplied by the same radius:
 \begin{align}
-    h_{l,g}=r_{l,g}R_{l,g}(u_{l,g}),\qquad
-    y_l=B_l\operatorname{concat}_{g=1}^{G} h_{l,g}.
+    h_{l,g}=r_{l,g} R_{l,g}(u_{l,g}),\qquad
+    h_l=\operatorname{concat}_{g=1}^{G}h_{l,g},\qquad
+    y_l=B_lh_l,
+    \label{eq:rlb-output}
 \end{align}
-Here $B_l\in\mathbb{R}^{d\times H}$ recombines the rational features.  The
-global-rational curve is
+where $B_l\in\mathbb{R}^{d\times H}$ is the output matrix and $\epsilon_{\rm rms}>0$ is the RMS floor.  The output $y_l$ is
+inserted in the Transformer block at the same location as the usual MLP-sublayer
+output.
+
+The main RLB variant is global rational.  For each layer and group,
 \begin{align}
     R_{l,g}(u)=\frac{P_{l,g}(u)}{Q_{l,g}(u)},\qquad
     P_{l,g}(u)=\sum_{i=0}^{5} a_{l,g,i}u^i,
-    \label{eq:rlb-numerator}
+    \label{eq:global-rational-p}
 \end{align}
-with the pole-safe denominator
+and
 \begin{align}
-    Q_{l,g}(u)=1+|b_{l,g,1}|\,|u|+|b_{l,g,2}|u^2
-      +|b_{l,g,3}|\,|u|^3+|b_{l,g,4}|u^4 .
-    \label{eq:rlb-denominator}
+    Q_{l,g}(u)
+    =1+|b_{l,g,1}|\,|u|+|b_{l,g,2}|\,u^2
+      +|b_{l,g,3}|\,|u|^3+|b_{l,g,4}|\,u^4 .
+    \label{eq:global-rational-q}
 \end{align}
-All denominator terms are nonnegative on the real line, so $Q_{l,g}(u)\ge 1$ and
-there are no real poles.  The coefficients are initialized from a SiLU fit on a
-fixed probe interval and then trained.  Because \eqref{eq:rlb-denominator}
-contains absolute-value terms, the curve is pole-safe and piecewise smooth rather
-than a globally smooth rational polynomial quotient.  Global here means that the
-nonlinear correction is the groupwise rational curve itself, with no local atom
-basis around fixed centers; coefficients remain layer- and group-specific.
+The coefficients are initialized from a least-squares SiLU fit on a fixed probe
+interval and are then trained.  Because every nonconstant denominator term in
+\eqref{eq:global-rational-q} is nonnegative on the real line,
+$Q_{l,g}(u)\ge 1$ for all real $u$.  The curve is therefore pole-safe on real
+inputs.  The absolute-value terms make it piecewise smooth, which is the
+intended numerical tradeoff: the denominator is expressive enough for a trainable
+rational response while avoiding real poles during language-model training.
 
-\subsection{Why This Parameterization Matters}
+Global rational means that the learned nonlinear response is the P5/Q4 curve
+itself.  There are no local Cauchy atoms, no atom centers, no atom coefficients,
+and no atom parameter group in the main configuration.  This naming is important
+for the experiments: both MatrixPolicy rows and non-MatrixPolicy RLB optimizer
+controls use the same global-rational/no-local-atom RLB source.
+
+\subsection{Optimizer-Visible RLB Structure}
 \label{sec:method-structure}
 
-RLB separates three roles that a standard optimizer would otherwise treat nearly
-uniformly.  The input matrix $A_l$ chooses the rational domains; the rational
-coefficients set the response and derivative profile in those domains; the output
-matrix $B_l$ recombines rational features into the residual stream.  Write
-$f_l(x;A_l,B_l,R_l)$ for the RLB block map defined above, where $R_l$ collects
-all group rational curves in layer $l$.  The group RMS normalization also creates
-a positive scale gauge between $A_l$ and $B_l$.  In the homogeneous idealization
-$\epsilon_{\rm rms}=0$, for nonzero group radii, any positive group scales
-$a_g>0$, and block matrix $D_l(a)=\operatorname{diag}(a_1I_m,\ldots,a_GI_m)$,
+The definitions in \eqref{eq:rlb-projection} through \eqref{eq:rlb-output} separate three
+functional roles.  The matrix $A_l$ selects the domains in which the rational
+curves operate.  The coefficients of $R_{l,g}$ set the scalar response and local
+derivative profile inside each group.  The matrix $B_l$ recombines the rational
+features into the residual stream.  MatrixPolicy uses this separation rather
+than treating all RLB parameters as one undifferentiated tensor family.
+
+RLB also has a positive group gauge.  Let
+$D_l(a)=\operatorname{diag}(a_1I_m,\ldots,a_GI_m)$ for any positive vector
+$a\in\mathbb{R}_{>0}^{G}$, let $R_l=\{R_{l,g}\}_{g=1}^{G}$, and write
+$f_l(x;A_l,B_l,R_l)$ for the RLB block map defined by \eqref{eq:rlb-projection} through \eqref{eq:rlb-output}.  If
+$\epsilon_{\rm rms}=0$ and all group radii are nonzero, then
 \begin{align}
-    f_l(x;A_l,B_l,R_l)=f_l(x;D_l(a)A_l,B_lD_l(a)^{-1},R_l).
-    \label{eq:gauge-invariance}
+    f_l(x;A_l,B_l,R_l)
+    =
+    f_l(x;D_l(a)A_l,B_lD_l(a)^{-1},R_l).
+    \label{eq:positive-gauge}
 \end{align}
-Thus many matrix representatives encode the same block function.  The training rule
-uses a stabilizing RMS floor, so \eqref{eq:gauge-invariance} is not an exact
-training-time invariance.  We use it as a design principle: the
-optimizer should control motion in the represented function while preventing
-uncontrolled drift in the matrix representative.  Appendix~\ref{app:gauge-proof}
-proves the homogeneous identity and states the floor-induced discrepancy.
+The stabilized radius used in training makes this identity approximate near the
+RMS floor, but the identity remains the organizing geometry away from degenerate
+groups.  MatrixPolicy therefore has two responsibilities: move the represented
+function and keep the chosen matrix representative from drifting along an
+uncontrolled scale direction.
 
-In the main configuration, MatrixPolicy is applied only to the RLB matrices
-$\{A_l,B_l\}_{l=1}^{L}$.  All non-matrix parameters, including attention,
-embeddings, layer norms, and the rational numerator/denominator coefficients, are
-updated by the AdamW-backed non-matrix optimizer.  This partition is important:
-the method does not rely on a separate coefficient optimizer, and it does not
-introduce any local-atom coefficient group.
+The optimizer partition follows this structure.  MatrixPolicy is applied to the
+RLB matrix set $\{A_l,B_l\}_{l=1}^{L}$.  Non-matrix parameters, including
+embeddings, attention weights, normalization parameters, and the rational
+numerator and denominator coefficients, are updated by the AdamW child optimizer
+\citep{kingma2015iclr-adam,loshchilov2019decoupled}.  The separate rational
+coefficient optimizer and all transport-style coefficient metric branches are
+inactive in the main configuration.
 
-\subsection{MatrixPolicy}
-\label{sec:method-optimizer}
+\subsection{On-Policy Signals}
+\label{sec:method-signals}
 
-MatrixPolicy combines three operations: on-policy group scaling, a role/depth
-matrix update, and a post-step gauge rebalance.  Let
-$r\in\{\mathrm{in},\mathrm{out}\}$ denote the matrix role, with
-$M_{l,\mathrm{in}}=A_l$ and $M_{l,\mathrm{out}}=B_l$.  We write
-$A_{l,g}\in\mathbb{R}^{m\times d}$ for the input row block of group $g$ and
-$B_{l,g}\in\mathbb{R}^{d\times m}$ for the matching output column block.
-Before the optimizer step, MatrixPolicy records relative update pressures for
-each rational group,
+MatrixPolicy uses live statistics collected from each RLB layer and group before
+the child optimizer steps.  Let $\epsilon_p>0$ be the small floor used for pressure statistics.  For group $g$ in layer $l$, let
+$A_{l,g}\in\mathbb{R}^{m\times d}$ be the corresponding row block of $A_l$ and
+let $B_{l,g}\in\mathbb{R}^{d\times m}$ be the corresponding column block of
+$B_l$.  The relative matrix-gradient pressures are
 \begin{align}
-    p_{\mathrm{in},g}=\frac{\rms(\nabla A_{l,g})}{\rms(A_{l,g})},\qquad
-    p_{\mathrm{out},g}=\frac{\rms(\nabla B_{l,g})}{\rms(B_{l,g})},\qquad
-    p_{\mathrm{rat},g}=\rms(\nabla\theta_{R,l,g}),
+    p^{\rm in}_{l,g}
+    =
+    \frac{\rms(\nabla A_{l,g})}{\rms(A_{l,g})+\epsilon_p},
+    \qquad
+    p^{\rm out}_{l,g}
+    =
+    \frac{\rms(\nabla B_{l,g})}{\rms(B_{l,g})+\epsilon_p}.
+    \label{eq:matrix-pressure}
 \end{align}
-where $\theta_{R,l,g}$ denotes the raw numerator coefficients and denominator
-parameters before the absolute-value map in \eqref{eq:rlb-denominator}.  Let
-$q_{\mathrm{in},g}$, $q_{\mathrm{out},g}$, and $q_{\mathrm{rat},g}$ be EMAs of
-these quantities, with all RMS values and EMAs floored by a small positive
-constant before logarithms.  MatrixPolicy uses
+For the global-rational RLB variant, the rational activity statistic is the RMS
+of the numerator and denominator gradients in that group:
 \begin{align}
-    \pi_g=\log q_{\mathrm{in},g}-\log q_{\mathrm{out},g},\qquad
-    \alpha_g=\log q_{\mathrm{rat},g}
-       -\frac{1}{2}(\log q_{\mathrm{in},g}+\log q_{\mathrm{out},g}),
+    p^{R}_{l,g}
+    =
+    \left[
+    \frac{1}{2}\left(
+    \rms(\nabla a_{l,g,\cdot})^2+
+    \rms(\nabla b_{l,g,\cdot})^2
+    \right)+\epsilon_p
+    \right]^{1/2}.
+    \label{eq:rational-activity-raw}
+\end{align}
+The implementation generalizes this formula to local-atom ablations by including
+the active atom tensor, but that tensor is absent in the main method.
+
+Let $q^{\rm in}_{l,g}$, $q^{\rm out}_{l,g}$, and $q^{R}_{l,g}$ be exponential
+moving averages of \eqref{eq:matrix-pressure} and \eqref{eq:rational-activity-raw}
+with decay $0.95$, floored by $\epsilon_p$ before logarithms.  MatrixPolicy
+forms two log-domain signals:
+\begin{align}
+    \pi_{l,g}
+    =
+    \log q^{\rm in}_{l,g}-\log q^{\rm out}_{l,g},
+    \qquad
+    \alpha_{l,g}
+    =
+    \log q^{R}_{l,g}
+    -\frac{1}{2}\left(\log q^{\rm in}_{l,g}+\log q^{\rm out}_{l,g}\right).
     \label{eq:pressure-activity}
 \end{align}
-as pressure and rational-activity signals.  Let $T$ be the training-step budget,
-$\xi_t=t/T$, and let $\sigma_{a,b}(\xi)$ be the smoothstep gate from $0$ to $1$
-over $[a,b]$.  We write
-$\tilde\pi_g=\clip(\pi_g,-p_{\max}^{\mathrm{grp}},p_{\max}^{\mathrm{grp}})$ and
-$\phi_t=\sigma_{0.02,0.30}(\xi_t)$ for the clipped pressure and group-policy
-schedule.  The geometric mean over groups is
-$\geom_g(c)=\exp(G^{-1}\sum_{g=1}^G\log c_g)$.
+The pressure $\pi_{l,g}$ measures imbalance between the two matrix roles.
+The activity $\alpha_{l,g}$ measures whether rational coefficients are receiving
+large gradients relative to the adjacent matrices.
 
-The group-gradient multiplier is centered and clipped:
+Two gain statistics are also recorded from the current activation distribution.
+For normalized coordinates $u_{l,g}$ sampled from the recent forward pass,
 \begin{align}
-\begin{aligned}
-    c_{g,r}&=c^{\mathrm{gain}}_{g,r}c^{\mathrm{pressure}}_{g,r}
-       c^{\mathrm{activity}}_{g},\\
-    c_{g,r}&\leftarrow c_{g,r}/\geom_g(c_{g,r}),\\
-    c_{g,r}&\leftarrow \clip(c_{g,r},c_{\min},c_{\max}).
-\end{aligned}
-\label{eq:group-scale}
+    d^{\rm live}_{l,g}=\rms(R'_{l,g}(u_{l,g})),
+    \qquad
+    o^{\rm live}_{l,g}=\rms(R_{l,g}(u_{l,g})).
+    \label{eq:live-gains}
 \end{align}
-For the input matrix, the gain term uses the rational derivative RMS $d_g$; for
-the output matrix, it uses the rational output RMS $o_g$ measured on normalized
-coordinates,
-\begin{align}
-    d_g=\rms(R'_{l,g}(u_{l,g})),\qquad
-    o_g=\rms(R_{l,g}(u_{l,g})),
-\end{align}
-with the RMS taken over sampled normalized coordinates and stabilized by the same
-small positive floors used in training.  The gain factors are
-\begin{align}
-    c^{\mathrm{gain}}_{g,\mathrm{in}}
-       =\left(\frac{\geom(d)}{d_g}\right)^{\lambda_g\phi_t},\qquad
-    c^{\mathrm{gain}}_{g,\mathrm{out}}
-       =\left(\frac{\geom(o)}{o_g}\right)^{\lambda_g\phi_t}.
-\end{align}
-The pressure term moves the two matrix roles in opposite directions,
-\begin{align}
-    c^{\mathrm{pressure}}_{g,\mathrm{in}}=\exp(-\lambda_p\phi_t\tilde\pi_g),\qquad
-    c^{\mathrm{pressure}}_{g,\mathrm{out}}=\exp(+\lambda_p\phi_t\tilde\pi_g),
-\end{align}
-and the rational-activity term damps matrix updates when coefficient gradients
-are large relative to matrix gradients.  Here $\alpha_0$ is the activity target
-and $w_\alpha>0$ is the activity transition width:
-\begin{align}
-    c^{\mathrm{activity}}_g
-    =\exp\left[-\lambda_a\phi_t\relu\left(\frac{\alpha_g-\alpha_0}{w_\alpha}\right)\right].
-\end{align}
-Geometric centering keeps the average log multiplier at zero before the final
-clip; the clip bounds the influence of noisy per-group statistics.  In the main
-configuration, $(\lambda_g,\lambda_p,\lambda_a)=(0.20,0.10,0.20)$,
-$(\alpha_0,w_\alpha)=(0.05,0.45)$, $p_{\max}^{\mathrm{grp}}=1.50$, and
-$(c_{\min},c_{\max})=(0.75,1.35)$.
+These are not full Jacobians of the Transformer block.  They are cheap
+function-space proxies: derivative gain is used for the input-domain matrix
+$A_l$, and output gain is used for the recombination matrix $B_l$.
 
-After group scaling, each RLB matrix receives a role/depth AdamW step and,
-when active, a matrix-normalized step.  The AdamW matrix scale is
-\begin{align}
-    a_{l,r}=\clip\{3.0\,a_{\mathrm{role}}(l,r),0.40,4.0\}.
-\end{align}
-The role factor depends on normalized depth $d_l=(l-1)/(L-1)$:
-\begin{align}
-    \rho_{\mathrm{in}}(l)=\clip(1-0.50(d_l-0.5),0.55,1.40),\qquad
-    \rho_{\mathrm{out}}(l)=\clip(1+1.00(d_l-0.5),0.55,1.40),
-\end{align}
-with $a_{\mathrm{role}}(l,r)=\max(0.10,1+1.20(\rho_r(l)-1))$.  The
-matrix-normalized branch is active only early.  Let $\eta_t$ be the shared base
-learning-rate schedule and define
-\begin{align}
-    \mu_{l,r,t}=\clip\Big(
-      0.75\,\sigma_{0.02,0.12}(\xi_t)
-      \big[1-\sigma_{0.20,0.36}(\xi_t)\big]
-      \rho_r(l)\,s_{\mathrm{stat}}(l,r,t),0,0.75\Big),
-\end{align}
-where $s_{\mathrm{stat}}(l,r,t)$ is a bounded pressure/activity factor defined
-in Appendix~\ref{app:details}.  Operationally, MatrixPolicy composes two
-stateful optimizer steps with temporary learning-rate multipliers:
-\begin{align}
-    M'_{l,r} &= \operatorname{AdamW}_{\eta_t a_{l,r}(1-\mu_{l,r,t})}
-       (M^t_{l,r};\nabla M^t_{l,r}),\\
-    M^{t+1}_{l,r} &= \operatorname{MatNorm}_{\eta_t\mu_{l,r,t}}
-       (M'_{l,r};\nabla M^t_{l,r}).
-      \label{eq:matrix-update}
-\end{align}
-Here $\operatorname{MatNorm}$ denotes the early Muon-style matrix-normalized
-branch used for RLB matrices: it maintains its own matrix-gradient momentum and
-normalizes the resulting matrix update direction before applying the temporary
-learning-rate multiplier.  This notation describes the step composition and
-learning-rate multipliers, not a claim that the two stateful updates are an exact
-additive closed form.  After $\mu_{l,r,t}$ permanently decays to zero, the
-zero-learning-rate matrix-normalized branch is omitted.  This reduces runtime
-without changing the nonzero updates.
+\subsection{Group-Gradient Policy}
+\label{sec:method-group-policy}
 
-The final operation is a clipped positive-gauge rebalance.  Define the current
-log-ratio
+Let $t$ be the optimizer step, let $T$ be the planned number of training steps,
+and write $\xi_t=t/T$.  The group policy turns on smoothly through
 \begin{align}
-    \gamma_g=\log\rms(A_{l,g})-\log\rms(B_{l,g}).
+    \phi_t=\smooth(0.02,0.30,\xi_t),
+    \label{eq:group-phase}
 \end{align}
-Using derivative gain $d_g$, output gain $o_g$, and the separately clipped gauge
-pressure
-$\bar\pi_g=\clip(\pi_g,-p_{\max}^{\mathrm{bal}},p_{\max}^{\mathrm{bal}})$,
-MatrixPolicy defines the gauge target
+where $\smooth(a,b,\xi)$ is the cubic smoothstep gate from $0$ to $1$ over
+$[a,b]$, and $\geom_j$ denotes the geometric mean over groups.  For matrix role $r\in\{\mathrm{in},\mathrm{out}\}$, MatrixPolicy
+constructs a group multiplier
 \begin{align}
-    \tau_g=w_\tau\frac{1}{2}(\log d_g-\log o_g)+\beta_p\bar\pi_g,
+    c_{l,g,r}
+    =
+    c^{\rm gain}_{l,g,r}
+    c^{\rm pressure}_{l,g,r}
+    c^{\rm activity}_{l,g}.
+    \label{eq:group-multiplier}
 \end{align}
-where $w_\tau$ weights the gain-ratio target and equals $1$ in the main
-configuration.  Its activity factor is
+For the input role, the gain term uses $d^{\rm live}_{l,g}$; for the output role,
+it uses $o^{\rm live}_{l,g}$:
 \begin{align}
-    a^{\mathrm{activity}}_g=
-    \exp\{\clip(\beta_a\bar\alpha_g,
-    \log a_{\min},\log a_{\max})\},
+    c^{\rm gain}_{l,g,\mathrm{in}}
+    =
+    \left(\frac{\geom_{j}d^{\rm live}_{l,j}}
+    {d^{\rm live}_{l,g}}\right)^{0.20\phi_t},
+    \qquad
+    c^{\rm gain}_{l,g,\mathrm{out}}
+    =
+    \left(\frac{\geom_{j}o^{\rm live}_{l,j}}
+    {o^{\rm live}_{l,g}}\right)^{0.20\phi_t}.
+    \label{eq:gain-policy}
+\end{align}
+The pressure term uses the clipped pressure
+$\tilde{\pi}_{l,g}=\clip(\pi_{l,g},-1.50,1.50)$:
+\begin{align}
+    c^{\rm pressure}_{l,g,\mathrm{in}}
+    =
+    \exp(-0.10\phi_t\tilde{\pi}_{l,g}),
+    \qquad
+    c^{\rm pressure}_{l,g,\mathrm{out}}
+    =
+    \exp(+0.10\phi_t\tilde{\pi}_{l,g}).
+    \label{eq:pressure-policy}
+\end{align}
+Large positive pressure means the input matrix has larger relative gradient
+pressure than the output matrix, so the policy reduces the input-side multiplier
+and increases the output-side multiplier.  The rational-activity term damps both
+matrix roles when rational coefficients are unusually active:
+\begin{align}
+    c^{\rm activity}_{l,g}
+    =
+    \exp\left[
+    -0.20\phi_t
+    \relu\left(\frac{\alpha_{l,g}-0.05}{0.45}\right)
+    \right].
+    \label{eq:activity-policy}
+\end{align}
+The final multiplier is centered and clipped:
+\begin{align}
+    c_{l,g,r}
+    \leftarrow
+    \frac{c_{l,g,r}}{\geom_{j}c_{l,j,r}},
+    \qquad
+    c_{l,g,r}
+    \leftarrow
+    \clip(c_{l,g,r},0.75,1.35).
+    \label{eq:group-center-clip}
+\end{align}
+The centering keeps the mean log multiplier at zero before clipping, so the rule
+redistributes matrix update budget across groups instead of changing the global
+learning rate.  The clip limits the influence of noisy group statistics.
+
+\subsection{Role and Depth Matrix Update}
+\label{sec:method-matrix-step}
+
+After group-gradient scaling, each RLB matrix is stepped by a role/depth AdamW
+branch and, early in training, a matrix-normalized branch.  Let
+$M_{l,\mathrm{in}}=A_l$ and $M_{l,\mathrm{out}}=B_l$.  Define normalized depth
+$\delta_l=(l-1)/(L-1)$ for $L>1$, with $\delta_l=1/2$ if there is only one
+layer.  The role factors are
+\begin{align}
+    \rho_{\mathrm{in}}(l)
+    =
+    \clip(1-0.50(\delta_l-0.5),0.55,1.40),
+    \qquad
+    \rho_{\mathrm{out}}(l)
+    =
+    \clip(1+1.00(\delta_l-0.5),0.55,1.40).
+    \label{eq:role-factors}
+\end{align}
+The AdamW learning-rate multiplier for role $r$ is
+\begin{align}
+    s^{\rm Adam}_{l,r}
+    =
+    \clip\left(
+    3.0\,
+    \max\{0.10,1+1.20(\rho_r(l)-1)\},
+    0.40,4.0
+    \right).
+    \label{eq:adam-role-scale}
+\end{align}
+This gives earlier layers a mild bias toward input-domain selection and later
+layers a mild bias toward output recombination.
+
+The matrix-normalized branch is active only near the beginning of training.  Let
+\begin{align}
+    \psi_{l,t}
+    =
+    \clip\left(
+    \exp[-0.30\Psi_{l,t}-0.65\Omega_{l,t}],
+    0.10,1.15
+    \right),
+    \label{eq:stat-penalty}
 \end{align}
 where
-$\bar\alpha_g=\clip(\alpha_g,-p_{\max}^{\mathrm{bal}},p_{\max}^{\mathrm{bal}})$,
-$\beta_a$ is the activity-gain coefficient, and
-$0<a_{\min}\le a_{\max}$.  Activity can either damp or amplify the scheduled
-gauge move within this fixed range.  MatrixPolicy applies
 \begin{align}
-    \ell_g=\clip\left(s_{l,t}a^{\mathrm{activity}}_g\frac{\tau_g-\gamma_g}{2},
-      -\ell_{\max},\ell_{\max}\right)
+    \Psi_{l,t}
+    =
+    \frac{1}{G}\sum_{g=1}^{G}
+    \left|\clip(\pi_{l,g},-1.50,1.50)\right|,
+    \qquad
+    \Omega_{l,t}
+    =
+    \frac{1}{G}\sum_{g=1}^{G}
+    \relu\left(\frac{\alpha_{l,g}-0.05}{0.45}\right).
+    \label{eq:pressure-activity-aggregates}
 \end{align}
-where $s_{l,t}$ is the scheduled gauge strength and $\ell_{\max}$ is the maximum
-absolute log-scale move.  It then rescales the matrices as
+The mixture fraction for role $r$ is
 \begin{align}
-    A_{l,g}\leftarrow e^{\ell_g}A_{l,g},\qquad
-    B_{l,g}\leftarrow e^{-\ell_g}B_{l,g}.
-    \label{eq:gauge-step}
+    \mu_{l,r,t}
+    =
+    \clip\left(
+    0.75\,
+    \smooth(0.02,0.12,\xi_t)
+    [1-\smooth(0.20,0.36,\xi_t)]
+    \rho_r(l)\psi_{l,t},
+    0,0.75
+    \right).
+    \label{eq:muon-fraction}
 \end{align}
-In the homogeneous limit, \eqref{eq:gauge-step} changes only the representative.
-With the RMS floor, exact function preservation is lost near the floor; the
-applied log move remains bounded by $|\ell_g|\le\ell_{\max}$.
+Let $\eta_t$ be the base learning rate.  MatrixPolicy implements the matrix step
+as two stateful child optimizer steps with temporary learning-rate multipliers:
+\begin{equation}
+\begin{gathered}
+    \widetilde M_{l,r}^{\,t+1}
+    =
+    \operatorname{AdamW}_{\eta_t s^{\rm Adam}_{l,r}(1-\mu_{l,r,t})}
+    (M_{l,r}^{t};\nabla M_{l,r}^{t}),
+    \\
+    M_{l,r}^{t+1}
+    =
+    \matnorm_{\eta_t \mu_{l,r,t}}
+    (\widetilde M_{l,r}^{\,t+1};\nabla M_{l,r}^{t}).
+\end{gathered}
+    \label{eq:matrix-child-step}
+\end{equation}
+Here $\matnorm$ denotes the matrix-normalized optimizer branch with momentum and
+Newton-Schulz normalization steps.  The step in \eqref{eq:matrix-child-step}
+describes the operational composition of two stateful updates; it is not an
+additive closed-form optimizer.  Once \eqref{eq:muon-fraction} is permanently
+zero for all RLB matrix groups, the zero-learning-rate matrix-normalized child
+step is skipped.  This changes runtime only, because it removes a step that would
+otherwise apply exactly zero learning rate.
+
+\subsection{Bounded Positive-Gauge Rebalance}
+\label{sec:method-gauge}
+
+After the child optimizer steps, the MatrixPolicy wrapper applies a bounded move
+along the positive group gauge in \eqref{eq:positive-gauge}.  This operation uses
+probe-grid gains, not the live activation-distribution gains used by the
+group-gradient policy.  On a fixed grid over the normalized coordinate, define
+\begin{align}
+    d^{\rm probe}_{l,g}=\rms(R'_{l,g}(u)),
+    \qquad
+    o^{\rm probe}_{l,g}=\rms(R_{l,g}(u)).
+    \label{eq:probe-gains}
+\end{align}
+Let
+\begin{align}
+    \gamma_{l,g}
+    =
+    \log \rms(A_{l,g})-\log \rms(B_{l,g})
+    \label{eq:current-gauge}
+\end{align}
+be the current log matrix ratio.  The target log ratio is
+\begin{align}
+    \tau_{l,g}
+    =
+    \frac{1}{2}
+    \left(
+    \log d^{\rm probe}_{l,g}
+    -
+    \log o^{\rm probe}_{l,g}
+    \right)
+    +0.25\,\bar{\pi}_{l,g},
+    \qquad
+    \bar{\pi}_{l,g}=\clip(\pi_{l,g},-1.25,1.25).
+    \label{eq:gauge-target}
+\end{align}
+The first term is a gain-ratio target; the second term shifts the representative
+toward lower persistent matrix-pressure imbalance.  Rational activity controls
+how strongly the move is applied:
+\begin{align}
+    a^{\rm gauge}_{l,g}
+    =
+    \exp\left(
+    \clip(0.10\,\bar{\alpha}_{l,g},\log 0.75,\log 1.25)
+    \right),
+    \qquad
+    \bar{\alpha}_{l,g}=\clip(\alpha_{l,g},-1.25,1.25).
+    \label{eq:gauge-activity}
+\end{align}
+The scheduled log-scale move is
+\begin{align}
+    \ell_{l,g,t}
+    =
+    \clip\left(
+    \frac{1}{2}
+    [\tau_{l,g}-\gamma_{l,g}]
+    \,s_{l,t}\,a^{\rm gauge}_{l,g},
+    -0.030,0.030
+    \right),
+    \label{eq:gauge-log-step}
+\end{align}
+where
+\begin{align}
+    s_{l,t}
+    =
+    0.50\,\smooth(0.03,0.35,\xi_t)\,
+    \clip(1+0.15(\delta_l-0.5),0.75,1.25).
+    \label{eq:gauge-schedule}
+\end{align}
+The matrices are then rescaled by
+\begin{align}
+    A_{l,g}\leftarrow e^{\ell_{l,g,t}}A_{l,g},
+    \qquad
+    B_{l,g}\leftarrow e^{-\ell_{l,g,t}}B_{l,g}.
+    \label{eq:gauge-update}
+\end{align}
+When optimizer moment tensors have compatible shapes, their states are scaled
+covariantly with the same group factors.  In the homogeneous-radius idealization,
+\eqref{eq:gauge-update} changes only the matrix representative.  With the RMS
+floor in \eqref{eq:rlb-normalization}, the move is no longer exactly
+function-preserving near degenerate groups, so the implementation clips every log
+move by $0.030$.
 
 \begin{center}
-\fbox{%
+\fbox{
 \begin{minipage}{0.92\linewidth}
-\textbf{Algorithm 1: MatrixPolicy step.}
-Given gradients $\nabla\mathcal{L}(\theta^t)$ and base learning rate $\eta_t$:
+Algorithm 1: MatrixPolicy step for global-rational RLB.
 \begin{enumerate}
-    \item Update EMAs of RLB group pressure and rational-coefficient activity.
-    \item Apply the centered, clipped group multipliers in \eqref{eq:group-scale}
-    to $A_l$ and $B_l$ gradients.
+    \item Record per-group pressure EMAs and rational-activity EMAs from the
+    current gradients.
+    \item Update live RLB gain statistics from the recent normalized activation
+    distribution.
+    \item Apply the centered, clipped group-gradient multiplier
+    \eqref{eq:group-center-clip} to the RLB matrix gradients.
     \item Step non-matrix parameters, including rational coefficients, with the
-    AdamW-backed non-matrix optimizer.
-    \item Step each RLB matrix with \eqref{eq:matrix-update}.
-    \item Apply the bounded positive-gauge rebalance in \eqref{eq:gauge-step}.
+    AdamW child optimizer.
+    \item Step RLB matrices with the role/depth AdamW branch and the early
+    matrix-normalized branch in \eqref{eq:matrix-child-step}.
+    \item Apply the bounded positive-gauge rebalance in \eqref{eq:gauge-update}.
 \end{enumerate}
 \end{minipage}}
 \end{center}
 
-\section{Experiments}
-\label{sec:experiments}
-
-\section{Discussion}
-\label{sec:discussion}
-
-\section{Conclusion}
-\label{sec:conclusion}
-
-\nocite{kingma2015iclr-adam,loshchilov2019decoupled,liu2024sophia,zhao2024galore,chen2023lion,defazio2024road,vyas2025soap,zhang2025adammini,pagliardini2025ademamix,luo2023came,liang2026cautious,wen2026fantastic,penedo2024fineweb,li2024datacomp,soldaini2024dolma}
+\nocite{liu2024sophia,zhao2024galore,chen2023lion,defazio2024road,vyas2025soap,zhang2025adammini,pagliardini2025ademamix,luo2023came,liang2026cautious,wen2026fantastic,penedo2024fineweb,li2024datacomp,soldaini2024dolma}
 \bibliography{references}
 \bibliographystyle{iclr2026_conference}
 
-
-
 \appendix
-\section{Design Rationale and Mathematical Details}
-\label{app:design}
 
-This appendix separates exact facts from design heuristics.  The exact facts are
-that the main denominator has no real poles and that RLB has an exact
-positive gauge in the homogeneous-radius limit.  The design heuristics are the
-use of derivative/output gains as cheap function-space proxies, the use of
-relative gradient pressures as on-policy imbalance signals, and the use of a
-short early matrix-normalized branch for RLB matrices.  We do not claim a
-convergence theorem, a natural-gradient derivation, or exact gauge preservation
-under the stabilized RMS floor.
+\section{Exact Properties of Global-Rational RLB}
+\label{app:exact}
 
-\subsection{Pole-Safe Global Rational Curves}
-\label{app:denominator}
+This appendix separates facts that follow directly from the parameterization from
+heuristics used by MatrixPolicy.  The denominator is pole-safe on real inputs,
+and the RLB matrix pair has an exact positive gauge when the RMS floor is removed
+and group radii are nonzero.  The gain, pressure, and activity signals are
+designed from these facts but are not presented as a convergence proof or a
+natural-gradient derivation.
 
-For each group, the global-rational activation uses the denominator
+\subsection{Pole-Safe Denominator}
+\label{app:pole-safe}
+
+For one layer and group, the global rational denominator is
 \begin{align}
-    Q(u)=1+|b_1||u|+|b_2|u^2+|b_3||u|^3+|b_4|u^4 .
+    Q(u)=1+|b_1|\,|u|+|b_2|u^2+|b_3|\,|u|^3+|b_4|u^4.
 \end{align}
-Every term is nonnegative for real $u$, hence $Q(u)\ge 1$.  This is the main
-reason for this denominator form: it preserves rational expressivity without
-introducing real poles.  The price is that the denominator is only piecewise
-smooth because of the absolute-value terms.  This is acceptable for the intended
-use: the curve is initialized from a SiLU fit, trained with standard automatic
-differentiation, and used as a pole-safe trainable scalar response inside each
-RLB group.
+For every real $u$, all nonconstant terms are nonnegative, so $Q(u)\ge 1$.
+Thus $P(u)/Q(u)$ has no real pole.  This property is independent of the signs of
+the raw denominator parameters.  The only cost is differentiability at the points
+where the absolute-value terms change derivative, which the implementation
+handles with standard automatic differentiation.
 
-Using no local atoms has both a priori and empirical motivation.  A priori, the
-global-rational activation has a smaller and cleaner optimizer surface: numerator
-and denominator parameters only, no atom coefficients, no atom statistics, and no
-empty atom parameter group.  Empirically, our ablations use the same
-global-rational activation for both MatrixPolicy and non-MatrixPolicy RLB
-controls, so the main comparison is not confounded by a MatrixPolicy-only local
-atom path.
-
-\subsection{Positive Gauge Lemma}
+\subsection{Positive Gauge Identity}
 \label{app:gauge-proof}
 
-Consider one group and set $\epsilon_{\rm rms}=0$.  For
-$r(z)=\sqrt{m^{-1}\lVert z\rVert_2^2}$, any $a>0$, and any nonzero group
-with $r(z)>0$,
+Set $\epsilon_{\rm rms}=0$ and consider one nonzero group.  For a positive scalar
+$a>0$,
 \begin{align}
-    r(az)=a r(z),\qquad u(az)=\frac{az}{r(az)}=\frac{z}{r(z)}=u(z).
+    r(az)=\sqrt{m^{-1}\lVert az\rVert_2^2}=a r(z),
+    \qquad
+    u(az)=\frac{az}{r(az)}=\frac{z}{r(z)}=u(z).
 \end{align}
 Therefore
 \begin{align}
     h(az)=r(az)R(u(az))=a r(z)R(u(z))=a h(z).
 \end{align}
-If the corresponding output columns are scaled by $a^{-1}$, their contribution to
-$B_lh_l$ is unchanged.  Applying the argument independently to all groups proves
-\eqref{eq:gauge-invariance}.
+If the matching output columns are scaled by $a^{-1}$, the group contribution to
+$B_lh_l$ is unchanged.  Applying the same argument independently to every group
+proves \eqref{eq:positive-gauge}.
 
-With the stabilizing floor, the normalized coordinate after scaling becomes
+\subsection{Effect of the RMS Floor}
+\label{app:gauge-floor}
+
+With $\epsilon_{\rm rms}>0$, scaling a group by $a$ gives
 \begin{align}
-    u_{\epsilon}(az)=\frac{az}{\sqrt{a^2m^{-1}\lVert z\rVert_2^2+
-    \epsilon_{\rm rms}}}=\kappa(a,z)u_{\epsilon}(z),
+    u_{\epsilon}(az)
+    =
+    \frac{az}
+    {\sqrt{a^2m^{-1}\lVert z\rVert_2^2+\epsilon_{\rm rms}}}
+    =
+    \kappa(a,z)u_{\epsilon}(z),
 \end{align}
 where
 \begin{align}
-    \kappa(a,z)=\frac{a\sqrt{m^{-1}\lVert z\rVert_2^2+
-    \epsilon_{\rm rms}}}{\sqrt{a^2m^{-1}\lVert z\rVert_2^2+
-    \epsilon_{\rm rms}}}.
+    \kappa(a,z)
+    =
+    \frac{a\sqrt{m^{-1}\lVert z\rVert_2^2+\epsilon_{\rm rms}}}
+    {\sqrt{a^2m^{-1}\lVert z\rVert_2^2+\epsilon_{\rm rms}}}.
 \end{align}
-When $m^{-1}\lVert z\rVert_2^2\gg \epsilon_{\rm rms}$, $\kappa(a,z)\approx 1$;
-when a group is near the floor, the normalized input changes and exact invariance
-is lost.  This is why gauge rebalance is exact only in the homogeneous
-idealization.  With the stabilized RMS floor, only the applied log-scale move is
-explicitly bounded by clipping.
+If $m^{-1}\lVert z\rVert_2^2\gg\epsilon_{\rm rms}$, then
+$\kappa(a,z)\approx 1$ and the homogeneous gauge is a good local model.  Near
+the floor, $\kappa(a,z)$ can differ from $1$, so the rebalance is only an
+approximate gauge move.  This is why \eqref{eq:gauge-log-step} clips the
+per-step log scale and why the paper reports matched training behavior rather
+than claiming exact function preservation under the stabilized radius.
 
-\subsection{Why Derivative and Output Gains Are Reasonable Proxies}
-\label{app:function-space-scaling}
+\section{Design Rationale}
+\label{app:rationale}
 
-A perturbation of the output matrix has first-order effect
+\subsection{Gain Proxies for Matrix Updates}
+\label{app:gain-rationale}
+
+The output matrix has a direct first-order effect
 \begin{align}
-    \delta y_g=\delta B_{l,g}h_{l,g}.
+    \delta y_{l,g}=\delta B_{l,g}h_{l,g}.
 \end{align}
-MatrixPolicy uses $o_g=\rms(R_g(u_{l,g}))$, the RMS of the scalar rational
-output on normalized coordinates, as a cheap output-side proxy.  This abstracts
-away the group radius $r_{l,g}$ and is not the full $B$-update Jacobian.  A
-perturbation of $A_{l,g}$ first perturbs $z_{l,g}$ and then
-passes through the normalized rational branch.  Ignoring the surrounding
-Transformer context and keeping only the dominant scalar nonlinearity term gives
-a sensitivity proportional to the rational derivative; hence
-$d_g=\rms(R'_{l,g}(u_{l,g}))$ is a cheap input-side proxy.  The full Jacobian also
-contains the derivative of the RMS normalization and interactions with the rest
-of the network, so this is not a Fisher, Hessian, or natural-gradient claim.
+Since $h_{l,g}=r_{l,g}R_{l,g}(u_{l,g})$, the RMS of the scalar rational output is
+a cheap proxy for how strongly that group feeds the recombination matrix.  This
+motivates using $o_{l,g}$ for output-side matrix scaling.
 
-The centered inverse-gain rule in \eqref{eq:group-scale} follows from this proxy:
-large-gain groups receive smaller raw matrix-gradient scale and small-gain groups
-receive larger scale.  Before the final clip,
+The input matrix changes $z_{l,g}$ before normalization and rational evaluation.
+For the homogeneous-radius case, the differential of
+$h(z)=r(z)R(z/r(z))$ has the schematic form
 \begin{align}
-    \frac{1}{G}\sum_{g=1}^{G}\log\left(c_g/\geom(c)\right)=0,
+    \mathrm{d}h
+    =
+    \mathrm{d}r\,R(u)
+    +
+    r\,\operatorname{diag}(R'(u))\,\mathrm{d}u.
 \end{align}
-so the operation is a redistribution of update budget in log scale.  The final
-clip bounds the influence of noisy per-group statistics and can slightly shift
-the mean log multiplier.
+The full Jacobian also contains the derivative of the RMS normalization and
+interactions with the rest of the Transformer block.  MatrixPolicy deliberately
+does not estimate that full Jacobian.  It uses the scalar derivative RMS
+$d_{l,g}$ as a stable, low-cost proxy for the input-side sensitivity of the
+rational branch.  The centered inverse-gain rule in \eqref{eq:gain-policy}
+follows from this proxy: large-gain groups receive smaller raw matrix-gradient
+scale, and small-gain groups receive larger scale, with the log mean recentered.
 
-\subsection{Why Pressure Appears in Both Scaling and Gauge Balance}
+\subsection{Pressure as Gauge-Imbalance Evidence}
 \label{app:pressure-rationale}
 
-In the homogeneous gauge direction, the infinitesimal scale transform is
-$A_g\mapsto e^sA_g$, $B_g\mapsto e^{-s}B_g$.  If the loss were exactly invariant
-and no regularization or optimizer state were present, the directional derivative
-would satisfy
+In the exact gauge model, the infinitesimal transform
+$A_{l,g}\mapsto e^sA_{l,g}$ and
+$B_{l,g}\mapsto e^{-s}B_{l,g}$ leaves the represented function unchanged.  If no
+regularization, moment state, or RMS floor were present, the loss derivative
+along this direction would satisfy
 \begin{align}
-    \langle \nabla_{A_g}\mathcal{L},A_g\rangle_F
-    -\langle \nabla_{B_g}\mathcal{L},B_g\rangle_F=0.
+    \langle\nabla_{A_{l,g}}\mathcal{L},A_{l,g}\rangle_F
+    -
+    \langle\nabla_{B_{l,g}}\mathcal{L},B_{l,g}\rangle_F
+    =
+    0.
 \end{align}
-MatrixPolicy does not use this inner product directly; instead it uses the more
-robust relative-pressure proxy
-\begin{align}
-    \pi_g=\log q_{\mathrm{in},g}-\log q_{\mathrm{out},g}.
-\end{align}
-Positive $\pi_g$ means the input matrix is receiving larger relative gradient
-pressure than the output matrix.  MatrixPolicy uses this signal to reduce input
-matrix scale and increase output matrix scale in the group-gradient multiplier,
-and to shift the gauge target toward a representative with less persistent
-relative-update imbalance.  This is an a priori heuristic grounded in the RLB
-gauge, not an exact quotient-space optimizer.
+The implementation uses the RMS ratio pressure in
+\eqref{eq:matrix-pressure} instead of this signed inner product.  The RMS ratio
+is less sensitive to cancellation and aligns with optimizer step size, because
+it measures gradient magnitude relative to parameter magnitude.  The pressure
+$\pi_{l,g}$ is therefore an empirical gauge-imbalance signal, not an exact
+quotient-space gradient.
 
-The gauge target
-\begin{align}
-    \tau_g=w_\tau\frac{1}{2}(\log d_g-\log o_g)+\beta_p\bar\pi_g
-\end{align}
-combines the local sensitivity proxy with the clipped on-policy pressure proxy,
-where $\bar\pi_g$ is clipped using the gauge-balance threshold
-$p_{\max}^{\mathrm{bal}}$.  The applied move is scaled by schedule and activity
-and clipped to $[-\ell_{\max},\ell_{\max}]$, so the update is a bounded move
-toward $\tau_g$, not exact canonicalization.
+The same signal appears twice for different reasons.  In
+\eqref{eq:pressure-policy}, it redistributes the next matrix-gradient update
+between input and output roles.  In \eqref{eq:gauge-target}, it shifts the
+post-step gauge target toward a representative with less persistent relative
+update imbalance.  Both uses are bounded by clipping, so a noisy group cannot
+dominate either the gradient policy or the gauge move.
 
-\subsection{Why the Matrix-Normalized Branch Is Early}
-\label{app:early-matrix-branch}
+\subsection{Early Matrix-Normalized Branch}
+\label{app:matrix-normalized-rationale}
 
-The early branch in \eqref{eq:matrix-update} is restricted to RLB matrices and to
-the beginning of training.  The a priori reason is that the matrices $A_l$ and
-$B_l$ define domains and recombinations for the rational groups; early matrix
-conditioning and rotations can matter before the rational curves and surrounding
-Transformer settle.  The a posteriori reason is that generic Muon controls do not
-explain the final MatrixPolicy advantage.  The branch is therefore a short
-matrix-family component of MatrixPolicy, after which the update decays to the
-role/depth AdamW matrix policy.
+The matrix-normalized branch is scheduled early because the RLB matrices define
+the domains and recombinations seen by the rational curves.  Early in training,
+changing matrix directions can rapidly change which normalized coordinates each
+group sees.  Later, after the rational curves, embeddings, attention layers, and
+output recombinations have co-adapted, a persistent normalized matrix branch adds
+runtime and can obscure the RLB-specific role/depth policy.  MatrixPolicy
+therefore uses the branch as an early conditioning mechanism and then decays it
+to zero through \eqref{eq:muon-fraction}.
 
-\subsection{A Posteriori Design Constraints}
-\label{app:posterior}
+This design also matches the empirical comparison boundary.  The method is not
+``use Muon everywhere.''  The standalone Muon controls are separate baselines,
+while MatrixPolicy restricts the matrix-normalized branch to RLB matrices,
+modulates it by RLB pressure and activity statistics, and removes it after the
+early window.
 
-The empirical design constraints are intentionally narrower than the full design
-space.  The main method is the global-rational RLB sublayer in
-Section~\ref{sec:method-activation} combined with the MatrixPolicy optimizer in
-Section~\ref{sec:method-optimizer}.  Local rational atoms are an ablation of the
-activation family, not part of the main method.  Likewise, the empirical claim is
-not that the activation alone explains the result: matched RLB controls with the
-same activation but different optimizers are required to isolate the optimizer
-contribution.
+\subsection{Global Rational Instead of Local Atoms}
+\label{app:global-rational-rationale}
 
-This also fixes the accounting boundary for experiments.  Failed or unstable
-optimizer pairings should be reported under the same stopping rules as stable
-runs, and runtime comparisons should use clean training time measured by the
-training process.  Non-training wall-clock delay and discarded interrupted
-attempts are systems artifacts rather than properties of an optimizer or
-activation.
+The main paper method removes the local atom path from RLB.  A priori, the
+global-rational variant is the cleaner object for an optimizer paper: each group
+has one trainable rational curve with numerator and denominator parameters, and
+MatrixPolicy can be described through matrix roles, rational gains, pressure
+statistics, and gauge balance.  There is no separate atom tensor whose optimizer
+state, failure mode, or initialization could confound the matrix-policy claim.
 
-\section{MatrixPolicy Hyperparameter Details}
-\label{app:details}
+A posteriori, the completed replacement runs use the same global-rational RLB
+source for MatrixPolicy and for the non-MatrixPolicy RLB optimizer controls.
+This makes the evidence easier to interpret.  When MatrixPolicy improves over
+RLB+AdamW, RLB+Lion, RLB+Muon, and other RLB controls under this setting, the
+difference is attributed to how the optimizer uses RLB structure, not to a local
+atom path that only some runs used.
 
-For $L>1$, normalized depth is $d_l=(l-1)/(L-1)$.  MatrixPolicy uses
-\begin{align}
-    \rho_{\mathrm{in}}(l)&=\clip(1-0.50(d_l-0.5),0.55,1.40),\\
-    \rho_{\mathrm{out}}(l)&=\clip(1+1.00(d_l-0.5),0.55,1.40),\\
-    a_{\mathrm{role}}(l,r)&=\max(0.10,1+1.20(\rho_r(l)-1)).
-\end{align}
-The AdamW matrix multiplier is
-\begin{align}
-    a_{l,r}=\clip(3.0a_{\mathrm{role}}(l,r),0.40,4.0).
-\end{align}
-Let $\xi_t=t/T$ and let $\sigma_{a,b}(\xi)$ be a smoothstep gate from $0$ to $1$
-over $[a,b]$.  The early matrix-normalized branch uses
-\begin{align}
-    \mu_{l,r,t}=\clip\Big(
-      0.75\,\sigma_{0.02,0.12}(\xi_t)
-      \big[1-\sigma_{0.20,0.36}(\xi_t)\big]
-      \rho_r(l)\,s_{\mathrm{stat}}(l,r,t),0,0.75\Big),
-\end{align}
-where $s_{\mathrm{stat}}(l,r,t)$ is the bounded pressure/activity penalty
-\begin{align}
-    s_{\mathrm{stat}}(l,r,t)&=\clip\{\exp[-0.30P_l(t)-0.65A_l(t)],0.10,1.15\},\\
-    P_l(t)&=G^{-1}\sum_{g=1}^{G}
-      \left|\clip(\pi_g,-1.50,1.50)\right|,\\
-    A_l(t)&=G^{-1}\sum_{g=1}^{G}
-      \relu\left(\frac{\alpha_g-0.05}{0.45}\right).
-\end{align}
-In the main configuration, $\mu_{l,r,t}=0$ after the decay window.
+\section{Main Hyperparameter Setting}
+\label{app:hyperparameters}
 
-The gauge rebalance runs every five optimizer steps.  Its schedule is
-\begin{align}
-    s_{l,t}=0.50\,\sigma_{0.03,0.35}(\xi_t)
-      \clip(1+0.15(d_l-0.5),0.75,1.25),
-\end{align}
-with $\ell_{\max}=0.030$.  The pressure contribution in the gauge target uses EMA
-decay $0.95$, pressure coefficient $\beta_p=0.25$, and pressure clip
-$p_{\max}^{\mathrm{bal}}=1.25$ for the gauge calculation.  Rational activity
-scales the applied move with $\beta_a=0.10$ and clamp range
-$(a_{\min},a_{\max})=(0.75,1.25)$.
+\subsection{Active and Inactive Branches}
+\label{app:active-branches}
 
-The main MatrixPolicy configuration enables the group-gradient policy with
-\begin{align}
-    \lambda_g=0.20,
-    \qquad \lambda_p=0.10,
-    \qquad \lambda_a=0.20,
-    \qquad (c_{\min},c_{\max})=(0.75,1.35),
-\end{align}
-and a smooth activation window from training progress $0.02$ to $0.30$.
+The main experimental MatrixPolicy rows use the following active surface.
+\begin{itemize}
+    \item RLB activation: `rlb\_fused\_global\_rational'.
+    \item Rational curve: grouped P5/Q4 with SiLU initialization and no local atoms.
+    \item Backbone and rational coefficients: AdamW child optimizer.
+    \item RLB input/output matrices: RationalMatrixPolicyOptimizer child.
+    \item Group-gradient policy: active; see \eqref{eq:group-multiplier} through \eqref{eq:group-center-clip}.
+    \item Positive-gauge rebalance: active; see \eqref{eq:gauge-target} through \eqref{eq:gauge-update}.
+    \item Separate rational coefficient optimizer: inactive.
+    \item Coefficient Gram preconditioning: inactive.
+    \item Transport/quotient projection branches: inactive.
+\end{itemize}
+This list is part of the method definition.  Optional research branches in the
+code are not part of the main method unless a manifest explicitly enables them.
 
-The constants are deliberately modest.  The exponent values keep group
-redistribution in the small-perturbation regime; the clips prevent a single noisy
-group from dominating the matrix update; the smooth windows suppress statistics
-from the cold-start phase and remove the matrix-normalized branch before the
-long-run optimizer comparison.  In the experiments, these constants are fixed
-across datasets and model sizes rather than tuned per run.
+\subsection{Numerical Constants}
+\label{app:numerical-constants}
+
+The main child optimizers use learning rate $3\times 10^{-4}$, minimum learning
+rate $3\times 10^{-5}$, weight decay $0.10$, AdamW $\beta_1=0.9$, AdamW
+$\beta_2=0.999$, and $\epsilon=10^{-8}$ in the main runs.  For RLB
+matrices, the AdamW multiplier is \eqref{eq:adam-role-scale}.  The
+matrix-normalized branch uses strength $0.75$, maximum mixture $0.75$, momentum
+$0.95$, five Newton-Schulz normalization steps, and the schedule in
+\eqref{eq:muon-fraction}.  Its final and minimum mixture values are both zero.
+
+The group-gradient policy uses gain strength $0.20$, pressure strength $0.10$,
+rational-activity damping $0.20$, pressure clip $1.50$, activity target $0.05$,
+activity width $0.45$, activation window $0.02$ to $0.30$ of training progress,
+and final multiplier clip $[0.75,1.35]$.
+
+The gauge rebalance runs every five optimizer steps.  It uses probe range $[-5,5]$,
+129 probe points, target weight $1.0$, strength $0.50$, activation window
+$0.03$ to $0.35$, layer-depth gain $0.15$, pressure coefficient $0.25$, pressure
+clip $1.25$, rational-activity coefficient $0.10$, activity-gain clamp
+$[0.75,1.25]$, and maximum absolute log step $0.030$.
+
+\subsection{Runtime and Failure Accounting}
+\label{app:accounting}
+
+Runtime tables should report clean training-process time from completed JSONL
+summary records.  Queue wait, dependency wait, token-cache construction,
+extension compilation, launcher overhead, and discarded pre-restart partial
+attempts are not optimizer runtime.  If a completed artifact cannot reconstruct
+trusted per-row training time after preemption, the row must be rerun or marked
+as unrepaired rather than silently averaged into the runtime table.
+
+Failures are not excluded from the scientific record.  If an optimizer/activation
+pair diverges or early-stops under the stated protocol, it should be reported as
+diverged or early-stopped under the same stopping rule.  The accounting rule only
+separates training behavior from systems artifacts such as preempted allocations
+or known-bad timing nodes.
 
 \end{document}
