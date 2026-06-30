@@ -166,90 +166,144 @@ def _matrix_glyph(ax, xy, width, height, label, orientation="rows"):
 def make_matrixpolicy_overview(out_path: Path) -> None:
     """RLB forward map and optimizer-visible interface."""
 
-    fig, ax = plt.subplots(figsize=(7.2, 4.05), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(7.2, 4.05), constrained_layout=False)
+    fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
 
-    ink = "#202020"
-    muted = "#666666"
-    forward = "#202020"
-    observe = "#7a7a7a"
+    ink = "#202124"
+    muted = "#5f6368"
+    forward = "#202124"
+    observe = "#6b7280"
     policy = "#6f4aa4"
+    policy_light = "#b4a7c9"
     blue = "#dcebf7"
+    blue_edge = "#325d84"
     green = "#e7f5ed"
+    green_edge = "#2f7d54"
     amber = "#fff1d1"
-    gray = "#f2f2f2"
+    amber_edge = "#9a6a00"
     lavender = "#eee7f7"
+    gray = "#f4f4f4"
 
-    ax.text(0.018, 0.955, "a", fontsize=11, weight="bold", va="top")
-    ax.text(0.048, 0.955, "RLB forward map", fontsize=9.4, weight="bold", va="top", color=ink)
-    ax.text(0.018, 0.430, "b", fontsize=11, weight="bold", va="top")
-    ax.text(0.048, 0.430, "Detached summaries form the optimizer interface", fontsize=9.4, weight="bold", va="top", color=ink)
+    def panel(x0, y0, w, h, fc, ec, label):
+        ax.add_patch(FancyBboxPatch(
+            (x0, y0), w, h,
+            boxstyle="round,pad=0.010,rounding_size=0.020",
+            facecolor=fc, edgecolor=ec, linewidth=0.70, alpha=0.72, zorder=0,
+        ))
+        if label:
+            ax.text(x0 + 0.015, y0 + h - 0.030, label, ha="left", va="top", fontsize=7.2, weight="bold", color=ec)
 
-    # Forward computation lane.
-    y = 0.705
-    _box(ax, (0.030, y - 0.045), 0.055, 0.090, "$x_l$", gray, fontsize=9.2, lw=0.8)
+    def labeled_box(x0, y0, w, h, title, body, fc, ec, title_size=7.3, body_size=6.45, lw=0.85):
+        ax.add_patch(FancyBboxPatch(
+            (x0, y0), w, h,
+            boxstyle="round,pad=0.012,rounding_size=0.018",
+            facecolor=fc, edgecolor=ec, linewidth=lw, zorder=2,
+        ))
+        if body:
+            ax.text(x0 + w / 2, y0 + h * 0.64, title, ha="center", va="center", fontsize=title_size, weight="bold", color=ink, zorder=3)
+            ax.text(x0 + w / 2, y0 + h * 0.34, body, ha="center", va="center", fontsize=body_size, color=ink, linespacing=1.05, zorder=3)
+        else:
+            ax.text(x0 + w / 2, y0 + h / 2, title, ha="center", va="center", fontsize=title_size, weight="bold", color=ink, zorder=3)
 
-    ax.add_patch(Rectangle((0.120, y - 0.105), 0.065, 0.210, facecolor=blue, edgecolor="#325d84", linewidth=1.0))
-    for i, color in enumerate(["#c5dcf0", "#e8f1f9", "#c5dcf0", "#e8f1f9"]):
-        ax.add_patch(Rectangle((0.120, y - 0.105 + i * 0.0525), 0.065, 0.0525, facecolor=color, edgecolor="white", linewidth=0.5))
-    ax.text(0.1525, y + 0.132, "$A_l$", ha="center", fontsize=8.6, weight="bold")
-    ax.text(0.1525, y - 0.142, "input matrix", ha="center", fontsize=6.6, color=muted)
+    def matrix_block(x0, y0, w, h, label, orientation="rows"):
+        ax.add_patch(FancyBboxPatch(
+            (x0 - 0.010, y0 - 0.018), w + 0.020, h + 0.052,
+            boxstyle="round,pad=0.010,rounding_size=0.018",
+            facecolor="#f7fbff", edgecolor=policy, linewidth=0.85, zorder=1,
+        ))
+        ax.add_patch(Rectangle((x0, y0), w, h, facecolor=blue, edgecolor=blue_edge, linewidth=1.0, zorder=2))
+        if orientation == "rows":
+            band_h = h / 4
+            for i, color in enumerate(["#c5dcf0", "#e8f1f9", "#c5dcf0", "#e8f1f9"]):
+                ax.add_patch(Rectangle((x0, y0 + i * band_h), w, band_h, facecolor=color, edgecolor="white", linewidth=0.45, zorder=3))
+        else:
+            band_w = w / 4
+            for i, color in enumerate(["#c5dcf0", "#e8f1f9", "#c5dcf0", "#e8f1f9"]):
+                ax.add_patch(Rectangle((x0 + i * band_w, y0), band_w, h, facecolor=color, edgecolor="white", linewidth=0.45, zorder=3))
+        ax.text(x0 + w / 2, y0 + h + 0.047, label, ha="center", va="bottom", fontsize=8.6, weight="bold", color=ink)
 
-    _box(ax, (0.222, y - 0.085), 0.122, 0.170, "$z_l=A_lx_l$\npartition into\n$z_{l,g}$", green, fontsize=7.1, lw=0.85)
-    for yy in [y - 0.052, y - 0.018, y + 0.018, y + 0.052]:
-        ax.plot([0.235, 0.331], [yy, yy], color="#8db7a0", linewidth=0.45)
+    def chip(x0, y0, title, body, width=0.118):
+        labeled_box(x0, y0, width, 0.072, title, body, "#ffffff", "#a0a0a0", title_size=6.3, body_size=5.9, lw=0.65)
 
-    _box(ax, (0.380, y - 0.090), 0.135, 0.180, "$r_{l,g}=\\mathrm{RMS}(z_{l,g})$\n$u_{l,g}=z_{l,g}/r_{l,g}$", green, fontsize=7.1, lw=0.85)
+    def poly_arrow(points, color, lw=0.95, scale=7.0, linestyle="-"):
+        for p0, p1 in zip(points[:-2], points[1:-1]):
+            ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color=color, linewidth=lw, linestyle=linestyle, zorder=1.5)
+        _arrow(ax, points[-2], points[-1], color=color, lw=lw, scale=scale, linestyle=linestyle)
 
-    ax.add_patch(FancyBboxPatch((0.552, y - 0.108), 0.150, 0.216, boxstyle="round,pad=0.014,rounding_size=0.018", linewidth=0.9, facecolor=amber, edgecolor="#8a6d2a"))
-    ax.text(0.627, y + 0.080, "global response", ha="center", fontsize=7.3, weight="bold")
-    ax.text(0.627, y + 0.052, "$R_{l,g}(u)=P_5(u)/Q_4(u)$", ha="center", fontsize=6.8)
-    ax.text(0.627, y + 0.027, "$Q_4(u)\\geq 1$", ha="center", fontsize=6.8)
-    xs = np.linspace(-1, 1, 100)
-    ys = y - 0.030 + 0.050 * (xs / (1.0 + 0.75 * np.abs(xs)) + 0.10 * xs**2)
-    ax.plot(0.584 + 0.087 * (xs + 1) / 2, ys, color="#7a4b00", linewidth=1.25)
-    ax.plot([0.584, 0.671], [y - 0.030, y - 0.030], color="#b89042", linewidth=0.45)
+    ax.text(0.022, 0.954, "Global-rational RLB interface", fontsize=9.8, weight="bold", va="top", color=ink)
+    ax.text(0.022, 0.914, "Forward computation, detached statistics, and policy targets are separated visually.", fontsize=7.2, va="top", color=muted)
 
-    _box(ax, (0.738, y - 0.072), 0.095, 0.144, "$h_{l,g}$\n$=r_{l,g}R_{l,g}(u_{l,g})$", green, fontsize=6.8, lw=0.85)
+    panel(0.025, 0.565, 0.950, 0.300, "#f8fbfd", "#607d8b", "forward map")
+    y = 0.710
+    labeled_box(0.045, y - 0.043, 0.052, 0.086, "$x_l$", "", gray, "#9aa0a6", title_size=9.4, body_size=0)
+    matrix_block(0.133, y - 0.090, 0.068, 0.180, "$A_l$", orientation="rows")
+    labeled_box(0.248, y - 0.078, 0.142, 0.156, "group RMS", "$z_{l,g}=A_{l,g}x_l$\n$u=z/r$", green, green_edge, title_size=7.3, body_size=6.45)
 
-    ax.add_patch(Rectangle((0.870, y - 0.105), 0.065, 0.210, facecolor=blue, edgecolor="#325d84", linewidth=1.0))
-    for i, color in enumerate(["#c5dcf0", "#e8f1f9", "#c5dcf0", "#e8f1f9"]):
-        ax.add_patch(Rectangle((0.870 + i * 0.01625, y - 0.105), 0.01625, 0.210, facecolor=color, edgecolor="white", linewidth=0.45))
-    ax.text(0.9025, y + 0.132, "$B_l$", ha="center", fontsize=8.6, weight="bold")
-    ax.text(0.9025, y - 0.142, "output matrix", ha="center", fontsize=6.6, color=muted)
-    _box(ax, (0.958, y - 0.045), 0.036, 0.090, "$y_l$", gray, fontsize=9.2, lw=0.8)
+    ax.add_patch(FancyBboxPatch(
+        (0.430, y - 0.110), 0.210, 0.220,
+        boxstyle="round,pad=0.014,rounding_size=0.020",
+        linewidth=0.95, facecolor=amber, edgecolor=amber_edge, zorder=2,
+    ))
+    ax.text(0.535, y + 0.080, "shared global rational response", ha="center", fontsize=7.35, weight="bold", color=ink, zorder=3)
+    ax.text(0.535, y + 0.048, "$R_{l,g}(u)=P_5(u)/Q_4(u)$", ha="center", fontsize=6.85, color=ink, zorder=3)
+    ax.text(0.535, y + 0.021, "$Q_4(u)\\geq 1$", ha="center", fontsize=6.65, color=muted, zorder=3)
+    xs = np.linspace(-1, 1, 120)
+    ys = y - 0.053 + 0.058 * (xs / (1.0 + 0.65 * np.abs(xs)) + 0.08 * xs**2)
+    ax.plot(0.473 + 0.124 * (xs + 1) / 2, ys, color="#7a4b00", linewidth=1.30, zorder=4)
+    ax.plot([0.473, 0.597], [y - 0.053, y - 0.053], color="#b89042", linewidth=0.45, zorder=3)
+
+    labeled_box(0.680, y - 0.060, 0.090, 0.120, "restore", "$h=rR(u)$", green, green_edge, title_size=7.0, body_size=6.35)
+    matrix_block(0.812, y - 0.090, 0.068, 0.180, "$B_l$", orientation="cols")
+    labeled_box(0.922, y - 0.043, 0.052, 0.086, "$y_l$", "", gray, "#9aa0a6", title_size=9.4, body_size=0)
 
     for start, end in [
-        ((0.085, y), (0.120, y)), ((0.185, y), (0.222, y)),
-        ((0.344, y), (0.380, y)), ((0.515, y), (0.552, y)),
-        ((0.702, y), (0.738, y)), ((0.833, y), (0.870, y)),
-        ((0.935, y), (0.958, y)),
+        ((0.097, y), (0.133, y)),
+        ((0.201, y), (0.248, y)),
+        ((0.390, y), (0.430, y)),
+        ((0.640, y), (0.680, y)),
+        ((0.770, y), (0.812, y)),
+        ((0.880, y), (0.922, y)),
     ]:
-        _arrow(ax, start, end, color=forward, lw=1.0, scale=8)
+        _arrow(ax, start, end, color=forward, lw=1.15, scale=9)
 
-    # Interface summaries.
-    chip_specs = [
-        (0.060, 0.260, 0.150, 0.102, "role pressure", "$\\pi_{l,g}$\nfrom $\\nabla A,\\nabla B$", (0.153, y - 0.105)),
-        (0.242, 0.260, 0.145, 0.102, "live gains", "$\\hat d^{live},\\hat o^{live}$\nfrom cached $u$", (0.450, y - 0.090)),
-        (0.420, 0.260, 0.155, 0.102, "coefficient activity", "$\\alpha_{l,g}$\nfrom $\\nabla P,\\nabla Q$", (0.627, y - 0.108)),
-        (0.608, 0.260, 0.155, 0.102, "pair target", "$\\gamma_{l,g},\\tau_{l,g}$\nfrom norms + probes", (0.903, y - 0.105)),
+    panel(0.045, 0.320, 0.910, 0.190, "#fafafa", "#777777", "")
+    ax.text(0.055, 0.526, "detached statistic bank", fontsize=7.2, weight="bold", color="#777777", ha="left", va="bottom", bbox=dict(facecolor="white", edgecolor="none", pad=0.8, alpha=1.0), zorder=8)
+    chips = [
+        (0.108, "pressure", "$\\pi_{l,g}$", 0.167),
+        (0.290, "live gains", "$\\hat d,\\hat o$", 0.319),
+        (0.472, "curve activity", "$\\alpha_{l,g}$", 0.535),
+        (0.784, "pair target", "$\\gamma,\\tau$", 0.846),
     ]
-    for x0, y0, w, h, title, body, tap in chip_specs:
-        _box(ax, (x0, y0), w, h, f"{title}\n{body}", "#f7f7f7", ec="#777777", fontsize=6.6, lw=0.75)
-        _arrow(ax, tap, (x0 + w / 2, y0 + h), color=observe, lw=0.75, scale=6, linestyle="--")
+    for x0, title, body, source_x in chips:
+        chip(x0, 0.382, title, body, width=0.124)
+        if title == "pressure":
+            elbow = [(source_x, 0.620), (source_x, 0.555), (0.260, 0.555), (0.260, 0.452)]
+            for p0, p1 in zip(elbow[:-1], elbow[1:]):
+                ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color=observe, linewidth=0.56, linestyle="--", zorder=1)
+            _arrow(ax, (0.260, 0.452), (0.225, 0.452), color=observe, lw=0.56, scale=4.6, linestyle="--")
+        else:
+            _arrow(ax, (source_x, 0.620), (x0 + 0.062, 0.452), color=observe, lw=0.62, scale=4.8, linestyle="--")
 
-    _box(ax, (0.800, 0.242), 0.165, 0.138, "MatrixPolicy\nupdates only\n$A_l,B_l$", lavender, ec=policy, fontsize=7.4, weight="bold", lw=0.9)
-    _arrow(ax, (0.763, 0.310), (0.800, 0.310), color=policy, lw=1.0, scale=8)
-    ax.plot([0.135, 0.927], [0.535, 0.535], color=policy, linewidth=1.0)
-    _arrow(ax, (0.153, 0.535), (0.153, y - 0.105), color=policy, lw=0.95, scale=7)
-    _arrow(ax, (0.903, 0.535), (0.903, y - 0.105), color=policy, lw=0.95, scale=7)
-    _arrow(ax, (0.882, 0.380), (0.882, 0.535), color=policy, lw=0.95, scale=7)
-    ax.text(0.530, 0.505, "MatrixPolicy update targets: $A_l$ and $B_l$ only", fontsize=6.65, color=policy, ha="center")
+    bus_y = 0.352
+    for x0, _title, _body, _source_x in chips:
+        cx = x0 + 0.062
+        ax.plot([cx, cx], [0.382, bus_y], color="#b8b8b8", linewidth=0.42, linestyle="--", zorder=1)
+    ax.plot([0.170, 0.846], [bus_y, bus_y], color="#b8b8b8", linewidth=0.42, linestyle="--", zorder=1)
+    labeled_box(0.378, 0.240, 0.230, 0.078, "detached summaries", "$s_l$", "#ffffff", "#8a8a8a", title_size=6.85, body_size=6.25, lw=0.70)
+    _arrow(ax, (0.508, bus_y), (0.508, 0.318), color="#a8a8a8", lw=0.54, scale=4.8, linestyle="--")
 
-    ax.text(0.060, 0.140, "The rational coefficients define the curve and expose activity, but they are not MatrixPolicy parameters.", fontsize=7.0, color=muted)
-    ax.text(0.060, 0.105, "All non-RLB-matrix tensors follow the ordinary AdamW path.", fontsize=7.0, color=muted)
+    labeled_box(0.370, 0.115, 0.250, 0.100, "MatrixPolicy", "outputs $\\Delta A_l,\\Delta B_l$ only", lavender, policy, title_size=8.0, body_size=6.6, lw=0.95)
+    _arrow(ax, (0.493, 0.240), (0.493, 0.215), color=policy, lw=0.82, scale=6.4)
+    poly_arrow([(0.390, 0.115), (0.390, 0.060), (0.018, 0.060), (0.018, 0.642), (0.133, 0.642)], color=policy_light, lw=0.54, scale=5.6)
+    poly_arrow([(0.600, 0.115), (0.600, 0.060), (0.982, 0.060), (0.982, 0.642), (0.880, 0.642)], color=policy_light, lw=0.54, scale=5.6)
+    ax.text(0.090, 0.620, "$\\Delta A_l$", fontsize=6.55, color=policy, ha="center", va="top", bbox=dict(facecolor="white", edgecolor="none", pad=0.6, alpha=0.90))
+    ax.text(0.925, 0.620, "$\\Delta B_l$", fontsize=6.55, color=policy, ha="center", va="top", bbox=dict(facecolor="white", edgecolor="none", pad=0.6, alpha=0.90))
+
+    ax.text(0.668, 0.202, "coefficients are observed signals and follow AdamW", fontsize=6.45, color=muted, ha="left")
+    ax.text(0.668, 0.172, "global-only variant: no local atom parameters", fontsize=6.45, color=muted, ha="left")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04)
@@ -259,7 +313,8 @@ def make_matrixpolicy_overview(out_path: Path) -> None:
 def make_matrixpolicy_signal_flow(out_path: Path) -> None:
     """MatrixPolicy optimizer-action schematic with explicit bypass lane."""
 
-    fig, ax = plt.subplots(figsize=(7.2, 4.05), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(7.2, 4.05), constrained_layout=False)
+    fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
@@ -269,61 +324,96 @@ def make_matrixpolicy_signal_flow(out_path: Path) -> None:
     purple = "#6f4aa4"
     lavender = "#eee7f7"
     pale_lav = "#f8f4fc"
-    amber = "#fff1d1"
+    amber = "#fff4dc"
+    amber_edge = "#9a6a00"
     gray = "#eeeeee"
     blue = "#dcebf7"
 
-    ax.text(0.018, 0.952, "MatrixPolicy optimizer action", fontsize=9.8, weight="bold", color=ink, va="top")
-    ax.text(0.018, 0.902, "RLB matrix lane: staged policy for $A_l$ and $B_l$ only", fontsize=8.3, color=muted)
-    ax.plot([0.020, 0.980], [0.347, 0.347], color="#d2d2d2", linewidth=0.8, linestyle="--")
-    ax.text(0.018, 0.303, "AdamW-only bypass lane", fontsize=8.3, color=muted)
+    def lane(x0, y0, w, h, label, fc, ec):
+        ax.add_patch(FancyBboxPatch(
+            (x0, y0), w, h,
+            boxstyle="round,pad=0.012,rounding_size=0.022",
+            facecolor=fc, edgecolor=ec, linewidth=0.70, alpha=0.72, zorder=0,
+        ))
+        if label:
+            ax.text(x0 + 0.018, y0 + h - 0.032, label, fontsize=7.4, weight="bold", color=ec, ha="left", va="top")
 
-    def stage(x0, y0, w, h, num, title, body, fc=lavender, ec=purple, fontsize=6.55):
-        patch = _box(ax, (x0, y0), w, h, f"{title}\n{body}", fc, ec=ec, fontsize=fontsize, lw=0.9)
-        circ = plt.Circle((x0 + 0.018, y0 + h - 0.018), 0.017, facecolor=ec, edgecolor="none", zorder=4)
+    def stage(x0, y0, w, h, num, title, body, fc=lavender, ec=purple, title_size=6.8, body_size=6.0):
+        ax.add_patch(FancyBboxPatch(
+            (x0, y0), w, h,
+            boxstyle="round,pad=0.012,rounding_size=0.018",
+            facecolor=fc, edgecolor=ec, linewidth=0.88, zorder=2,
+        ))
+        circ = plt.Circle((x0 + 0.020, y0 + h - 0.023), 0.017, facecolor=ec, edgecolor="white", linewidth=0.45, zorder=4)
         ax.add_patch(circ)
-        ax.text(x0 + 0.018, y0 + h - 0.018, str(num), ha="center", va="center", fontsize=6.2, color="white", weight="bold", zorder=5)
-        return patch
+        ax.text(x0 + 0.020, y0 + h - 0.023, str(num), ha="center", va="center", fontsize=6.0, color="white", weight="bold", zorder=5)
+        ax.text(x0 + w / 2, y0 + h * 0.64, title, ha="center", va="center", fontsize=title_size, weight="bold", color=ink, zorder=3)
+        ax.text(x0 + w / 2, y0 + h * 0.34, body, ha="center", va="center", fontsize=body_size, color=ink, linespacing=1.05, zorder=3)
 
-    y = 0.575
-    h = 0.205
-    stage(0.025, y, 0.150, h, 1, "RLB signals", "$\\pi,\\hat d^{live},\\hat o^{live}$\n$\\alpha\\to c$\n$\\gamma,\\tau\\to\\ell$", fc="#edf4fb", ec="#366b9a", fontsize=6.35)
-    stage(0.205, y, 0.145, h, 2, "group multipliers", "$c_{l,g,\\mathrm{in/out}}$\nrole-wise center\nclip $[0.75,1.35]$", fontsize=6.25)
-    stage(0.380, y, 0.125, h, 3, "scaled gradients", "$\\widetilde\\nabla A_{l,g}$\n$\\widetilde\\nabla B_{l,g}$", fontsize=6.55)
+    def bypass_box(x0, y0, w, h, title, body):
+        ax.add_patch(FancyBboxPatch(
+            (x0, y0), w, h,
+            boxstyle="round,pad=0.012,rounding_size=0.018",
+            facecolor=gray, edgecolor="#8a8a8a", linewidth=0.78, zorder=2,
+        ))
+        ax.text(x0 + w / 2, y0 + h * 0.64, title, ha="center", va="center", fontsize=7.0, weight="bold", color=ink, zorder=3)
+        ax.text(x0 + w / 2, y0 + h * 0.34, body, ha="center", va="center", fontsize=6.18, color=ink, linespacing=1.05, zorder=3)
 
-    _box(ax, (0.535, y), 0.180, h, "sequential matrix step", pale_lav, ec=purple, fontsize=7.0, weight="bold", lw=0.9)
-    _box(ax, (0.552, y + 0.090), 0.066, 0.072, "AdamW\non $A,B$", "#ffffff", ec="#8b6bb0", fontsize=5.95, lw=0.7)
-    _box(ax, (0.635, y + 0.090), 0.062, 0.072, "then\nMuon", "#ffffff", ec="#8b6bb0", fontsize=6.05, lw=0.7)
-    ax.text(0.625, y + 0.044, "$\\eta_t s^{Adam}_{l,\\sigma}(1-\\mu)$; $\\eta_t\\mu_{l,\\sigma,t}$", ha="center", fontsize=5.9, color=muted)
-    ax.text(0.625, y + 0.017, "early window; separate states", ha="center", fontsize=5.9, color=muted)
-    _arrow(ax, (0.618, y + 0.126), (0.635, y + 0.126), color=purple, lw=0.75, scale=6)
-    circ = plt.Circle((0.553, y + h - 0.018), 0.017, facecolor=purple, edgecolor="none", zorder=4)
+    ax.text(0.022, 0.952, "MatrixPolicy optimizer action", fontsize=9.8, weight="bold", color=ink, va="top")
+    ax.text(0.022, 0.912, "The policy lane is reserved for $A_l,B_l$; every other tensor takes the compact AdamW bypass.", fontsize=7.2, color=muted, va="top")
+
+    lane(0.030, 0.505, 0.940, 0.345, "RLB matrix lane: $A_l$ and $B_l$", "#fbf8ff", purple)
+    y = 0.610
+    h = 0.158
+    stage(0.055, y, 0.120, h, 1, "signals", "$\\pi,\\alpha$\n$\\hat d,\\hat o$\n$\\gamma,\\tau$", fc="#edf4fb", ec="#366b9a", title_size=6.7, body_size=5.85)
+    stage(0.205, y, 0.120, h, 2, "group gates", "$c_{l,g,\\sigma}$\ncenter + clip", title_size=6.7, body_size=5.95)
+    stage(0.355, y, 0.120, h, 3, "scale grads", "$\\widetilde\\nabla A_{l,g}$\n$\\widetilde\\nabla B_{l,g}$", title_size=6.7, body_size=6.0)
+
+    x4, w4, h4 = 0.515, 0.190, 0.178
+    ax.add_patch(FancyBboxPatch(
+        (x4, y - 0.010), w4, h4,
+        boxstyle="round,pad=0.012,rounding_size=0.020",
+        facecolor=pale_lav, edgecolor=purple, linewidth=1.05, zorder=2,
+    ))
+    circ = plt.Circle((x4 + 0.022, y - 0.010 + h4 - 0.023), 0.017, facecolor=purple, edgecolor="white", linewidth=0.45, zorder=4)
     ax.add_patch(circ)
-    ax.text(0.553, y + h - 0.018, "4", ha="center", va="center", fontsize=6.2, color="white", weight="bold", zorder=5)
+    ax.text(x4 + 0.022, y - 0.010 + h4 - 0.023, "4", ha="center", va="center", fontsize=6.0, color="white", weight="bold", zorder=5)
+    ax.text(x4 + w4 / 2, y + 0.118, "staged matrix step", ha="center", va="center", fontsize=7.2, weight="bold", color=ink)
+    ax.add_patch(FancyBboxPatch((x4 + 0.026, y + 0.045), 0.060, 0.048, boxstyle="round,pad=0.006,rounding_size=0.010", facecolor="#ffffff", edgecolor="#8b6bb0", linewidth=0.70, zorder=3))
+    ax.add_patch(FancyBboxPatch((x4 + 0.128, y + 0.045), 0.052, 0.048, boxstyle="round,pad=0.006,rounding_size=0.010", facecolor="#ffffff", edgecolor="#8b6bb0", linewidth=0.70, zorder=3))
+    ax.text(x4 + 0.056, y + 0.069, "AdamW\non A,B", fontsize=5.55, ha="center", va="center", color=ink, zorder=4, linespacing=1.0)
+    ax.text(x4 + 0.154, y + 0.069, "Muon\nmatrix", fontsize=5.55, ha="center", va="center", color=ink, zorder=4, linespacing=1.0)
+    internal_arrow = _arrow(ax, (x4 + 0.088, y + 0.069), (x4 + 0.128, y + 0.069), color=purple, lw=0.95, scale=10.5)
+    internal_arrow.set_zorder(7)
+    ax.text(x4 + w4 / 2, y + 0.018, "separate optimizer states", ha="center", va="center", fontsize=5.75, color=muted)
 
-    stage(0.745, y, 0.130, h, 5, "pair balance", "last; every 5 steps\n$\\ell\\in[-.030,.030]$\n$A_g\\leftarrow e^\\ell A_g$\n$B_g\\leftarrow e^{-\\ell}B_g$", fc=amber, ec="#9a6a00", fontsize=6.1)
-    _box(ax, (0.910, y + 0.035), 0.070, 0.135, "updated\n$A_l^{t+1}$\n$B_l^{t+1}$", blue, ec="#325d84", fontsize=6.7, lw=0.85)
+    stage(0.735, y, 0.118, h, 5, "pair balance", "every 5 steps\n$A_g\\leftarrow e^\\ell A_g$\n$B_g\\leftarrow e^{-\\ell}B_g$", fc=amber, ec=amber_edge, title_size=6.35, body_size=5.35)
+    stage(0.880, y + 0.014, 0.080, h - 0.028, 6, "updated", "$A_l^{t+1}$\n$B_l^{t+1}$", fc=blue, ec="#325d84", title_size=5.95, body_size=5.6)
 
     for start, end in [
-        ((0.175, y + 0.103), (0.205, y + 0.103)),
-        ((0.350, y + 0.103), (0.380, y + 0.103)),
-        ((0.505, y + 0.103), (0.535, y + 0.103)),
-        ((0.715, y + 0.103), (0.745, y + 0.103)),
-        ((0.875, y + 0.103), (0.910, y + 0.103)),
+        ((0.181, y + h / 2), (0.199, y + h / 2)),
+        ((0.331, y + h / 2), (0.349, y + h / 2)),
+        ((0.481, y + h / 2), (0.509, y + h / 2)),
+        ((0.711, y + h / 2), (0.729, y + h / 2)),
+        ((0.860, y + h / 2), (0.874, y + h / 2)),
     ]:
-        _arrow(ax, start, end, color=purple, lw=1.05, scale=8)
+        _arrow(ax, start, end, color=purple, lw=0.88, scale=10.0)
 
-    ax.text(0.625, y - 0.035, "$\\gamma,\\tau$ feed pair balance; the bypass lane receives no MatrixPolicy gates", fontsize=6.15, color=muted, ha="center")
+    ax.text(0.505, 0.535, "Rational coefficients are observed signals, not MatrixPolicy update targets.", fontsize=5.95, color="#777777", ha="center")
 
-    _box(ax, (0.045, 0.122), 0.245, 0.118, "non-RLB-matrix parameters\nRLB rational coefficients, attention,\nembeddings, norms, ordinary weights", gray, ec="#999999", fontsize=6.35)
-    _box(ax, (0.405, 0.130), 0.175, 0.102, "AdamW only\nno group multipliers\nno Muon", gray, ec="#999999", fontsize=6.65, weight="bold")
-    _box(ax, (0.742, 0.130), 0.190, 0.102, "updated\n$\\theta_{\\neg AB}^{t+1}$", gray, ec="#999999", fontsize=7.0)
-    _arrow(ax, (0.290, 0.181), (0.405, 0.181), color="#777777", lw=0.9, scale=8)
-    _arrow(ax, (0.580, 0.181), (0.742, 0.181), color="#777777", lw=0.9, scale=8)
+    lane(0.055, 0.170, 0.890, 0.230, "", "#f7f7f7", "#777777")
+    ax.text(0.070, 0.418, "AdamW-only bypass", fontsize=7.4, weight="bold", color="#777777", ha="left", va="bottom", bbox=dict(facecolor="white", edgecolor="none", pad=0.8, alpha=0.92))
+    bypass_box(0.090, 0.232, 0.285, 0.105, "non-matrix tensors", "incl. rational coefficients,\nattention, embeddings, norms")
+    bypass_box(0.485, 0.240, 0.165, 0.090, "AdamW only", "no gates\nno Muon")
+    bypass_box(0.735, 0.240, 0.170, 0.090, "updated", "$\\theta_{\\neg AB}^{t+1}$")
+    _arrow(ax, (0.391, 0.285), (0.469, 0.285), color="#777777", lw=0.84, scale=9.5)
+    _arrow(ax, (0.666, 0.285), (0.719, 0.285), color="#777777", lw=0.84, scale=9.5)
+    ax.text(0.568, 0.208, "no pair rescale", fontsize=6.1, color=muted, ha="center")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04)
     plt.close(fig)
+
 
 def load_e1_curves():
     return e1_curves.parse_jsonl_runs(
