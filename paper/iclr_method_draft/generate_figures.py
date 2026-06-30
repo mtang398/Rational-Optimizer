@@ -47,6 +47,10 @@ DATASET_ABBR = {
     "Dolma": "Dolma",
     "C4": "C4",
 }
+BUDGET_LABELS = {
+    "E1": "100M tokens",
+    "E2": "300M tokens",
+}
 
 OKABE_ITO = {
     "black": "#000000",
@@ -58,25 +62,52 @@ OKABE_ITO = {
     "vermillion": "#D55E00",
     "purple": "#CC79A7",
 }
+TARGET_OPTIMIZER_COLORS = {
+    "AdamW": OKABE_ITO["blue"],
+    "Lion": OKABE_ITO["orange"],
+    "Muon": OKABE_ITO["green"],
+    "SOAP": OKABE_ITO["purple"],
+    "ScheduleFree": OKABE_ITO["vermillion"],
+    "CAME": OKABE_ITO["sky"],
+    "ADeMaMix": "#777777",
+}
 
 METHOD_STYLE = {
     "rlb_matrixpolicy_original": ("MatrixPolicy", OKABE_ITO["black"], "-", 2.05, "o"),
     "silu_adamw": ("SiLU+AdamW", OKABE_ITO["blue"], "--", 1.35, "s"),
     "silu_muon": ("SiLU+Muon", OKABE_ITO["green"], "--", 1.35, "^"),
-    "rlb_adamw": ("RLB+AdamW", OKABE_ITO["blue"], "-", 1.45, "D"),
-    "rlb_muon": ("RLB+Muon", OKABE_ITO["green"], "-", 1.45, "v"),
-    "rlb_lion": ("RLB+Lion", OKABE_ITO["orange"], "-", 1.25, "P"),
+    "rlb_adamw": ("Global rational+AdamW", OKABE_ITO["blue"], "-", 1.45, "D"),
+    "rlb_muon": ("Global rational+Muon", OKABE_ITO["green"], "-", 1.45, "v"),
+    "rlb_lion": ("Global rational+Lion", OKABE_ITO["orange"], "-", 1.25, "P"),
 }
 MAIN_SILU_METHODS = ["rlb_matrixpolicy_original", "silu_adamw", "silu_muon"]
 FULL_METHODS = ["rlb_matrixpolicy_original", "silu_adamw", "silu_muon", "rlb_adamw", "rlb_muon"]
 SILU_COMPARATORS = [("silu_adamw", "SiLU+AdamW"), ("silu_muon", "SiLU+Muon")]
 MAIN_COMPARATORS = [
-    ("silu_adamw", "SiLU activation with AdamW"),
-    ("silu_muon", "SiLU activation with Muon"),
-    ("rlb_adamw", "Global rational activation with AdamW"),
-    ("rlb_muon", "Global rational activation with Muon"),
+    ("silu_adamw", "SiLU+AdamW"),
+    ("silu_muon", "SiLU+Muon"),
+    ("rlb_adamw", "Global rational+AdamW"),
+    ("rlb_muon", "Global rational+Muon"),
 ]
-TABLE_COMPARATORS = [("silu_adamw", "SiLU activation with AdamW"), ("rlb_adamw", "Global rational activation with AdamW"), ("rlb_muon", "Global rational activation with Muon")]
+TABLE_COMPARATORS = [("silu_adamw", "SiLU+AdamW"), ("rlb_adamw", "Global rational+AdamW"), ("rlb_muon", "Global rational+Muon")]
+BUDGET_LABEL = BUDGET_LABELS
+BUDGET_SHORT = BUDGET_LABELS
+BROAD_CONTROL_METHODS = [
+    ("silu_adamw", "SiLU + AdamW", "SiLU", "AdamW"),
+    ("silu_lion", "SiLU + Lion", "SiLU", "Lion"),
+    ("silu_muon", "SiLU + Muon", "SiLU", "Muon"),
+    ("silu_soap", "SiLU + SOAP", "SiLU", "SOAP"),
+    ("silu_schedulefree", "SiLU + ScheduleFree", "SiLU", "ScheduleFree"),
+    ("silu_came", "SiLU + CAME", "SiLU", "CAME"),
+    ("rlb_adamw", "Global rational + AdamW", "Global rational", "AdamW"),
+    ("rlb_lion", "Global rational + Lion", "Global rational", "Lion"),
+    ("rlb_muon", "Global rational + Muon", "Global rational", "Muon"),
+    ("rlb_soap", "Global rational + SOAP", "Global rational", "SOAP"),
+    ("rlb_schedulefree", "Global rational + ScheduleFree", "Global rational", "ScheduleFree"),
+    ("rlb_came", "Global rational + CAME", "Global rational", "CAME"),
+]
+BROAD_METHODS = [("rlb_matrixpolicy_original", "MatrixPolicy", "MatrixPolicy", "MatrixPolicy")] + BROAD_CONTROL_METHODS
+BROAD_METHOD_INFO = {method: (label, family, optimizer) for method, label, family, optimizer in BROAD_METHODS}
 
 
 def _box(ax, xy, width, height, text, fc, ec="#333333", fontsize=8.0, weight=None, lw=0.9):
@@ -347,15 +378,14 @@ def make_e1_multimetric_all_datasets(out_path: Path) -> None:
                 steps, means, stds = e1_curves.aggregate(e1, dataset, method, metric)
                 if steps.size == 0:
                     continue
-                tokens = steps * TOKENS_PER_STEP / 1_000_000
-                ax.plot(tokens, means, color=color, linestyle=linestyle, linewidth=linewidth, marker=marker, markevery=max(1, len(tokens)//4), markersize=3.2, label=label)
-                ax.fill_between(tokens, means - stds, means + stds, color=color, alpha=0.030, linewidth=0)
+                ax.plot(steps, means, color=color, linestyle=linestyle, linewidth=linewidth, marker=marker, markevery=max(1, len(steps)//4), markersize=3.2, label=label)
+                ax.fill_between(steps, means - stds, means + stds, color=color, alpha=0.030, linewidth=0)
             if row == 0:
                 ax.set_title(dataset_label, fontsize=9.0)
             if col == 0:
                 ax.set_ylabel(metric_label, fontsize=8.2)
             if row == 2:
-                ax.set_xlabel("tokens (M)", fontsize=8.0)
+                ax.set_xlabel("optimizer step", fontsize=8.0)
             _finish_axis(ax, labelsize=7.2)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, fontsize=8.0)
@@ -374,16 +404,15 @@ def make_e1_validation_all_datasets(out_path: Path) -> None:
             steps, means, stds = e1_curves.aggregate(e1, dataset, method, "val_loss")
             if steps.size == 0:
                 continue
-            tokens = steps * TOKENS_PER_STEP / 1_000_000
-            ax.plot(tokens, means, color=color, linestyle=linestyle, linewidth=linewidth, label=method_label, marker=marker, markevery=max(1, len(tokens)//4), markersize=3.0)
-            ax.fill_between(tokens, means - stds, means + stds, color=color, alpha=0.030, linewidth=0)
+            ax.plot(steps, means, color=color, linestyle=linestyle, linewidth=linewidth, label=method_label, marker=marker, markevery=max(1, len(steps)//4), markersize=3.0)
+            ax.fill_between(steps, means - stds, means + stds, color=color, alpha=0.030, linewidth=0)
         ax.set_title(label, fontsize=9.2)
         if idx % 3 == 0:
             ax.set_ylabel("validation loss", fontsize=8.4)
         _finish_axis(ax, labelsize=7.6)
     handles, labels = axes[0].get_legend_handles_labels()
     _legend_panel(axes[-1], handles, labels, fontsize=7.4)
-    fig.supxlabel("tokens (M)", fontsize=8.6)
+    fig.supxlabel("optimizer step", fontsize=8.6)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, bbox_inches="tight", pad_inches=0.05)
     plt.close(fig)
@@ -453,6 +482,32 @@ def _final_eval_mean(curves, dataset: str, method: str, metric: str = "val_loss"
     return float(np.mean(vals)), float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
 
 
+def _completed_broad_methods(curves) -> list[tuple[str, str, str, str]]:
+    methods: list[tuple[str, str, str, str]] = []
+    for method, label, family, optimizer in BROAD_METHODS:
+        if optimizer == "ADeMaMix":
+            continue
+        if all(_final_eval_mean(curves, dataset, method, "val_loss") is not None for dataset, _label, _dir_name in DATASETS):
+            methods.append((method, label, family, optimizer))
+    return methods
+
+
+def _target_line_style(method: str) -> tuple[str, object, float, float]:
+    if method == "rlb_matrixpolicy_original":
+        return OKABE_ITO["black"], "-", 1.85, 1.0
+    _label, family, optimizer = BROAD_METHOD_INFO[method]
+    linestyle = "-" if family == "Global rational" else (0, (2.4, 1.8))
+    alpha = 0.58 if family == "Global rational" else 0.46
+    return TARGET_OPTIMIZER_COLORS.get(optimizer, "#777777"), linestyle, 0.92, alpha
+
+
+def _fmt_mean_std(stats: tuple[float, float] | None) -> str:
+    if stats is None:
+        return "--"
+    mean, std = stats
+    return f"{mean:.4f}$\\pm${std:.4f}"
+
+
 def make_e1_target_frontiers(out_path: Path) -> None:
     e1 = load_e1_curves()
     fig, axes_grid = plt.subplots(2, 3, figsize=(7.2, 4.25), sharex=False, sharey=False, constrained_layout=True)
@@ -499,15 +554,14 @@ def make_e1_multimetric_examples(out_path: Path) -> None:
                 steps, means, stds = e1_curves.aggregate(e1, dataset, method, metric)
                 if steps.size == 0:
                     continue
-                tokens = steps * TOKENS_PER_STEP / 1_000_000
-                ax.plot(tokens, means, color=color, linestyle=linestyle, linewidth=linewidth, label=label, marker=marker, markevery=max(1, len(tokens)//4), markersize=3.0)
-                ax.fill_between(tokens, means - stds, means + stds, color=color, alpha=0.035, linewidth=0)
+                ax.plot(steps, means, color=color, linestyle=linestyle, linewidth=linewidth, label=label, marker=marker, markevery=max(1, len(steps)//4), markersize=3.0)
+                ax.fill_between(steps, means - stds, means + stds, color=color, alpha=0.035, linewidth=0)
             if row == 0:
                 ax.set_title(dataset_label, fontsize=10.1)
             if col == 0:
                 ax.set_ylabel(metric_label, fontsize=8.4)
             if row == 2:
-                ax.set_xlabel("tokens (M)", fontsize=8.4)
+                ax.set_xlabel("optimizer step", fontsize=8.4)
             _finish_axis(ax, labelsize=7.5)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=5, frameon=False, fontsize=7.0)
@@ -530,16 +584,15 @@ def make_e1_representative_silu_dynamics(out_path: Path) -> None:
                 steps, means, stds = e1_curves.aggregate(e1, dataset, method, metric)
                 if steps.size == 0:
                     continue
-                tokens = steps * TOKENS_PER_STEP / 1_000_000
-                mark_every = max(1, len(tokens) // 5)
-                ax.plot(tokens, means, color=color, linestyle=linestyle, linewidth=linewidth, label=label, marker=marker, markevery=mark_every, markersize=2.8)
-                ax.fill_between(tokens, means - stds, means + stds, color=color, alpha=0.045, linewidth=0)
+                mark_every = max(1, len(steps) // 5)
+                ax.plot(steps, means, color=color, linestyle=linestyle, linewidth=linewidth, label=label, marker=marker, markevery=mark_every, markersize=2.8)
+                ax.fill_between(steps, means - stds, means + stds, color=color, alpha=0.045, linewidth=0)
             if row == 0:
                 ax.set_title(dataset_label, fontsize=9.5, pad=5)
             if col == 0:
                 ax.set_ylabel(metric_label, fontsize=8.3)
             if row == 2:
-                ax.set_xlabel("tokens (millions)", fontsize=8.3)
+                ax.set_xlabel("optimizer step", fontsize=8.3)
             ax.margins(x=0.015, y=0.08)
             _finish_axis(ax, labelsize=7.4)
     handles, labels = axes[0, 0].get_legend_handles_labels()
@@ -558,16 +611,15 @@ def make_e2_metric_dynamics(out_path: Path, metric: str, metric_label: str) -> N
             steps, means, stds = e2_curves.aggregate(e2, dataset, method, metric)
             if steps.size == 0:
                 continue
-            tokens = steps * TOKENS_PER_STEP / 1_000_000
-            ax.plot(tokens, means, color=color, linestyle=linestyle, linewidth=linewidth, label=method_label, marker=marker, markevery=max(1, len(tokens)//4), markersize=3.0)
-            ax.fill_between(tokens, means - stds, means + stds, color=color, alpha=0.030, linewidth=0)
+            ax.plot(steps, means, color=color, linestyle=linestyle, linewidth=linewidth, label=method_label, marker=marker, markevery=max(1, len(steps)//4), markersize=3.0)
+            ax.fill_between(steps, means - stds, means + stds, color=color, alpha=0.030, linewidth=0)
         ax.set_title(label, fontsize=8.9)
         if idx % 3 == 0:
             ax.set_ylabel(metric_label, fontsize=8.1)
         _finish_axis(ax, labelsize=7.3)
     handles, labels = axes[0].get_legend_handles_labels()
     _legend_panel(axes[-1], handles, labels, fontsize=7.2)
-    fig.supxlabel("tokens (M)", fontsize=8.4)
+    fig.supxlabel("optimizer step", fontsize=8.4)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, bbox_inches="tight", pad_inches=0.05)
     plt.close(fig)
@@ -736,7 +788,7 @@ def make_combined_result_dotplot(out_path: Path) -> None:
                 if method == "rlb_matrixpolicy_original" and len(xs_arr):
                     ax.annotate(DATASET_ABBR[dataset_label], (xs_arr[-1], ys_arr[-1]), xytext=(2, 1), textcoords="offset points", fontsize=6.4, color="#202020")
         ax.invert_yaxis()
-        ax.set_title(f"{regime}: loss-token target plane", fontsize=8.8)
+        ax.set_title(f"{BUDGET_LABEL[regime]}: loss-token target plane", fontsize=8.8)
         ax.set_xlabel("tokens to target (M)", fontsize=8.0)
         _finish_axis(ax, labelsize=7.2)
     axes[0].set_ylabel("target validation loss", fontsize=8.0)
@@ -756,14 +808,7 @@ def make_combined_result_dotplot(out_path: Path) -> None:
 
 def make_target_arrival_evidence_matrix(out_path: Path) -> None:
     curves_by_regime = {"E1": load_e1_curves(), "E2": load_e2_curves()}
-    methods = ["rlb_matrixpolicy_original"] + [method for method, _label in MAIN_COMPARATORS]
-    method_style = {
-        "rlb_matrixpolicy_original": ("MatrixPolicy", OKABE_ITO["black"], "-", 1.85, 1.00),
-        "silu_adamw": ("SiLU + AdamW", OKABE_ITO["blue"], "-", 1.00, 0.56),
-        "silu_muon": ("SiLU + Muon", OKABE_ITO["green"], (0, (3.0, 2.0)), 1.00, 0.56),
-        "rlb_adamw": ("Global rational + AdamW", OKABE_ITO["orange"], (0, (1.0, 1.4)), 0.95, 0.45),
-        "rlb_muon": ("Global rational + Muon", OKABE_ITO["purple"], (0, (5.0, 2.0, 1.4, 2.0)), 0.95, 0.45),
-    }
+    method_sets = {regime: _completed_broad_methods(curves) for regime, curves in curves_by_regime.items()}
     dataset_markers = {
         "dclm": "o",
         "fineweb_edu": "s",
@@ -788,30 +833,29 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         },
     }
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.72))
-    fig.subplots_adjust(left=0.070, right=0.993, bottom=0.135, top=0.805, wspace=0.185)
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 4.25))
+    fig.subplots_adjust(left=0.070, right=0.993, bottom=0.130, top=0.735, wspace=0.185)
 
     for ax, regime in zip(axes, ["E1", "E2"]):
         curves = curves_by_regime[regime]
+        methods = method_sets[regime]
         x_values: list[float] = []
         y_values: list[float] = []
         hard_labels: list[tuple[float, float, str, str]] = []
         for dataset, dataset_label, e2_dir_name in DATASETS:
-            targets = [
-                target
-                for target in _target_candidates(regime, dataset, e2_dir_name)
-                if all(_hit_token_stats(curves, dataset, method, target) is not None for method in methods)
-            ]
-            targets = sorted(targets, reverse=True)
+            targets = sorted(_target_candidates(regime, dataset, e2_dir_name), reverse=True)
             if not targets:
                 continue
-            hard_target = min(targets)
-            mp_hard = _hit_token_stats(curves, dataset, "rlb_matrixpolicy_original", hard_target)
-            if mp_hard is not None:
-                mp_hard_x = mp_hard[0] / 1_000_000
-                hard_labels.append((mp_hard_x, hard_target, dataset, DATASET_ABBR[dataset_label]))
-            for method in methods:
-                _label, color, linestyle, linewidth, alpha = method_style[method]
+            mp_hits = [
+                (target, stats)
+                for target in targets
+                if (stats := _hit_token_stats(curves, dataset, "rlb_matrixpolicy_original", target)) is not None
+            ]
+            if mp_hits:
+                hard_target, mp_hard = min(mp_hits, key=lambda item: item[0])
+                hard_labels.append((mp_hard[0] / 1_000_000, hard_target, dataset, DATASET_ABBR[dataset_label]))
+            for method, _label, _family, _optimizer in methods:
+                color, linestyle, linewidth, alpha = _target_line_style(method)
                 xs, ys = [], []
                 for target in targets:
                     stats = _hit_token_stats(curves, dataset, method, target)
@@ -824,10 +868,10 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 if not xs:
                     continue
                 marker = dataset_markers[dataset]
-                sizes = [18] * len(xs)
-                sizes[-1] = 34 if method == "rlb_matrixpolicy_original" else 28
-                line_z = 4 if method == "rlb_matrixpolicy_original" else 2
-                point_z = 6 if method == "rlb_matrixpolicy_original" else 5
+                sizes = [13] * len(xs)
+                sizes[-1] = 34 if method == "rlb_matrixpolicy_original" else 19
+                line_z = 5 if method == "rlb_matrixpolicy_original" else 2
+                point_z = 7 if method == "rlb_matrixpolicy_original" else 4
                 ax.plot(xs, ys, color=color, linestyle=linestyle, linewidth=linewidth, alpha=alpha, zorder=line_z)
                 ax.scatter(
                     xs,
@@ -837,7 +881,7 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                     s=sizes,
                     alpha=min(1.0, alpha + 0.18),
                     edgecolor="white",
-                    linewidth=0.62,
+                    linewidth=0.52,
                     zorder=point_z,
                 )
         if x_values and y_values:
@@ -851,10 +895,10 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 xmin + 0.03 * (xmax - xmin),
                 ymin + 0.08 * (ymax - ymin),
                 "left = fewer tokens\nlower = harder target",
-                fontsize=6.2,
+                fontsize=6.0,
                 color="#555555",
                 linespacing=1.05,
-                zorder=7,
+                zorder=8,
             )
         for x, y, dataset, dataset_abbr in hard_labels:
             dx, dy = label_offsets[regime].get(dataset, (5.0, 5.0))
@@ -868,10 +912,10 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 ha="left" if dx >= 0 else "right",
                 va="center",
                 arrowprops={"arrowstyle": "-", "color": "#8a8a8a", "linewidth": 0.32, "shrinkA": 0.0, "shrinkB": 2.8},
-                zorder=8,
+                zorder=9,
             )
             text.set_path_effects([path_effects.withStroke(linewidth=1.6, foreground="white")])
-        ax.set_title(regime, fontsize=9.2, pad=5, weight="bold")
+        ax.set_title(BUDGET_LABELS[regime], fontsize=8.3, pad=5, weight="bold")
         ax.set_xlabel("tokens to validation-loss target (M)", fontsize=7.6)
         ax.grid(True, color="#d7d7d7", linewidth=0.45, alpha=0.72)
         ax.spines["top"].set_visible(False)
@@ -879,27 +923,37 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         ax.tick_params(axis="both", labelsize=6.8, pad=1.6)
     axes[0].set_ylabel("target validation loss", fontsize=7.6)
 
-    method_handles = []
-    method_labels = []
-    for method in methods:
-        label, color, linestyle, linewidth, alpha = method_style[method]
-        method_handles.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, linewidth=linewidth, marker="o", markersize=4.0, markeredgecolor="#333333", markeredgewidth=0.35, alpha=min(1.0, alpha + 0.10)))
-        method_labels.append(label)
+    present_optimizers = []
+    for methods in method_sets.values():
+        for _method, _label, family, optimizer in methods:
+            if family != "MatrixPolicy" and optimizer not in present_optimizers:
+                present_optimizers.append(optimizer)
+    optimizer_order = [name for name in TARGET_OPTIMIZER_COLORS if name in present_optimizers]
+    encoding_handles = [plt.Line2D([0], [0], color=OKABE_ITO["black"], linestyle="-", linewidth=1.85, marker="o", markersize=4.0)]
+    encoding_labels = ["MatrixPolicy"]
+    encoding_handles.extend([
+        plt.Line2D([0], [0], color="#333333", linestyle="-", linewidth=1.0),
+        plt.Line2D([0], [0], color="#333333", linestyle=(0, (2.4, 1.8)), linewidth=1.0),
+    ])
+    encoding_labels.extend(["global rational", "SiLU"])
+    for optimizer in optimizer_order:
+        encoding_handles.append(plt.Line2D([0], [0], color=TARGET_OPTIMIZER_COLORS[optimizer], linestyle="-", linewidth=1.2))
+        encoding_labels.append(optimizer)
     dataset_handles = [
         plt.Line2D([0], [0], color="#777777", linestyle="", marker=dataset_markers[dataset], markersize=4.3, markerfacecolor="#d7d7d7", markeredgecolor="#333333", markeredgewidth=0.35)
         for dataset, _label, _e2 in DATASETS
     ]
     dataset_labels = [DATASET_ABBR[label] for _dataset, label, _e2 in DATASETS]
     fig.legend(
-        method_handles,
-        method_labels,
+        encoding_handles,
+        encoding_labels,
         loc="upper center",
-        bbox_to_anchor=(0.5, 0.992),
+        bbox_to_anchor=(0.5, 0.995),
         ncol=5,
         frameon=False,
-        fontsize=6.25,
-        title="Method",
-        title_fontsize=6.5,
+        fontsize=5.75,
+        title="Method encoding",
+        title_fontsize=6.15,
         handlelength=1.65,
         columnspacing=0.75,
     )
@@ -907,7 +961,7 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         dataset_handles,
         dataset_labels,
         loc="upper center",
-        bbox_to_anchor=(0.5, 0.910),
+        bbox_to_anchor=(0.5, 0.825),
         ncol=5,
         frameon=False,
         fontsize=6.05,
@@ -930,31 +984,29 @@ def make_e1_e2_silu_summary_table(out_path: Path) -> None:
     lines = [
         r"\begin{table*}[t]",
         r"\centering",
-        r"\caption{Main-paper target-arrival efficiency across the completed E1 and E2 datasets. For each dataset and target validation loss, the table reports the actual target-arrival tokens and wall-clock time for MatrixPolicy and each comparator. MatrixPolicy-at-target and comparator-at-target entries are ordered as tokens then time; all token entries are millions of tokens and all time entries are minutes. Tokens saved is comparator target tokens minus MatrixPolicy target tokens, with the percentage of comparator tokens saved in the final column.}",
+        r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 language model. Each row uses the hardest validation-loss target reached by MatrixPolicy and the four listed controls in all three seeds. MatrixPolicy time is measured minutes to target; each control cell gives control minutes to the same target and the percentage of control target-arrival tokens saved by MatrixPolicy.}",
         r"\label{tab:e1e2-silu-comparison}",
         r"\scriptsize",
-        r"\setlength{\tabcolsep}{1.7pt}",
-        r"\begin{tabular}{@{}llrL{3.20cm}ccrr@{}}",
+        r"\setlength{\tabcolsep}{1.8pt}",
+        r"\begin{tabular}{@{}llrccccc@{}}",
         r"\toprule",
-        r"Regime & Dataset & \shortstack{Target validation\\loss} & Comparator & \shortstack{MatrixPolicy at target\\tokens and time} & \shortstack{Comparator at target\\tokens and time} & \shortstack{Tokens\\saved} & \shortstack{Proportion\\saved} \\",
+        r"Budget & Dataset & \shortstack{Target validation\\loss} & \shortstack{MatrixPolicy\\minutes} & \shortstack{SiLU + AdamW\\minutes /\\tokens saved} & \shortstack{SiLU + Muon\\minutes /\\tokens saved} & \shortstack{Global rational\\+ AdamW\\minutes /\\tokens saved} & \shortstack{Global rational\\+ Muon\\minutes /\\tokens saved} \\",
         r"\midrule",
     ]
     for row_idx, row in enumerate(rows):
-        for comp_idx, comp in enumerate(row["comparators"]):
-            lines.append(
-                f"{row['regime']} & {row['dataset_label']} & {float(row['target']):.2f} & "
-                f"{comp['method_label']} & "
-                f"({float(row['mp_tokens_m']):.1f}, {float(row['mp_time_min']):.1f}) & "
-                f"({float(comp['tokens_m']):.1f}, {float(comp['time_min']):.1f}) & "
-                f"{float(comp['saved_tokens_m']):.1f} & {100.0 * float(comp['saved_fraction']):.1f}\\% "
-                + r"\\")
-        if row_idx in {4}:
+        by_method = {comp["method"]: comp for comp in row["comparators"]}
+        cells = []
+        for method, _label in MAIN_COMPARATORS:
+            comp = by_method[method]
+            cells.append(f"{float(comp['time_min']):.1f} / {100.0 * float(comp['saved_fraction']):.1f}\\%")
+        lines.append(
+            f"{BUDGET_SHORT[str(row['regime'])]} & {row['dataset_label']} & {float(row['target']):.2f} & "
+            f"{float(row['mp_time_min']):.1f} & " + " & ".join(cells) + r" \\")
+        if row_idx == 4:
             lines.append(r"\midrule")
-        elif row_idx != len(rows) - 1:
-            lines.append(r"\addlinespace[1pt]")
     lines.extend([
         r"\bottomrule",
-        r"\multicolumn{8}{@{}p{0.98\textwidth}@{}}{\footnotesize Targets are the hardest pre-specified validation-loss levels reached by MatrixPolicy and every listed comparator in all three seeds. Target arrivals use the native 50-step evaluation cadence, equal to 1.64 million tokens per readout. Wall-clock times use cleaned per-dataset/method throughput summaries from completed runs.}",
+        r"\multicolumn{8}{@{}p{0.98\textwidth}@{}}{\footnotesize All rows use the same 12-layer, width-768 Transformer. Times are measured minutes to the shared target; saved percentages are token savings relative to the listed control at that target.}",
         r"\end{tabular}",
         r"\end{table*}",
     ])
@@ -964,68 +1016,40 @@ def _fmt_token_fraction(saved_tokens_m: float, saved_fraction: float) -> str:
     return f"{saved_tokens_m:.1f} ({100.0 * saved_fraction:.1f}\\%)"
 
 
-def make_e1_target_time_table(out_path: Path) -> None:
-    curves = load_e1_curves()
-    tps = _load_runtime_tps()
-    rows = []
-    required_methods = ["rlb_matrixpolicy_original"] + [method for method, _ in TABLE_COMPARATORS]
-    for dataset, label, _dir_name in DATASETS:
-        target = _select_hard_common_target(curves, "E1", dataset, required_methods)
-        if target is None:
-            continue
-        mp_stats = _hit_token_stats(curves, dataset, "rlb_matrixpolicy_original", target)
-        mp_tps = tps.get(("E1", dataset, "rlb_matrixpolicy_original"))
-        if mp_stats is None or mp_tps is None:
-            continue
-        mp_tokens, mp_std = mp_stats
-        for method, method_label in TABLE_COMPARATORS:
-            comp_stats = _hit_token_stats(curves, dataset, method, target)
-            comp_tps = tps.get(("E1", dataset, method))
-            if comp_stats is None or comp_tps is None:
-                continue
-            comp_tokens, _comp_std = comp_stats
-            saved_tokens = comp_tokens - mp_tokens
-            saved_minutes = (comp_tokens / comp_tps - mp_tokens / mp_tps) / 60.0
-            saved_fraction = saved_tokens / comp_tokens
-            rows.append((
-                label,
-                target,
-                mp_tokens / 1_000_000,
-                mp_std / 1_000_000,
-                method_label,
-                saved_tokens / 1_000_000,
-                saved_fraction,
-                saved_minutes,
-            ))
+def _final_cell(curves, dataset: str, method: str) -> str:
+    return _fmt_mean_std(_final_eval_mean(curves, dataset, method, "val_loss"))
 
+
+def make_broad_final_validation_table(out_path: Path) -> None:
+    curves_by_regime = {"E1": load_e1_curves(), "E2": load_e2_curves()}
     out_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         r"\begin{table*}[t]",
         r"\centering",
-        r"\caption{E1 target-arrival savings for activation and optimizer controls. Each row compares MatrixPolicy with one activation/optimizer control at the hardest common validation-loss target reached by all listed methods on that dataset.}",
-        r"\label{tab:e1-target-time}",
+        r"\caption{Final validation loss for the broader optimizer sweep on the fixed 12-layer, width-768 language model. Values are mean $\pm$ sample standard deviation over three seeds at the end of the stated token budget; lower is better. Global-rational rows use the no-local-atom activation. The table includes the completed optimizer controls used in the fixed-scale sweep.}",
+        r"\label{tab:broad-final-validation}",
         r"\scriptsize",
-        r"\setlength{\tabcolsep}{2.0pt}",
-        r"\begin{tabular}{@{}llcL{3.55cm}rrr@{}}",
-        r"\toprule",
-        r"Dataset & \shortstack{Target validation\\loss} & \shortstack{MatrixPolicy target tokens\\mean and standard deviation} & Comparator & \shortstack{Tokens\\saved} & \shortstack{Proportion\\saved} & \shortstack{Time saved\\(minutes)} \\",
-        r"\midrule",
+        r"\setlength{\tabcolsep}{2.6pt}",
     ]
-    previous_label = None
-    for label, target, mp_tokens_m, mp_std_m, method_label, saved_tokens_m, saved_fraction, saved_minutes in rows:
-        if previous_label is not None and label != previous_label:
-            lines.append(r"\addlinespace[1pt]")
-        lines.append(
-            f"{label} & {target:.2f} & {mp_tokens_m:.1f}$\\pm${mp_std_m:.1f} & "
-            f"{method_label} & {saved_tokens_m:.1f} & {100.0 * saved_fraction:.1f}\\% & {saved_minutes:.1f} \\\\"
-        )
-        previous_label = label
-    lines.extend([
-        r"\bottomrule",
-        r"\multicolumn{7}{@{}p{0.98\textwidth}@{}}{\footnotesize Target arrivals are read at the native 50-step evaluation cadence from the completed E1 JSONL logs. Time estimates use cleaned per-dataset/method training-throughput summaries. Token entries are millions of tokens.}",
-        r"\end{tabular}",
-        r"\end{table*}",
-    ])
+    for panel_idx, regime in enumerate(["E1", "E2"]):
+        if panel_idx:
+            lines.append(r"\vspace{0.45em}")
+        lines.extend([
+            rf"\textbf{{{BUDGET_LABEL[regime]}}}\\[0.2em]",
+            r"\begin{tabular}{@{}lccccc@{}}",
+            r"\toprule",
+            r"Method & DCLM & FineWeb-Edu & FineWeb & Dolma & C4 \\",
+            r"\midrule",
+        ])
+        curves = curves_by_regime[regime]
+        for method, label, _family, _optimizer in _completed_broad_methods(curves):
+            cells = [_final_cell(curves, dataset, method) for dataset, _dataset_label, _e2 in DATASETS]
+            lines.append(f"{label} & " + " & ".join(cells) + r" \\")
+        lines.extend([
+            r"\bottomrule",
+            r"\end{tabular}",
+        ])
+    lines.append(r"\end{table*}")
     out_path.write_text("\n".join(lines) + "\n")
 
 def main() -> int:
@@ -1041,7 +1065,7 @@ def main() -> int:
         OUT_DIR / "e2_perplexity_dynamics.pdf",
         OUT_DIR / "e2_training_dynamics.pdf",
         TABLE_DIR / "e1_e2_silu_summary_table.tex",
-        TABLE_DIR / "e1_target_time_table.tex",
+        TABLE_DIR / "final_validation_broad_optimizer_table.tex",
     ]
     make_e1_multimetric_all_datasets(outputs[0])
     make_target_arrival_evidence_matrix(outputs[1])
@@ -1054,7 +1078,7 @@ def main() -> int:
     make_e2_metric_dynamics(outputs[8], "val_ppl", "validation perplexity")
     make_e2_metric_dynamics(outputs[9], "train_loss", "training loss")
     make_e1_e2_silu_summary_table(outputs[10])
-    make_e1_target_time_table(outputs[11])
+    make_broad_final_validation_table(outputs[11])
     for path in outputs:
         print(path)
     return 0

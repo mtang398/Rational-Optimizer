@@ -1,16 +1,24 @@
 % Step 1 design document
-% Field: optimizer step schematic for transformer rational activation. Format: TikZ standalone, paper method schematic.
-% Five-second message: MatrixPolicy has one left-to-right RLB matrix update lane; rational coefficients and all ordinary Transformer parameters stay in a separate AdamW-only lane.
-% Layout: left detached statistics cache, then one straight purple matrix pipeline. Bottom lane is a grey AdamW-only bypass; the red exclusion note is a callout, not another update step.
-% Modules: statistics cache, MatrixPolicy controller, group gates, scaled matrix gradients, AdamW matrix branch, transient Muon branch, pair rescale, updated A_l/B_l, AdamW-only parameters, AdamW-only update, updated non-matrix parameters.
-% Visual emphasis: purple = MatrixPolicy-updated RLB matrices; grey = AdamW-only parameters. The observation from rational coefficients is statistics-only and never a purple update arrow.
-\documentclass[tikz,border=4pt]{standalone}
+% Field / format / complexity: optimizer-step schematic for MatrixPolicy. TikZ standalone, medium-density method figure.
+% Five-second message: MatrixPolicy operations live on one purple matrix lane for A_l and B_l only; rational coefficients and all other tensors stay on a separate gray AdamW-only bypass lane.
+% Canvas and layout: 16.7cm x 6.9cm, left-to-right optimizer step. Top band y=3.2..6.65 is the matrix lane; bottom band y=0.55..2.85 is the AdamW-only lane. Detached summaries sit above the top lane and feed only the controller.
+% Modules: detached summaries, MatrixPolicy controller, RLB matrix targets, group gates, AdamW matrix branch, transient Muon substep, pair rescale, updated A_l/B_l, non-matrix tensors, AdamW-only update, updated non-matrix tensors, exclusion badge.
+% Connections: purple arrows connect only top-lane matrix modules. Gray arrows connect only bottom-lane AdamW modules. Dashed gray arrows are read-only statistics, never update arrows.
+% ASCII sketch:
+%   [detached summaries] --read only--> [MatrixPolicy controller]
+%                                      |
+%   Matrix lane: [A_l,B_l] -> [group gates] -> [AdamW matrix] -> [transient Muon] -> [pair rescale] -> [updated A_l,B_l]
+%
+%   AdamW bypass: [rational coeffs + all other tensors] -> [AdamW only] -> [updated non-matrix tensors]     [no gates/Muon/rescale]
+% Prevention notes: no vertical MatrixPolicy arrow enters the bypass lane; all connector labels are short; lane backgrounds and badges clarify exclusivity without adding update steps.
+\documentclass[tikz,border=5pt]{standalone}
 \usepackage{tikz}
 \usepackage{amsmath,amssymb}
 \usepackage[T1]{fontenc}
 \usepackage{helvet}
 \renewcommand{\familydefault}{\sfdefault}
-\usetikzlibrary{arrows.meta,bending,positioning,calc,backgrounds}
+\usetikzlibrary{arrows.meta,bending,calc,backgrounds}
+
 \definecolor{mpPurple}{HTML}{6F4AA4}
 \definecolor{mpPurpleFill}{HTML}{F4EFFA}
 \definecolor{mpBlue}{HTML}{386B9B}
@@ -22,64 +30,120 @@
 \definecolor{mpInk}{HTML}{202020}
 \definecolor{mpRed}{HTML}{B44B4B}
 \definecolor{mpRedFill}{HTML}{FBEAEA}
+
 \pgfdeclarelayer{background}
 \pgfsetlayers{background,main}
+
 \tikzset{
-  title/.style={font=\scriptsize\bfseries, text=mpGrey, anchor=west},
-  stage/.style={rectangle, rounded corners=2.6pt, line width=0.70pt, align=center, inner sep=3.8pt, font=\scriptsize},
-  controller/.style={rectangle, rounded corners=3.0pt, draw=mpPurple, fill=mpPurpleFill, line width=0.95pt, align=center, inner sep=4.2pt, font=\scriptsize\bfseries},
-  flow/.style={-{Latex[length=5.0pt,width=4.2pt]}, line width=0.98pt, color=mpPurple, shorten >=4pt, shorten <=2pt},
-  bypass/.style={-{Latex[length=4.7pt,width=4.0pt]}, line width=0.96pt, color=mpGrey, shorten >=4pt, shorten <=2pt},
-  observe/.style={-{Stealth[length=3.0pt,width=2.7pt]}, densely dashed, line width=0.50pt, color=mpGrey!64, shorten >=1pt, shorten <=1pt},
-  callout/.style={line width=0.55pt, color=mpRed!65},
-  note/.style={font=\scriptsize, text=mpGrey, align=center},
-  edge/.style={font=\scriptsize, fill=white, inner sep=1pt, align=center},
-  legend/.style={font=\scriptsize, text=mpGrey, anchor=west},
+  laneTitle/.style={font=\footnotesize\bfseries, anchor=west, text=mpInk},
+  badge/.style={rectangle, rounded corners=2.5pt, draw=mpPurple!55, fill=white,
+    line width=0.55pt, align=center, inner sep=3.2pt, font=\scriptsize},
+  redBadge/.style={rectangle, rounded corners=2.5pt, draw=mpRed!75, fill=mpRedFill,
+    line width=0.65pt, align=center, inner sep=3.2pt, font=\scriptsize\bfseries, text=mpRed},
+  baseBox/.style={rectangle, rounded corners=3pt, line width=0.72pt, align=center,
+    inner sep=4.2pt, font=\scriptsize, text=mpInk},
+  matrixBox/.style={baseBox, draw=mpPurple, fill=white, minimum width=2.45cm, minimum height=1.10cm},
+  opBox/.style={baseBox, draw=mpPurple, fill=white, minimum width=1.85cm, minimum height=0.90cm},
+  adamBox/.style={baseBox, draw=mpBlue, fill=mpBlueFill, minimum width=1.95cm, minimum height=0.90cm},
+  muonBox/.style={baseBox, draw=mpPurple, fill=mpPurpleFill, minimum width=1.70cm, minimum height=0.90cm},
+  rescaleBox/.style={baseBox, draw=mpAmber, fill=mpAmberFill, minimum width=2.00cm, minimum height=0.90cm},
+  outputBox/.style={baseBox, draw=mpBlue, fill=mpBlueFill, minimum width=1.85cm, minimum height=0.90cm},
+  policyBox/.style={baseBox, draw=mpPurple, fill=mpPurpleFill, line width=0.9pt,
+    minimum width=1.80cm, minimum height=0.66cm, font=\scriptsize\bfseries},
+  statsBox/.style={baseBox, draw=mpGrey!70, fill=white, minimum width=2.60cm, minimum height=0.76cm},
+  bypassBox/.style={baseBox, draw=mpGrey, fill=white, minimum height=1.04cm},
+  bypassUpdate/.style={baseBox, draw=mpGrey, fill=mpGreyFill, minimum height=0.82cm, font=\scriptsize\bfseries},
+  flow/.style={
+    -{Stealth[length=5pt 1.5, width'=0pt 0.6, sep=0pt 0.5]},
+    line width=1.0pt, shorten >=2pt, shorten <=1pt, color=mpPurple},
+  flowShort/.style={
+    -{Stealth[length=3pt 1.0, width'=0pt 0.5, sep=0pt 0.3]},
+    line width=0.82pt, shorten >=1pt, shorten <=0pt, color=mpPurple},
+  bypass/.style={
+    -{Stealth[length=4pt 1.2, width'=0pt 0.6, sep=0pt 0.4]},
+    line width=0.95pt, shorten >=2pt, shorten <=1pt, color=mpGrey},
+  observe/.style={
+    -{Stealth[length=3pt 1.0, width'=0pt 0.5]},
+    densely dashed, line width=0.58pt, shorten >=1pt, shorten <=1pt, color=mpGrey!70},
+  callout/.style={densely dotted, line width=0.55pt, color=mpRed!65},
+  edgeLabel/.style={font=\scriptsize, inner sep=1pt, align=center},
+  tinyLabel/.style={font=\tiny\bfseries, text=mpPurple},
 }
+
 \begin{document}
 \begin{tikzpicture}[x=1cm,y=1cm]
   \begin{pgfonlayer}{background}
-    \fill[mpBlueFill!34, rounded corners=7pt] (0.18,3.88) rectangle (3.34,6.05);
-    \fill[mpPurpleFill!62, rounded corners=7pt] (3.60,3.72) rectangle (15.15,6.15);
-    \fill[mpGreyFill, rounded corners=7pt] (3.60,0.58) rectangle (15.15,2.65);
+    \fill[mpPurpleFill!66, rounded corners=7pt] (0.25,3.20) rectangle (16.45,6.65);
+    \draw[mpPurple!45, line width=0.65pt, rounded corners=7pt] (0.25,3.20) rectangle (16.45,6.65);
+    \fill[mpGreyFill, rounded corners=7pt] (0.25,0.55) rectangle (16.45,2.85);
+    \draw[mpGrey!42, line width=0.65pt, rounded corners=7pt] (0.25,0.55) rectangle (16.45,2.85);
   \end{pgfonlayer}
 
-  \node[title] at (0.34,5.86) {detached cache};
-  \node[title, text=mpPurple] at (3.82,5.95) {RLB matrix lane: MatrixPolicy-updated $A_l,B_l$};
-  \node[title] at (3.82,2.54) {AdamW-only bypass lane};
+  \node[laneTitle, text=mpPurple] at (0.55,6.42)
+    {MatrixPolicy matrix lane: only RLB input/output matrices $A_l,B_l$};
+  \node[badge, text width=5.85cm] at (12.95,6.30)
+    {group gates, AdamW matrix branch, transient Muon, and pair rescale apply here only};
 
-  \node[stage, draw=mpBlue, fill=white, minimum width=2.22cm, minimum height=1.28cm] (cache) at (1.70,4.88) {statistics cache\\$q^{in},q^{out},q^R$\\$\hat d,\hat o,\gamma,\tau$};
-  \node[controller, minimum width=1.58cm, minimum height=0.72cm] (policy) at (4.45,4.88) {MatrixPolicy};
-  \draw[observe] (cache.east) -- node[edge, above] {read only} (policy.west);
+  \node[laneTitle, text=mpGrey] at (0.55,2.62)
+    {AdamW-only bypass lane: rational coefficients and all other tensors};
 
-  \node[stage, draw=mpPurple, fill=white, minimum width=1.25cm, minimum height=0.74cm] (gates) at (5.95,4.88) {group\\gates};
-  \node[stage, draw=mpPurple, fill=white, minimum width=1.55cm, minimum height=0.74cm] (scaled) at (7.65,4.88) {matrix gradient\\scaling};
-  \node[stage, draw=mpPurple, fill=white, minimum width=1.48cm, minimum height=0.74cm] (adam) at (9.52,4.88) {AdamW matrix\\branch};
-  \node[stage, draw=mpPurple, fill=white, minimum width=1.28cm, minimum height=0.74cm] (muon) at (11.24,4.88) {transient\\Muon};
-  \node[stage, draw=mpAmber, fill=mpAmberFill, minimum width=1.52cm, minimum height=0.74cm] (rescale) at (12.96,4.88) {pair rescale\\every 5 steps};
-  \node[stage, draw=mpBlue, fill=mpBlueFill, minimum width=1.25cm, minimum height=0.74cm] (updated) at (14.62,4.88) {updated\\$A_l,B_l$};
+  \node[statsBox] (stats) at (2.12,5.72)
+    {detached summaries\\[1pt]$\hat d,\hat o,\gamma,\tau$};
+  \node[policyBox] (policy) at (4.55,5.72)
+    {MatrixPolicy\\[1pt]controller};
+  \draw[observe] (stats.east) -- (policy.west);
+  \node[edgeLabel] at (3.34,5.23) {read only};
 
-  \draw[flow] (policy.east) -- (gates.west);
-  \draw[flow] (gates.east) -- node[edge, above] {$c$} (scaled.west);
-  \draw[flow] (scaled.east) -- node[edge, above] {$s^{Adam}$} (adam.west);
-  \draw[flow] (adam.east) -- node[edge, above] {$\mu$} (muon.west);
-  \draw[flow] (muon.east) -- (rescale.west);
-  \draw[flow] (rescale.east) -- node[edge, above] {$\ell$} (updated.west);
-  \node[note, text=mpAmber] at (12.96,4.20) {$A_g\leftarrow e^{\ell}A_g,\;B_g\leftarrow e^{-\ell}B_g$};
+  \node[matrixBox] (matrices) at (1.55,4.45) {};
+  \node[font=\scriptsize\bfseries, align=left, text=mpPurple] at (1.96,4.70)
+    {RLB matrix\\[1pt]targets};
+  \node[font=\scriptsize, align=left, text=mpInk] at (1.96,4.30)
+    {$A_l,B_l$ only};
 
-  \node[stage, draw=mpGrey, fill=white, minimum width=3.15cm, minimum height=0.78cm] (nonmatrix) at (5.40,1.62) {AdamW-only parameters\\rational coefficients, attention, embeddings, norms};
-  \node[stage, draw=mpGrey, fill=white, minimum width=1.36cm, minimum height=0.78cm] (adamonly) at (8.92,1.62) {AdamW\\only};
-  \node[stage, draw=mpGrey, fill=mpGreyFill, minimum width=1.82cm, minimum height=0.78cm] (theta) at (11.38,1.62) {updated\\$\theta_{\neg A,B}$};
-  \node[stage, draw=mpRed, fill=mpRedFill, minimum width=2.10cm, minimum height=0.62cm] (nogate) at (13.88,2.29) {excluded from MatrixPolicy\\no gates, Muon, rescale};
+  \fill[draw=white, line width=0.25pt, fill=mpPurple!25] (0.63,4.72) rectangle ++(0.25,0.22);
+  \fill[draw=white, line width=0.25pt, fill=mpPurple!55] (0.91,4.72) rectangle ++(0.25,0.22);
+  \fill[draw=white, line width=0.25pt, fill=mpPurple!35] (1.19,4.72) rectangle ++(0.25,0.22);
+  \fill[draw=white, line width=0.25pt, fill=mpBlue!25] (0.63,4.44) rectangle ++(0.25,0.22);
+  \fill[draw=white, line width=0.25pt, fill=mpBlue!45] (0.91,4.44) rectangle ++(0.25,0.22);
+  \fill[draw=white, line width=0.25pt, fill=mpBlue!30] (1.19,4.44) rectangle ++(0.25,0.22);
+  \node[tinyLabel] at (0.90,5.04) {$A_l$};
+  \node[tinyLabel, text=mpBlue] at (0.90,4.22) {$B_l$};
 
-  \node[font=\large, text=mpGrey] at (7.60,1.62) {$\longrightarrow$};
-  \draw[bypass] (adamonly.east) -- (theta.west);
-  \draw[callout] (theta.north east) -- (nogate.south west);
-  \draw[observe] (nonmatrix.north west) .. controls (3.20,2.86) and (0.62,3.26) .. node[edge, left] {statistics only} (cache.south west);
+  \node[opBox] (gates) at (4.55,4.45)
+    {group gates\\[1pt]$c_{l,g,\sigma}$};
+  \node[adamBox] (adam) at (7.10,4.45)
+    {AdamW matrix\\[1pt]branch};
+  \node[muonBox] (muon) at (9.75,4.45)
+    {transient\\[1pt]Muon};
+  \node[rescaleBox] (rescale) at (12.30,4.45)
+    {pair rescale\\[1pt]every 5 steps};
+  \node[outputBox] (updatedAB) at (15.00,4.45)
+    {updated\\[1pt]$A_l,B_l$};
 
-  \draw[mpPurple, line width=1.0pt] (4.10,0.82) -- (4.50,0.82);
-  \node[legend] at (4.65,0.82) {MatrixPolicy-updated RLB matrices};
-  \draw[mpGrey, line width=1.0pt] (8.95,0.82) -- (9.35,0.82);
-  \node[legend] at (9.50,0.82) {AdamW-only parameters};
+  \draw[flowShort] (policy.south) -- (gates.north);
+  \draw[flow] (matrices.east) -- node[edgeLabel, above=2pt] {grads} (gates.west);
+  \draw[flow] (gates.east) -- node[edgeLabel, above=2pt] {scaled} (adam.west);
+  \draw[flow] (adam.east) -- node[edgeLabel, above=2pt] {$+\mu_{l,\sigma,t}$} (muon.west);
+  \draw[flow] (muon.east) -- node[edgeLabel, above=2pt] {early} (rescale.west);
+  \draw[flow] (rescale.east) -- node[edgeLabel, above=2pt] {$\ell_{l,g,t}$} (updatedAB.west);
+
+  \node[font=\scriptsize, text=mpAmber, align=center] at (12.30,3.56)
+    {$A_g \leftarrow e^{\ell}A_g,\quad B_g \leftarrow e^{-\ell}B_g$};
+
+  \node[bypassBox, minimum width=4.55cm] (other) at (2.90,1.62)
+    {non-matrix parameters\\[1pt]rational coefficients, attention,\\[1pt]embeddings, norms, all other tensors};
+  \node[bypassUpdate, minimum width=1.85cm] (adamOnly) at (7.30,1.62)
+    {AdamW\\[1pt]only};
+  \node[bypassBox, fill=mpGreyFill, minimum width=2.20cm] (updatedOther) at (10.35,1.62)
+    {updated\\[1pt]$\theta_{\mathrm{nonAB}}$};
+  \node[redBadge, minimum width=3.55cm] (noops) at (13.85,1.62)
+    {no group gates\\[1pt]no Muon\\[1pt]no pair rescale};
+
+  \draw[bypass] (other.east) -- node[edgeLabel, above=2pt] {grads} (adamOnly.west);
+  \draw[bypass] (adamOnly.east) -- (updatedOther.west);
+  \draw[callout] (noops.west) -- (updatedOther.east);
+
+  \node[font=\scriptsize, text=mpGrey, align=center] at (8.45,0.92)
+    {The gray lane is disjoint from MatrixPolicy updates; it may supply detached statistics but receives only AdamW steps.};
 \end{tikzpicture}
 \end{document}

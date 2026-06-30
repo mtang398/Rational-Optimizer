@@ -1,0 +1,48 @@
+\begin{table*}[t]
+\centering
+\caption{Final validation loss for the broader optimizer sweep on the fixed 12-layer, width-768 language model. Values are mean $\pm$ sample standard deviation over three seeds at the end of the stated token budget; lower is better. Global-rational rows use the no-local-atom activation. The table includes the completed optimizer controls used in the fixed-scale sweep.}
+\label{tab:broad-final-validation}
+\scriptsize
+\setlength{\tabcolsep}{2.6pt}
+\textbf{100M tokens}\\[0.2em]
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Method & DCLM & FineWeb-Edu & FineWeb & Dolma & C4 \\
+\midrule
+MatrixPolicy & 4.2538$\pm$0.0063 & 4.0873$\pm$0.0102 & 4.3162$\pm$0.0125 & 4.3253$\pm$0.0053 & 4.2837$\pm$0.0197 \\
+SiLU + AdamW & 4.4056$\pm$0.0099 & 4.2375$\pm$0.0086 & 4.4758$\pm$0.0097 & 4.4862$\pm$0.0012 & 4.4469$\pm$0.0160 \\
+SiLU + Lion & 4.3183$\pm$0.0069 & 4.1494$\pm$0.0092 & 4.3825$\pm$0.0083 & 4.3878$\pm$0.0046 & 4.3536$\pm$0.0156 \\
+SiLU + Muon & 4.4572$\pm$0.0126 & 4.2787$\pm$0.0243 & 4.5163$\pm$0.0264 & 4.5443$\pm$0.0108 & 4.4824$\pm$0.0233 \\
+SiLU + SOAP & 4.4160$\pm$0.0038 & 4.2630$\pm$0.0220 & 4.4840$\pm$0.0112 & 4.4987$\pm$0.0035 & 4.4582$\pm$0.0146 \\
+SiLU + ScheduleFree & 4.9023$\pm$0.0111 & 4.8258$\pm$0.0072 & 5.0142$\pm$0.0188 & 5.0494$\pm$0.0149 & 5.0064$\pm$0.0160 \\
+SiLU + CAME & 5.0107$\pm$0.0143 & 4.9207$\pm$0.0123 & 5.1325$\pm$0.0126 & 5.1650$\pm$0.0189 & 5.1230$\pm$0.0178 \\
+Global rational + AdamW & 4.4046$\pm$0.0081 & 4.2392$\pm$0.0077 & 4.4717$\pm$0.0138 & 4.4878$\pm$0.0027 & 4.4412$\pm$0.0162 \\
+Global rational + Lion & 4.2946$\pm$0.0083 & 4.1361$\pm$0.0083 & 4.3626$\pm$0.0112 & 4.3622$\pm$0.0066 & 4.3271$\pm$0.0160 \\
+Global rational + Muon & 4.4674$\pm$0.0121 & 4.2831$\pm$0.0284 & 4.5157$\pm$0.0059 & 4.5476$\pm$0.0153 & 4.4764$\pm$0.0099 \\
+Global rational + SOAP & 4.4360$\pm$0.0442 & 4.2747$\pm$0.0238 & 4.6893$\pm$0.3359 & 4.5183$\pm$0.0363 & 4.4458$\pm$0.0190 \\
+Global rational + ScheduleFree & 4.8871$\pm$0.0046 & 4.7957$\pm$0.0133 & 4.9993$\pm$0.0192 & 5.0363$\pm$0.0129 & 4.9842$\pm$0.0164 \\
+Global rational + CAME & 5.0139$\pm$0.0086 & 4.9150$\pm$0.0063 & 5.1340$\pm$0.0162 & 5.1514$\pm$0.0168 & 5.1109$\pm$0.0155 \\
+\bottomrule
+\end{tabular}
+\vspace{0.45em}
+\textbf{300M tokens}\\[0.2em]
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Method & DCLM & FineWeb-Edu & FineWeb & Dolma & C4 \\
+\midrule
+MatrixPolicy & 3.9518$\pm$0.0282 & 3.7015$\pm$0.0212 & 3.9623$\pm$0.0081 & 3.8062$\pm$0.0073 & 3.8777$\pm$0.0144 \\
+SiLU + AdamW & 4.0493$\pm$0.0275 & 3.8035$\pm$0.0182 & 4.0612$\pm$0.0101 & 3.9037$\pm$0.0091 & 3.9811$\pm$0.0128 \\
+SiLU + Lion & 3.9934$\pm$0.0230 & 3.7440$\pm$0.0208 & 4.0015$\pm$0.0085 & 3.8475$\pm$0.0094 & 3.9213$\pm$0.0105 \\
+SiLU + Muon & 3.9973$\pm$0.0305 & 3.7454$\pm$0.0170 & 4.0066$\pm$0.0128 & 3.8581$\pm$0.0101 & 3.9251$\pm$0.0134 \\
+SiLU + SOAP & 4.0964$\pm$0.0300 & 3.8629$\pm$0.0201 & 4.1139$\pm$0.0101 & 3.9568$\pm$0.0093 & 4.0349$\pm$0.0108 \\
+SiLU + ScheduleFree & 4.3657$\pm$0.0298 & 4.1559$\pm$0.0238 & 4.3979$\pm$0.0106 & 4.2151$\pm$0.0053 & 4.3163$\pm$0.0107 \\
+SiLU + CAME & 4.3682$\pm$0.0226 & 4.1503$\pm$0.0211 & 4.4060$\pm$0.0189 & 4.2492$\pm$0.0270 & 4.3298$\pm$0.0148 \\
+Global rational + AdamW & 4.0496$\pm$0.0298 & 3.8024$\pm$0.0206 & 4.0601$\pm$0.0110 & 3.9045$\pm$0.0082 & 3.9787$\pm$0.0098 \\
+Global rational + Lion & 3.9887$\pm$0.0295 & 3.7416$\pm$0.0214 & 3.9960$\pm$0.0105 & 3.8412$\pm$0.0085 & 3.9132$\pm$0.0139 \\
+Global rational + Muon & 3.9913$\pm$0.0260 & 3.7373$\pm$0.0187 & 3.9991$\pm$0.0110 & 3.8478$\pm$0.0047 & 3.9189$\pm$0.0149 \\
+Global rational + SOAP & 4.0608$\pm$0.0331 & 3.8240$\pm$0.0128 & 4.1081$\pm$0.0320 & 3.9269$\pm$0.0125 & 4.0024$\pm$0.0194 \\
+Global rational + ScheduleFree & 4.3607$\pm$0.0344 & 4.1421$\pm$0.0217 & 4.3864$\pm$0.0081 & 4.2121$\pm$0.0112 & 4.3084$\pm$0.0071 \\
+Global rational + CAME & 4.4503$\pm$0.0426 & 4.2255$\pm$0.0358 & 4.4804$\pm$0.0064 & 4.2665$\pm$0.0409 & 4.3651$\pm$0.0582 \\
+\bottomrule
+\end{tabular}
+\end{table*}
