@@ -1,4 +1,4 @@
-\begin{table*}[t]
+\begin{table}[H]
 \centering
 \caption{Target-arrival efficiency for the fixed 12-layer, width-768 language model. Each row uses the hardest validation-loss target reached by MatrixPolicy and all listed controls in all three seeds. Token-savings percentages are shown first, followed by the corresponding clean target-arrival minutes.}
 \label{tab:e1e2-silu-comparison}
@@ -30,4 +30,4 @@ Budget & Dataset & \shortstack{Target\\loss} & \shortstack{SiLU +\\AdamW} & \sho
 \vspace{1pt}
 \parbox{0.98\textwidth}{\footnotesize All rows use the same 12-layer, width-768 Transformer. Saved percentages are MatrixPolicy token savings relative to the listed control at the shared target. Times are clean target-arrival minutes computed seed-wise from the first target-hit step and that run's measured seconds per step.}
 \endgroup
-\end{table*}
+\end{table}

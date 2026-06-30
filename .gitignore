@@ -22,6 +22,18 @@ experiments/cache/
 .DS_Store
 *.swp
 
+# Local TeX build and visual-audit artifacts
+.TinyTeX/
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+missfont.log
+paper/iclr_method_draft/visual_audit/
+
 # Generated experiment logs and raw transport probes
 experiments/runs/logs/*.out
 experiments/runs/logs/ract-wt103-opt-*.out

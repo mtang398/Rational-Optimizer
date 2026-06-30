@@ -175,7 +175,7 @@ def make_matrixpolicy_overview(out_path: Path) -> None:
     ink = "#202124"
     muted = "#5f6368"
     forward = "#202124"
-    observe = "#6b7280"
+    observe = "#9aa3ad"
     policy = "#6f4aa4"
     policy_light = "#b4a7c9"
     blue = "#dcebf7"
@@ -223,7 +223,7 @@ def make_matrixpolicy_overview(out_path: Path) -> None:
             band_w = w / 4
             for i, color in enumerate(["#c5dcf0", "#e8f1f9", "#c5dcf0", "#e8f1f9"]):
                 ax.add_patch(Rectangle((x0 + i * band_w, y0), band_w, h, facecolor=color, edgecolor="white", linewidth=0.45, zorder=3))
-        ax.text(x0 + w / 2, y0 + h + 0.047, label, ha="center", va="bottom", fontsize=8.6, weight="bold", color=ink)
+        ax.text(x0 + w / 2, y0 + h + 0.024, label, ha="center", va="bottom", fontsize=8.4, weight="bold", color=ink)
 
     def chip(x0, y0, title, body, width=0.118):
         labeled_box(x0, y0, width, 0.072, title, body, "#ffffff", "#a0a0a0", title_size=6.3, body_size=5.9, lw=0.65)
@@ -243,13 +243,13 @@ def make_matrixpolicy_overview(out_path: Path) -> None:
     labeled_box(0.248, y - 0.078, 0.142, 0.156, "group RMS", "$z_{l,g}=A_{l,g}x_l$\n$u=z/r$", green, green_edge, title_size=7.3, body_size=6.45)
 
     ax.add_patch(FancyBboxPatch(
-        (0.430, y - 0.110), 0.210, 0.220,
+        (0.410, y - 0.110), 0.250, 0.220,
         boxstyle="round,pad=0.014,rounding_size=0.020",
         linewidth=0.95, facecolor=amber, edgecolor=amber_edge, zorder=2,
     ))
-    ax.text(0.535, y + 0.080, "shared global rational response", ha="center", fontsize=7.35, weight="bold", color=ink, zorder=3)
-    ax.text(0.535, y + 0.048, "$R_{l,g}(u)=P_5(u)/Q_4(u)$", ha="center", fontsize=6.85, color=ink, zorder=3)
-    ax.text(0.535, y + 0.021, "$Q_4(u)\\geq 1$", ha="center", fontsize=6.65, color=muted, zorder=3)
+    ax.text(0.535, y + 0.087, "shared global\nrational response", ha="center", va="center", fontsize=6.95, weight="bold", color=ink, linespacing=0.90, zorder=3)
+    ax.text(0.535, y + 0.038, "$R_{l,g}(u)=P_5(u)/Q_4(u)$", ha="center", fontsize=6.75, color=ink, zorder=3)
+    ax.text(0.535, y + 0.011, "$Q_4(u)\\geq 1$", ha="center", fontsize=6.55, color=muted, zorder=3)
     xs = np.linspace(-1, 1, 120)
     ys = y - 0.053 + 0.058 * (xs / (1.0 + 0.65 * np.abs(xs)) + 0.08 * xs**2)
     ax.plot(0.473 + 0.124 * (xs + 1) / 2, ys, color="#7a4b00", linewidth=1.30, zorder=4)
@@ -262,15 +262,15 @@ def make_matrixpolicy_overview(out_path: Path) -> None:
     for start, end in [
         ((0.097, y), (0.133, y)),
         ((0.201, y), (0.248, y)),
-        ((0.390, y), (0.430, y)),
-        ((0.640, y), (0.680, y)),
+        ((0.390, y), (0.410, y)),
+        ((0.660, y), (0.680, y)),
         ((0.770, y), (0.812, y)),
         ((0.880, y), (0.922, y)),
     ]:
         _arrow(ax, start, end, color=forward, lw=1.15, scale=9)
 
     panel(0.045, 0.320, 0.910, 0.190, "#fafafa", "#777777", "")
-    ax.text(0.055, 0.526, "detached statistic bank", fontsize=7.2, weight="bold", color="#777777", ha="left", va="bottom", bbox=dict(facecolor="white", edgecolor="none", pad=0.8, alpha=1.0), zorder=8)
+    ax.text(0.062, 0.496, "detached statistic bank", fontsize=7.0, weight="bold", color="#777777", ha="left", va="top", zorder=8)
     chips = [
         (0.108, "pressure", "$\\pi_{l,g}$", 0.167),
         (0.290, "live gains", "$\\hat d,\\hat o$", 0.319),
@@ -282,10 +282,10 @@ def make_matrixpolicy_overview(out_path: Path) -> None:
         if title == "pressure":
             elbow = [(source_x, 0.620), (source_x, 0.555), (0.260, 0.555), (0.260, 0.452)]
             for p0, p1 in zip(elbow[:-1], elbow[1:]):
-                ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color=observe, linewidth=0.56, linestyle="--", zorder=1)
-            _arrow(ax, (0.260, 0.452), (0.225, 0.452), color=observe, lw=0.56, scale=4.6, linestyle="--")
+                ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color=observe, linewidth=0.42, linestyle=(0, (2.0, 2.0)), zorder=1)
+            _arrow(ax, (0.260, 0.452), (0.225, 0.452), color=observe, lw=0.42, scale=4.3, linestyle=(0, (2.0, 2.0)))
         else:
-            _arrow(ax, (source_x, 0.620), (x0 + 0.062, 0.452), color=observe, lw=0.62, scale=4.8, linestyle="--")
+            _arrow(ax, (source_x, 0.620), (x0 + 0.062, 0.452), color=observe, lw=0.45, scale=4.4, linestyle=(0, (2.0, 2.0)))
 
     bus_y = 0.352
     for x0, _title, _body, _source_x in chips:
@@ -297,16 +297,17 @@ def make_matrixpolicy_overview(out_path: Path) -> None:
 
     labeled_box(0.370, 0.115, 0.250, 0.100, "MatrixPolicy", "outputs $\\Delta A_l,\\Delta B_l$ only", lavender, policy, title_size=8.0, body_size=6.6, lw=0.95)
     _arrow(ax, (0.493, 0.240), (0.493, 0.215), color=policy, lw=0.82, scale=6.4)
-    poly_arrow([(0.390, 0.115), (0.390, 0.060), (0.018, 0.060), (0.018, 0.642), (0.133, 0.642)], color=policy_light, lw=0.54, scale=5.6)
-    poly_arrow([(0.600, 0.115), (0.600, 0.060), (0.982, 0.060), (0.982, 0.642), (0.880, 0.642)], color=policy_light, lw=0.54, scale=5.6)
-    ax.text(0.090, 0.620, "$\\Delta A_l$", fontsize=6.55, color=policy, ha="center", va="top", bbox=dict(facecolor="white", edgecolor="none", pad=0.6, alpha=0.90))
-    ax.text(0.925, 0.620, "$\\Delta B_l$", fontsize=6.55, color=policy, ha="center", va="top", bbox=dict(facecolor="white", edgecolor="none", pad=0.6, alpha=0.90))
+    poly_arrow([(0.390, 0.115), (0.390, 0.070), (0.018, 0.070), (0.018, 0.600), (0.133, 0.600)], color=policy, lw=0.72, scale=7.2)
+    poly_arrow([(0.600, 0.115), (0.600, 0.070), (0.982, 0.070), (0.982, 0.600), (0.880, 0.600)], color=policy, lw=0.72, scale=7.2)
+    ax.text(0.095, 0.576, "$\\Delta A_l$", fontsize=6.45, color=policy, ha="center", va="top", bbox=dict(facecolor="white", edgecolor="none", pad=0.6, alpha=0.94))
+    ax.text(0.918, 0.576, "$\\Delta B_l$", fontsize=6.45, color=policy, ha="center", va="top", bbox=dict(facecolor="white", edgecolor="none", pad=0.6, alpha=0.94))
 
-    ax.text(0.668, 0.202, "coefficients are observed signals and follow AdamW", fontsize=6.45, color=muted, ha="left")
-    ax.text(0.668, 0.172, "global-only variant: no local atom parameters", fontsize=6.45, color=muted, ha="left")
+    ax.plot([0.620, 0.640], [0.165, 0.165], color="#9aa0a6", linewidth=0.55)
+    ax.text(0.650, 0.186, "coefficients are observed signals and follow AdamW", fontsize=6.15, color=muted, ha="left")
+    ax.text(0.650, 0.158, "global-only variant: no local atom parameters", fontsize=6.15, color=muted, ha="left")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04, facecolor="white", transparent=False)
     plt.close(fig)
 
 
@@ -344,11 +345,11 @@ def make_matrixpolicy_signal_flow(out_path: Path) -> None:
             boxstyle="round,pad=0.012,rounding_size=0.018",
             facecolor=fc, edgecolor=ec, linewidth=0.88, zorder=2,
         ))
-        circ = plt.Circle((x0 + 0.020, y0 + h - 0.023), 0.017, facecolor=ec, edgecolor="white", linewidth=0.45, zorder=4)
+        circ = plt.Circle((x0 + 0.024, y0 + h - 0.029), 0.0165, facecolor=ec, edgecolor="white", linewidth=0.45, zorder=4)
         ax.add_patch(circ)
-        ax.text(x0 + 0.020, y0 + h - 0.023, str(num), ha="center", va="center", fontsize=6.0, color="white", weight="bold", zorder=5)
-        ax.text(x0 + w / 2, y0 + h * 0.64, title, ha="center", va="center", fontsize=title_size, weight="bold", color=ink, zorder=3)
-        ax.text(x0 + w / 2, y0 + h * 0.34, body, ha="center", va="center", fontsize=body_size, color=ink, linespacing=1.05, zorder=3)
+        ax.text(x0 + 0.024, y0 + h - 0.029, str(num), ha="center", va="center", fontsize=5.8, color="white", weight="bold", zorder=5)
+        ax.text(x0 + w / 2, y0 + h * 0.65, title, ha="center", va="center", fontsize=title_size, weight="bold", color=ink, zorder=3)
+        ax.text(x0 + w / 2, y0 + h * 0.34, body, ha="center", va="center", fontsize=body_size, color=ink, linespacing=1.18, zorder=3)
 
     def bypass_box(x0, y0, w, h, title, body):
         ax.add_patch(FancyBboxPatch(
@@ -356,62 +357,61 @@ def make_matrixpolicy_signal_flow(out_path: Path) -> None:
             boxstyle="round,pad=0.012,rounding_size=0.018",
             facecolor=gray, edgecolor="#8a8a8a", linewidth=0.78, zorder=2,
         ))
-        ax.text(x0 + w / 2, y0 + h * 0.64, title, ha="center", va="center", fontsize=7.0, weight="bold", color=ink, zorder=3)
-        ax.text(x0 + w / 2, y0 + h * 0.34, body, ha="center", va="center", fontsize=6.18, color=ink, linespacing=1.05, zorder=3)
+        ax.text(x0 + w / 2, y0 + h * 0.66, title, ha="center", va="center", fontsize=6.9, weight="bold", color=ink, zorder=3)
+        ax.text(x0 + w / 2, y0 + h * 0.34, body, ha="center", va="center", fontsize=6.05, color=ink, linespacing=1.15, zorder=3)
 
     ax.text(0.022, 0.952, "MatrixPolicy optimizer action", fontsize=9.8, weight="bold", color=ink, va="top")
     ax.text(0.022, 0.912, "The policy lane is reserved for $A_l,B_l$; every other tensor takes the compact AdamW bypass.", fontsize=7.2, color=muted, va="top")
 
     lane(0.030, 0.505, 0.940, 0.345, "RLB matrix lane: $A_l$ and $B_l$", "#fbf8ff", purple)
-    y = 0.610
-    h = 0.158
-    stage(0.055, y, 0.120, h, 1, "signals", "$\\pi,\\alpha$\n$\\hat d,\\hat o$\n$\\gamma,\\tau$", fc="#edf4fb", ec="#366b9a", title_size=6.7, body_size=5.85)
-    stage(0.205, y, 0.120, h, 2, "group gates", "$c_{l,g,\\sigma}$\ncenter + clip", title_size=6.7, body_size=5.95)
-    stage(0.355, y, 0.120, h, 3, "scale grads", "$\\widetilde\\nabla A_{l,g}$\n$\\widetilde\\nabla B_{l,g}$", title_size=6.7, body_size=6.0)
+    y = 0.605
+    h = 0.176
+    stage(0.055, y, 0.120, h, 1, "signals", "$\\pi,\\alpha$\n$\\hat d,\\hat o$\n$\\gamma,\\tau$", fc="#edf4fb", ec="#366b9a", title_size=6.55, body_size=5.95)
+    stage(0.205, y, 0.120, h, 2, "group gates", "$c_{l,g,\\sigma}$\ncenter + clip", title_size=6.55, body_size=6.05)
+    stage(0.355, y, 0.120, h, 3, "scale grads", "$\\widetilde\\nabla A_{l,g}$\n$\\widetilde\\nabla B_{l,g}$", title_size=6.55, body_size=6.05)
 
-    x4, w4, h4 = 0.515, 0.190, 0.178
+    x4, w4, h4 = 0.512, 0.194, 0.212
     ax.add_patch(FancyBboxPatch(
         (x4, y - 0.010), w4, h4,
         boxstyle="round,pad=0.012,rounding_size=0.020",
         facecolor=pale_lav, edgecolor=purple, linewidth=1.05, zorder=2,
     ))
-    circ = plt.Circle((x4 + 0.022, y - 0.010 + h4 - 0.023), 0.017, facecolor=purple, edgecolor="white", linewidth=0.45, zorder=4)
+    circ = plt.Circle((x4 + 0.026, y - 0.010 + h4 - 0.030), 0.0165, facecolor=purple, edgecolor="white", linewidth=0.45, zorder=4)
     ax.add_patch(circ)
-    ax.text(x4 + 0.022, y - 0.010 + h4 - 0.023, "4", ha="center", va="center", fontsize=6.0, color="white", weight="bold", zorder=5)
-    ax.text(x4 + w4 / 2, y + 0.118, "staged matrix step", ha="center", va="center", fontsize=7.2, weight="bold", color=ink)
-    ax.add_patch(FancyBboxPatch((x4 + 0.026, y + 0.045), 0.060, 0.048, boxstyle="round,pad=0.006,rounding_size=0.010", facecolor="#ffffff", edgecolor="#8b6bb0", linewidth=0.70, zorder=3))
-    ax.add_patch(FancyBboxPatch((x4 + 0.128, y + 0.045), 0.052, 0.048, boxstyle="round,pad=0.006,rounding_size=0.010", facecolor="#ffffff", edgecolor="#8b6bb0", linewidth=0.70, zorder=3))
-    ax.text(x4 + 0.056, y + 0.069, "AdamW\non A,B", fontsize=5.55, ha="center", va="center", color=ink, zorder=4, linespacing=1.0)
-    ax.text(x4 + 0.154, y + 0.069, "Muon\nmatrix", fontsize=5.55, ha="center", va="center", color=ink, zorder=4, linespacing=1.0)
-    internal_arrow = _arrow(ax, (x4 + 0.088, y + 0.069), (x4 + 0.128, y + 0.069), color=purple, lw=0.95, scale=10.5)
+    ax.text(x4 + 0.026, y - 0.010 + h4 - 0.030, "4", ha="center", va="center", fontsize=5.8, color="white", weight="bold", zorder=5)
+    ax.text(x4 + w4 / 2, y + 0.139, "staged matrix step", ha="center", va="center", fontsize=7.0, weight="bold", color=ink)
+    ax.add_patch(FancyBboxPatch((x4 + 0.030, y + 0.060), 0.064, 0.052, boxstyle="round,pad=0.006,rounding_size=0.010", facecolor="#ffffff", edgecolor="#8b6bb0", linewidth=0.70, zorder=3))
+    ax.add_patch(FancyBboxPatch((x4 + 0.138, y + 0.060), 0.056, 0.052, boxstyle="round,pad=0.006,rounding_size=0.010", facecolor="#ffffff", edgecolor="#8b6bb0", linewidth=0.70, zorder=3))
+    ax.text(x4 + 0.062, y + 0.086, "AdamW\non A,B", fontsize=5.55, ha="center", va="center", color=ink, zorder=4, linespacing=1.05)
+    ax.text(x4 + 0.166, y + 0.086, "Muon\nmatrix", fontsize=5.55, ha="center", va="center", color=ink, zorder=4, linespacing=1.05)
+    internal_arrow = _arrow(ax, (x4 + 0.097, y + 0.086), (x4 + 0.138, y + 0.086), color=purple, lw=0.95, scale=10.5)
     internal_arrow.set_zorder(7)
-    ax.text(x4 + w4 / 2, y + 0.018, "separate optimizer states", ha="center", va="center", fontsize=5.75, color=muted)
+    ax.text(x4 + w4 / 2, y + 0.026, "separate optimizer states", ha="center", va="center", fontsize=5.8, color=muted)
 
-    stage(0.735, y, 0.118, h, 5, "pair balance", "every 5 steps\n$A_g\\leftarrow e^\\ell A_g$\n$B_g\\leftarrow e^{-\\ell}B_g$", fc=amber, ec=amber_edge, title_size=6.35, body_size=5.35)
-    stage(0.880, y + 0.014, 0.080, h - 0.028, 6, "updated", "$A_l^{t+1}$\n$B_l^{t+1}$", fc=blue, ec="#325d84", title_size=5.95, body_size=5.6)
+    stage(0.728, y, 0.114, h, 5, "pair balance", "every 5 steps\n$A_g\\leftarrow e^\\ell A_g$\n$B_g\\leftarrow e^{-\\ell}B_g$", fc=amber, ec=amber_edge, title_size=6.10, body_size=5.50)
+    stage(0.884, y + 0.010, 0.080, h - 0.020, 6, "updated", "$A_l^{t+1}$\n$B_l^{t+1}$", fc=blue, ec="#325d84", title_size=5.80, body_size=6.20)
 
     for start, end in [
         ((0.181, y + h / 2), (0.199, y + h / 2)),
         ((0.331, y + h / 2), (0.349, y + h / 2)),
-        ((0.481, y + h / 2), (0.509, y + h / 2)),
-        ((0.711, y + h / 2), (0.729, y + h / 2)),
-        ((0.860, y + h / 2), (0.874, y + h / 2)),
+        ((0.481, y + h / 2), (0.506, y + h / 2)),
+        ((0.712, y + h / 2), (0.722, y + h / 2)),
+        ((0.848, y + h / 2), (0.878, y + h / 2)),
     ]:
         _arrow(ax, start, end, color=purple, lw=0.88, scale=10.0)
 
     ax.text(0.505, 0.535, "Rational coefficients are observed signals, not MatrixPolicy update targets.", fontsize=5.95, color="#777777", ha="center")
 
     lane(0.055, 0.170, 0.890, 0.230, "", "#f7f7f7", "#777777")
-    ax.text(0.070, 0.418, "AdamW-only bypass", fontsize=7.4, weight="bold", color="#777777", ha="left", va="bottom", bbox=dict(facecolor="white", edgecolor="none", pad=0.8, alpha=0.92))
+    ax.text(0.074, 0.366, "AdamW-only bypass", fontsize=7.2, weight="bold", color="#777777", ha="left", va="top")
     bypass_box(0.090, 0.232, 0.285, 0.105, "non-matrix tensors", "incl. rational coefficients,\nattention, embeddings, norms")
-    bypass_box(0.485, 0.240, 0.165, 0.090, "AdamW only", "no gates\nno Muon")
+    bypass_box(0.485, 0.232, 0.165, 0.105, "AdamW only", "no gates or Muon\nno pair rescale")
     bypass_box(0.735, 0.240, 0.170, 0.090, "updated", "$\\theta_{\\neg AB}^{t+1}$")
-    _arrow(ax, (0.391, 0.285), (0.469, 0.285), color="#777777", lw=0.84, scale=9.5)
-    _arrow(ax, (0.666, 0.285), (0.719, 0.285), color="#777777", lw=0.84, scale=9.5)
-    ax.text(0.568, 0.208, "no pair rescale", fontsize=6.1, color=muted, ha="center")
+    _arrow(ax, (0.391, 0.285), (0.469, 0.285), color="#777777", lw=1.10, scale=12.0)
+    _arrow(ax, (0.666, 0.285), (0.719, 0.285), color="#777777", lw=1.10, scale=12.0)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04, facecolor="white", transparent=False)
     plt.close(fig)
 
 
@@ -459,8 +459,8 @@ def _legend_panel(ax, handles, labels, fontsize=7.3):
 
 def _make_multimetric_all_datasets(curves, aggregate_fn, out_path: Path, title: str) -> None:
     metrics = [("val_loss", "validation loss"), ("val_ppl", "validation PPL"), ("train_loss", "training loss")]
-    fig, axes = plt.subplots(len(DATASETS), len(metrics), figsize=(7.2, 8.1), sharex=True)
-    fig.subplots_adjust(left=0.080, right=0.995, bottom=0.070, top=0.925, hspace=0.290, wspace=0.185)
+    fig, axes = plt.subplots(len(DATASETS), len(metrics), figsize=(7.2, 8.35), sharex=True)
+    fig.subplots_adjust(left=0.082, right=0.992, bottom=0.072, top=0.920, hspace=0.335, wspace=0.215)
     for row, (dataset, dataset_label, _dir_name) in enumerate(DATASETS):
         for col, (metric, metric_label) in enumerate(metrics):
             ax = axes[row, col]
@@ -488,7 +488,7 @@ def _make_multimetric_all_datasets(curves, aggregate_fn, out_path: Path, title: 
                 ax.set_ylabel(dataset_label, fontsize=8.0)
             if row == len(DATASETS) - 1:
                 ax.set_xlabel("optimizer step", fontsize=7.6)
-            ax.margins(x=0.015, y=0.08)
+            ax.margins(x=0.035, y=0.10)
             _finish_axis(ax, labelsize=6.4)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(
@@ -504,7 +504,7 @@ def _make_multimetric_all_datasets(curves, aggregate_fn, out_path: Path, title: 
     )
     fig.suptitle(title, fontsize=9.0, y=0.999)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.045)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.045, facecolor="white", transparent=False)
     plt.close(fig)
 
 
@@ -606,11 +606,16 @@ def _completed_broad_methods(curves) -> list[tuple[str, str, str, str]]:
 
 def _target_line_style(method: str) -> tuple[str, object, float, float]:
     if method == "rlb_matrixpolicy_original":
-        return OKABE_ITO["black"], "-", 1.85, 1.0
+        return OKABE_ITO["black"], "-", 2.05, 1.0
     _label, family, optimizer = BROAD_METHOD_INFO[method]
     linestyle = "-" if family == "Global rational" else (0, (2.4, 1.8))
-    alpha = 0.58 if family == "Global rational" else 0.46
-    return TARGET_OPTIMIZER_COLORS.get(optimizer, "#777777"), linestyle, 0.92, alpha
+    if optimizer in {"AdamW", "Muon"}:
+        linewidth = 1.12
+        alpha = 0.70 if family == "Global rational" else 0.62
+    else:
+        linewidth = 0.78
+        alpha = 0.32 if family == "Global rational" else 0.24
+    return TARGET_OPTIMIZER_COLORS.get(optimizer, "#777777"), linestyle, linewidth, alpha
 
 
 def _fmt_mean_std(stats: tuple[float, float] | None) -> str:
@@ -625,7 +630,7 @@ def make_e1_representative_silu_dynamics(out_path: Path) -> None:
     panels = [("dclm", "DCLM"), ("fineweb_edu", "FineWeb-Edu")]
     metrics = [("val_loss", "validation loss"), ("val_ppl", "validation perplexity"), ("train_loss", "training loss")]
     fig, axes = plt.subplots(3, 2, figsize=(7.2, 5.25), sharex=True)
-    fig.subplots_adjust(left=0.080, right=0.995, bottom=0.090, top=0.855, hspace=0.255, wspace=0.185)
+    fig.subplots_adjust(left=0.082, right=0.992, bottom=0.092, top=0.850, hspace=0.285, wspace=0.210)
     for col, (dataset, dataset_label) in enumerate(panels):
         for row, (metric, metric_label) in enumerate(metrics):
             ax = axes[row, col]
@@ -643,12 +648,12 @@ def make_e1_representative_silu_dynamics(out_path: Path) -> None:
                 ax.set_ylabel(metric_label, fontsize=8.3)
             if row == 2:
                 ax.set_xlabel("optimizer step", fontsize=8.3)
-            ax.margins(x=0.015, y=0.08)
+            ax.margins(x=0.035, y=0.10)
             _finish_axis(ax, labelsize=7.4)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.985), ncol=3, frameon=False, fontsize=8.0, handlelength=2.0, columnspacing=1.6)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04, facecolor="white", transparent=False)
     plt.close(fig)
 
 
@@ -830,23 +835,23 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
     }
     label_offsets = {
         "E1": {
-            "dclm": (-24.0, 10.0),
-            "fineweb_edu": (7.0, 12.0),
-            "fineweb": (8.0, 10.0),
-            "dolma_sample": (-20.0, -13.0),
-            "c4_en": (8.0, 15.0),
+            "dclm": (-28.0, 12.0),
+            "fineweb_edu": (10.0, 13.0),
+            "fineweb": (12.0, 9.0),
+            "dolma_sample": (-22.0, -14.0),
+            "c4_en": (12.0, 16.0),
         },
         "E2": {
-            "dclm": (-26.0, 9.0),
-            "fineweb_edu": (7.0, 13.0),
-            "fineweb": (8.0, 10.0),
-            "dolma_sample": (-26.0, -12.0),
-            "c4_en": (8.0, 15.0),
+            "dclm": (-34.0, 16.0),
+            "fineweb_edu": (12.0, 16.0),
+            "fineweb": (15.0, 8.0),
+            "dolma_sample": (-32.0, -15.0),
+            "c4_en": (14.0, 19.0),
         },
     }
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 4.25))
-    fig.subplots_adjust(left=0.070, right=0.993, bottom=0.130, top=0.735, wspace=0.185)
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 4.35))
+    fig.subplots_adjust(left=0.072, right=0.990, bottom=0.135, top=0.735, wspace=0.205)
 
     for ax, regime in zip(axes, ["E1", "E2"]):
         curves = curves_by_regime[regime]
@@ -880,8 +885,8 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 if not xs:
                     continue
                 marker = dataset_markers[dataset]
-                sizes = [13] * len(xs)
-                sizes[-1] = 34 if method == "rlb_matrixpolicy_original" else 19
+                sizes = [12] * len(xs)
+                sizes[-1] = 36 if method == "rlb_matrixpolicy_original" else 18
                 line_z = 5 if method == "rlb_matrixpolicy_original" else 2
                 point_z = 7 if method == "rlb_matrixpolicy_original" else 4
                 ax.plot(xs, ys, color=color, linestyle=linestyle, linewidth=linewidth, alpha=alpha, zorder=line_z)
@@ -897,15 +902,15 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                     zorder=point_z,
                 )
         if x_values and y_values:
-            xmin = max(0.0, math.floor((min(x_values) - 5.0) / 10.0) * 10.0)
-            xmax = math.ceil((max(x_values) + 7.0) / 10.0) * 10.0
-            ymin = math.floor((min(y_values) - 0.04) * 20.0) / 20.0
-            ymax = math.ceil((max(y_values) + 0.04) * 20.0) / 20.0
+            xmin = max(0.0, math.floor((min(x_values) - 7.0) / 10.0) * 10.0)
+            xmax = math.ceil((max(x_values) + 12.0) / 10.0) * 10.0
+            ymin = math.floor((min(y_values) - 0.055) * 20.0) / 20.0
+            ymax = math.ceil((max(y_values) + 0.105) * 20.0) / 20.0
             ax.set_xlim(xmin, xmax)
             ax.set_ylim(ymin, ymax)
             ax.text(
                 xmin + 0.03 * (xmax - xmin),
-                ymin + 0.08 * (ymax - ymin),
+                ymin + 0.075 * (ymax - ymin),
                 "left = fewer tokens\nlower = harder target",
                 fontsize=6.0,
                 color="#555555",
@@ -919,14 +924,14 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 (x, y),
                 xytext=(dx, dy),
                 textcoords="offset points",
-                fontsize=5.9,
+                fontsize=6.1,
                 color="#202020",
                 ha="left" if dx >= 0 else "right",
                 va="center",
-                arrowprops={"arrowstyle": "-", "color": "#8a8a8a", "linewidth": 0.32, "shrinkA": 0.0, "shrinkB": 2.8},
+                arrowprops={"arrowstyle": "-", "color": "#777777", "linewidth": 0.36, "shrinkA": 0.0, "shrinkB": 3.0},
                 zorder=9,
             )
-            text.set_path_effects([path_effects.withStroke(linewidth=1.6, foreground="white")])
+            text.set_path_effects([path_effects.withStroke(linewidth=1.8, foreground="white")])
         ax.set_title(BUDGET_LABELS[regime], fontsize=8.3, pad=5, weight="bold")
         ax.set_xlabel("tokens to validation-loss target (M)", fontsize=7.6)
         ax.grid(True, color="#d7d7d7", linewidth=0.45, alpha=0.72)
@@ -963,17 +968,17 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         bbox_to_anchor=(0.5, 0.995),
         ncol=5,
         frameon=False,
-        fontsize=5.75,
+        fontsize=5.65,
         title="Method encoding",
-        title_fontsize=6.15,
-        handlelength=1.65,
-        columnspacing=0.75,
+        title_fontsize=6.10,
+        handlelength=1.55,
+        columnspacing=0.65,
     )
     fig.legend(
         dataset_handles,
         dataset_labels,
         loc="upper center",
-        bbox_to_anchor=(0.5, 0.825),
+        bbox_to_anchor=(0.5, 0.820),
         ncol=5,
         frameon=False,
         fontsize=6.05,
@@ -983,7 +988,7 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         columnspacing=0.86,
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.05)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.05, facecolor="white", transparent=False)
     plt.close(fig)
 
 def _fmt_signed(value: float, digits: int = 1) -> str:
@@ -998,7 +1003,7 @@ def make_e1_e2_silu_summary_table(out_path: Path) -> None:
     rows = _target_arrival_rows()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        r"\begin{table*}[t]",
+        r"\begin{table}[H]",
         r"\centering",
         r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 language model. Each row uses the hardest validation-loss target reached by MatrixPolicy and all listed controls in all three seeds. Token-savings percentages are shown first, followed by the corresponding clean target-arrival minutes.}",
         r"\label{tab:e1e2-silu-comparison}",
@@ -1037,7 +1042,7 @@ def make_e1_e2_silu_summary_table(out_path: Path) -> None:
         r"\vspace{1pt}",
         r"\parbox{0.98\textwidth}{\footnotesize All rows use the same 12-layer, width-768 Transformer. Saved percentages are MatrixPolicy token savings relative to the listed control at the shared target. Times are clean target-arrival minutes computed seed-wise from the first target-hit step and that run's measured seconds per step.}",
         r"\endgroup",
-        r"\end{table*}",
+        r"\end{table}",
     ])
     out_path.write_text("\n".join(lines) + "\n")
 
@@ -1053,32 +1058,36 @@ def make_broad_final_validation_table(out_path: Path) -> None:
     curves_by_regime = {"E1": load_e1_curves(), "E2": load_e2_curves()}
     out_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        r"\begin{table*}[t]",
+        r"\begin{table}[H]",
         r"\centering",
-        r"\caption{Final validation loss for the broader optimizer sweep on the fixed 12-layer, width-768 language model. Values are mean $\pm$ sample standard deviation over three seeds at the end of the stated token budget; lower is better. Global-rational rows use the no-local-atom activation. The table includes the completed optimizer controls used in the fixed-scale sweep.}",
+        r"\caption{Final validation loss for the broader optimizer sweep on the fixed 12-layer, width-768 language model. Values are mean $\pm$ sample standard deviation over three seeds; lower is better. Global-rational rows use the no-local-atom activation.}",
         r"\label{tab:broad-final-validation}",
+        r"\begingroup",
         r"\scriptsize",
-        r"\setlength{\tabcolsep}{2.6pt}",
+        r"\setlength{\tabcolsep}{2.3pt}",
+        r"\renewcommand{\arraystretch}{0.95}",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{@{}llccccc@{}}",
+        r"\toprule",
+        r"Budget & Method & DCLM & FineWeb-Edu & FineWeb & Dolma & C4 \\",
+        r"\midrule",
     ]
     for panel_idx, regime in enumerate(["E1", "E2"]):
         if panel_idx:
-            lines.append(r"\vspace{0.45em}")
-        lines.extend([
-            rf"\textbf{{{BUDGET_LABEL[regime]}}}\\[0.2em]",
-            r"\begin{tabular}{@{}lccccc@{}}",
-            r"\toprule",
-            r"Method & DCLM & FineWeb-Edu & FineWeb & Dolma & C4 \\",
-            r"\midrule",
-        ])
+            lines.append(r"\midrule")
         curves = curves_by_regime[regime]
-        for method, label, _family, _optimizer in _completed_broad_methods(curves):
+        methods = _completed_broad_methods(curves)
+        for method_idx, (method, label, _family, _optimizer) in enumerate(methods):
             cells = [_final_cell(curves, dataset, method) for dataset, _dataset_label, _e2 in DATASETS]
-            lines.append(f"{label} & " + " & ".join(cells) + r" \\")
-        lines.extend([
-            r"\bottomrule",
-            r"\end{tabular}",
-        ])
-    lines.append(r"\end{table*}")
+            budget_cell = BUDGET_LABEL[regime] if method_idx == 0 else ""
+            lines.append(f"{budget_cell} & {label} & " + " & ".join(cells) + r" \\")
+    lines.extend([
+        r"\bottomrule",
+        r"\end{tabular}%",
+        r"}",
+        r"\endgroup",
+        r"\end{table}",
+    ])
     out_path.write_text("\n".join(lines) + "\n")
 
 def main() -> int:
