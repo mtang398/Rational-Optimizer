@@ -26,6 +26,12 @@
 \newcommand{\diag}{\operatorname{diag}}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
 
+\setlength{\textfloatsep}{16pt plus 2pt minus 2pt}
+\setlength{\floatsep}{12pt plus 2pt minus 2pt}
+\setlength{\intextsep}{12pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{5pt}
+\setlength{\belowcaptionskip}{9pt}
+
 \begin{document}
 
 \maketitle
@@ -48,7 +54,7 @@ target-arrival tokens saved.  Across five 12-layer, width-768 language-model
 pretraining corpora, MatrixPolicy saves 19.5--22.8\% versus SiLU with AdamW and
 29.2--34.0\% versus SiLU with Muon under the 100M-token budget; under the
 300M-token budget it saves 22.3--26.4\% versus SiLU with AdamW and
-6.7--9.8\% versus SiLU with Muon, with positive measured training-time savings
+6.7--9.8\% versus SiLU with Muon, with lower measured target-arrival time
 for every dataset/comparator pair.  TODO: Test whether these percentage
 target-arrival savings persist in a larger-scale experiment beyond the current
 fixed-scale setting.
@@ -110,7 +116,7 @@ The contributions are:
     matrices in a reported configuration where rational coefficients and
     non-RLB-matrix parameters use AdamW;
     \item a matched empirical package showing faster 100M-token-budget target
-    arrival in both tokens and estimated training time against AdamW and Muon
+    arrival in both tokens and measured clean target-arrival time against AdamW and Muon
     controls, with 300M-token-budget saturation results showing that the endpoint
     advantage persists after longer training.
 \end{itemize}
@@ -622,6 +628,9 @@ buffers as well, using squared scales for square-average state entries.
 \section{Experiments}
 \label{sec:experiments}
 
+\subsection{Fixed-Scale Target-Arrival Study}
+\label{sec:fixed-scale-results}
+
 The fixed-scale study uses the same 12-layer, width-768 causal Transformer on
 five corpora: DCLM/DataComp-LM \citep{li2024datacomp}, FineWeb-Edu and FineWeb
 \citep{penedo2024fineweb}, Dolma-sample \citep{soldaini2024dolma}, and C4
@@ -639,13 +648,14 @@ AdamW and Muon are summarized in Table~\ref{tab:broad-final-validation}.
 
 Table~\ref{tab:e1e2-silu-comparison} is the primary empirical result.  It asks:
 for the hardest common validation-loss target reached by every listed method in
-all three seeds, how many training tokens and how much measured training time are
-required?  Across all five datasets under the 100M-token budget,
-MatrixPolicy saves 19.5--22.8\% of the SiLU with AdamW target-arrival tokens
-and 29.2--34.0\% of the SiLU with Muon target-arrival tokens.  Under the
-300M-token budget, after longer training compresses endpoint gaps, MatrixPolicy
-still saves 22.3--26.4\% versus SiLU with AdamW and 6.7--9.8\% versus SiLU
-with Muon, with positive measured wall-clock savings in every listed comparison.
+all three seeds, what fraction of target-arrival tokens does MatrixPolicy save,
+and how many clean target-arrival minutes does each method require?  Across all
+five datasets under the 100M-token budget, MatrixPolicy saves 19.5--22.8\% of
+the SiLU with AdamW target-arrival tokens and 29.2--34.0\% of the SiLU with
+Muon target-arrival tokens.  Under the 300M-token budget, after longer training
+compresses endpoint gaps, MatrixPolicy still saves 22.3--26.4\% versus SiLU
+with AdamW and 6.7--9.8\% versus SiLU with Muon, with lower target-arrival time
+in every listed comparison.
 
 \begin{figure*}[t]
 \centering
@@ -660,12 +670,12 @@ the same loss with fewer tokens.  The hard-target timing and token-saving percen
 \end{figure*}
 
 Figure~\ref{fig:target-arrival-evidence} complements the table rather than
-repeating it.  The table reports measured minutes and token-saving percentages
-at the hardest common targets; the map shows the full ladder of common targets.
-Across both token budgets and all five datasets, MatrixPolicy traces are consistently
-left of the SiLU and global-rational controls, so the hard-target table is not a
-single-threshold artifact but a compact accounting of the same target-arrival
-pattern.
+repeating it.  The table reports token-saving percentages and clean target-arrival
+minutes at the hardest common targets; the map shows the full ladder of common
+targets.  Across both token budgets and all five datasets, MatrixPolicy traces
+are consistently left of the SiLU and global-rational controls, so the hard-target
+table is not a single-threshold artifact but a compact accounting of the same
+target-arrival pattern.
 
 \begin{figure*}[t]
 \centering
@@ -694,7 +704,7 @@ has consumed the full budget.
 
 TODO: This subsection is reserved for larger-scale training results.  The current
 claim is limited to the completed fixed-scale evidence in
-Table~\ref{tab:e1e2-silu-comparison} and
+Section~\ref{sec:fixed-scale-results}, Table~\ref{tab:e1e2-silu-comparison}, and
 Figures~\ref{fig:target-arrival-evidence}--\ref{fig:e1-representative-dynamics}.
 
 \subsection{TODO: Component Ablations}
@@ -714,8 +724,8 @@ global rational responses, and an idealized positive matrix-pair relation used a
 a bounded balancing heuristic.  MatrixPolicy uses that interface to update the
 RLB input and output matrices with role-aware statistics, while rational
 coefficients and non-RLB-matrix parameters use AdamW.  The completed 100M-token and 300M-token runs show a consistent target-arrival pattern:
-MatrixPolicy reaches common validation losses with fewer tokens and less measured
-training time than the listed SiLU and global-rational controls.  Larger-scale
+MatrixPolicy reaches common validation losses with fewer tokens and lower measured
+target-arrival time than the listed SiLU and global-rational controls.  Larger-scale
 training and component ablations remain explicit TODO subsections inside the
 Experiments section of the current draft.
 
@@ -725,16 +735,49 @@ Experiments section of the current draft.
 \appendix
 
 
+
 \section{Experimental Details and Supporting Results}
 \label{app:experiment-protocol}
 
-All runs use a 12-layer causal Transformer with width 768, 12 attention heads,
-sequence length 256, RLB latent width 3072, and 32768 global tokens per optimizer
-step.  The 100M-token budget consists of 3050 optimizer steps, approximately
-100M tokens; the 300M-token budget consists of 9150 optimizer steps,
-approximately 300M tokens.  Each method/dataset pair is run with seeds 1337,
-2027, and 3407.  Token-to-target readouts use evaluation events every 50 steps,
-so arrivals are quantized in increments of 1.64M tokens.
+\subsection{Model and data pipeline}
+\label{app:model-data}
+
+The fixed-scale experiments use a custom causal decoder Transformer rather than
+an off-the-shelf GPT-2 or LLaMA implementation.  The block uses a LLaMA-style
+pre-normalized layout with RMSNorm before attention and before the nonlinear
+sublayer, bias-free query/key/value and output attention projections, rotary
+position embeddings, causal scaled-dot-product attention, residual attention and
+nonlinear-sublayer updates, a final RMSNorm, and a tied token-embedding/output
+head.  The fixed model has 12 layers, width 768, 12 heads of dimension 64, and
+context length 256.
+
+The SiLU controls use a SwiGLU-like gated nonlinear sublayer with bias-free
+matrices $W_g,W_v\in\mathbb{R}^{768\times 2048}$ and
+$W_o\in\mathbb{R}^{2048\times 768}$, computing
+$W_o(\operatorname{SiLU}(xW_g)\odot xW_v)$.  The global-rational RLB rows use a
+matched single-branch matrix pair: an input matrix maps width 768 to 3072 latent
+coordinates, the coordinates are partitioned into groups and transformed by the
+real-pole-free P5/Q4 global rational response, and an output matrix maps the 3072
+coordinates back to width 768.  This is the no-local-atom RLB variant used by the
+main MatrixPolicy results.
+
+Tokenization uses the GPT-2 tokenizer through the Hugging Face tokenizer
+interface, without adding tokenizer-specific special tokens; an EOS or pad token
+is appended between documents.  Training samples random contiguous blocks of
+length 257 and forms next-token prediction pairs of length 256.  The DCLM,
+FineWeb-Edu, FineWeb, Dolma-sample, and C4 runs use the text field specified in
+the manifests, with validation slices drawn from held-out token offsets of the
+same corpus stream.
+
+\subsection{Training protocol}
+\label{app:training-protocol}
+
+All runs use batch size 16, gradient accumulation 2, and therefore 32768 global
+tokens per optimizer step.  The 100M-token budget consists of 3050 optimizer
+steps; the 300M-token budget consists of 9150 optimizer steps.  Each
+method/dataset pair is run with seeds 1337, 2027, and 3407.  Validation is
+performed every 50 optimizer steps, so token-to-target arrivals are quantized in
+increments of 1.64M tokens.
 
 The MatrixPolicy rows in the main table use the global-rational RLB activation
 with no local atoms: the active nonlinearity is only the group-global P5/Q4
@@ -748,70 +791,31 @@ state scaling.  Rational coefficients, attention weights, embeddings,
 normalization parameters, and ordinary Transformer weights use AdamW in this
 configuration.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{figures/e1_validation_all_datasets.pdf}
-\caption{100M-token-budget validation-loss trajectories for MatrixPolicy,
-SiLU baselines, and RLB optimizer controls.  Lines are seed means and bands show
-one sample standard deviation.}
-\label{app:e1-validation-curves}
-\end{figure}
+Target-arrival minutes in Table~\ref{tab:e1e2-silu-comparison} are computed
+seed-wise from the first validation event that reaches the shared target and the
+same run's clean measured seconds per optimizer step.  They are not computed
+from queue time or whole-job elapsed time across restarts.
+
+\subsection{Supporting fixed-scale curves}
+\label{app:supporting-curves}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.99\textwidth]{figures/e1_multimetric_all_datasets.pdf}
-\caption{Full 100M-token-budget multi-metric trajectories across all five
-datasets for the main SiLU comparison.  Rows show validation loss, validation
-perplexity, and training loss; columns show datasets.  Lines are seed means and
-bands show one sample standard deviation.}
-\label{fig:e1-multimetric-all}
+\caption{100M-token-budget dynamics across all five datasets.  Rows are datasets
+and columns are validation loss, validation perplexity, and training loss.  Lines
+are seed means over three runs and bands show one sample standard deviation.}
+\label{fig:appendix-100m-multimetric}
 \end{figure*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/e1_target_frontiers.pdf}
-\caption{100M-token-budget target-arrival frontiers over the pre-specified
-validation-loss target grid.  Lower token counts at the same target indicate
-faster arrival; vertical bars show one sample standard deviation across three
-seeds.}
-\label{app:e1-target-frontiers}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{figures/e2_validation_dynamics.pdf}
-\caption{300M-token-budget validation-loss trajectories for the same
-comparator set used in the appendix 100M-token-budget control figures.  These
-longer-budget curves support the saturation discussion in
-Section~\ref{sec:experiments}.}
-\label{app:e2-val-curves}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{figures/e2_perplexity_dynamics.pdf}
-\caption{300M-token-budget validation-perplexity trajectories for the same
-comparator set.}
-\label{app:e2-ppl-curves}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{figures/e2_training_dynamics.pdf}
-\caption{300M-token-budget training-loss trajectories for the same comparator
-set.}
-\label{app:e2-train-curves}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{figures/e1_multimetric_examples.pdf}
-\caption{Representative 100M-token-budget validation-perplexity and
-training-loss companions on DCLM and FineWeb-Edu, including the appendix RLB
-optimizer controls.  The main text keeps the corresponding SiLU comparison in
-Figure~\ref{fig:e1-representative-dynamics}.}
-\label{app:e1-curves}
-\end{figure}
+\includegraphics[width=0.99\textwidth]{figures/e2_multimetric_all_datasets.pdf}
+\caption{300M-token-budget dynamics across all five datasets.  Rows are datasets
+and columns are validation loss, validation perplexity, and training loss.  Lines
+are seed means over three runs and bands show one sample standard deviation.}
+\label{fig:appendix-300m-multimetric}
+\end{figure*}
 
 \input{tables/final_validation_broad_optimizer_table.tex}
 
