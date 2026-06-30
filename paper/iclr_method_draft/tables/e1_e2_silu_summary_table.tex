@@ -1,0 +1,26 @@
+\begin{table*}[t]
+\centering
+\caption{E1/E2 all-dataset comparison of MatrixPolicy against the two SiLU baselines. For each dataset, regime, and comparator, the table reports token savings at the common validation-loss target, estimated wall-clock time savings from measured throughput, and the endpoint validation-loss gap, computed as comparator minus MatrixPolicy; positive values favor MatrixPolicy.}
+\label{tab:e1e2-silu-comparison}
+\scriptsize
+\setlength{\tabcolsep}{2.3pt}
+\begin{tabular}{@{}llrrrrrrrr@{}}
+\toprule
+Regime & Dataset & Target & MP tok & \multicolumn{3}{c}{vs SiLU+AdamW} & \multicolumn{3}{c}{vs SiLU+Muon} \\
+\cmidrule(lr){5-7}\cmidrule(l){8-10}
+ & & val. loss & (M) & $\Delta$tok & $\Delta$t & $\Delta$val & $\Delta$tok & $\Delta$t & $\Delta$val \\
+\midrule
+E1 & DCLM & 4.55 & 50.2 & +13.1 & +8.0 & +0.152 & +24.0 & +13.2 & +0.203 \\
+E1 & FineWeb-Edu & 4.40 & 49.7 & +12.0 & +7.6 & +0.150 & +20.8 & +11.6 & +0.191 \\
+E1 & FineWeb & 4.60 & 51.9 & +15.3 & +3.4 & +0.160 & +24.6 & +6.9 & +0.200 \\
+E1 & Dolma & 4.60 & 54.1 & +15.3 & +4.5 & +0.161 & +27.9 & +8.8 & +0.219 \\
+E1 & C4 & 4.60 & 50.2 & +13.1 & +2.6 & +0.163 & +20.8 & +5.5 & +0.199 \\
+E2 & DCLM & 4.10 & 174.8 & +53.0 & +13.9 & +0.098 & +15.8 & +5.2 & +0.045 \\
+E2 & FineWeb-Edu & 3.85 & 183.0 & +54.1 & +18.1 & +0.102 & +13.1 & +7.0 & +0.044 \\
+E2 & FineWeb & 4.10 & 185.7 & +55.7 & +18.5 & +0.099 & +14.2 & +5.9 & +0.044 \\
+E2 & Dolma & 3.95 & 180.8 & +51.9 & +5.8 & +0.098 & +19.7 & +6.9 & +0.052 \\
+E2 & C4 & 4.00 & 195.0 & +69.9 & +21.3 & +0.103 & +18.0 & +12.3 & +0.047 \\
+\bottomrule
+\multicolumn{10}{@{}p{0.98\textwidth}@{}}{\footnotesize $\Delta$tok is in millions of tokens and $\Delta$t is in minutes. Token arrivals are evaluated every 50 steps, so target times are quantized by 1.64M tokens; time estimates use measured per-dataset/method throughput. Broader RLB optimizer controls are reported in Appendix~\ref{app:experiment-protocol}.}
+\end{tabular}
+\end{table*}

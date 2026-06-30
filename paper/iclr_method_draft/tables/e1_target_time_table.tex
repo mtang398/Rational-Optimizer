@@ -1,6 +1,6 @@
 \begin{table*}[t]
 \centering
-\caption{E1 target-arrival savings at the hardest pre-specified candidate-grid validation-loss target reached by MatrixPolicy and all listed comparators in all three seeds. Token columns report saved tokens in millions with the percentage of comparator tokens in parentheses; time columns report estimated saved minutes.}
+\caption{E1 target-arrival savings for activation/optimizer controls. Token columns report saved tokens in millions with the percentage of comparator tokens in parentheses; time columns report estimated saved minutes.}
 \label{tab:e1-target-time}
 \scriptsize
 \setlength{\tabcolsep}{2.6pt}
@@ -16,6 +16,6 @@ FineWeb & 4.60 & 51.9$\pm$0.9 & 15.3 (22.8\%) & 3.4 & 14.2 (21.5\%) & 3.6 & 24.6
 Dolma & 4.60 & 54.1$\pm$0.0 & 15.3 (22.0\%) & 4.5 & 15.8 (22.7\%) & 4.2 & 28.9 (34.9\%) & 8.9 \\
 C4 & 4.50 & 59.0$\pm$1.6 & 21.3 (26.5\%) & 4.3 & 20.2 (25.5\%) & 4.9 & 31.7 (34.9\%) & 10.0 \\
 \bottomrule
-\multicolumn{9}{@{}p{0.98\textwidth}@{}}{\footnotesize Tokens-to-target are read at the native 50-step evaluation cadence from the completed E1 JSONL logs, so arrivals are quantized in 1.64M-token increments. Time estimates use cleaned per-dataset/method training-throughput summaries.}
+\multicolumn{9}{@{}p{0.98\textwidth}@{}}{\footnotesize Tokens-to-target are read at the native 50-step evaluation cadence from the completed E1 JSONL logs. Time estimates use cleaned per-dataset/method training-throughput summaries.}
 \end{tabular}
 \end{table*}

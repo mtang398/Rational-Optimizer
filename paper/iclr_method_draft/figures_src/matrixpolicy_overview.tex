@@ -1,0 +1,84 @@
+% Source-grounded TikZ schematic using the high-star paper-framework figure contract:
+% semantic graph = forward RLB modules + observation-only policy statistics + matrix-only actions.
+% visual render graph = variables ride on edges/tags; only modules are boxes; no local atoms; no MatrixPolicy arrow into R.
+\documentclass[tikz,border=3pt]{standalone}
+\usepackage{tikz}
+\usepackage{amsmath,amssymb}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usetikzlibrary{arrows.meta,bending,positioning,calc,fit,backgrounds,decorations.pathreplacing}
+\definecolor{mpPurple}{HTML}{6F4AA4}
+\definecolor{mpPurpleFill}{HTML}{F4EFFA}
+\definecolor{mpBlue}{HTML}{3D6F9F}
+\definecolor{mpBlueFill}{HTML}{EAF3FB}
+\definecolor{mpGreen}{HTML}{2D8C57}
+\definecolor{mpGreenFill}{HTML}{EAF7EF}
+\definecolor{mpAmber}{HTML}{A86C00}
+\definecolor{mpAmberFill}{HTML}{FFF3D7}
+\definecolor{mpGrey}{HTML}{6C6C6C}
+\definecolor{mpGreyFill}{HTML}{F4F4F4}
+\definecolor{mpInk}{HTML}{202020}
+\tikzset{
+  module/.style={rectangle, rounded corners=2.5pt, line width=0.75pt, align=center, inner sep=4pt, font=\footnotesize},
+  matrix/.style={rectangle, rounded corners=2pt, draw=mpBlue, fill=mpBlueFill, line width=0.85pt, minimum width=1.02cm, minimum height=1.45cm, align=center, font=\footnotesize\bfseries},
+  stat/.style={rectangle, rounded corners=2.5pt, line width=0.58pt, align=center, inner sep=3pt, font=\scriptsize},
+  controller/.style={rectangle, rounded corners=3pt, draw=mpPurple, fill=mpPurpleFill, line width=0.9pt, align=center, inner sep=5pt, font=\footnotesize\bfseries},
+  flow/.style={-{Stealth[length=4.4pt,width=4.2pt]}, line width=0.85pt, color=mpInk, shorten >=1pt, shorten <=1pt},
+  observe/.style={-{Stealth[length=3.3pt,width=3.2pt]}, densely dashed, line width=0.56pt, color=mpGrey, shorten >=1pt, shorten <=1pt},
+  action/.style={-{Stealth[length=4.4pt,width=4.2pt]}, line width=0.95pt, color=mpPurple, shorten >=1pt, shorten <=1pt},
+  tag/.style={font=\scriptsize, text=mpGrey, align=center},
+  edgevar/.style={font=\scriptsize, fill=white, inner sep=1pt},
+}
+\begin{document}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[tag, anchor=west, text=mpInk] at (0.08,6.28) {Global-rational RLB interface: forward computation above, optimizer observations below};
+  \node[tag, anchor=west] at (0.08,6.00) {the reported variant has one P5/Q4 response per group and no local atom parameters};
+
+  \node[module, draw=mpGrey, fill=mpGreyFill, minimum width=0.70cm, minimum height=0.58cm] (x) at (0.50,4.70) {$x_l$};
+  \node[matrix] (A) at (1.70,4.70) {$A_l$};
+  \node[tag] at (1.70,3.72) {input\\matrix};
+  \node[module, draw=mpGreen, fill=mpGreenFill, minimum width=2.10cm, minimum height=1.02cm] (norm) at (3.45,4.70) {group RMS\\$r_{l,g},\;u_{l,g}=z/r$};
+  \node[module, draw=mpAmber, fill=mpAmberFill, minimum width=2.05cm, minimum height=1.02cm] (R) at (5.72,4.70) {$R_{l,g}=P_5/Q_4$\\$Q(u)\ge 1$};
+  \node[stat, draw=mpGrey, fill=white, minimum width=1.38cm, minimum height=0.34cm] at (5.72,5.42) {AdamW-trained; MP observes};
+  \node[module, draw=mpGreen, fill=mpGreenFill, minimum width=1.75cm, minimum height=0.82cm] (h) at (7.88,4.70) {$h_{l,g}$\\$=r_{l,g}R(u_{l,g})$};
+  \node[matrix] (B) at (9.70,4.70) {$B_l$};
+  \node[tag] at (9.70,3.72) {output\\matrix};
+  \node[module, draw=mpGrey, fill=mpGreyFill, minimum width=0.70cm, minimum height=0.58cm] (y) at (10.92,4.70) {$y_l$};
+
+  \draw[flow] (x.east) -- (A.west);
+  \draw[flow] (A.east) -- node[edgevar, above] {$z_l$} (norm.west);
+  \draw[flow] (norm.east) -- node[edgevar, above] {$u_{l,g}$} (R.west);
+  \draw[flow] (R.east) -- (h.west);
+  \draw[flow] (h.east) -- (B.west);
+  \draw[flow] (B.east) -- (y.west);
+  \draw[mpAmber, line width=0.85pt] plot[smooth] coordinates {(5.12,4.37) (5.35,4.54) (5.58,4.43) (5.82,4.72) (6.08,4.98) (6.33,4.90)};
+
+  \node[stat, draw=mpBlue, fill=mpBlueFill, minimum width=2.05cm, minimum height=0.62cm] (pressure) at (2.05,2.55) {matrix pressure};
+  \node[stat, draw=mpGreen, fill=mpGreenFill, minimum width=2.05cm, minimum height=0.62cm] (live) at (4.30,2.55) {live gains};
+  \node[stat, draw=mpAmber, fill=mpAmberFill, minimum width=2.05cm, minimum height=0.62cm] (activity) at (6.55,2.55) {coefficient activity};
+  \node[stat, draw=mpPurple, fill=mpPurpleFill, minimum width=2.05cm, minimum height=0.62cm] (balance) at (8.80,2.55) {balance target};
+
+  \draw[observe] (A.south) -- node[edgevar, left] {$p^{in}$} (pressure.north west);
+  \draw[observe] (B.south) -- node[edgevar, right] {$p^{out}$} (pressure.north east);
+  \draw[observe] (norm.south) -- node[edgevar, left] {$u$} (live.north west);
+  \draw[observe] (R.south) -- node[edgevar, right] {$\hat d^{live},\hat o^{live}$} (live.north east);
+  \draw[observe] (R.south) -- node[edgevar, right] {$q^R\!\to\!\alpha$} (activity.north);
+  \draw[observe] (A.south east) to[bend right=12] node[edgevar, above] {$\gamma$} (balance.north west);
+  \draw[observe] (B.south west) to[bend left=12] (balance.north east);
+  \draw[observe] (R.south east) to[bend left=10] node[edgevar, above] {$\hat d^{probe},\hat o^{probe}$} (balance.north);
+  \draw[observe] (pressure.east) -- node[edgevar, above] {$\pi$} (live.west);
+  \draw[observe] (pressure.south east) to[bend right=8] node[edgevar, below] {$\pi$} (balance.south west);
+
+  \node[controller, minimum width=2.40cm, minimum height=0.78cm] (mp) at (5.45,1.08) {MatrixPolicy};
+  \draw[observe] (pressure.south) |- (mp.west);
+  \draw[observe] (live.south) -- (mp.north west);
+  \draw[observe] (activity.south) -- (mp.north);
+  \draw[observe] (balance.south) |- (mp.east);
+
+  \draw[action] (mp.west) .. controls (3.20,0.36) and (1.15,2.38) .. node[edgevar, left, text=mpPurple] {$c,\mu,\ell$} (A.south west);
+  \draw[action] (mp.east) .. controls (8.05,0.36) and (10.32,2.38) .. node[edgevar, right, text=mpPurple] {$c,\mu,\ell$} (B.south east);
+
+  \node[tag, anchor=west] at (0.08,0.24) {solid: forward map; dashed: observation-only statistics; purple: update actions only on $A_l$ and $B_l$};
+\end{tikzpicture}
+\end{document}
