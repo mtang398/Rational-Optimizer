@@ -33,6 +33,7 @@ experiments/cache/
 *.out
 missfont.log
 paper/iclr_method_draft/visual_audit/
+paper/iclr_method_draft/figures_src/*.pdf
 
 # Generated experiment logs and raw transport probes
 experiments/runs/logs/*.out

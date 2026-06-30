@@ -1,173 +1,162 @@
-% Step 1 design document
-% Field: transformer optimization / rational activations. Format: TikZ standalone method overview.
-% Complexity: medium method overview. Five-second message: global-rational RLB is a matrix-curve-matrix
-% sublayer whose detached statistics are read by MatrixPolicy; MatrixPolicy writes only to A_l and B_l.
-% Layout: top band is the left-to-right forward pass from x_l through A_l, global-rational RLB,
-% B_l, and y_l. Middle band is a detached stop-gradient statistics panel separated from the forward
-% path by white space. Bottom band is MatrixPolicy with two purple write rails routed outside the
-% statistics panel. The rational coefficients stay inside the RLB hero box and are labeled
-% AdamW-trained / observed-only; no local atoms or per-atom targets appear.
-% Modules: x_l, A_l, coordinate grouping, global-rational RLB with P5/Q4 curve and theta_R,
-% h_l, B_l, y_l, four detached summary cards, MatrixPolicy, two write-only action rails.
-% Connection plan: solid black arrows for forward flow; dashed gray arrows for stop-gradient
-% observations into the statistics panel; purple orthogonal rails for MatrixPolicy writes to A_l/B_l.
-% Prevention notes: no arrows from MatrixPolicy to theta_R or the rational curve; no curved write
-% paths crossing statistics; all labels are inside boxes or on empty rail segments.
+% Step 1 design document.
+% Goal: a reviewer should remember the RLB interface: the rational sublayer is
+% observed through detached summaries, and MatrixPolicy writes only the adjacent
+% matrices A_l and B_l.  The figure is organized around one central object:
+% an amber RLB card above a gray stop-gradient membrane and summary strip.
+% Blue matrix glyphs show the only write targets; purple handles show the only
+% optimizer writes.  Rational coefficients are shown as a locked/read-only part
+% of the RLB card, not as MatrixPolicy targets.
 \documentclass[tikz,border=6pt]{standalone}
 \usepackage{tikz}
 \usepackage{amsmath,amssymb}
 \usepackage[T1]{fontenc}
 \usepackage{helvet}
 \renewcommand{\familydefault}{\sfdefault}
-\usetikzlibrary{arrows.meta,bending,positioning,calc,backgrounds,fit}
+\usetikzlibrary{arrows.meta,bending,calc,backgrounds,positioning}
 
 \definecolor{mpInk}{HTML}{202020}
-\definecolor{mpGrey}{HTML}{666666}
-\definecolor{mpGreyLine}{HTML}{8A8A8A}
-\definecolor{mpGreyFill}{HTML}{F4F5F7}
+\definecolor{mpMuted}{HTML}{686868}
+\definecolor{mpLine}{HTML}{8A8A8A}
 \definecolor{mpBlue}{HTML}{2F6FA3}
 \definecolor{mpBlueFill}{HTML}{EAF2FB}
 \definecolor{mpGreen}{HTML}{2D8A5F}
 \definecolor{mpGreenFill}{HTML}{E8F6EF}
 \definecolor{mpAmber}{HTML}{A06900}
-\definecolor{mpAmberFill}{HTML}{FFF1C9}
+\definecolor{mpAmberFill}{HTML}{FFF0C7}
 \definecolor{mpPurple}{HTML}{6E4AA4}
 \definecolor{mpPurpleFill}{HTML}{F2ECFA}
-\definecolor{mpRed}{HTML}{B24B4B}
-\definecolor{mpRedFill}{HTML}{FBEAEA}
-\definecolor{mpTeal}{HTML}{1D7E83}
-\definecolor{mpTealFill}{HTML}{E6F5F6}
+\definecolor{mpSlateFill}{HTML}{F5F6F8}
 
 \pgfdeclarelayer{background}
 \pgfsetlayers{background,main}
 
 \tikzset{
-  every node/.style={font=\footnotesize},
-  bandtitle/.style={font=\scriptsize\bfseries, text=mpGrey, anchor=west},
-  box/.style={rectangle, rounded corners=3pt, line width=0.75pt, align=center,
-    inner sep=4pt, minimum height=0.78cm, fill=white},
-  smallbox/.style={box, font=\scriptsize, inner sep=3pt, minimum height=0.50cm},
-  matrixbox/.style={rectangle, rounded corners=3pt, draw=mpBlue, fill=mpBlueFill,
-    line width=1.25pt, align=center, minimum width=1.08cm, minimum height=1.36cm,
-    inner sep=4pt, font=\large\bfseries},
-  hero/.style={rectangle, rounded corners=5pt, draw=mpAmber, fill=mpAmberFill,
-    line width=1.15pt, align=center, inner sep=5pt, minimum width=4.35cm,
-    minimum height=2.08cm},
-  statpanel/.style={rectangle, rounded corners=5pt, draw=mpGreyLine!70,
-    fill=mpGreyFill, line width=0.75pt},
-  stat/.style={smallbox, minimum width=2.35cm, minimum height=0.68cm},
+  every node/.style={font=\footnotesize, text=mpInk},
+  title/.style={font=\footnotesize\bfseries, text=mpInk, align=center},
+  small/.style={font=\scriptsize, text=mpMuted, align=center, inner sep=1pt},
+  chip/.style={rectangle, rounded corners=3pt, fill=white, line width=0.75pt,
+    minimum width=1.82cm, minimum height=0.58cm, align=center, inner sep=3pt,
+    font=\scriptsize},
+  hero/.style={rectangle, rounded corners=6pt, draw=mpAmber, fill=mpAmberFill,
+    line width=1.20pt, minimum width=4.72cm, minimum height=2.18cm,
+    align=center, inner sep=5pt},
+  membrane/.style={line width=0.78pt, densely dashed, color=mpLine!78},
+  summaryPanel/.style={rectangle, rounded corners=5pt, draw=mpLine!70,
+    fill=mpSlateFill, line width=0.70pt},
   policy/.style={rectangle, rounded corners=4pt, draw=mpPurple, fill=mpPurpleFill,
-    line width=1.1pt, align=center, inner sep=5pt, minimum width=3.00cm,
-    minimum height=0.72cm, font=\footnotesize\bfseries},
-  callout/.style={smallbox, draw=mpRed, fill=mpRedFill, text=mpRed,
-    minimum width=2.92cm, minimum height=0.54cm},
-  arrow/.style={-{Stealth[length=5pt 1.5, width'=0pt 0.6, sep=0pt 0.5]},
-    line width=1.0pt, shorten >=2pt, shorten <=1pt, color=mpInk},
-  arrow thick/.style={arrow, line width=1.35pt},
-  arrow thin/.style={arrow, line width=0.62pt},
-  observe/.style={-{Stealth[length=3.2pt 1.0, width'=0pt 0.55]},
-    densely dashed, line width=0.62pt, shorten >=2pt, shorten <=1pt, color=mpGreyLine},
-  write/.style={-{Stealth[length=5pt 1.5, width'=0pt 0.6, sep=0pt 0.5]},
-    line width=1.15pt, shorten >=2pt, shorten <=1pt, color=mpPurple, rounded corners=5pt},
-  bus/.style={line width=0.60pt, densely dashed, color=mpGreyLine},
-  tag/.style={font=\scriptsize, text=mpGrey, align=center, inner sep=1pt},
-  railtag/.style={font=\scriptsize\bfseries, text=mpPurple, fill=white, inner sep=2pt,
-    rounded corners=2pt},
+    line width=1.15pt, minimum width=2.72cm, minimum height=0.78cm,
+    align=center, inner sep=5pt, font=\small\bfseries},
+  updateBox/.style={rectangle, rounded corners=3pt, draw=mpPurple, fill=white,
+    line width=0.85pt, minimum width=2.10cm, minimum height=0.62cm,
+    align=center, inner sep=4pt, text=mpPurple},
+  forward/.style={-{Stealth[length=5pt 1.5, width'=0pt 0.58, sep=0pt 0.5]},
+    line width=1.05pt, color=mpInk, shorten >=2pt, shorten <=1pt},
+  read/.style={-{Stealth[length=3.1pt 1.0, width'=0pt 0.50]},
+    densely dashed, line width=0.58pt, color=mpLine, shorten >=2pt, shorten <=1pt},
+  write/.style={-{Stealth[length=5pt 1.5, width'=0pt 0.56, sep=0pt 0.5]},
+    line width=1.02pt, color=mpPurple, rounded corners=7pt, shorten >=2pt, shorten <=1pt},
+  writeLabel/.style={font=\scriptsize\bfseries, text=mpPurple, fill=white,
+    inner sep=1.5pt, rounded corners=2pt},
 }
 
 \begin{document}
 \begin{tikzpicture}[x=1cm,y=1cm]
   \begin{pgfonlayer}{background}
-    \fill[mpBlueFill!42, rounded corners=7pt] (0.12,4.20) rectangle (16.88,7.05);
-    \fill[mpGreyFill, rounded corners=7pt] (2.58,2.16) rectangle (14.42,3.64);
-    \fill[mpPurpleFill!62, rounded corners=7pt] (0.12,0.12) rectangle (16.88,1.55);
+    \fill[mpSlateFill!75, rounded corners=7pt] (0.22,0.18) rectangle (16.10,7.46);
+    \fill[white, rounded corners=7pt] (0.45,0.42) rectangle (15.87,7.22);
   \end{pgfonlayer}
 
-  \node[bandtitle] at (0.36,6.86) {forward pass: global-rational RLB};
-  \node[bandtitle] at (2.82,3.45) {detached statistics: stop-gradient, read-only};
-  \node[bandtitle] at (0.36,1.36) {optimizer action: write targets are matrices only};
+  \node[title] at (8.16,7.02)
+    {RLB exposes detached summaries; MatrixPolicy writes only $A_l$ and $B_l$};
 
-  % Forward path.
-  \node[box, draw=mpGreyLine, minimum width=0.74cm, minimum height=0.56cm] (x) at (0.72,5.56) {$x_l$};
-  \node[matrixbox] (A) at (2.00,5.56) {$A_l$\\[-1pt]{\scriptsize write target}};
+  % Matrix glyph A_l.
+  \node[font=\footnotesize\bfseries, text=mpBlue] at (2.38,5.95) {$A_l$ input matrix};
+  \begin{scope}[shift={(1.56,4.62)}]
+    \draw[rounded corners=4pt, draw=mpBlue, fill=mpBlueFill, line width=1.05pt]
+      (0,0) rectangle (1.64,1.06);
+    \foreach \i in {0,...,3} {
+      \foreach \j in {0,...,2} {
+        \pgfmathsetmacro{\shade}{22+7*\i+9*\j}
+        \fill[mpBlue!\shade!white, draw=white, line width=0.35pt]
+          ({0.18+0.31*\i},{0.18+0.24*\j}) rectangle ++(0.25,0.18);
+      }
+    }
+    \draw[mpPurple, line width=1.00pt, rounded corners=1pt]
+      (0.16,0.14) rectangle (0.48,0.90);
+  \end{scope}
+  \node[writeLabel] (dA) at (2.38,4.25) {$\Delta A_l$ target};
 
-  \node[box, draw=mpGreen, fill=mpGreenFill, minimum width=1.72cm, minimum height=0.90cm] (coords) at (3.75,5.56)
-    {grouped\\coordinates\\[-1pt]$\{u_{l,g}\}_{g=1}^{G}$};
+  % Central RLB hero.
+  \node[hero] (rlb) at (8.05,5.20) {};
+  \node[font=\small\bfseries, text=mpAmber] at (8.05,6.08) {global-rational RLB};
+  \node[font=\footnotesize, fill=white, rounded corners=3pt, draw=mpAmber,
+    line width=0.62pt, inner sep=3pt] at (7.72,5.70)
+    {$R_{\theta}(u)=P_5(u)/Q_4(u)$};
+  \draw[mpAmber!85!black, line width=0.42pt] (6.90,5.04) -- (9.20,5.04);
+  \draw[mpAmber!85!black, line width=0.42pt] (6.98,4.78) -- (6.98,5.35);
+  \draw[mpAmber!85!black, line width=1.20pt]
+    (7.04,4.88) .. controls (7.35,5.32) and (7.72,4.70) .. (8.05,5.10)
+    .. controls (8.32,5.42) and (8.73,5.26) .. (9.12,5.36);
+  \node[small, text=mpAmber] at (8.05,4.64)
+    {shared rational response};
 
-  \node[hero] (rlb) at (6.75,5.56) {};
-  \node[font=\footnotesize\bfseries, text=mpAmber] at (6.75,6.30) {global-rational RLB};
-  \node[smallbox, draw=mpAmber, fill=white, minimum width=1.56cm, minimum height=0.48cm] (norm) at (5.55,5.77)
-    {RMS\\coords};
-  \node[smallbox, draw=mpAmber, fill=white, minimum width=1.78cm, minimum height=0.48cm] (rat) at (7.05,5.77)
-    {$R_{\theta}(u)=P_5/Q_4$};
-  \node[smallbox, draw=mpAmber, fill=white, minimum width=1.78cm, minimum height=0.48cm] (shared) at (7.05,5.07)
-    {shared\\over groups};
-  \draw[mpAmber, line width=0.45pt] (5.18,5.02) -- (6.16,5.02);
-  \draw[mpAmber, line width=1.00pt] plot[smooth] coordinates
-    {(5.18,4.92) (5.34,5.05) (5.52,4.96) (5.70,5.14) (5.94,5.20) (6.16,5.12)};
-  \node[font=\tiny, text=mpAmber, anchor=north] at (5.67,4.88) {single curve};
-  \node[smallbox, draw=mpRed, fill=mpRedFill, text=mpRed, minimum width=2.28cm, minimum height=0.45cm] (noatoms) at (6.82,4.42)
-    {no local atoms};
+  % Small locked coefficient badge.
+  \draw[mpLine, line width=0.55pt, rounded corners=1pt] (9.50,5.36) rectangle (10.24,5.82);
+  \draw[mpLine, line width=0.55pt] (9.72,5.82) arc[start angle=180,end angle=0,radius=0.16cm];
+  \node[font=\scriptsize, text=mpMuted] at (9.87,5.56) {$\theta_R$};
+  \node[font=\tiny, text=mpMuted] at (9.87,5.18) {observed};
 
-  \node[box, draw=mpGreen, fill=mpGreenFill, minimum width=1.10cm, minimum height=0.78cm] (h) at (9.68,5.56)
-    {$h_l$};
-  \node[matrixbox] (B) at (11.38,5.56) {$B_l$\\[-1pt]{\scriptsize write target}};
-  \node[box, draw=mpGreyLine, minimum width=0.74cm, minimum height=0.56cm] (y) at (12.70,5.56) {$y_l$};
+  % Matrix glyph B_l.
+  \node[font=\footnotesize\bfseries, text=mpBlue] at (13.42,5.95) {$B_l$ output matrix};
+  \begin{scope}[shift={(12.60,4.62)}]
+    \draw[rounded corners=4pt, draw=mpBlue, fill=mpBlueFill, line width=1.05pt]
+      (0,0) rectangle (1.64,1.06);
+    \foreach \i in {0,...,3} {
+      \foreach \j in {0,...,2} {
+        \pgfmathsetmacro{\shade}{28+6*\i+7*\j}
+        \fill[mpBlue!\shade!white, draw=white, line width=0.35pt]
+          ({0.18+0.31*\i},{0.18+0.24*\j}) rectangle ++(0.25,0.18);
+      }
+    }
+    \draw[mpPurple, line width=1.00pt, rounded corners=1pt]
+      (1.16,0.14) rectangle (1.48,0.90);
+  \end{scope}
+  \node[writeLabel] (dB) at (13.42,4.25) {$\Delta B_l$ target};
 
-  \node[callout] (adamw) at (14.72,5.82) {$\theta_R$: AdamW-trained};
-  \node[smallbox, draw=mpGreyLine, fill=white, text=mpGrey, minimum width=2.92cm, minimum height=0.50cm] (notarget) at (14.72,5.10)
-    {observed, not a policy target};
+  \draw[forward] (3.22,5.15) -- node[small, above=2pt] {$u_{l,g}$} (5.68,5.15);
+  \draw[forward] (10.42,5.15) -- node[small, above=2pt] {$h_l$} (12.56,5.15);
 
-  \draw[arrow thick] (x.east) -- (A.west);
-  \draw[arrow thick] (A.east) -- (coords.west);
-  \draw[arrow thick] (coords.east) -- (rlb.west);
-  \draw[arrow thick] (rlb.east) -- (h.west);
-  \draw[arrow thick] (h.east) -- (B.west);
-  \draw[arrow thick] (B.east) -- (y.west);
-  \draw[observe] (rat.east) -- (adamw.west);
-  \draw[observe] (adamw.south) -- (notarget.north);
+  % Stop-gradient membrane and detached summary strip.
+  \draw[membrane] (3.30,4.00) -- (13.00,4.00);
+  \node[small, fill=white, text=mpMuted] at (8.15,4.18) {stop-gradient boundary};
 
-  % Detached statistics panel.
-  \node[statpanel, minimum width=11.84cm, minimum height=1.48cm] (statsPanel) at (8.50,2.90) {};
-  \node[stat, draw=mpBlue, fill=white] (pressure) at (4.05,2.86)
-    {matrix pressure\\[-1pt]$p^{in},p^{out}\!\rightarrow\!\pi$};
-  \node[stat, draw=mpGreen, fill=white] (gains) at (6.95,2.86)
-    {live gains\\[-1pt]$\hat d,\hat o$};
-  \node[stat, draw=mpAmber, fill=white] (activity) at (9.85,2.86)
-    {rational state\\[-1pt]$q^R,\alpha,\theta_R$};
-  \node[stat, draw=mpPurple, fill=white] (balance) at (12.75,2.86)
+  \node[summaryPanel, minimum width=10.82cm, minimum height=1.12cm] (summary) at (8.15,3.20) {};
+  \node[chip, draw=mpBlue] (pressure) at (4.25,3.20)
+    {matrix pressure\\[-1pt]$p^{in},p^{out}$};
+  \node[chip, draw=mpGreen] (gain) at (6.85,3.20)
+    {response gains\\[-1pt]$\hat d,\hat o$};
+  \node[chip, draw=mpAmber] (state) at (9.45,3.20)
+    {observed state\\[-1pt]$q^R,\alpha,\theta_R$};
+  \node[chip, draw=mpPurple] (balance) at (12.05,3.20)
     {pair balance\\[-1pt]$\gamma,\tau$};
-  \node[tag, text=mpGrey] at (8.50,2.23) {$s_l=\operatorname{stopgrad}(\mathrm{summaries})$};
+  \node[small, fill=white, draw=mpLine!45, rounded corners=2pt,
+    text=mpMuted, inner sep=2pt] (summaryTag) at (8.15,2.42)
+    {$s_l=\operatorname{stopgrad}(\mathrm{detached\ summaries})$};
 
-  \draw[observe] (A.south) -- ++(0,-0.42) -| (pressure.north);
-  \draw[observe] (coords.south) -- ++(0,-0.40) -| (gains.north);
-  \draw[observe] (rlb.south) -- ++(0,-0.38) -| (activity.north);
-  \draw[observe] (B.south) -- ++(0,-0.42) -| (balance.north);
-  \draw[observe] (notarget.south) -- ++(0,-0.66) -| (activity.east);
+  \draw[read] (2.38,4.58) -- ++(0,-0.54) -| (pressure.north);
+  \draw[read] (7.35,4.30) -- ++(0,-0.30) -| (gain.north);
+  \draw[read] (8.85,4.30) -- ++(0,-0.30) -| (state.north);
+  \draw[read] (13.42,4.58) -- ++(0,-0.54) -| (balance.north);
 
-  \draw[bus] (3.12,2.26) -- (13.88,2.26);
-  \foreach \src in {pressure,gains,activity,balance} {
-    \draw[bus] (\src.south) -- (\src.south |- 0,2.26);
-  }
+  % Policy and write handles.
+  \node[policy] (policy) at (7.88,1.28) {MatrixPolicy};
+  \node[updateBox] (updates) at (11.18,1.28) {$\Delta A_l,\Delta B_l$ only};
+  \draw[read] (summary.south) -- (summaryTag.north);
+  \draw[read] (summaryTag.south) -- node[small, right, fill=white] {read $s_l$} (policy.north);
+  \draw[forward, color=mpPurple, line width=0.88pt] (policy.east) -- (updates.west);
 
-  % Policy controller and outside write rails.
-  \node[policy] (mp) at (8.50,0.83) {MatrixPolicy};
-  \node[smallbox, draw=mpPurple, fill=white, text=mpPurple, minimum width=2.62cm] (only) at (12.82,0.83)
-    {outputs $\Delta A_l,\Delta B_l$ only};
-  \draw[observe] (8.50,2.16) -- node[tag, right, text=mpGrey] {read} (mp.north);
-  \draw[arrow thin, color=mpPurple] (mp.east) -- (only.west);
+  \draw[write] (policy.west) .. controls (5.18,1.18) and (2.74,2.66) .. (dA.south);
+  \draw[write] (updates.east) .. controls (13.74,1.18) and (13.78,2.66) .. (dB.south);
 
-  \coordinate (leftRailLow) at (0.70,0.83);
-  \coordinate (leftRailHigh) at (0.70,4.15);
-  \coordinate (rightRailLow) at (16.18,0.83);
-  \coordinate (rightRailHigh) at (16.18,4.15);
-  \coordinate (writeAturn) at (1.46,4.15);
-  \coordinate (writeBturn) at (11.92,4.15);
-
-  \draw[write] (mp.west) -- (leftRailLow) -- (leftRailHigh) -- node[railtag, above, pos=0.57] {write $A_l$} (writeAturn) -- (A.south west);
-  \draw[write] (only.east) -- (rightRailLow) -- (rightRailHigh) -- node[railtag, above, pos=0.60] {write $B_l$} (writeBturn) -- (B.south east);
-
-  \node[tag, text=mpPurple, align=center] at (8.50,0.22)
-    {no MatrixPolicy write to $R_{\theta}$, $\theta_R$, or non-matrix RLB internals};
 \end{tikzpicture}
 \end{document}

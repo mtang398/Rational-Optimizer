@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import csv
 import math
+import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -26,12 +29,51 @@ plt.rcParams.update({
 ROOT = Path(__file__).resolve().parents[2]
 DRAFT_DIR = Path(__file__).resolve().parent
 OUT_DIR = DRAFT_DIR / "figures"
+FIG_SRC_DIR = DRAFT_DIR / "figures_src"
 TABLE_DIR = DRAFT_DIR / "tables"
 TOKENS_PER_STEP = 32768
 
 sys.path.insert(0, str(ROOT / "experiments" / "scripts"))
 import plot_iclr26_e1_curves as e1_curves  # noqa: E402
 import plot_iclr26_e2_curves as e2_curves  # noqa: E402
+
+
+def _latexmk_command() -> str:
+    local = ROOT / ".TinyTeX" / "bin" / "x86_64-linux" / "latexmk"
+    if local.exists():
+        return str(local)
+    latexmk = shutil.which("latexmk")
+    if latexmk is None:
+        raise RuntimeError("latexmk is required to build the native TeX illustration figures")
+    return latexmk
+
+
+def _latex_env() -> dict[str, str]:
+    env = os.environ.copy()
+    local_bin = ROOT / ".TinyTeX" / "bin" / "x86_64-linux"
+    if local_bin.exists():
+        env["PATH"] = f"{local_bin}:{env.get('PATH', '')}"
+    return env
+
+
+def compile_tikz_figure(source_name: str, out_path: Path) -> None:
+    source = FIG_SRC_DIR / source_name
+    if not source.exists():
+        raise FileNotFoundError(source)
+    subprocess.run(
+        [
+            _latexmk_command(),
+            "-pdf",
+            "-interaction=nonstopmode",
+            "-halt-on-error",
+            source.name,
+        ],
+        cwd=FIG_SRC_DIR,
+        env=_latex_env(),
+        check=True,
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source.with_suffix(".pdf"), out_path)
 
 DATASETS = [
     ("dclm", "DCLM", "iclr26_e2_dclm_2026_06_10"),
@@ -1101,8 +1143,8 @@ def main() -> int:
         TABLE_DIR / "e1_e2_silu_summary_table.tex",
         TABLE_DIR / "final_validation_broad_optimizer_table.tex",
     ]
-    make_matrixpolicy_overview(outputs[0])
-    make_matrixpolicy_signal_flow(outputs[1])
+    compile_tikz_figure("matrixpolicy_overview.tex", outputs[0])
+    compile_tikz_figure("matrixpolicy_signal_flow.tex", outputs[1])
     make_e1_multimetric_all_datasets(outputs[2])
     make_target_arrival_evidence_matrix(outputs[3])
     make_e1_representative_silu_dynamics(outputs[4])

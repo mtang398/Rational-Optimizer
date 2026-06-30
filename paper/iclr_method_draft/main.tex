@@ -159,10 +159,13 @@ Broader optimizer coverage is available in recent surveys \citep{wen2026fantasti
 \section{Method}
 \label{sec:method}
 
-RLB and MatrixPolicy are designed as an activation--optimizer pair.  RLB defines
-the nonlinear sublayer and exposes the statistics; MatrixPolicy consumes those
-statistics to update only the adjacent input and output matrices.  Throughout the
-method we use
+RLB and MatrixPolicy form an activation--optimizer pair: RLB exposes detached
+sublayer summaries, and MatrixPolicy uses them to update only the adjacent
+input/output matrices.
+
+\newpage
+
+Throughout the method we use
 \begin{align}
     \clip(x,a,b)&=\min\{\max\{x,a\},b\}, \\
     \smooth(a,b,x)&=3\omega^2-2\omega^3,
@@ -170,21 +173,24 @@ method we use
     \omega=\clip\left(\frac{x-a}{b-a},0,1\right).
 \end{align}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/matrixpolicy_overview.pdf}
+\caption{Activation--optimizer interface for global-rational RLB.  In layer
+$l$, $A_l$ maps the sublayer input into normalized rational groups and $B_l$
+recombines the rational features.  RLB exposes matrix-pressure, response-gain,
+observed-rational-state, and pair-balance summaries through a stop-gradient
+boundary.  MatrixPolicy reads the resulting summary vector $s_l$ and writes only
+$\Delta A_l$ and $\Delta B_l$; rational coefficients are AdamW-trained and
+policy-observed, not MatrixPolicy update targets.}
+\label{fig:matrixpolicy-overview}
+\end{figure}
+
+The interface in Figure~\ref{fig:matrixpolicy-overview} is formalized by the RLB
+sublayer below and the MatrixPolicy update in Section~\ref{sec:method-update}.
 
 \subsection{Rational Latent Basis Sublayer}
 \label{sec:method-rlb}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.98\linewidth]{figures/matrixpolicy_overview.pdf}
-\caption{Global-rational RLB exposes an optimizer-visible interface.  Solid
-arrows are the forward map $x_l\mapsto y_l$; dashed arrows are detached
-statistics read by MatrixPolicy; purple arrows are MatrixPolicy actions and
-terminate only at the RLB input/output matrices.  The rational response is
-AdamW-trained and observed by the policy, but it is not a MatrixPolicy update
-target in the reported configuration.}
-\label{fig:matrixpolicy-overview}
-\end{figure}
 
 For Transformer layer $l\in\{1,\ldots,L\}$, let
 $x_l\in\mathbb{R}^{d}$ denote the input to the nonlinear sublayer.  RLB first
@@ -372,14 +378,22 @@ preconditioners.
 \subsection{MatrixPolicy Update Rule}
 \label{sec:method-update}
 
-\begin{figure}[t]
+Figure~\ref{fig:matrixpolicy-signal-flow} summarizes the selective route before
+we give the equations: only the RLB matrix pair enters the MatrixPolicy chamber,
+while rational coefficients and ordinary Transformer parameters stay on an
+AdamW-only path.
+
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.98\linewidth]{figures/matrixpolicy_signal_flow.pdf}
-\caption{Reported MatrixPolicy step.  Policy statistics produce bounded gates;
-non-module quantities such as $c_{l,g,\sigma}$, $\mu_{l,\sigma,t}$, $\gamma_{l,g}$,
-$\tau_{l,g}$, and $\ell_{l,g,t}$ are control labels on the corresponding
-connectors.  Non-matrix parameters, including rational coefficients, stay on the
-AdamW-only lane and receive no MatrixPolicy gate, Muon, or pair-rescale action.}
+\includegraphics[width=\linewidth]{figures/matrixpolicy_signal_flow.pdf}
+\caption{Selective MatrixPolicy route for the reported optimizer.  Only the RLB
+matrix pair $A_l,B_l$ enters the MatrixPolicy chamber: policy signals set group
+gradient gates $c_{l,g,\sigma}$, AdamW supplies the base matrix step, a
+transient Muon correction acts on the same matrices, and pair rescaling applies
+reciprocal updates $A_g\leftarrow e^\ell A_g$ and
+$B_g\leftarrow e^{-\ell}B_g$ to move the current balance $\gamma$ toward the
+target $\tau$.  Rational coefficients and all non-RLB matrix parameters bypass
+this route and remain AdamW-only.}
 \label{fig:matrixpolicy-signal-flow}
 \end{figure}
 
