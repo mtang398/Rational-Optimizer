@@ -52,7 +52,7 @@
   forward/.style={-{Stealth[length=5pt 1.45, width'=0pt 0.58, sep=0pt 0.5]},
     line width=1.03pt, color=mpInk, shorten >=2pt, shorten <=1pt},
   read/.style={-{Stealth[length=3.2pt 1.0, width'=0pt 0.48]},
-    densely dashed, line width=0.58pt, color=mpLine, shorten >=2pt,
+    densely dashed, line width=0.52pt, color=mpLine!62, shorten >=2pt,
     shorten <=1pt},
   write/.style={-{Stealth[length=5pt 1.45, width'=0pt 0.56, sep=0pt 0.5]},
     line width=0.98pt, color=mpPurple, rounded corners=8pt, shorten >=2pt,
@@ -111,11 +111,7 @@
   \draw[forward] (10.31,5.20) -- (13.14,5.20);
   \node[small, fill=white] at (11.75,5.39) {$h_l$};
 
-  % Detachment membrane and summary bus.
-  \draw[line width=0.72pt, densely dashed, color=mpLine!75]
-    (3.18,4.04) -- (12.86,4.04);
-  \node[small, fill=white, text=mpMuted] at (3.72,4.28) {stop-gradient};
-
+  % Detachment summary bus.
   \node[summaryPanel, minimum width=9.95cm, minimum height=1.24cm]
     (summary) at (8.02,3.14) {};
   \node[font=\scriptsize\bfseries, text=mpMuted, fill=mpSlateFill, inner sep=1pt,
@@ -135,6 +131,15 @@
   \draw[read] (8.88,4.42) -- ++(0,-0.34) -| (state.north);
   \draw[read] (14.02,4.60) -- ++(0,-0.54) -| (balance.north);
 
+  % Foreground membrane: the white underlay makes the stop-gradient boundary
+  % remain legible where detached read arrows cross it.
+  \draw[line width=0.96pt, dash pattern=on 4.2pt off 2.1pt,
+    color=mpLine!96, line cap=round,
+    preaction={draw=white, line width=2.2pt, line cap=round}]
+    (3.14,4.04) -- (12.90,4.04);
+  \node[small, fill=white, text=mpMuted, inner sep=1.7pt]
+    at (3.78,4.30) {stop-gradient};
+
   % MatrixPolicy reads the detached bus and writes only to the two matrices.
   \node[policy] (policy) at (7.28,1.28) {MatrixPolicy};
   \node[updateBox] (updates) at (10.32,1.28) {$\Delta A_l,\Delta B_l$ only};
@@ -142,7 +147,7 @@
     (policy.north);
   \draw[forward, color=mpPurple, line width=0.88pt] (policy.east) -- (updates.west);
 
-  \draw[write] (policy.west) -- (4.78,1.28) -- (1.48,1.28) -- (1.48,4.46);
-  \draw[write] (updates.east) -- (12.64,1.28) -- (14.72,1.28) -- (14.72,4.46);
+  \draw[write] (policy.west) -- (4.78,1.28) -- (1.48,1.28) -- (1.48,4.66);
+  \draw[write] (updates.east) -- (12.64,1.28) -- (14.56,1.28) -- (14.56,4.66);
 \end{tikzpicture}
 \end{document}

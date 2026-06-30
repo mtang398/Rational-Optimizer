@@ -62,24 +62,27 @@
   \end{pgfonlayer}
 
   % Left role split: a partition, not a data dependency.
-  \node[small, fill=white, inner sep=1.5pt] at (1.16,3.03) {role split};
+  \node[small, fill=white, inner sep=1.5pt, anchor=east]
+    at (1.02,2.68) {role split};
   \node[card, draw=mpBlue, fill=mpBlueFill, minimum width=2.28cm,
     minimum height=0.82cm] (matrixPair) at (2.82,4.00)
     {$A_l,B_l$\\[1pt]matrix pair};
   \node[card, draw=mpMuted, fill=mpGreyFill, minimum width=2.96cm,
     minimum height=0.82cm] (otherParams) at (2.78,1.34)
     {rational coefficients\\[1pt]ordinary tensors};
-  \coordinate (split) at (1.58,2.72);
-  \draw[mpLine, line width=0.58pt] (0.70,2.72) -- (split);
-  \draw[mpLine, line width=0.58pt] (split) |- (matrixPair.west);
-  \draw[mpLine, line width=0.58pt] (split) |- (otherParams.west);
+  \coordinate (splitTop) at (1.16,4.00);
+  \coordinate (splitBot) at (1.16,1.34);
+  \draw[mpLine, line width=0.62pt, line cap=round] (splitTop) -- (splitBot);
+  \draw[mpLine, line width=0.62pt, line cap=round] (splitTop) -- (matrixPair.west);
+  \draw[mpLine, line width=0.62pt, line cap=round] (splitBot) -- (otherParams.west);
 
   % MatrixPolicy chamber: one clean optimizer rail and one orthogonal control row.
   \node[font=\footnotesize\bfseries, text=mpPurple, anchor=west]
     at (4.64,5.54) {MatrixPolicy route for $A_l,B_l$ only};
 
-  \node[station, draw=mpLine, minimum width=1.28cm, minimum height=0.56cm]
-    (signals) at (3.84,4.98) {signals $s_l$};
+  \node[station, draw=mpLine, minimum width=1.22cm, minimum height=0.54cm,
+    font=\scriptsize]
+    (signals) at (3.48,4.98) {signals $s_l$};
   \node[controller] (controller) at (5.50,4.98) {controller};
   \draw[read] (signals.east) -- (controller.west);
 
