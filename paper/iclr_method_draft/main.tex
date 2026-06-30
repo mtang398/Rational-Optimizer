@@ -9,6 +9,7 @@
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{graphicx}
+\usepackage{placeins}
 \usepackage{hyperref}
 \usepackage{url}
 
@@ -35,20 +36,21 @@ nonlinearity, and an output matrix, but standard optimizers usually update these
 matrices without using their distinct functional roles.  We introduce a
 global-rational Rational Latent Basis (RLB) sublayer that exposes normalized
 group coordinates, trainable real-pole-free P5/Q4 responses, derivative/output
-response summaries, and an idealized positive matrix-pair rescaling degree of
-freedom under the implemented RMS floor.  We then introduce MatrixPolicy, a
+response summaries, and an idealized positive matrix-pair rescaling relation
+that becomes approximate under the implemented RMS floor.  We then introduce MatrixPolicy, a
 role-aware optimizer for the RLB input and output matrices.  In the reported
 configuration, rational coefficients and all non-RLB-matrix Transformer
 parameters use AdamW, while MatrixPolicy applies centered group-gradient
 redistribution, a transient gated Muon substep, and bounded matrix-pair
 rescaling only to the RLB matrices.  The main empirical benefit is faster arrival
-at useful loss levels.  Across five 12-layer, width-768 language-model
-pretraining corpora, MatrixPolicy reaches hard common validation-loss targets
-12.0--15.3M tokens earlier than SiLU with AdamW and 20.8--27.9M tokens earlier than
-SiLU with Muon in the 100M-token E1 regime; in the 300M-token E2 regime it reaches
-those targets 51.9--69.9M tokens earlier than SiLU with AdamW and 13.1--19.7M tokens
-earlier than SiLU with Muon.  Using measured throughput summaries, every dataset and
-comparator pair also shows positive estimated training-time savings.
+at useful loss levels, measured primarily as the percentage of comparator
+target-arrival tokens saved.  Across five 12-layer, width-768 language-model
+pretraining corpora, MatrixPolicy saves 19.5--22.8\% versus SiLU with AdamW and
+29.2--34.0\% versus SiLU with Muon in E1; in E2 it saves 22.3--26.4\% versus
+SiLU with AdamW and 6.7--9.8\% versus SiLU with Muon, with positive measured
+training-time savings for every dataset/comparator pair.  TODO: Test whether
+these percentage target-arrival savings persist in a larger-scale experiment
+beyond the current fixed-scale setting.
 \end{abstract}
 
 \section{Introduction}
@@ -197,8 +199,9 @@ on the real line.  Derivative-gain statistics use the autodiff derivative of the
 implemented expression, with $\sign(0)=0$; equations involving $R'_{l,g}$ are
 understood as almost-everywhere derivatives.  Numerator and denominator
 coefficients are initialized by fitting SiLU on $[-5,5]$ and are trained
-thereafter.  The implementation uses the
-same interval for probe-grid gain summaries.  In the main variant there are no
+thereafter by AdamW in the reported configuration; MatrixPolicy only observes
+their gradients.  The implementation uses the same interval for probe-grid gain
+summaries.  In the main variant there are no
 active local Cauchy atoms, trainable atom centers, or atom coefficient parameters.
 
 The normalization in \eqref{eq:rlb-normalization} gives the optimizer two views
@@ -305,9 +308,12 @@ uses floored summaries
     \sqrt{\operatorname{mean}\!\left(R_{l,g}(u_{l,g})^2\right)+\epsilon_g}.
     \label{eq:live-gains}
 \end{align}
-The derivative gain is a proxy for the input-domain role.  The output gain is a
-curve-response proxy for the recombination role; it does not include the group
-radius $r_{l,g}$ and therefore is not the full feature scale seen by $B_l$.
+In \eqref{eq:live-gains}, the mean is over all cached scalar normalized
+coordinates for group $(l,g)$ across batch, sequence positions, and the $m$
+group coordinates.  The derivative gain is a proxy for the input-domain role.
+The output gain is a curve-response proxy for the recombination role; it does
+not include the group radius $r_{l,g}$ and therefore is not the full feature
+scale seen by $B_l$.
 Both gains are deliberately cheap summaries rather than full block-Jacobian
 preconditioners.
 
@@ -337,8 +343,8 @@ The multiplier for group $g$ and role $\sigma\in\{\mathrm{in},\mathrm{out}\}$ is
 \begin{align}
     c_{l,g,\sigma}
     =
-    c^{\rm gain}_{l,g,r}
-    c^{\rm pressure}_{l,g,r}
+    c^{\rm gain}_{l,g,\sigma}
+    c^{\rm pressure}_{l,g,\sigma}
     c^{\rm activity}_{l,g}.
     \label{eq:group-multiplier}
 \end{align}
@@ -597,9 +603,6 @@ Broader optimizer coverage is available in recent surveys \citep{wen2026fantasti
 \section{Experiments}
 \label{sec:experiments}
 
-\subsection{Experimental Setup}
-\label{sec:experiment-setup}
-
 The fixed-scale study uses the same 12-layer, width-768 causal Transformer on
 five corpora: DCLM/DataComp-LM \citep{li2024datacomp}, FineWeb-Edu and FineWeb
 \citep{penedo2024fineweb}, Dolma-sample \citep{soldaini2024dolma}, and C4
@@ -613,40 +616,38 @@ throughput-measurement details are reported in
 Appendix~\ref{app:experiment-protocol}; broader optimizer controls are also
 reported there.
 
-\subsection{Main Result: Faster Target Arrival}
-\label{sec:main-result-target-arrival}
-
 \input{tables/e1_e2_silu_summary_table.tex}
 
-Table~\ref{tab:e1e2-silu-comparison} is the primary empirical result.  It asks a target-arrival question: for the hardest common
-validation-loss target reached by every listed method in all three seeds, how
-many training tokens and how much measured training time are required?  Across
-all five E1 datasets, MatrixPolicy reaches the common target 12.0--15.3M tokens
-earlier than SiLU with AdamW and 20.8--27.9M tokens earlier than SiLU with Muon.
-The same table shows that the gain is not only an activation replacement effect:
-using the global rational activation with AdamW or Muon still requires more
-tokens than MatrixPolicy at the same targets.  In E2 the endpoint losses are
-closer after longer training, but MatrixPolicy still reaches the common targets
-earlier than every listed comparator in both tokens and measured wall-clock time.
+Table~\ref{tab:e1e2-silu-comparison} is the primary empirical result.  It asks:
+for the hardest common validation-loss target reached by every listed method in
+all three seeds, how many training tokens and how much measured training time are
+required?  Across all five E1 datasets, MatrixPolicy saves 19.5--22.8\% of the
+SiLU with AdamW target-arrival tokens and 29.2--34.0\% of the SiLU with Muon
+target-arrival tokens.  In E2, after longer training compresses endpoint gaps,
+MatrixPolicy still saves 22.3--26.4\% versus SiLU with AdamW and 6.7--9.8\%
+versus SiLU with Muon, with positive measured wall-clock savings in every listed
+comparison.
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.99\textwidth]{figures/target_arrival_evidence_matrix.pdf}
-\caption{Dense target-arrival summary for the completed E1/E2 study.  Each row is
-one dataset/regime target from Table~\ref{tab:e1e2-silu-comparison}.  Bubble area
-encodes tokens saved by MatrixPolicy at the common target, fill color encodes
-training time saved, and the right block gives the endpoint validation-loss gap
-(comparator minus MatrixPolicy).  Positive values favor MatrixPolicy.}
+\caption{Target-arrival map for the completed fixed-scale study.  Each point is
+the mean token count needed by one method to reach one validation-loss target on
+one dataset; connected points trace the same method and dataset from easier to
+harder targets.  The horizontal coordinate is target-arrival tokens, and the
+vertical coordinate is the target validation loss, so curves further left reach
+the same loss with fewer tokens.  The exact hard-target token, percentage, and
+time gaps are quantified in Table~\ref{tab:e1e2-silu-comparison}.}
 \label{fig:target-arrival-evidence}
 \end{figure*}
 
-Figure~\ref{fig:target-arrival-evidence} gives the same result as a dense visual
-check.  The bubble matrix shows that all comparator cells have positive token and
-time savings, while the endpoint-gap block shows that the earlier arrival does
-not come from stopping at a worse final model within these fixed-scale runs.
-
-\subsection{Training Dynamics Support the Target-Arrival Result}
-\label{sec:training-dynamics}
+Figure~\ref{fig:target-arrival-evidence} complements the table rather than
+repeating it.  The table reports exact tokens, percentages, and measured minutes
+at the hardest common targets; the map shows the full ladder of common targets.
+Across both regimes and all five datasets, MatrixPolicy traces are consistently
+left of the SiLU and global-rational controls, so the hard-target table is not a
+single-threshold artifact but a compact accounting of the same target-arrival
+pattern.
 
 \begin{figure*}[t]
 \centering
@@ -667,14 +668,17 @@ number of tokens and minutes needed to reach the same useful validation-loss
 levels rather than only the final loss after every method has consumed the full
 budget.
 
-\subsection{TODO: Larger-Scale Training Results}
+\FloatBarrier
+
+\section{TODO: Larger-Scale Training Results}
 \label{sec:todo-larger-scale}
 
 TODO: This section is reserved for larger-scale training results.  The current
 claim is limited to the completed fixed-scale E1/E2 evidence in
-Table~\ref{tab:e1e2-silu-comparison} and Figures~\ref{fig:target-arrival-evidence}--\ref{fig:e1-representative-dynamics}.
+Table~\ref{tab:e1e2-silu-comparison} and
+Figures~\ref{fig:target-arrival-evidence}--\ref{fig:e1-representative-dynamics}.
 
-\subsection{TODO: Component Ablations}
+\section{TODO: Component Ablations}
 \label{sec:todo-ablations}
 
 TODO: This section is reserved for component ablations isolating the centered
@@ -1089,7 +1093,7 @@ update in \eqref{eq:rescale-log-step} gives
     \lambda_{l,g,t}\tau_{l,g}.
     \label{eq:appendix-rescale-contraction}
 \end{align}
-Thus, in the $\epsilon_{\rm rms}=0$ and unclipped idealization, each active
+Thus, in the nonzero-matrix, unfloored-RMS, $\epsilon_{\rm rms}=0$, unclipped idealization, each active
 rescaling step moves the matrix representative toward the target ratio without
 changing the represented idealized block map.  In the implemented setting this
 operation runs every five optimizer steps, $\lambda_{l,g,t}$ is bounded by the

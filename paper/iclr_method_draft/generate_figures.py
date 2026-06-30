@@ -11,6 +11,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Normalize, TwoSlopeNorm
+import matplotlib.patheffects as path_effects
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
 
 plt.rcParams.update({
@@ -519,7 +520,8 @@ def make_e1_representative_silu_dynamics(out_path: Path) -> None:
     e1 = load_e1_curves()
     panels = [("dclm", "DCLM"), ("fineweb_edu", "FineWeb-Edu")]
     metrics = [("val_loss", "validation loss"), ("val_ppl", "validation perplexity"), ("train_loss", "training loss")]
-    fig, axes = plt.subplots(3, 2, figsize=(7.2, 4.95), sharex=True, constrained_layout=True)
+    fig, axes = plt.subplots(3, 2, figsize=(7.2, 5.25), sharex=True)
+    fig.subplots_adjust(left=0.080, right=0.995, bottom=0.090, top=0.855, hspace=0.255, wspace=0.185)
     for col, (dataset, dataset_label) in enumerate(panels):
         for row, (metric, metric_label) in enumerate(metrics):
             ax = axes[row, col]
@@ -529,21 +531,22 @@ def make_e1_representative_silu_dynamics(out_path: Path) -> None:
                 if steps.size == 0:
                     continue
                 tokens = steps * TOKENS_PER_STEP / 1_000_000
-                ax.plot(tokens, means, color=color, linestyle=linestyle, linewidth=linewidth, label=label, marker=marker, markevery=max(1, len(tokens)//4), markersize=3.0)
-                ax.fill_between(tokens, means - stds, means + stds, color=color, alpha=0.035, linewidth=0)
+                mark_every = max(1, len(tokens) // 5)
+                ax.plot(tokens, means, color=color, linestyle=linestyle, linewidth=linewidth, label=label, marker=marker, markevery=mark_every, markersize=2.8)
+                ax.fill_between(tokens, means - stds, means + stds, color=color, alpha=0.045, linewidth=0)
             if row == 0:
-                ax.set_title(dataset_label, fontsize=9.4)
+                ax.set_title(dataset_label, fontsize=9.5, pad=5)
             if col == 0:
-                ax.set_ylabel(metric_label, fontsize=8.2)
+                ax.set_ylabel(metric_label, fontsize=8.3)
             if row == 2:
-                ax.set_xlabel("tokens (M)", fontsize=8.2)
-            _finish_axis(ax, labelsize=7.3)
+                ax.set_xlabel("tokens (millions)", fontsize=8.3)
+            ax.margins(x=0.015, y=0.08)
+            _finish_axis(ax, labelsize=7.4)
     handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, fontsize=7.8)
+    fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.985), ncol=3, frameon=False, fontsize=8.0, handlelength=2.0, columnspacing=1.6)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.05)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04)
     plt.close(fig)
-
 
 def make_e2_metric_dynamics(out_path: Path, metric: str, metric_label: str) -> None:
     e2 = load_e2_curves()
@@ -752,94 +755,170 @@ def make_combined_result_dotplot(out_path: Path) -> None:
 
 
 def make_target_arrival_evidence_matrix(out_path: Path) -> None:
-    rows = _target_arrival_rows()
-    n_rows = len(rows)
-    comp_methods = [method for method, _label in MAIN_COMPARATORS]
-    y_positions = np.arange(n_rows - 1, -1, -1)
-    max_saved = max(comp["saved_tokens_m"] for row in rows for comp in row["comparators"])
-    max_time = max(comp["saved_minutes"] for row in rows for comp in row["comparators"])
-    max_gap = max(abs(comp["endpoint_gap"]) for row in rows for comp in row["comparators"])
-    fig = plt.figure(figsize=(7.2, 4.85), constrained_layout=True)
-    gs = fig.add_gridspec(1, 3, width_ratios=[1.70, 2.65, 1.85], wspace=0.06)
-    ax_info = fig.add_subplot(gs[0, 0])
-    ax_bubble = fig.add_subplot(gs[0, 1], sharey=ax_info)
-    ax_gap = fig.add_subplot(gs[0, 2], sharey=ax_info)
+    curves_by_regime = {"E1": load_e1_curves(), "E2": load_e2_curves()}
+    methods = ["rlb_matrixpolicy_original"] + [method for method, _label in MAIN_COMPARATORS]
+    method_style = {
+        "rlb_matrixpolicy_original": ("MatrixPolicy", OKABE_ITO["black"], "-", 1.85, 1.00),
+        "silu_adamw": ("SiLU + AdamW", OKABE_ITO["blue"], "-", 1.00, 0.56),
+        "silu_muon": ("SiLU + Muon", OKABE_ITO["green"], (0, (3.0, 2.0)), 1.00, 0.56),
+        "rlb_adamw": ("Global rational + AdamW", OKABE_ITO["orange"], (0, (1.0, 1.4)), 0.95, 0.45),
+        "rlb_muon": ("Global rational + Muon", OKABE_ITO["purple"], (0, (5.0, 2.0, 1.4, 2.0)), 0.95, 0.45),
+    }
+    dataset_markers = {
+        "dclm": "o",
+        "fineweb_edu": "s",
+        "fineweb": "^",
+        "dolma_sample": "D",
+        "c4_en": "P",
+    }
+    label_offsets = {
+        "E1": {
+            "dclm": (-24.0, 10.0),
+            "fineweb_edu": (7.0, 12.0),
+            "fineweb": (8.0, 10.0),
+            "dolma_sample": (-20.0, -13.0),
+            "c4_en": (8.0, 15.0),
+        },
+        "E2": {
+            "dclm": (-26.0, 9.0),
+            "fineweb_edu": (7.0, 13.0),
+            "fineweb": (8.0, 10.0),
+            "dolma_sample": (-26.0, -12.0),
+            "c4_en": (8.0, 15.0),
+        },
+    }
 
-    for ax in [ax_info, ax_bubble, ax_gap]:
-        ax.set_ylim(-0.92, n_rows - 0.25)
-        ax.set_yticks([])
-        ax.tick_params(left=False)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        for i, y in enumerate(y_positions):
-            if i % 2 == 0:
-                ax.axhspan(y - 0.50, y + 0.50, color="#f6f6f6", zorder=0)
-        ax.axhline(4.5, color="#bdbdbd", linewidth=0.8)
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.72))
+    fig.subplots_adjust(left=0.070, right=0.993, bottom=0.135, top=0.805, wspace=0.185)
 
-    ax_info.set_xlim(0, 1)
-    ax_info.set_xticks([])
-    ax_info.text(0.00, n_rows - 0.08, "dataset", fontsize=7.5, weight="bold", va="bottom")
-    ax_info.text(0.52, n_rows - 0.08, "target\nvalidation loss", fontsize=6.6, weight="bold", ha="center", va="bottom")
-    ax_info.text(0.88, n_rows - 0.08, "MatrixPolicy\ntokens/time", fontsize=6.6, weight="bold", ha="center", va="bottom")
-    for i, (row, y) in enumerate(zip(rows, y_positions)):
-        dataset = str(row["dataset_label"])
-        regime = str(row["regime"])
-        ax_info.text(0.00, y, f"{regime} {dataset}", fontsize=7.1, va="center")
-        ax_info.text(0.52, y, f"{float(row['target']):.2f}", fontsize=7.1, ha="center", va="center")
-        ax_info.text(0.88, y, _cell_tokens_time(float(row["mp_tokens_m"]), float(row["mp_time_min"])), fontsize=7.1, ha="center", va="center")
+    for ax, regime in zip(axes, ["E1", "E2"]):
+        curves = curves_by_regime[regime]
+        x_values: list[float] = []
+        y_values: list[float] = []
+        hard_labels: list[tuple[float, float, str, str]] = []
+        for dataset, dataset_label, e2_dir_name in DATASETS:
+            targets = [
+                target
+                for target in _target_candidates(regime, dataset, e2_dir_name)
+                if all(_hit_token_stats(curves, dataset, method, target) is not None for method in methods)
+            ]
+            targets = sorted(targets, reverse=True)
+            if not targets:
+                continue
+            hard_target = min(targets)
+            mp_hard = _hit_token_stats(curves, dataset, "rlb_matrixpolicy_original", hard_target)
+            if mp_hard is not None:
+                mp_hard_x = mp_hard[0] / 1_000_000
+                hard_labels.append((mp_hard_x, hard_target, dataset, DATASET_ABBR[dataset_label]))
+            for method in methods:
+                _label, color, linestyle, linewidth, alpha = method_style[method]
+                xs, ys = [], []
+                for target in targets:
+                    stats = _hit_token_stats(curves, dataset, method, target)
+                    if stats is None:
+                        continue
+                    xs.append(stats[0] / 1_000_000)
+                    ys.append(target)
+                    x_values.append(xs[-1])
+                    y_values.append(target)
+                if not xs:
+                    continue
+                marker = dataset_markers[dataset]
+                sizes = [18] * len(xs)
+                sizes[-1] = 34 if method == "rlb_matrixpolicy_original" else 28
+                line_z = 4 if method == "rlb_matrixpolicy_original" else 2
+                point_z = 6 if method == "rlb_matrixpolicy_original" else 5
+                ax.plot(xs, ys, color=color, linestyle=linestyle, linewidth=linewidth, alpha=alpha, zorder=line_z)
+                ax.scatter(
+                    xs,
+                    ys,
+                    color=color,
+                    marker=marker,
+                    s=sizes,
+                    alpha=min(1.0, alpha + 0.18),
+                    edgecolor="white",
+                    linewidth=0.62,
+                    zorder=point_z,
+                )
+        if x_values and y_values:
+            xmin = max(0.0, math.floor((min(x_values) - 5.0) / 10.0) * 10.0)
+            xmax = math.ceil((max(x_values) + 7.0) / 10.0) * 10.0
+            ymin = math.floor((min(y_values) - 0.04) * 20.0) / 20.0
+            ymax = math.ceil((max(y_values) + 0.04) * 20.0) / 20.0
+            ax.set_xlim(xmin, xmax)
+            ax.set_ylim(ymin, ymax)
+            ax.text(
+                xmin + 0.03 * (xmax - xmin),
+                ymin + 0.08 * (ymax - ymin),
+                "left = fewer tokens\nlower = harder target",
+                fontsize=6.2,
+                color="#555555",
+                linespacing=1.05,
+                zorder=7,
+            )
+        for x, y, dataset, dataset_abbr in hard_labels:
+            dx, dy = label_offsets[regime].get(dataset, (5.0, 5.0))
+            text = ax.annotate(
+                f"{dataset_abbr}",
+                (x, y),
+                xytext=(dx, dy),
+                textcoords="offset points",
+                fontsize=5.9,
+                color="#202020",
+                ha="left" if dx >= 0 else "right",
+                va="center",
+                arrowprops={"arrowstyle": "-", "color": "#8a8a8a", "linewidth": 0.32, "shrinkA": 0.0, "shrinkB": 2.8},
+                zorder=8,
+            )
+            text.set_path_effects([path_effects.withStroke(linewidth=1.6, foreground="white")])
+        ax.set_title(regime, fontsize=9.2, pad=5, weight="bold")
+        ax.set_xlabel("tokens to validation-loss target (M)", fontsize=7.6)
+        ax.grid(True, color="#d7d7d7", linewidth=0.45, alpha=0.72)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.tick_params(axis="both", labelsize=6.8, pad=1.6)
+    axes[0].set_ylabel("target validation loss", fontsize=7.6)
 
-    ax_bubble.set_xlim(-0.55, len(comp_methods) - 0.45)
-    ax_bubble.set_xticks(np.arange(len(comp_methods)))
-    ax_bubble.set_xticklabels([_method_short_label(method) for method in comp_methods], fontsize=6.4)
-    ax_bubble.xaxis.tick_top()
-    ax_bubble.tick_params(axis="x", length=0, pad=2)
-    ax_bubble.set_title("target-arrival savings", fontsize=8.1, pad=24)
-    time_norm = Normalize(vmin=0, vmax=max_time)
-    cmap_time = plt.get_cmap("cividis")
-    scatter_for_colorbar = None
-    for i, (row, y) in enumerate(zip(rows, y_positions)):
-        for j, comp in enumerate(row["comparators"]):
-            saved = float(comp["saved_tokens_m"])
-            minutes = float(comp["saved_minutes"])
-            size = 34.0 + 7.2 * saved
-            scatter_for_colorbar = ax_bubble.scatter(j, y, s=size, color=cmap_time(time_norm(minutes)), edgecolor="#202020", linewidth=0.35, zorder=2)
-            txt_color = "white" if minutes > 0.60 * max_time else "#171717"
-            ax_bubble.text(j, y + 0.10, f"+{saved:.1f}M", ha="center", va="center", fontsize=5.65, color=txt_color, zorder=3)
-            ax_bubble.text(j, y - 0.13, f"{minutes:.1f} min", ha="center", va="center", fontsize=5.35, color=txt_color, zorder=3)
-    for x in np.arange(-0.5, len(comp_methods) + 0.5, 1.0):
-        ax_bubble.axvline(x, color="#e1e1e1", linewidth=0.45, zorder=1)
-    size_handles = [
-        ax_bubble.scatter([], [], s=34.0 + 7.2 * value, facecolor="white", edgecolor="#202020", linewidth=0.35)
-        for value in [10, 25, 50, 70]
+    method_handles = []
+    method_labels = []
+    for method in methods:
+        label, color, linestyle, linewidth, alpha = method_style[method]
+        method_handles.append(plt.Line2D([0], [0], color=color, linestyle=linestyle, linewidth=linewidth, marker="o", markersize=4.0, markeredgecolor="#333333", markeredgewidth=0.35, alpha=min(1.0, alpha + 0.10)))
+        method_labels.append(label)
+    dataset_handles = [
+        plt.Line2D([0], [0], color="#777777", linestyle="", marker=dataset_markers[dataset], markersize=4.3, markerfacecolor="#d7d7d7", markeredgecolor="#333333", markeredgewidth=0.35)
+        for dataset, _label, _e2 in DATASETS
     ]
-    ax_bubble.legend(size_handles, ["10M", "25M", "50M", "70M"], title="tokens saved", loc="lower center", bbox_to_anchor=(0.50, 0.012), ncol=4, frameon=False, fontsize=5.7, title_fontsize=6.2, handletextpad=0.8, columnspacing=1.0)
-    if scatter_for_colorbar is not None:
-        sm = plt.cm.ScalarMappable(norm=time_norm, cmap=cmap_time)
-        sm.set_array([])
-        cbar = fig.colorbar(sm, ax=ax_bubble, fraction=0.046, pad=0.018)
-        cbar.ax.tick_params(labelsize=6.0, length=2)
-        cbar.set_label("time saved (minutes)", fontsize=6.4)
-
-    ax_gap.set_xlim(-0.55, len(comp_methods) - 0.45)
-    ax_gap.set_xticks(np.arange(len(comp_methods)))
-    ax_gap.set_xticklabels([_method_short_label(method) for method in comp_methods], fontsize=6.4)
-    ax_gap.xaxis.tick_top()
-    ax_gap.tick_params(axis="x", length=0, pad=2)
-    ax_gap.set_title("endpoint validation-loss gap", fontsize=8.1, pad=24)
-    gap_norm = TwoSlopeNorm(vmin=-max_gap, vcenter=0.0, vmax=max_gap)
-    cmap_gap = plt.get_cmap("RdBu")
-    for row, y in zip(rows, y_positions):
-        for j, comp in enumerate(row["comparators"]):
-            gap = float(comp["endpoint_gap"])
-            ax_gap.add_patch(Rectangle((j - 0.47, y - 0.42), 0.94, 0.84, facecolor=cmap_gap(gap_norm(gap)), edgecolor="white", linewidth=0.7))
-            ax_gap.text(j, y, f"{gap:+.3f}", ha="center", va="center", fontsize=5.85, color="#111111")
-    for x in np.arange(-0.5, len(comp_methods) + 0.5, 1.0):
-        ax_gap.axvline(x, color="#e1e1e1", linewidth=0.45, zorder=1)
-    ax_info.text(0.00, -0.78, "All arrivals are means over three seeds; tokens are millions and time is minutes.", fontsize=6.1, color="#555555")
+    dataset_labels = [DATASET_ABBR[label] for _dataset, label, _e2 in DATASETS]
+    fig.legend(
+        method_handles,
+        method_labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.992),
+        ncol=5,
+        frameon=False,
+        fontsize=6.25,
+        title="Method",
+        title_fontsize=6.5,
+        handlelength=1.65,
+        columnspacing=0.75,
+    )
+    fig.legend(
+        dataset_handles,
+        dataset_labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.910),
+        ncol=5,
+        frameon=False,
+        fontsize=6.05,
+        title="Dataset",
+        title_fontsize=6.35,
+        handlelength=0.95,
+        columnspacing=0.86,
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.08)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.05)
     plt.close(fig)
-
 
 def _fmt_signed(value: float, digits: int = 1) -> str:
     return f"{value:+.{digits}f}"
@@ -851,7 +930,7 @@ def make_e1_e2_silu_summary_table(out_path: Path) -> None:
     lines = [
         r"\begin{table*}[t]",
         r"\centering",
-        r"\caption{Target-arrival efficiency across the completed E1 and E2 datasets. For each dataset and target validation loss, the table reports the actual target-arrival tokens and wall-clock time for MatrixPolicy and each comparator. MatrixPolicy-at-target and comparator-at-target entries are ordered as tokens then time; all token entries are millions of tokens and all time entries are minutes. Tokens saved is comparator target tokens minus MatrixPolicy target tokens, with the proportion of comparator tokens saved in the final column.}",
+        r"\caption{Main-paper target-arrival efficiency across the completed E1 and E2 datasets. For each dataset and target validation loss, the table reports the actual target-arrival tokens and wall-clock time for MatrixPolicy and each comparator. MatrixPolicy-at-target and comparator-at-target entries are ordered as tokens then time; all token entries are millions of tokens and all time entries are minutes. Tokens saved is comparator target tokens minus MatrixPolicy target tokens, with the percentage of comparator tokens saved in the final column.}",
         r"\label{tab:e1e2-silu-comparison}",
         r"\scriptsize",
         r"\setlength{\tabcolsep}{1.7pt}",

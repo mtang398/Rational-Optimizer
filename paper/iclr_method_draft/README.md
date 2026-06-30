@@ -10,19 +10,19 @@ The draft uses the completed matched E1 and E2 result artifacts in `../../experi
 abstract: aligned to the global-rational/no-local-atom result anchor and E1 target-arrival claim
 introduction/related work: motivation and positioning, included because the draft has an abstract
 method: global-rational RLB and MatrixPolicy with defined notation, role-specific matrix signals, centered group policy, early gated Muon substep, and bounded positive pair balancing
-main experiments: completed E1 validation trajectories, E1 target-arrival frontiers, and E1 token/time savings against SiLU+AdamW, RLB+AdamW, and RLB+Muon
+main experiments: completed E1/E2 target-arrival table, one target-arrival map across common loss targets, and representative E1 loss/PPL/train-loss curves
 reserved main-paper slots: larger-scale results and component ablations, with no current claim relying on missing results
-appendix: shared protocol, E2 saturation curves, E1 companion train/PPL curves, endpoint sanity table, and mathematical rationale for the activation and optimizer design
-figures: `matrixpolicy_overview.pdf`, `matrixpolicy_signal_flow.pdf`, `e1_validation_all_datasets.pdf`, `e1_target_frontiers.pdf`, `e1_multimetric_examples.pdf`, `e2_validation_dynamics.pdf`, `e2_perplexity_dynamics.pdf`, `e2_training_dynamics.pdf`
-table: `tables/e1_target_time_table.tex`
+appendix: shared protocol, E1/E2 support curves, E1 target-frontier controls, endpoint sanity table, and mathematical rationale for the activation and optimizer design
+figures: `matrixpolicy_overview.pdf`, `matrixpolicy_signal_flow.pdf`, `target_arrival_evidence_matrix.pdf`, `e1_representative_silu_dynamics.pdf`, plus appendix E1/E2 support figures
+tables: `tables/e1_e2_silu_summary_table.tex`, `tables/e1_target_time_table.tex`
 ```
 
 ## Build
 
-Use the included ICLR style files and compile `main.tex`. The local renderer used in this workspace is:
+Use the included ICLR style files and compile `main.tex` with the project-local TinyTeX renderer:
 
 ```bash
-/home/mt872/autoresearch_attempt_1/.local/bin/tectonic main.tex
+env PATH=/home/mt872/rationalOPT/.TinyTeX/bin/x86_64-linux:/usr/local/bin:/usr/bin:/bin /home/mt872/rationalOPT/.TinyTeX/bin/x86_64-linux/latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 ```
 
 The figures and generated table are rebuilt with:
