@@ -55,7 +55,7 @@
     densely dashed, line width=0.52pt, color=mpLine!62, shorten >=2pt,
     shorten <=1pt},
   write/.style={-{Stealth[length=5pt 1.45, width'=0pt 0.56, sep=0pt 0.5]},
-    line width=0.98pt, color=mpPurple, rounded corners=8pt, shorten >=2pt,
+    line width=0.98pt, color=mpPurple, rounded corners=8pt, shorten >=0pt,
     shorten <=1pt},
 }
 
@@ -88,7 +88,8 @@
   \matrixglyph{(1.16,4.62)}{(0.16,0.15) rectangle (0.48,1.03)}{23}
   \node[font=\footnotesize\bfseries, text=mpBlue, fill=white, inner sep=1pt]
     at (2.02,5.92) {$A_l$};
-  \node[small, text=mpPurple, fill=white] (targetA) at (2.34,4.26) {$\Delta A_l$};
+  \node[small, text=mpPurple, fill=white, anchor=west, inner sep=1.5pt]
+    (targetA) at (1.66,4.27) {$\Delta A_l$};
 
   \node[rlbCard] (rlb) at (8.02,5.20) {};
   \node[font=\small\bfseries, text=mpAmber] at (8.02,5.90) {RLB};
@@ -104,7 +105,8 @@
   \matrixglyph{(13.16,4.62)}{(1.24,0.15) rectangle (1.56,1.03)}{29}
   \node[font=\footnotesize\bfseries, text=mpBlue, fill=white, inner sep=1pt]
     at (14.02,5.92) {$B_l$};
-  \node[small, text=mpPurple, fill=white] (targetB) at (13.68,4.26) {$\Delta B_l$};
+  \node[small, text=mpPurple, fill=white, anchor=east, inner sep=1.5pt]
+    (targetB) at (14.36,4.27) {$\Delta B_l$};
 
   \draw[forward] (2.92,5.20) -- (5.72,5.20);
   \node[small, fill=white] at (4.35,5.39) {$u_{l,g}$};
@@ -126,19 +128,21 @@
   \summarychip{balance}{11.80}{3.05}{balance}{mpPurple}
   \node[font=\scriptsize, text=mpPurple] at (11.80,2.88) {$\gamma,\tau$};
 
-  \draw[read] (2.02,4.60) -- ++(0,-0.54) -| (pressure.north);
+  \draw[read] (2.02,4.60) .. controls (2.08,4.10) and (3.44,3.82)
+    .. (pressure.north);
   \draw[read] (7.28,4.42) -- ++(0,-0.34) -| (gain.north);
   \draw[read] (8.88,4.42) -- ++(0,-0.34) -| (state.north);
-  \draw[read] (14.02,4.60) -- ++(0,-0.54) -| (balance.north);
+  \draw[read] (14.02,4.60) .. controls (13.96,4.10) and (12.62,3.82)
+    .. (balance.north);
 
   % Foreground membrane: the white underlay makes the stop-gradient boundary
   % remain legible where detached read arrows cross it.
-  \draw[line width=0.96pt, dash pattern=on 4.2pt off 2.1pt,
+  \draw[line width=1.12pt, dash pattern=on 5.0pt off 2.4pt,
     color=mpLine!96, line cap=round,
-    preaction={draw=white, line width=2.2pt, line cap=round}]
-    (3.14,4.04) -- (12.90,4.04);
+    preaction={draw=white, line width=3.2pt, line cap=round}]
+    (3.02,4.04) -- (13.02,4.04);
   \node[small, fill=white, text=mpMuted, inner sep=1.7pt]
-    at (3.78,4.30) {stop-gradient};
+    at (4.16,4.30) {stop-gradient boundary};
 
   % MatrixPolicy reads the detached bus and writes only to the two matrices.
   \node[policy] (policy) at (7.28,1.28) {MatrixPolicy};
@@ -147,7 +151,7 @@
     (policy.north);
   \draw[forward, color=mpPurple, line width=0.88pt] (policy.east) -- (updates.west);
 
-  \draw[write] (policy.west) -- (4.78,1.28) -- (1.48,1.28) -- (1.48,4.66);
-  \draw[write] (updates.east) -- (12.64,1.28) -- (14.56,1.28) -- (14.56,4.66);
+  \draw[write] (policy.west) -- (4.78,1.28) -- (1.48,1.28) -- (1.48,4.78);
+  \draw[write] (updates.east) -- (12.64,1.28) -- (14.56,1.28) -- (14.56,4.78);
 \end{tikzpicture}
 \end{document}
