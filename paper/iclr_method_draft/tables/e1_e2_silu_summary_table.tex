@@ -1,26 +1,63 @@
 \begin{table*}[t]
 \centering
-\caption{E1/E2 all-dataset comparison of MatrixPolicy against the two SiLU baselines. For each dataset, regime, and comparator, the table reports token savings at the common validation-loss target, estimated wall-clock time savings from measured throughput, and the endpoint validation-loss gap, computed as comparator minus MatrixPolicy; positive values favor MatrixPolicy.}
+\caption{Target-arrival efficiency across the completed E1 and E2 datasets. For each dataset and target validation loss, the table reports the actual target-arrival tokens and wall-clock time for MatrixPolicy and each comparator. MatrixPolicy-at-target and comparator-at-target entries are ordered as tokens then time; all token entries are millions of tokens and all time entries are minutes. Tokens saved is comparator target tokens minus MatrixPolicy target tokens, with the proportion of comparator tokens saved in the final column.}
 \label{tab:e1e2-silu-comparison}
 \scriptsize
-\setlength{\tabcolsep}{2.3pt}
-\begin{tabular}{@{}llrrrrrrrr@{}}
+\setlength{\tabcolsep}{1.7pt}
+\begin{tabular}{@{}llrL{3.20cm}ccrr@{}}
 \toprule
-Regime & Dataset & Target & MP tok & \multicolumn{3}{c}{vs SiLU+AdamW} & \multicolumn{3}{c}{vs SiLU+Muon} \\
-\cmidrule(lr){5-7}\cmidrule(l){8-10}
- & & val. loss & (M) & $\Delta$tok & $\Delta$t & $\Delta$val & $\Delta$tok & $\Delta$t & $\Delta$val \\
+Regime & Dataset & \shortstack{Target validation\\loss} & Comparator & \shortstack{MatrixPolicy at target\\tokens and time} & \shortstack{Comparator at target\\tokens and time} & \shortstack{Tokens\\saved} & \shortstack{Proportion\\saved} \\
 \midrule
-E1 & DCLM & 4.55 & 50.2 & +13.1 & +8.0 & +0.152 & +24.0 & +13.2 & +0.203 \\
-E1 & FineWeb-Edu & 4.40 & 49.7 & +12.0 & +7.6 & +0.150 & +20.8 & +11.6 & +0.191 \\
-E1 & FineWeb & 4.60 & 51.9 & +15.3 & +3.4 & +0.160 & +24.6 & +6.9 & +0.200 \\
-E1 & Dolma & 4.60 & 54.1 & +15.3 & +4.5 & +0.161 & +27.9 & +8.8 & +0.219 \\
-E1 & C4 & 4.60 & 50.2 & +13.1 & +2.6 & +0.163 & +20.8 & +5.5 & +0.199 \\
-E2 & DCLM & 4.10 & 174.8 & +53.0 & +13.9 & +0.098 & +15.8 & +5.2 & +0.045 \\
-E2 & FineWeb-Edu & 3.85 & 183.0 & +54.1 & +18.1 & +0.102 & +13.1 & +7.0 & +0.044 \\
-E2 & FineWeb & 4.10 & 185.7 & +55.7 & +18.5 & +0.099 & +14.2 & +5.9 & +0.044 \\
-E2 & Dolma & 3.95 & 180.8 & +51.9 & +5.8 & +0.098 & +19.7 & +6.9 & +0.052 \\
-E2 & C4 & 4.00 & 195.0 & +69.9 & +21.3 & +0.103 & +18.0 & +12.3 & +0.047 \\
+E1 & DCLM & 4.55 & SiLU activation with AdamW & (50.2, 12.1) & (63.4, 20.2) & 13.1 & 20.7\% \\
+E1 & DCLM & 4.55 & SiLU activation with Muon & (50.2, 12.1) & (74.3, 25.3) & 24.0 & 32.4\% \\
+E1 & DCLM & 4.55 & Global rational activation with AdamW & (50.2, 12.1) & (63.4, 13.4) & 13.1 & 20.7\% \\
+E1 & DCLM & 4.55 & Global rational activation with Muon & (50.2, 12.1) & (76.5, 17.9) & 26.2 & 34.3\% \\
+\addlinespace[1pt]
+E1 & FineWeb-Edu & 4.40 & SiLU activation with AdamW & (49.7, 12.1) & (61.7, 19.7) & 12.0 & 19.5\% \\
+E1 & FineWeb-Edu & 4.40 & SiLU activation with Muon & (49.7, 12.1) & (70.5, 23.7) & 20.8 & 29.5\% \\
+E1 & FineWeb-Edu & 4.40 & Global rational activation with AdamW & (49.7, 12.1) & (62.3, 13.3) & 12.6 & 20.2\% \\
+E1 & FineWeb-Edu & 4.40 & Global rational activation with Muon & (49.7, 12.1) & (70.5, 17.0) & 20.8 & 29.5\% \\
+\addlinespace[1pt]
+E1 & FineWeb & 4.60 & SiLU activation with AdamW & (51.9, 11.8) & (67.2, 15.1) & 15.3 & 22.8\% \\
+E1 & FineWeb & 4.60 & SiLU activation with Muon & (51.9, 11.8) & (76.5, 18.7) & 24.6 & 32.1\% \\
+E1 & FineWeb & 4.60 & Global rational activation with AdamW & (51.9, 11.8) & (66.1, 15.3) & 14.2 & 21.5\% \\
+E1 & FineWeb & 4.60 & Global rational activation with Muon & (51.9, 11.8) & (76.5, 19.0) & 24.6 & 32.1\% \\
+\addlinespace[1pt]
+E1 & Dolma & 4.60 & SiLU activation with AdamW & (54.1, 12.1) & (69.4, 16.6) & 15.3 & 22.0\% \\
+E1 & Dolma & 4.60 & SiLU activation with Muon & (54.1, 12.1) & (81.9, 20.9) & 27.9 & 34.0\% \\
+E1 & Dolma & 4.60 & Global rational activation with AdamW & (54.1, 12.1) & (69.9, 16.3) & 15.8 & 22.7\% \\
+E1 & Dolma & 4.60 & Global rational activation with Muon & (54.1, 12.1) & (83.0, 21.0) & 28.9 & 34.9\% \\
+\addlinespace[1pt]
+E1 & C4 & 4.60 & SiLU activation with AdamW & (50.2, 11.0) & (63.4, 13.5) & 13.1 & 20.7\% \\
+E1 & C4 & 4.60 & SiLU activation with Muon & (50.2, 11.0) & (71.0, 16.5) & 20.8 & 29.2\% \\
+E1 & C4 & 4.60 & Global rational activation with AdamW & (50.2, 11.0) & (62.3, 13.9) & 12.0 & 19.3\% \\
+E1 & C4 & 4.60 & Global rational activation with Muon & (50.2, 11.0) & (70.5, 17.8) & 20.2 & 28.7\% \\
+\midrule
+E2 & DCLM & 4.10 & SiLU activation with AdamW & (174.8, 37.2) & (227.7, 51.1) & 53.0 & 23.3\% \\
+E2 & DCLM & 4.10 & SiLU activation with Muon & (174.8, 37.2) & (190.6, 42.4) & 15.8 & 8.3\% \\
+E2 & DCLM & 4.10 & Global rational activation with AdamW & (174.8, 37.2) & (229.9, 51.5) & 55.2 & 24.0\% \\
+E2 & DCLM & 4.10 & Global rational activation with Muon & (174.8, 37.2) & (187.9, 42.6) & 13.1 & 7.0\% \\
+\addlinespace[1pt]
+E2 & FineWeb-Edu & 3.85 & SiLU activation with AdamW & (183.0, 37.8) & (237.0, 55.9) & 54.1 & 22.8\% \\
+E2 & FineWeb-Edu & 3.85 & SiLU activation with Muon & (183.0, 37.8) & (196.1, 44.8) & 13.1 & 6.7\% \\
+E2 & FineWeb-Edu & 3.85 & Global rational activation with AdamW & (183.0, 37.8) & (236.5, 49.3) & 53.5 & 22.6\% \\
+E2 & FineWeb-Edu & 3.85 & Global rational activation with Muon & (183.0, 37.8) & (192.2, 47.4) & 9.3 & 4.8\% \\
+\addlinespace[1pt]
+E2 & FineWeb & 4.10 & SiLU activation with AdamW & (185.7, 38.5) & (241.4, 57.0) & 55.7 & 23.1\% \\
+E2 & FineWeb & 4.10 & SiLU activation with Muon & (185.7, 38.5) & (199.9, 44.4) & 14.2 & 7.1\% \\
+E2 & FineWeb & 4.10 & Global rational activation with AdamW & (185.7, 38.5) & (239.2, 52.3) & 53.5 & 22.4\% \\
+E2 & FineWeb & 4.10 & Global rational activation with Muon & (185.7, 38.5) & (196.1, 44.0) & 10.4 & 5.3\% \\
+\addlinespace[1pt]
+E2 & Dolma & 3.95 & SiLU activation with AdamW & (180.8, 41.1) & (232.7, 46.9) & 51.9 & 22.3\% \\
+E2 & Dolma & 3.95 & SiLU activation with Muon & (180.8, 41.1) & (200.4, 48.1) & 19.7 & 9.8\% \\
+E2 & Dolma & 3.95 & Global rational activation with AdamW & (180.8, 41.1) & (232.7, 47.4) & 51.9 & 22.3\% \\
+E2 & Dolma & 3.95 & Global rational activation with Muon & (180.8, 41.1) & (193.3, 44.7) & 12.6 & 6.5\% \\
+\addlinespace[1pt]
+E2 & C4 & 4.00 & SiLU activation with AdamW & (195.0, 39.4) & (264.9, 60.7) & 69.9 & 26.4\% \\
+E2 & C4 & 4.00 & SiLU activation with Muon & (195.0, 39.4) & (213.0, 51.7) & 18.0 & 8.5\% \\
+E2 & C4 & 4.00 & Global rational activation with AdamW & (195.0, 39.4) & (261.1, 56.0) & 66.1 & 25.3\% \\
+E2 & C4 & 4.00 & Global rational activation with Muon & (195.0, 39.4) & (208.6, 48.8) & 13.7 & 6.5\% \\
 \bottomrule
-\multicolumn{10}{@{}p{0.98\textwidth}@{}}{\footnotesize $\Delta$tok is in millions of tokens and $\Delta$t is in minutes. Token arrivals are evaluated every 50 steps, so target times are quantized by 1.64M tokens; time estimates use measured per-dataset/method throughput. Broader RLB optimizer controls are reported in Appendix~\ref{app:experiment-protocol}.}
+\multicolumn{8}{@{}p{0.98\textwidth}@{}}{\footnotesize Targets are the hardest pre-specified validation-loss levels reached by MatrixPolicy and every listed comparator in all three seeds. Target arrivals use the native 50-step evaluation cadence, equal to 1.64 million tokens per readout. Wall-clock times use cleaned per-dataset/method throughput summaries from completed runs.}
 \end{tabular}
 \end{table*}

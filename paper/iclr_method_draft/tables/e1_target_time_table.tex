@@ -1,21 +1,33 @@
 \begin{table*}[t]
 \centering
-\caption{E1 target-arrival savings for activation/optimizer controls. Token columns report saved tokens in millions with the percentage of comparator tokens in parentheses; time columns report estimated saved minutes.}
+\caption{E1 target-arrival savings for activation and optimizer controls. Each row compares MatrixPolicy with one activation/optimizer control at the hardest common validation-loss target reached by all listed methods on that dataset.}
 \label{tab:e1-target-time}
 \scriptsize
-\setlength{\tabcolsep}{2.6pt}
-\begin{tabular}{@{}lccrrrrrr@{}}
+\setlength{\tabcolsep}{2.0pt}
+\begin{tabular}{@{}llcL{3.55cm}rrr@{}}
 \toprule
-Dataset & Target & MP tokens & \multicolumn{2}{c}{vs SiLU+AdamW} & \multicolumn{2}{c}{vs RLB+AdamW} & \multicolumn{2}{c}{vs RLB+Muon} \\
-\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(l){8-9}
- &  & mean$\pm$sd (M) & $\Delta$tok (M,\%) & $\Delta$t (min) & $\Delta$tok (M,\%) & $\Delta$t (min) & $\Delta$tok (M,\%) & $\Delta$t (min) \\
+Dataset & \shortstack{Target validation\\loss} & \shortstack{MatrixPolicy target tokens\\mean and standard deviation} & Comparator & \shortstack{Tokens\\saved} & \shortstack{Proportion\\saved} & \shortstack{Time saved\\(minutes)} \\
 \midrule
-DCLM & 4.55 & 50.2$\pm$0.9 & 13.1 (20.7\%) & 8.0 & 13.1 (20.7\%) & 1.2 & 26.2 (34.3\%) & 5.8 \\
-FineWeb-Edu & 4.40 & 49.7$\pm$0.9 & 12.0 (19.5\%) & 7.6 & 12.6 (20.2\%) & 1.2 & 20.8 (29.5\%) & 4.9 \\
-FineWeb & 4.60 & 51.9$\pm$0.9 & 15.3 (22.8\%) & 3.4 & 14.2 (21.5\%) & 3.6 & 24.6 (32.1\%) & 7.2 \\
-Dolma & 4.60 & 54.1$\pm$0.0 & 15.3 (22.0\%) & 4.5 & 15.8 (22.7\%) & 4.2 & 28.9 (34.9\%) & 8.9 \\
-C4 & 4.50 & 59.0$\pm$1.6 & 21.3 (26.5\%) & 4.3 & 20.2 (25.5\%) & 4.9 & 31.7 (34.9\%) & 10.0 \\
+DCLM & 4.55 & 50.2$\pm$0.9 & SiLU activation with AdamW & 13.1 & 20.7\% & 8.0 \\
+DCLM & 4.55 & 50.2$\pm$0.9 & Global rational activation with AdamW & 13.1 & 20.7\% & 1.2 \\
+DCLM & 4.55 & 50.2$\pm$0.9 & Global rational activation with Muon & 26.2 & 34.3\% & 5.8 \\
+\addlinespace[1pt]
+FineWeb-Edu & 4.40 & 49.7$\pm$0.9 & SiLU activation with AdamW & 12.0 & 19.5\% & 7.6 \\
+FineWeb-Edu & 4.40 & 49.7$\pm$0.9 & Global rational activation with AdamW & 12.6 & 20.2\% & 1.2 \\
+FineWeb-Edu & 4.40 & 49.7$\pm$0.9 & Global rational activation with Muon & 20.8 & 29.5\% & 4.9 \\
+\addlinespace[1pt]
+FineWeb & 4.60 & 51.9$\pm$0.9 & SiLU activation with AdamW & 15.3 & 22.8\% & 3.4 \\
+FineWeb & 4.60 & 51.9$\pm$0.9 & Global rational activation with AdamW & 14.2 & 21.5\% & 3.6 \\
+FineWeb & 4.60 & 51.9$\pm$0.9 & Global rational activation with Muon & 24.6 & 32.1\% & 7.2 \\
+\addlinespace[1pt]
+Dolma & 4.60 & 54.1$\pm$0.0 & SiLU activation with AdamW & 15.3 & 22.0\% & 4.5 \\
+Dolma & 4.60 & 54.1$\pm$0.0 & Global rational activation with AdamW & 15.8 & 22.7\% & 4.2 \\
+Dolma & 4.60 & 54.1$\pm$0.0 & Global rational activation with Muon & 28.9 & 34.9\% & 8.9 \\
+\addlinespace[1pt]
+C4 & 4.50 & 59.0$\pm$1.6 & SiLU activation with AdamW & 21.3 & 26.5\% & 4.3 \\
+C4 & 4.50 & 59.0$\pm$1.6 & Global rational activation with AdamW & 20.2 & 25.5\% & 4.9 \\
+C4 & 4.50 & 59.0$\pm$1.6 & Global rational activation with Muon & 31.7 & 34.9\% & 10.0 \\
 \bottomrule
-\multicolumn{9}{@{}p{0.98\textwidth}@{}}{\footnotesize Tokens-to-target are read at the native 50-step evaluation cadence from the completed E1 JSONL logs. Time estimates use cleaned per-dataset/method training-throughput summaries.}
+\multicolumn{7}{@{}p{0.98\textwidth}@{}}{\footnotesize Target arrivals are read at the native 50-step evaluation cadence from the completed E1 JSONL logs. Time estimates use cleaned per-dataset/method training-throughput summaries. Token entries are millions of tokens.}
 \end{tabular}
 \end{table*}

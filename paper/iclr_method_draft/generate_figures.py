@@ -10,6 +10,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import Normalize, TwoSlopeNorm
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
 
 plt.rcParams.update({
@@ -68,7 +69,13 @@ METHOD_STYLE = {
 MAIN_SILU_METHODS = ["rlb_matrixpolicy_original", "silu_adamw", "silu_muon"]
 FULL_METHODS = ["rlb_matrixpolicy_original", "silu_adamw", "silu_muon", "rlb_adamw", "rlb_muon"]
 SILU_COMPARATORS = [("silu_adamw", "SiLU+AdamW"), ("silu_muon", "SiLU+Muon")]
-TABLE_COMPARATORS = [("silu_adamw", "SiLU+AdamW"), ("rlb_adamw", "RLB+AdamW"), ("rlb_muon", "RLB+Muon")]
+MAIN_COMPARATORS = [
+    ("silu_adamw", "SiLU activation with AdamW"),
+    ("silu_muon", "SiLU activation with Muon"),
+    ("rlb_adamw", "Global rational activation with AdamW"),
+    ("rlb_muon", "Global rational activation with Muon"),
+]
+TABLE_COMPARATORS = [("silu_adamw", "SiLU activation with AdamW"), ("rlb_adamw", "Global rational activation with AdamW"), ("rlb_muon", "Global rational activation with Muon")]
 
 
 def _box(ax, xy, width, height, text, fc, ec="#333333", fontsize=8.0, weight=None, lw=0.9):
@@ -253,7 +260,7 @@ def make_matrixpolicy_signal_flow(out_path: Path) -> None:
     _box(ax, (0.535, y), 0.180, h, "sequential matrix step", pale_lav, ec=purple, fontsize=7.0, weight="bold", lw=0.9)
     _box(ax, (0.552, y + 0.090), 0.066, 0.072, "AdamW\non $A,B$", "#ffffff", ec="#8b6bb0", fontsize=5.95, lw=0.7)
     _box(ax, (0.635, y + 0.090), 0.062, 0.072, "then\nMuon", "#ffffff", ec="#8b6bb0", fontsize=6.05, lw=0.7)
-    ax.text(0.625, y + 0.044, "$\\eta_t s^{Adam}_{l,r}(1-\\mu)$; $\\eta_t\\mu_{l,r,t}$", ha="center", fontsize=5.9, color=muted)
+    ax.text(0.625, y + 0.044, "$\\eta_t s^{Adam}_{l,\\sigma}(1-\\mu)$; $\\eta_t\\mu_{l,\\sigma,t}$", ha="center", fontsize=5.9, color=muted)
     ax.text(0.625, y + 0.017, "early window; separate states", ha="center", fontsize=5.9, color=muted)
     _arrow(ax, (0.618, y + 0.126), (0.635, y + 0.126), color=purple, lw=0.75, scale=6)
     circ = plt.Circle((0.553, y + h - 0.018), 0.017, facecolor=purple, edgecolor="none", zorder=4)
@@ -508,6 +515,36 @@ def make_e1_multimetric_examples(out_path: Path) -> None:
     plt.close(fig)
 
 
+def make_e1_representative_silu_dynamics(out_path: Path) -> None:
+    e1 = load_e1_curves()
+    panels = [("dclm", "DCLM"), ("fineweb_edu", "FineWeb-Edu")]
+    metrics = [("val_loss", "validation loss"), ("val_ppl", "validation perplexity"), ("train_loss", "training loss")]
+    fig, axes = plt.subplots(3, 2, figsize=(7.2, 4.95), sharex=True, constrained_layout=True)
+    for col, (dataset, dataset_label) in enumerate(panels):
+        for row, (metric, metric_label) in enumerate(metrics):
+            ax = axes[row, col]
+            for method in MAIN_SILU_METHODS:
+                label, color, linestyle, linewidth, marker = _style(method)
+                steps, means, stds = e1_curves.aggregate(e1, dataset, method, metric)
+                if steps.size == 0:
+                    continue
+                tokens = steps * TOKENS_PER_STEP / 1_000_000
+                ax.plot(tokens, means, color=color, linestyle=linestyle, linewidth=linewidth, label=label, marker=marker, markevery=max(1, len(tokens)//4), markersize=3.0)
+                ax.fill_between(tokens, means - stds, means + stds, color=color, alpha=0.035, linewidth=0)
+            if row == 0:
+                ax.set_title(dataset_label, fontsize=9.4)
+            if col == 0:
+                ax.set_ylabel(metric_label, fontsize=8.2)
+            if row == 2:
+                ax.set_xlabel("tokens (M)", fontsize=8.2)
+            _finish_axis(ax, labelsize=7.3)
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, fontsize=7.8)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.05)
+    plt.close(fig)
+
+
 def make_e2_metric_dynamics(out_path: Path, metric: str, metric_label: str) -> None:
     e2 = load_e2_curves()
     fig, axes_grid = plt.subplots(2, 3, figsize=(7.2, 4.15), sharex=True, constrained_layout=True)
@@ -595,6 +632,78 @@ def _summary_rows() -> list[dict[str, object]]:
     return rows
 
 
+def _target_arrival_rows() -> list[dict[str, object]]:
+    curves_by_regime = {"E1": load_e1_curves(), "E2": load_e2_curves()}
+    tps = _load_runtime_tps()
+    rows: list[dict[str, object]] = []
+    required_methods = ["rlb_matrixpolicy_original"] + [method for method, _label in MAIN_COMPARATORS]
+    for regime in ["E1", "E2"]:
+        curves = curves_by_regime[regime]
+        for dataset, label, e2_dir_name in DATASETS:
+            target = _select_hard_common_target(curves, regime, dataset, required_methods, e2_dir_name)
+            if target is None:
+                continue
+            mp_stats = _hit_token_stats(curves, dataset, "rlb_matrixpolicy_original", target)
+            mp_final = _final_eval_mean(curves, dataset, "rlb_matrixpolicy_original", "val_loss")
+            mp_tps = tps.get((regime, dataset, "rlb_matrixpolicy_original"))
+            if mp_stats is None or mp_final is None or mp_tps is None:
+                continue
+            mp_tokens, mp_token_std = mp_stats
+            comparators = []
+            complete = True
+            for method, method_label in MAIN_COMPARATORS:
+                comp_stats = _hit_token_stats(curves, dataset, method, target)
+                comp_final = _final_eval_mean(curves, dataset, method, "val_loss")
+                comp_tps = tps.get((regime, dataset, method))
+                if comp_stats is None or comp_final is None or comp_tps is None:
+                    complete = False
+                    break
+                comp_tokens, comp_token_std = comp_stats
+                saved_tokens = comp_tokens - mp_tokens
+                comparators.append({
+                    "method": method,
+                    "method_label": method_label,
+                    "tokens_m": comp_tokens / 1_000_000,
+                    "token_std_m": comp_token_std / 1_000_000,
+                    "time_min": comp_tokens / comp_tps / 60.0,
+                    "saved_tokens_m": saved_tokens / 1_000_000,
+                    "saved_fraction": saved_tokens / comp_tokens,
+                    "saved_minutes": (comp_tokens / comp_tps - mp_tokens / mp_tps) / 60.0,
+                    "endpoint_gap": comp_final[0] - mp_final[0],
+                })
+            if not complete:
+                continue
+            rows.append({
+                "regime": regime,
+                "dataset": dataset,
+                "dataset_label": label,
+                "target": target,
+                "mp_tokens_m": mp_tokens / 1_000_000,
+                "mp_token_std_m": mp_token_std / 1_000_000,
+                "mp_time_min": mp_tokens / mp_tps / 60.0,
+                "mp_final_val": mp_final[0],
+                "comparators": comparators,
+            })
+    return rows
+
+
+def _method_short_label(method: str) -> str:
+    return {
+        "silu_adamw": "SiLU\nAdamW",
+        "silu_muon": "SiLU\nMuon",
+        "rlb_adamw": "Global rational\nAdamW",
+        "rlb_muon": "Global rational\nMuon",
+    }[method]
+
+
+def _cell_tokens_time(tokens_m: float, minutes: float) -> str:
+    return f"{tokens_m:.1f} / {minutes:.1f}"
+
+
+def _cell_saved(saved_tokens_m: float, saved_fraction: float) -> str:
+    return f"{saved_tokens_m:.1f} ({100.0 * saved_fraction:.1f}\\%)"
+
+
 def make_combined_result_dotplot(out_path: Path) -> None:
     curves_by_regime = {"E1": load_e1_curves(), "E2": load_e2_curves()}
     methods = ["rlb_matrixpolicy_original", "silu_adamw", "silu_muon"]
@@ -642,50 +751,131 @@ def make_combined_result_dotplot(out_path: Path) -> None:
     plt.close(fig)
 
 
+def make_target_arrival_evidence_matrix(out_path: Path) -> None:
+    rows = _target_arrival_rows()
+    n_rows = len(rows)
+    comp_methods = [method for method, _label in MAIN_COMPARATORS]
+    y_positions = np.arange(n_rows - 1, -1, -1)
+    max_saved = max(comp["saved_tokens_m"] for row in rows for comp in row["comparators"])
+    max_time = max(comp["saved_minutes"] for row in rows for comp in row["comparators"])
+    max_gap = max(abs(comp["endpoint_gap"]) for row in rows for comp in row["comparators"])
+    fig = plt.figure(figsize=(7.2, 4.85), constrained_layout=True)
+    gs = fig.add_gridspec(1, 3, width_ratios=[1.70, 2.65, 1.85], wspace=0.06)
+    ax_info = fig.add_subplot(gs[0, 0])
+    ax_bubble = fig.add_subplot(gs[0, 1], sharey=ax_info)
+    ax_gap = fig.add_subplot(gs[0, 2], sharey=ax_info)
+
+    for ax in [ax_info, ax_bubble, ax_gap]:
+        ax.set_ylim(-0.92, n_rows - 0.25)
+        ax.set_yticks([])
+        ax.tick_params(left=False)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        for i, y in enumerate(y_positions):
+            if i % 2 == 0:
+                ax.axhspan(y - 0.50, y + 0.50, color="#f6f6f6", zorder=0)
+        ax.axhline(4.5, color="#bdbdbd", linewidth=0.8)
+
+    ax_info.set_xlim(0, 1)
+    ax_info.set_xticks([])
+    ax_info.text(0.00, n_rows - 0.08, "dataset", fontsize=7.5, weight="bold", va="bottom")
+    ax_info.text(0.52, n_rows - 0.08, "target\nvalidation loss", fontsize=6.6, weight="bold", ha="center", va="bottom")
+    ax_info.text(0.88, n_rows - 0.08, "MatrixPolicy\ntokens/time", fontsize=6.6, weight="bold", ha="center", va="bottom")
+    for i, (row, y) in enumerate(zip(rows, y_positions)):
+        dataset = str(row["dataset_label"])
+        regime = str(row["regime"])
+        ax_info.text(0.00, y, f"{regime} {dataset}", fontsize=7.1, va="center")
+        ax_info.text(0.52, y, f"{float(row['target']):.2f}", fontsize=7.1, ha="center", va="center")
+        ax_info.text(0.88, y, _cell_tokens_time(float(row["mp_tokens_m"]), float(row["mp_time_min"])), fontsize=7.1, ha="center", va="center")
+
+    ax_bubble.set_xlim(-0.55, len(comp_methods) - 0.45)
+    ax_bubble.set_xticks(np.arange(len(comp_methods)))
+    ax_bubble.set_xticklabels([_method_short_label(method) for method in comp_methods], fontsize=6.4)
+    ax_bubble.xaxis.tick_top()
+    ax_bubble.tick_params(axis="x", length=0, pad=2)
+    ax_bubble.set_title("target-arrival savings", fontsize=8.1, pad=24)
+    time_norm = Normalize(vmin=0, vmax=max_time)
+    cmap_time = plt.get_cmap("cividis")
+    scatter_for_colorbar = None
+    for i, (row, y) in enumerate(zip(rows, y_positions)):
+        for j, comp in enumerate(row["comparators"]):
+            saved = float(comp["saved_tokens_m"])
+            minutes = float(comp["saved_minutes"])
+            size = 34.0 + 7.2 * saved
+            scatter_for_colorbar = ax_bubble.scatter(j, y, s=size, color=cmap_time(time_norm(minutes)), edgecolor="#202020", linewidth=0.35, zorder=2)
+            txt_color = "white" if minutes > 0.60 * max_time else "#171717"
+            ax_bubble.text(j, y + 0.10, f"+{saved:.1f}M", ha="center", va="center", fontsize=5.65, color=txt_color, zorder=3)
+            ax_bubble.text(j, y - 0.13, f"{minutes:.1f} min", ha="center", va="center", fontsize=5.35, color=txt_color, zorder=3)
+    for x in np.arange(-0.5, len(comp_methods) + 0.5, 1.0):
+        ax_bubble.axvline(x, color="#e1e1e1", linewidth=0.45, zorder=1)
+    size_handles = [
+        ax_bubble.scatter([], [], s=34.0 + 7.2 * value, facecolor="white", edgecolor="#202020", linewidth=0.35)
+        for value in [10, 25, 50, 70]
+    ]
+    ax_bubble.legend(size_handles, ["10M", "25M", "50M", "70M"], title="tokens saved", loc="lower center", bbox_to_anchor=(0.50, 0.012), ncol=4, frameon=False, fontsize=5.7, title_fontsize=6.2, handletextpad=0.8, columnspacing=1.0)
+    if scatter_for_colorbar is not None:
+        sm = plt.cm.ScalarMappable(norm=time_norm, cmap=cmap_time)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=ax_bubble, fraction=0.046, pad=0.018)
+        cbar.ax.tick_params(labelsize=6.0, length=2)
+        cbar.set_label("time saved (minutes)", fontsize=6.4)
+
+    ax_gap.set_xlim(-0.55, len(comp_methods) - 0.45)
+    ax_gap.set_xticks(np.arange(len(comp_methods)))
+    ax_gap.set_xticklabels([_method_short_label(method) for method in comp_methods], fontsize=6.4)
+    ax_gap.xaxis.tick_top()
+    ax_gap.tick_params(axis="x", length=0, pad=2)
+    ax_gap.set_title("endpoint validation-loss gap", fontsize=8.1, pad=24)
+    gap_norm = TwoSlopeNorm(vmin=-max_gap, vcenter=0.0, vmax=max_gap)
+    cmap_gap = plt.get_cmap("RdBu")
+    for row, y in zip(rows, y_positions):
+        for j, comp in enumerate(row["comparators"]):
+            gap = float(comp["endpoint_gap"])
+            ax_gap.add_patch(Rectangle((j - 0.47, y - 0.42), 0.94, 0.84, facecolor=cmap_gap(gap_norm(gap)), edgecolor="white", linewidth=0.7))
+            ax_gap.text(j, y, f"{gap:+.3f}", ha="center", va="center", fontsize=5.85, color="#111111")
+    for x in np.arange(-0.5, len(comp_methods) + 0.5, 1.0):
+        ax_gap.axvline(x, color="#e1e1e1", linewidth=0.45, zorder=1)
+    ax_info.text(0.00, -0.78, "All arrivals are means over three seeds; tokens are millions and time is minutes.", fontsize=6.1, color="#555555")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.08)
+    plt.close(fig)
+
+
 def _fmt_signed(value: float, digits: int = 1) -> str:
     return f"{value:+.{digits}f}"
 
 
 def make_e1_e2_silu_summary_table(out_path: Path) -> None:
-    rows = _summary_rows()
-    by_key: dict[tuple[str, str], dict[str, object]] = {}
-    for row in rows:
-        key = (str(row["regime"]), str(row["dataset_label"]))
-        by_key.setdefault(key, {"target": row["target"], "mp_tokens_m": row["mp_tokens_m"], "values": {}})
-        by_key[key]["values"][row["method"]] = row
+    rows = _target_arrival_rows()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         r"\begin{table*}[t]",
         r"\centering",
-        r"\caption{E1/E2 all-dataset comparison of MatrixPolicy against the two SiLU baselines. For each dataset, regime, and comparator, the table reports token savings at the common validation-loss target, estimated wall-clock time savings from measured throughput, and the endpoint validation-loss gap, computed as comparator minus MatrixPolicy; positive values favor MatrixPolicy.}",
+        r"\caption{Target-arrival efficiency across the completed E1 and E2 datasets. For each dataset and target validation loss, the table reports the actual target-arrival tokens and wall-clock time for MatrixPolicy and each comparator. MatrixPolicy-at-target and comparator-at-target entries are ordered as tokens then time; all token entries are millions of tokens and all time entries are minutes. Tokens saved is comparator target tokens minus MatrixPolicy target tokens, with the proportion of comparator tokens saved in the final column.}",
         r"\label{tab:e1e2-silu-comparison}",
         r"\scriptsize",
-        r"\setlength{\tabcolsep}{2.3pt}",
-        r"\begin{tabular}{@{}llrrrrrrrr@{}}",
+        r"\setlength{\tabcolsep}{1.7pt}",
+        r"\begin{tabular}{@{}llrL{3.20cm}ccrr@{}}",
         r"\toprule",
-        r"Regime & Dataset & Target & MP tok & \multicolumn{3}{c}{vs SiLU+AdamW} & \multicolumn{3}{c}{vs SiLU+Muon} \\",
-        r"\cmidrule(lr){5-7}\cmidrule(l){8-10}",
-        r" & & val. loss & (M) & $\Delta$tok & $\Delta$t & $\Delta$val & $\Delta$tok & $\Delta$t & $\Delta$val \\",
+        r"Regime & Dataset & \shortstack{Target validation\\loss} & Comparator & \shortstack{MatrixPolicy at target\\tokens and time} & \shortstack{Comparator at target\\tokens and time} & \shortstack{Tokens\\saved} & \shortstack{Proportion\\saved} \\",
         r"\midrule",
     ]
-    for regime in ["E1", "E2"]:
-        for _dataset, label, _e2 in DATASETS:
-            key = (regime, label)
-            if key not in by_key:
-                continue
-            item = by_key[key]
-            vals = item["values"]
-            adam = vals.get("silu_adamw")
-            muon = vals.get("silu_muon")
-            if adam is None or muon is None:
-                continue
+    for row_idx, row in enumerate(rows):
+        for comp_idx, comp in enumerate(row["comparators"]):
             lines.append(
-                f"{regime} & {label} & {float(item['target']):.2f} & {float(item['mp_tokens_m']):.1f} & "
-                f"{_fmt_signed(float(adam['saved_tokens_m']))} & {_fmt_signed(float(adam['saved_minutes']))} & {_fmt_signed(float(adam['endpoint_gap']), 3)} & "
-                f"{_fmt_signed(float(muon['saved_tokens_m']))} & {_fmt_signed(float(muon['saved_minutes']))} & {_fmt_signed(float(muon['endpoint_gap']), 3)} \\\\")
+                f"{row['regime']} & {row['dataset_label']} & {float(row['target']):.2f} & "
+                f"{comp['method_label']} & "
+                f"({float(row['mp_tokens_m']):.1f}, {float(row['mp_time_min']):.1f}) & "
+                f"({float(comp['tokens_m']):.1f}, {float(comp['time_min']):.1f}) & "
+                f"{float(comp['saved_tokens_m']):.1f} & {100.0 * float(comp['saved_fraction']):.1f}\\% "
+                + r"\\")
+        if row_idx in {4}:
+            lines.append(r"\midrule")
+        elif row_idx != len(rows) - 1:
+            lines.append(r"\addlinespace[1pt]")
     lines.extend([
         r"\bottomrule",
-        r"\multicolumn{10}{@{}p{0.98\textwidth}@{}}{\footnotesize $\Delta$tok is in millions of tokens and $\Delta$t is in minutes. Token arrivals are evaluated every 50 steps, so target times are quantized by 1.64M tokens; time estimates use measured per-dataset/method throughput. Broader RLB optimizer controls are reported in Appendix~\ref{app:experiment-protocol}.}",
+        r"\multicolumn{8}{@{}p{0.98\textwidth}@{}}{\footnotesize Targets are the hardest pre-specified validation-loss levels reached by MatrixPolicy and every listed comparator in all three seeds. Target arrivals use the native 50-step evaluation cadence, equal to 1.64 million tokens per readout. Wall-clock times use cleaned per-dataset/method throughput summaries from completed runs.}",
         r"\end{tabular}",
         r"\end{table*}",
     ])
@@ -709,49 +899,61 @@ def make_e1_target_time_table(out_path: Path) -> None:
         if mp_stats is None or mp_tps is None:
             continue
         mp_tokens, mp_std = mp_stats
-        cells = []
-        for method, _method_label in TABLE_COMPARATORS:
+        for method, method_label in TABLE_COMPARATORS:
             comp_stats = _hit_token_stats(curves, dataset, method, target)
             comp_tps = tps.get(("E1", dataset, method))
             if comp_stats is None or comp_tps is None:
-                cells.extend(["--", "--"])
                 continue
             comp_tokens, _comp_std = comp_stats
             saved_tokens = comp_tokens - mp_tokens
             saved_minutes = (comp_tokens / comp_tps - mp_tokens / mp_tps) / 60.0
             saved_fraction = saved_tokens / comp_tokens
-            cells.extend([_fmt_token_fraction(saved_tokens / 1_000_000, saved_fraction), f"{saved_minutes:.1f}"])
-        rows.append((label, target, mp_tokens / 1_000_000, mp_std / 1_000_000, cells))
+            rows.append((
+                label,
+                target,
+                mp_tokens / 1_000_000,
+                mp_std / 1_000_000,
+                method_label,
+                saved_tokens / 1_000_000,
+                saved_fraction,
+                saved_minutes,
+            ))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         r"\begin{table*}[t]",
         r"\centering",
-        r"\caption{E1 target-arrival savings for activation/optimizer controls. Token columns report saved tokens in millions with the percentage of comparator tokens in parentheses; time columns report estimated saved minutes.}",
+        r"\caption{E1 target-arrival savings for activation and optimizer controls. Each row compares MatrixPolicy with one activation/optimizer control at the hardest common validation-loss target reached by all listed methods on that dataset.}",
         r"\label{tab:e1-target-time}",
         r"\scriptsize",
-        r"\setlength{\tabcolsep}{2.6pt}",
-        r"\begin{tabular}{@{}lccrrrrrr@{}}",
+        r"\setlength{\tabcolsep}{2.0pt}",
+        r"\begin{tabular}{@{}llcL{3.55cm}rrr@{}}",
         r"\toprule",
-        r"Dataset & Target & MP tokens & \multicolumn{2}{c}{vs SiLU+AdamW} & \multicolumn{2}{c}{vs RLB+AdamW} & \multicolumn{2}{c}{vs RLB+Muon} \\",
-        r"\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(l){8-9}",
-        r" &  & mean$\pm$sd (M) & $\Delta$tok (M,\%) & $\Delta$t (min) & $\Delta$tok (M,\%) & $\Delta$t (min) & $\Delta$tok (M,\%) & $\Delta$t (min) \\",
+        r"Dataset & \shortstack{Target validation\\loss} & \shortstack{MatrixPolicy target tokens\\mean and standard deviation} & Comparator & \shortstack{Tokens\\saved} & \shortstack{Proportion\\saved} & \shortstack{Time saved\\(minutes)} \\",
         r"\midrule",
     ]
-    for label, target, mp_tokens_m, mp_std_m, cells in rows:
-        lines.append(f"{label} & {target:.2f} & {mp_tokens_m:.1f}$\\pm${mp_std_m:.1f} & {cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} & {cells[4]} & {cells[5]} \\\\")
+    previous_label = None
+    for label, target, mp_tokens_m, mp_std_m, method_label, saved_tokens_m, saved_fraction, saved_minutes in rows:
+        if previous_label is not None and label != previous_label:
+            lines.append(r"\addlinespace[1pt]")
+        lines.append(
+            f"{label} & {target:.2f} & {mp_tokens_m:.1f}$\\pm${mp_std_m:.1f} & "
+            f"{method_label} & {saved_tokens_m:.1f} & {100.0 * saved_fraction:.1f}\\% & {saved_minutes:.1f} \\\\"
+        )
+        previous_label = label
     lines.extend([
         r"\bottomrule",
-        r"\multicolumn{9}{@{}p{0.98\textwidth}@{}}{\footnotesize Tokens-to-target are read at the native 50-step evaluation cadence from the completed E1 JSONL logs. Time estimates use cleaned per-dataset/method training-throughput summaries.}",
+        r"\multicolumn{7}{@{}p{0.98\textwidth}@{}}{\footnotesize Target arrivals are read at the native 50-step evaluation cadence from the completed E1 JSONL logs. Time estimates use cleaned per-dataset/method training-throughput summaries. Token entries are millions of tokens.}",
         r"\end{tabular}",
         r"\end{table*}",
     ])
     out_path.write_text("\n".join(lines) + "\n")
 
-
 def main() -> int:
     outputs = [
         OUT_DIR / "e1_multimetric_all_datasets.pdf",
+        OUT_DIR / "target_arrival_evidence_matrix.pdf",
+        OUT_DIR / "e1_representative_silu_dynamics.pdf",
         OUT_DIR / "combined_result_dotplot.pdf",
         OUT_DIR / "e1_validation_all_datasets.pdf",
         OUT_DIR / "e1_target_frontiers.pdf",
@@ -763,15 +965,17 @@ def main() -> int:
         TABLE_DIR / "e1_target_time_table.tex",
     ]
     make_e1_multimetric_all_datasets(outputs[0])
-    make_combined_result_dotplot(outputs[1])
-    make_e1_validation_all_datasets(outputs[2])
-    make_e1_target_frontiers(outputs[3])
-    make_e1_multimetric_examples(outputs[4])
-    make_e2_metric_dynamics(outputs[5], "val_loss", "validation loss")
-    make_e2_metric_dynamics(outputs[6], "val_ppl", "validation perplexity")
-    make_e2_metric_dynamics(outputs[7], "train_loss", "training loss")
-    make_e1_e2_silu_summary_table(outputs[8])
-    make_e1_target_time_table(outputs[9])
+    make_target_arrival_evidence_matrix(outputs[1])
+    make_e1_representative_silu_dynamics(outputs[2])
+    make_combined_result_dotplot(outputs[3])
+    make_e1_validation_all_datasets(outputs[4])
+    make_e1_target_frontiers(outputs[5])
+    make_e1_multimetric_examples(outputs[6])
+    make_e2_metric_dynamics(outputs[7], "val_loss", "validation loss")
+    make_e2_metric_dynamics(outputs[8], "val_ppl", "validation perplexity")
+    make_e2_metric_dynamics(outputs[9], "train_loss", "training loss")
+    make_e1_e2_silu_summary_table(outputs[10])
+    make_e1_target_time_table(outputs[11])
     for path in outputs:
         print(path)
     return 0
