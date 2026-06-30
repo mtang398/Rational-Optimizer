@@ -1,5 +1,6 @@
 # Local environments
 .venv*/
+.conda-*/
 venv/
 env/
 
