@@ -660,11 +660,11 @@ def _target_line_style(method: str) -> tuple[str, object, float, float]:
     return TARGET_OPTIMIZER_COLORS.get(optimizer, "#777777"), linestyle, linewidth, alpha
 
 
-def _fmt_mean_std(stats: tuple[float, float] | None) -> str:
+def _fmt_mean_std(stats: tuple[float, float] | None, digits: int = 4) -> str:
     if stats is None:
         return "--"
     mean, std = stats
-    return f"{mean:.4f}$\\pm${std:.4f}"
+    return f"{mean:.{digits}f}$\\pm${std:.{digits}f}"
 
 
 def make_e1_representative_silu_dynamics(out_path: Path) -> None:
@@ -887,18 +887,18 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
     }
     label_offsets = {
         "E1": {
-            "dclm": (-28.0, 12.0),
-            "fineweb_edu": (10.0, 13.0),
-            "fineweb": (12.0, 9.0),
-            "dolma_sample": (-22.0, -14.0),
-            "c4_en": (12.0, 16.0),
+            "dclm": (-30.0, 15.0),
+            "fineweb_edu": (10.0, 16.0),
+            "fineweb": (16.0, 10.0),
+            "dolma_sample": (-26.0, -16.0),
+            "c4_en": (18.0, 18.0),
         },
         "E2": {
-            "dclm": (-34.0, 16.0),
-            "fineweb_edu": (12.0, 16.0),
-            "fineweb": (15.0, 8.0),
-            "dolma_sample": (-32.0, -15.0),
-            "c4_en": (14.0, 19.0),
+            "dclm": (-38.0, 18.0),
+            "fineweb_edu": (11.0, 17.0),
+            "fineweb": (18.0, 9.0),
+            "dolma_sample": (-36.0, -17.0),
+            "c4_en": (18.0, 21.0),
         },
     }
 
@@ -982,14 +982,15 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 (x, y),
                 xytext=(dx, dy),
                 textcoords="offset points",
-                fontsize=6.1,
+                fontsize=6.25,
                 color="#202020",
                 ha="left" if dx >= 0 else "right",
                 va="center",
-                arrowprops={"arrowstyle": "-", "color": "#777777", "linewidth": 0.36, "shrinkA": 0.0, "shrinkB": 3.0},
+                bbox={"boxstyle": "round,pad=0.10", "facecolor": "white", "edgecolor": "none", "alpha": 0.82},
+                arrowprops={"arrowstyle": "-", "color": "#777777", "linewidth": 0.40, "shrinkA": 1.0, "shrinkB": 3.4},
                 zorder=9,
             )
-            text.set_path_effects([path_effects.withStroke(linewidth=1.8, foreground="white")])
+            text.set_path_effects([path_effects.withStroke(linewidth=1.2, foreground="white")])
         ax.set_title(BUDGET_LABELS[regime], fontsize=8.3, pad=5, weight="bold")
         ax.set_xlabel("tokens to validation-loss target (M)", fontsize=7.6)
         ax.grid(True, color="#d7d7d7", linewidth=0.45, alpha=0.72)
@@ -1132,7 +1133,7 @@ def _fmt_token_fraction(saved_tokens_m: float, saved_fraction: float) -> str:
 
 
 def _final_cell(curves, dataset: str, method: str) -> str:
-    return _fmt_mean_std(_final_eval_mean(curves, dataset, method, "val_loss"))
+    return _fmt_mean_std(_final_eval_mean(curves, dataset, method, "val_loss"), digits=3)
 
 
 def make_broad_final_validation_table(out_path: Path) -> None:
@@ -1145,10 +1146,9 @@ def make_broad_final_validation_table(out_path: Path) -> None:
         r"\label{tab:broad-final-validation}",
         r"\begingroup",
         r"\scriptsize",
-        r"\setlength{\tabcolsep}{2.3pt}",
+        r"\setlength{\tabcolsep}{2.6pt}",
         r"\renewcommand{\arraystretch}{0.95}",
-        r"\resizebox{\textwidth}{!}{%",
-        r"\begin{tabular}{@{}llccccc@{}}",
+        r"\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}llccccc@{}}",
         r"\toprule",
         r"Budget & Method & DCLM & FineWeb-Edu & FineWeb & Dolma & C4 \\",
         r"\midrule",
@@ -1164,8 +1164,7 @@ def make_broad_final_validation_table(out_path: Path) -> None:
             lines.append(f"{budget_cell} & {label} & " + " & ".join(cells) + r" \\")
     lines.extend([
         r"\bottomrule",
-        r"\end{tabular}%",
-        r"}",
+        r"\end{tabular*}",
         r"\endgroup",
         r"\end{table}",
     ])

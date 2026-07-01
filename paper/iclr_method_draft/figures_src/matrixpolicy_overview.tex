@@ -47,7 +47,7 @@
   summaryPanel/.style={rectangle, rounded corners=5pt, draw=mpLine!72,
     fill=mpSlateFill, line width=0.78pt},
   chip/.style={rectangle, rounded corners=3pt, fill=white, line width=0.76pt,
-    minimum width=2.02cm, minimum height=0.66cm, align=center, inner sep=2pt},
+    minimum width=2.12cm, minimum height=0.68cm, align=center, inner sep=2.2pt},
   policy/.style={rectangle, rounded corners=5pt, draw=mpPurple,
     fill=mpPurpleFill, line width=1.12pt, minimum width=2.56cm,
     minimum height=0.76cm, align=center, inner sep=5pt,
@@ -125,26 +125,29 @@
   \node[small, fill=white] at (11.75,5.39) {$h_l$};
 
   % Detachment summary bus.
-  \node[summaryPanel, minimum width=9.95cm, minimum height=1.24cm]
-    (summary) at (8.02,3.14) {};
+  \node[summaryPanel, minimum width=10.35cm, minimum height=1.14cm]
+    (summary) at (8.02,3.06) {};
 
-  \summarychip{pressure}{4.24}{3.05}{pressure}{mpBlue}
-  \node[font=\scriptsize, text=mpBlue] at (4.24,2.88) {$p^{\rm in},p^{\rm out}$};
-  \summarychip{gain}{6.76}{3.05}{response}{mpGreen}
-  \node[font=\scriptsize, text=mpGreen] at (6.76,2.88) {$\hat d,\hat o$};
-  \summarychip{state}{9.28}{3.05}{rational state}{mpAmber}
-  \node[font=\scriptsize, text=mpAmber] at (9.28,2.88) {$q^R,\alpha,\Theta^R$};
-  \summarychip{balance}{11.80}{3.05}{balance}{mpPurple}
-  \node[font=\scriptsize, text=mpPurple] at (11.80,2.88) {$\gamma,\tau$};
+  \node[font=\scriptsize\bfseries, text=mpMuted, fill=white,
+    inner xsep=2.6pt, inner ysep=0.8pt, anchor=south west]
+    at ([xshift=0.14cm,yshift=0.02cm]summary.north west)
+    {detached summaries};
 
-  \draw[read] (2.02,4.60) .. controls (2.08,4.10) and (3.44,3.82)
-    .. (pressure.north);
+  \summarychip{pressure}{4.16}{2.98}{pressure}{mpBlue}
+  \node[font=\scriptsize, text=mpBlue] at (4.16,2.80) {$p^{\rm in},p^{\rm out}$};
+  \summarychip{gain}{6.74}{2.98}{response}{mpGreen}
+  \node[font=\scriptsize, text=mpGreen] at (6.74,2.80) {$\hat d,\hat o$};
+  \summarychip{state}{9.30}{2.98}{rational state}{mpAmber}
+  \node[font=\scriptsize, text=mpAmber] at (9.30,2.80) {$q^R,\alpha,\Theta^R$};
+  \summarychip{balance}{11.88}{2.98}{balance}{mpPurple}
+  \node[font=\scriptsize, text=mpPurple] at (11.88,2.80) {$\gamma,\tau$};
+
+  \draw[read] (2.56,4.62)
+    .. controls (2.70,4.08) and (2.86,3.08) .. (pressure.west);
   \draw[read] (7.28,4.42) -- ++(0,-0.34) -| (gain.north);
   \draw[read] (8.88,4.42) -- ++(0,-0.34) -| (state.north);
-  \draw[read] (14.02,4.60) .. controls (13.96,4.10) and (12.62,3.82)
-    .. (balance.north);
-  \node[font=\scriptsize\bfseries, text=mpMuted, fill=mpSlateFill, inner sep=1pt,
-    anchor=west] at (3.38,3.60) {detached summaries};
+  \draw[read] (13.48,4.62)
+    .. controls (13.34,4.08) and (13.12,3.08) .. (balance.east);
 
   % Foreground membrane: the white underlay makes the stop-gradient boundary
   % remain legible where detached read arrows cross it.

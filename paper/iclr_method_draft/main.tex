@@ -275,27 +275,26 @@ MatrixPolicy uses the same direction as a bounded balance coordinate.
 \label{sec:method-update}
 
 MatrixPolicy acts only on the RLB matrix pair $(A_l,B_l)$.  In the evaluated
-optimizer, all policy inputs are detached summaries.  During the forward pass,
-the RLB activation hook forms normalized coordinates and stores detached
-per-group response and derivative RMS summaries.  After backpropagation, the
-wrapper reads the current gradients on $A_l$, $B_l$, and the rational
-coefficients, updates per-group EMA memories, and shares those memories with the
-matrix optimizer.  The summaries are then consumed in implementation order.
-Before the optimizer step, MatrixPolicy rescales each group gradient by a
-role-specific multiplier $c_{l,g,\sigma}$, so the input matrix and output matrix
-can respond differently to derivative gain, response gain, pressure imbalance,
-and coefficient activity.  During the matrix step, it applies a
-role/depth-scaled AdamW update and an early-training Muon substep to the same
-scaled gradient.  After the child optimizers step, the wrapper applies a clipped
-reciprocal rescaling of $(A_{l,g},B_{l,g})$ every five optimizer steps to move the
-matrix-pair RMS ratio toward a gain- and pressure-dependent target.  The
-detached summaries therefore never change the forward computation directly; they
-control gradient scaling, matrix-step learning rates, Muon activation, and the
-post-step representative of the same RLB matrix pair.
+optimizer, all policy inputs are detached summaries.  Its contract has three
+operations: group-gradient gating, a role/depth AdamW branch with an early Muon
+matrix substep, and scheduled reciprocal rescaling of the same positive matrix
+pair.  The forward hook stores cached per-group response and derivative RMS
+summaries from sampled normalized coordinates.  After backpropagation and global
+gradient clipping, the wrapper reads the optimizer-visible, pre-group-policy
+gradients on
+$A_l$, $B_l$, and the rational coefficients, updates detached EMA memories, and
+shares those memories with the matrix optimizer.  The rational coefficients are
+observed for policy signals but are not MatrixPolicy update targets; in the
+evaluated runs they remain in the AdamW no-decay parameter group.  The resulting
+summaries never change the forward computation directly.  They scale matrix
+gradients, modulate matrix-step learning rates and Muon activation, and choose a
+bounded representative of the same RLB matrix pair after the matrix step.
 
-The quantities below follow this order.  Gradient-derived statistics are
-computed before parameter updates, while the pair-rescaling ratio is measured
-after the AdamW/Muon matrix branch.
+The quantities below follow the implementation order.  Gradient-derived
+statistics are computed before parameter updates, while the pair-rescaling ratio
+is measured after the AdamW/Muon matrix branch.  For notational convenience set
+$M_{l,\mathrm{in}}=A_l$ and $M_{l,\mathrm{out}}=B_l$; the roles
+$\sigma\in\{\mathrm{in},\mathrm{out}\}$ refer to these two matrices.
 For any tensor $V$, define
 \begin{align}
     \rms(V)=\sqrt{\operatorname{mean}(V^2)},
@@ -303,34 +302,32 @@ For any tensor $V$, define
     \rms_{\epsilon}(V)=\sqrt{\operatorname{mean}(V^2)+\epsilon}.
     \label{eq:rms-definition}
 \end{align}
-The constants $\epsilon_p>0$, $\epsilon_{\rm live}>0$, and
-$\epsilon_{\rm probe}>0$ denote fixed additive floors in squared-RMS units.  The
-same $\epsilon_p$ is reused as the implementation floor for matrix-ratio logs in
-\eqref{eq:current-ratio}; $\epsilon_{\rm live}$ belongs to cached batch
-activation gains, and $\epsilon_{\rm probe}$ belongs to fixed-grid wrapper
-probes.  The resulting pressure and activity scores are bounded update-control
-signals.  Let
-$A_{l,g}\in\mathbb{R}^{m\times d}$ be the row block of $A_l$, and let
-$B_{l,g}\in\mathbb{R}^{d\times m}$ be the column block of $B_l$.  The
-coefficient set $\Theta^R_{l,g}$ collects the trainable rational-response
-coefficient blocks present in group $(l,g)$; in the evaluated groupwise P5/Q4
-response this is the numerator and denominator coefficient pair.  The
-instantaneous detached measurements are the input-matrix relative gradient
-$p^{\rm in}$, the output-matrix relative gradient $p^{\rm out}$, and the raw
-rational-coefficient gradient activity $p^R$:
+The evaluated implementation uses $\epsilon_{\rm live}=10^{-6}$ for cached
+forward gains and $\epsilon_p=\epsilon_{\rm probe}=10^{-8}$ for pressure,
+matrix-ratio, and fixed-grid probe floors.  The floors make the measurements
+positive and numerically stable for finite tensors; MatrixPolicy obtains bounded
+update controls through the clipping operations below.  Let $\Theta^R_{l,g}$ collect the
+trainable rational-response coefficient blocks present in group $(l,g)$; for
+the evaluated groupwise P5/Q4 response these are the numerator and denominator
+coefficient tensors.  The count $|\Theta^R_{l,g}|$ below is a block count, and
+each $\operatorname{mean}$ is over scalar entries in one coefficient block.
+With optimizer-visible gradients, the instantaneous detached measurements are
+the input-matrix relative gradient $p^{\rm in}$, the output-matrix relative
+gradient $p^{\rm out}$, and the raw rational-coefficient gradient activity
+$p^R$:
 \begin{align}
     p^{\rm in}_{l,g}
-    =
+    &=
     \frac{\rms_{\epsilon_p}(\nabla A_{l,g})}
     {\rms_{\epsilon_p}(A_{l,g})},
-    \qquad
+    &
     p^{\rm out}_{l,g}
-    =
+    &=
     \frac{\rms_{\epsilon_p}(\nabla B_{l,g})}
     {\rms_{\epsilon_p}(B_{l,g})},
     \label{eq:matrix-pressure}\\
     p^{R}_{l,g}
-    =
+    &=
     \left[
     \frac{1}{|\Theta^R_{l,g}|}
     \sum_{\theta\in\Theta^R_{l,g}}
@@ -354,7 +351,7 @@ $q^{\rm in}$, $q^{\rm out}$, and $q^R$,
     r\in\{\mathrm{in},\mathrm{out},R\},
     \label{eq:pressure-ema}
 \end{align}
-initialized from the first observed post-backpropagation values.  The symbol
+initialized from the first observed post-global-clipping values.  The symbol
 $q$ therefore denotes the policy memory of a detached measurement, not a
 rational denominator.  The two contrasts used by later rules are
 \begin{align}
@@ -370,17 +367,20 @@ rational denominator.  The two contrasts used by later rules are
 \end{align}
 Each matrix pressure is an unsigned floored relative RMS-gradient proxy, so
 $\pi_{l,g}$ is signed only because it compares the input and output proxy
-memories.  MatrixPolicy uses $\pi_{l,g}$ as a bounded pressure signal for
-redistribution, Muon attenuation, and pair balancing.  The score
+memories.  MatrixPolicy uses clipped transforms of $\pi_{l,g}$ as pressure
+controls for redistribution, Muon attenuation, and pair balancing.  The score
 $\alpha_{l,g}$ compares rational-coefficient activity with the geometric mean of
-the adjacent matrix-pressure memories; it is a bounded implementation contrast
-used for damping and rescale speed, not a scale-invariant physical ratio.  The
-step subscript is dropped below when the time is clear.
+the adjacent matrix-pressure memories; its clipped or ReLU-transformed versions
+are used for damping and rescale speed.  It is an implementation contrast, not a
+scale-invariant physical ratio.
+Appendix~\ref{app:matrixpolicy-proxies} gives the local gradient geometry behind
+these proxy choices.  The step subscript is dropped below when the time is clear.
 
-The activation also provides batch-estimated curve gains.  The RLB forward
-statistics hook subsamples activation inputs, forms normalized coordinates, and
-stores per-group response and derivative RMS summaries.  MatrixPolicy reads the
-floored summaries
+The activation also provides cached sampled curve gains.  The RLB forward
+statistics hook periodically subsamples activation inputs, forms normalized
+coordinates, and stores per-group response and derivative RMS summaries.  These
+are cached forward summaries rather than differentiable live inputs to the
+optimizer.  MatrixPolicy reads the floored summaries
 \begin{align}
     \hat d^{\rm live}_{l,g}
     =
@@ -392,7 +392,8 @@ floored summaries
     \label{eq:live-gains}
 \end{align}
 The mean is over sampled scalar normalized coordinates for group $(l,g)$ across
-batch, sequence positions, and the $m$ group coordinates.  The derivative gain is
+the most recent refreshed forward-statistics sample, sequence positions, and the
+$m$ group coordinates.  The derivative gain is
 the input-role proxy; the response gain is the recombination-role proxy.  The
 latter excludes the group radius $\rho_{l,g}(x_l)$, so neither gain is a full
 feature scale or block-Jacobian preconditioner.
@@ -402,10 +403,10 @@ $(\hat d^{\rm live},\hat o^{\rm live})$ enter only the gain term of the
 group-gradient multiplier.  The pressure memory contrast $\pi_{l,g}$ enters
 role-opposed group gates, the Muon attenuation term, and the pair-balance target.
 The coefficient-activity contrast $\alpha_{l,g}$ damps group gates and the Muon
-branch when the rational response itself is moving strongly, while the wrapper
-uses it as a bounded rescale-speed factor.  Finally, the post-branch matrix
-log-ratio $\gamma_{l,g}$ and target $\tau_{l,g}$ are used only by the wrapper's
-reciprocal pair rescale.
+branch when coefficient gradients are large relative to adjacent matrix-pressure
+memories, while the wrapper uses it as a bounded rescale-speed factor.  Finally,
+the post-branch matrix log-ratio $\gamma_{l,g}$ and target $\tau_{l,g}$, defined
+below, are used only by the wrapper's reciprocal pair rescale.
 
 \begin{figure}[H]
 \centering
@@ -418,39 +419,40 @@ Transformer parameters remain AdamW-only.}
 \label{fig:matrixpolicy-signal-flow}
 \end{figure}
 
-Let $t$ be the optimizer step, $T$ the planned number of training steps, and
-$\xi_t=t/T$.  A smooth gate $\phi_t=\smooth(0.02,0.30,\xi_t)$
+Let $t$ be the one-based internal optimizer step after the wrapper increments
+its counter, $T$ the planned number of training steps, and $\xi_t=t/T$.  A
+smooth gate $\phi_t=\smooth(0.02,0.30,\xi_t)$
 turns on the group-gradient policy.  The evaluated configuration enables this
 optional policy with gain, pressure, and activity strengths
 $0.20$, $0.10$, and $0.20$, and clips group multipliers to $[0.75,1.35]$.
 For positive group values $v_j$, define
 $\geom_{j=1}^{G}(v_j)=\exp\!\left(G^{-1}\sum_{j=1}^{G}\log v_j\right)$.
-For group $g$ and role $\sigma\in\{\mathrm{in},\mathrm{out}\}$, the multiplier is
+For group $g$ and role $\sigma$, the multiplier is grouped as
 \begin{align}
     c_{l,g,\sigma}
-    =
+    &=
     c^{\rm gain}_{l,g,\sigma}
     c^{\rm pressure}_{l,g,\sigma}
-    c^{\rm activity}_{l,g}.
+    c^{\rm activity}_{l,g},
     \label{eq:group-multiplier}\\
     c^{\rm gain}_{l,g,\mathrm{in}}
-    =
+    &=
     \left(\frac{\geom_{j=1}^{G} \hat d^{\rm live}_{l,j}}{\hat d^{\rm live}_{l,g}}\right)^{0.20\phi_t},
-    \qquad
+    &
     c^{\rm gain}_{l,g,\mathrm{out}}
-    =
+    &=
     \left(\frac{\geom_{j=1}^{G} \hat o^{\rm live}_{l,j}}{\hat o^{\rm live}_{l,g}}\right)^{0.20\phi_t}.
     \label{eq:gain-policy}\\
     c^{\rm pressure}_{l,g,\mathrm{in}}
-    =
+    &=
     \exp(-0.10\phi_t\tilde{\pi}_{l,g}),
-    \qquad
+    &
     c^{\rm pressure}_{l,g,\mathrm{out}}
-    =
+    &=
     \exp(+0.10\phi_t\tilde{\pi}_{l,g}).
     \label{eq:pressure-policy}\\
     c^{\rm activity}_{l,g}
-    =
+    &=
     \exp\left[
     -0.20\phi_t
     \relu\left(\frac{\alpha_{l,g}-0.05}{0.45}\right)
@@ -460,9 +462,11 @@ For group $g$ and role $\sigma\in\{\mathrm{in},\mathrm{out}\}$, the multiplier i
 where $\tilde{\pi}_{l,g}=\clip(\pi_{l,g},-1.50,1.50)$.  Thus live derivative
 gain controls the input role, live response gain controls the output role,
 relative-gradient pressure acts with opposite signs on the two roles, and
-coefficient activity downweights groups whose rational curve is moving more
-strongly than the adjacent matrices.  The final multiplier is recentered and
-clipped,
+coefficient activity downweights groups whose coefficient-gradient activity is
+large relative to the adjacent matrix proxies.  A positive $\pi_{l,g}$ means the
+input-side relative-gradient EMA is larger than the output-side EMA; the gate
+therefore reduces input-role step scale and increases output-role step scale.
+The final multiplier is recentered and clipped,
 \begin{align}
     c_{l,g,\sigma}\leftarrow
     \frac{c_{l,g,\sigma}}{\geom_{j=1}^{G} c_{l,j,\sigma}},
@@ -543,9 +547,9 @@ it is not a convex mixing coefficient for a single update direction:
     \operatorname{Muon}_{\eta_t\mu_{l,\sigma,t}}
     (\widetilde M_{l,\sigma}^{\,t+1};\widetilde\nabla M_{l,\sigma}^{t}),
 \end{gathered}
-    \label{eq:matrix-branch-step}
+   \label{eq:matrix-branch-step}
 \end{equation}
-Equation~\eqref{eq:matrix-branch-step} is operational: AdamW and Muon keep
+The matrix branch in \eqref{eq:matrix-branch-step} is operational: AdamW and Muon keep
 separate states, use their configured decay and momentum terms, and both consume
 the step-$t$ gradient.  Here $\operatorname{Muon}$ is the
 \texttt{torch.optim.Muon} update on two-dimensional RLB matrices with momentum
@@ -554,26 +558,34 @@ $0.95$, five Newton--Schulz steps, and match-RMS learning-rate adjustment
 
 The surrounding on-policy wrapper's last MatrixPolicy-specific operation is a
 bounded positive rescaling of the two matrix blocks around each rational curve.
-It is evaluated after the AdamW/Muon matrix branch every five optimizer steps.
+It is evaluated after the AdamW/Muon matrix branch every five optimizer steps;
+fixed-grid probe gains are refreshed every ten optimizer steps and reused
+between refreshes.
 Let $\mathcal{U}=\{u_k\}_{k=1}^{129}$ be a uniform probe grid over $[-5,5]$, and
 define
 $\rms_{\mathcal{U}}(\varphi)=\sqrt{|\mathcal{U}|^{-1}\sum_{u_k\in\mathcal{U}}\varphi(u_k)^2}$.
 Fixed-grid probe gains describe curve shape for pair balancing; live gains in
-\eqref{eq:live-gains} describe the current batch distribution for
-group-gradient redistribution.  The wrapper computes
+\eqref{eq:live-gains} describe the latest cached sampled forward distributions
+for group-gradient redistribution.  The first term of the target below equalizes
+derivative and response probe gains in the positive log coordinate derived in
+Appendix~\ref{app:matrixpolicy-rescale}; the pressure term lets recent
+role-imbalance shift that target within a bounded range.  The wrapper computes
 \begin{align}
     \hat d^{\rm probe}_{l,g}
-    =
-    \sqrt{|\mathcal U|^{-1}\sum_{u_k\in\mathcal U}R'_{l,g}(u_k)^2+\epsilon_{\rm probe}},
-    \qquad
+    &=
+    \sqrt{\rms_{\mathcal U}(R'_{l,g})^2+\epsilon_{\rm probe}},
+    \notag\\
     \hat o^{\rm probe}_{l,g}
-    =
-    \sqrt{|\mathcal U|^{-1}\sum_{u_k\in\mathcal U}R_{l,g}(u_k)^2+\epsilon_{\rm probe}},
+    &=
+    \sqrt{\rms_{\mathcal U}(R_{l,g})^2+\epsilon_{\rm probe}},
     \label{eq:probe-gains}\\
-    \gamma_{l,g}=\log\rms_{\epsilon_p}(A_{l,g})-\log\rms_{\epsilon_p}(B_{l,g}).
+    \gamma_{l,g}
+    &=
+    \log\rms_{\epsilon_p}(A_{l,g})
+    -\log\rms_{\epsilon_p}(B_{l,g}),
     \label{eq:current-ratio}\\
     \tau_{l,g}
-    =
+    &=
     \frac{1}{2}
     \left(
     \log \hat d^{\rm probe}_{l,g}
@@ -581,39 +593,52 @@ group-gradient redistribution.  The wrapper computes
     \log \hat o^{\rm probe}_{l,g}
     \right)
     +0.25\,\bar{\pi}_{l,g},
-    \qquad
-    \bar{\pi}_{l,g}=\clip(\pi_{l,g},-1.25,1.25).
+    \notag\\
+    \bar{\pi}_{l,g}
+    &=
+    \clip(\pi_{l,g},-1.25,1.25).
     \label{eq:rescale-target}\\
     \chi^{\rm rs}_{l,g}
-    =
+    &=
     \exp(0.10\,\bar{\alpha}_{l,g}),
-    \qquad
-    \bar{\alpha}_{l,g}=\clip(\alpha_{l,g},-1.25,1.25).
+    \notag\\
+    \bar{\alpha}_{l,g}
+    &=
+    \clip(\alpha_{l,g},-1.25,1.25).
     \label{eq:rescale-activity}\\
     s_{l,t}
-    =
+    &=
     0.50\,\smooth(0.03,0.35,\xi_t)
     \clip(1+0.15(\delta_l-0.5),0.75,1.25),
     \label{eq:rescale-schedule}\\
     \ell_{l,g,t}
-    =
+    &=
     \clip\left(
     \frac{1}{2}[\tau_{l,g}-\gamma_{l,g}]s_{l,t}\chi^{\rm rs}_{l,g},
     -0.030,0.030
     \right).
     \label{eq:rescale-log-step}\\
-    A_{l,g}\leftarrow e^{\ell_{l,g,t}}A_{l,g},
-    \qquad
-    B_{l,g}\leftarrow e^{-\ell_{l,g,t}}B_{l,g}.
+    A_{l,g}
+    &\leftarrow
+    e^{\ell_{l,g,t}}A_{l,g},
+    \notag\\
+    B_{l,g}
+    &\leftarrow
+    e^{-\ell_{l,g,t}}B_{l,g}.
     \label{eq:rescale-update}
 \end{align}
 Here $\gamma_{l,g}$ is a floored matrix-RMS proxy.  The first term of
 $\tau_{l,g}$ equalizes derivative and response probe gains in the positive log
 coordinate, the pressure term shifts the target boundedly, and $\chi^{\rm rs}$
-changes only the clipped rescale speed.  Since \eqref{eq:current-ratio} is
+changes only the clipped rescale speed; larger $\alpha_{l,g}$ accelerates only
+this representative-balancing move, while earlier group gates and Muon penalties
+use the same activity contrast to reduce gradient-driven matrix motion.  Since
+\eqref{eq:current-ratio} is
 floored, \eqref{eq:rescale-update} is exact only in the nonzero, unfloored
 idealization; near the floor it is a clipped balance step.  Optimizer-state
-buffers are scaled covariantly, with square-average entries using squared
+buffers are scaled covariantly: first-moment-like entries for $A_{l,g}$ use
+$e^{\ell_{l,g,t}}$, first-moment-like entries for $B_{l,g}$ use
+$e^{-\ell_{l,g,t}}$, and square-average entries use the corresponding squared
 scales.
 
 \FloatBarrier
@@ -835,61 +860,63 @@ TODO: Insert component ablation details here.
 \section{Rational Latent Basis Calculus}
 \label{app:rlb-calculus}
 
-This section records the identities behind the RLB quantities used by
-MatrixPolicy.  All calculations are local to one layer and one group unless
-otherwise stated, so we suppress $(l,g)$ in the notation.  The response
-parameterization first guarantees that the denominator cannot vanish on the real
-line:
+All calculations in this section are local to one layer and one group unless
+indices are shown explicitly.
+
+\subsection{Scalar Response Derivatives}
+\label{app:rlb-response-derivatives}
+
+The evaluated response is the groupwise P5/Q4 function in
+\eqref{eq:rlb-p}--\eqref{eq:rlb-response}.  Writing
 \begin{align}
-    \phi_1(u)=|u|,
-    \quad
-    \phi_2(u)=u^2,
-    \quad
-    \phi_3(u)=|u|^3,
-    \quad
+    \phi_1(u)=|u|,\quad
+    \phi_2(u)=u^2,\quad
+    \phi_3(u)=|u|^3,\quad
     \phi_4(u)=u^4,
-    \notag\\
-    P(u)=\sum_{i=0}^{5}a_i u^i,
     \qquad
-    Q(u)=1+\sum_{j=1}^{4}|b_j|\phi_j(u).
+    Q(u)=1+\sum_{j=1}^{4}|b_j|\phi_j(u),
 \end{align}
-Since $\phi_j(u)\ge 0$ for all real $u$, $Q(u)\ge 1$ and $R(u)=P(u)/Q(u)$ has
-no real pole.  The same parameterization keeps the curve derivatives visible to
-the optimizer.  For all $u\ne0$, the input derivative is
+gives $Q(u)\ge 1$ on the real line.  Thus the scalar response has no real pole,
+while its numerator and denominator coefficients remain explicit trainable
+coordinates.  Away from $u=0$,
 \begin{align}
     R'(u)
-    =
+    &=
     \frac{P'(u)Q(u)-P(u)Q'(u)}{Q(u)^2},
-    \label{eq:appendix-r-prime}
+    \label{eq:appendix-r-prime}\\
+    P'(u)
+    &=
+    \sum_{i=1}^{5} i a_i u^{i-1},
+    &
+    Q'(u)
+    &=
+    |b_1|\sign(u)+2|b_2|u+3|b_3|u|u|+4|b_4|u^3 .
 \end{align}
-where
+The derivative-gain summaries use the same autodiff convention as the code,
+$\sign(0)=0$ at absolute-value kinks.  The coefficient features are
 \begin{align}
-    P'(u)=\sum_{i=1}^{5} i a_i u^{i-1},
-    \qquad
-    Q'(u)=|b_1|\sign(u)+2|b_2|u+3|b_3|u|u|+4|b_4|u^3.
-\end{align}
-Derivative-gain statistics use the autodiff convention $\sign(0)=0$ at the
-absolute-value kink.  The coefficient features are explicit:
-\begin{align}
-    \frac{\partial R(u)}{\partial a_i}=\frac{u^i}{Q(u)},
-    \qquad
+    \frac{\partial R(u)}{\partial a_i}
+    &=
+    \frac{u^i}{Q(u)},
+    &
     \frac{\partial R(u)}{\partial b_j}
-    =
+    &=
     -\frac{P(u)}{Q(u)^2}\sign(b_j)\phi_j(u),
     \label{eq:appendix-coeff-features}
 \end{align}
-where $\sign(0)=0$ is also used at $b_j=0$.  The response factor $R(u)$, the
-input derivative $R'(u)$, and the coefficient features in
-\eqref{eq:appendix-coeff-features} are all observable from the group-specific
-rational response.  For the evaluated groupwise P5/Q4 response, the coefficient
-set in \eqref{eq:rational-activity-raw} is
-$\Theta^R_{l,g}=\{a_{l,g,\cdot},b_{l,g,\cdot}\}$; the more general block
-definition averages over the trainable rational-response coefficient blocks
-present in a group.  These coefficient derivatives are classical away from
-$b_j=0$ and use the stated autodiff subgradient convention at $b_j=0$.
+with $\sign(0)=0$ at $b_j=0$.  Consequently the three summary families in the
+method have direct scalar origins: $R(u)$ for response gain, $R'(u)$ for
+derivative gain, and coefficient gradients through the features in
+\eqref{eq:appendix-coeff-features}.  For the evaluated P5/Q4 response,
+$\Theta^R_{l,g}=\{a_{l,g,\cdot},b_{l,g,\cdot}\}$ in
+\eqref{eq:rational-activity-raw}; if another implementation adds further
+trainable response-coordinate blocks, the same block-average definition extends
+to those blocks.
 
-The RMS-normalized group map turns these curve quantities into matrix-role
-signals.  For a group vector $z\in\mathbb{R}^{m}$, define
+\subsection{RMS-Normalized Group Map and Positive Pair Coordinate}
+\label{app:rlb-positive-coordinate}
+
+For a group vector $z\in\mathbb{R}^{m}$, define
 \begin{align}
     r(z)=\sqrt{m^{-1}\lVert z\rVert_2^2+\epsilon_{\rm rms}},
     \qquad
@@ -897,27 +924,23 @@ signals.  For a group vector $z\in\mathbb{R}^{m}$, define
     \qquad
     h(z)=r(z)R(u(z)),
 \end{align}
-where $R$ is applied coordinatewise.  The following differentials are taken on
-the domain $r(z)>0$, equivalently $\epsilon_{\rm rms}>0$ or
-$\epsilon_{\rm rms}=0$ with $z\ne0$.  The radius derivative is
+where $R$ acts coordinatewise.  On the domain $r(z)>0$, the radius and
+normalized-coordinate differentials are
 \begin{align}
     \mathrm{d}r
-    =
-    \frac{z^\top \mathrm{d}z}{m r}
+    &=
+    \frac{z^\top\mathrm{d}z}{m r}
     =
     \frac{u^\top\mathrm{d}z}{m},
-\end{align}
-and the normalized-coordinate derivative is
-\begin{align}
+    &
     \mathrm{d}u
-    =
-    \frac{1}{r}\left(I-\frac{uu^\top}{m}\right)\mathrm{d}z.
+    &=
+    \frac{1}{r}\left(I-\frac{uu^\top}{m}\right)\mathrm{d}z .
     \label{eq:appendix-du}
 \end{align}
-The factor $I-uu^\top/m$ is exact in \eqref{eq:appendix-du}; it becomes the
-orthogonal tangent projector to the RMS sphere only in the unfloored case where
-$\epsilon_{\rm rms}=0$ and $z\ne0$.  Away from absolute-value kinks of the scalar
-curve, the group Jacobian is
+The factor $I-uu^\top/m$ is the exact differential factor of the implemented
+normalized coordinate; it becomes the tangent projector to the RMS sphere in the
+unfloored case.  Away from scalar-response kinks, the group Jacobian is
 \begin{align}
     J_h(z)
     :=
@@ -928,19 +951,14 @@ curve, the group Jacobian is
     \diag(R'(u))\left(I-\frac{uu^\top}{m}\right).
     \label{eq:appendix-group-jacobian}
 \end{align}
-At nonsmooth coordinates, \eqref{eq:appendix-group-jacobian} uses the same
-autodiff subgradient convention as \eqref{eq:appendix-r-prime} and
-\eqref{eq:appendix-coeff-features}.
-The response vector $R(u)$ controls the curve factor inside the realized feature
-$h=rR(u)$, while $R'(u)$ appears in the normalized-coordinate component of the
-input Jacobian.  The MatrixPolicy summaries $\hat o$ and $\hat d$ are therefore
-partial role signals: $\hat o$ omits the group radius $r$, and $\hat d$ omits the
-radial term $R(u)u^\top/m$, the output block $B_{l,g}$, and the upstream
-gradient.  These equations expose a compact set of role signals for the adjacent
-matrices without requiring a full block-Jacobian preconditioner.
+Equation~\eqref{eq:appendix-group-jacobian} separates the radial response term
+from the normalized-coordinate derivative term.  This is why response RMS is an
+output-role signal and derivative RMS is an input-role signal.  They are still
+proxies: response RMS omits the radius, while derivative RMS omits the radial
+Jacobian term, the output matrix, and the upstream gradient.
 
-The same normalization also exposes a positive matrix-pair coordinate.  Set
-$\epsilon_{\rm rms}=0$ and take $z\ne0$ and $\lambda>0$.  Then
+The same normalization gives the positive matrix-pair coordinate used by the
+wrapper.  If $\epsilon_{\rm rms}=0$, $z\ne0$, and $\lambda>0$, then
 \begin{align}
     r(\lambda z)=\lambda r(z),
     \qquad
@@ -948,17 +966,21 @@ $\epsilon_{\rm rms}=0$ and take $z\ne0$ and $\lambda>0$.  Then
     \qquad
     h(\lambda z)=\lambda h(z).
 \end{align}
-Scaling $A_{l,g}$ by $\lambda$ and the matching column block $B_{l,g}$ by
-$\lambda^{-1}$ therefore leaves the group contribution unchanged.  Applying
-this independently to all groups gives \eqref{eq:positive-rescale}.
-
-With $\epsilon_{\rm rms}>0$, define the floored maps
+Scaling $A_{l,g}$ by $\lambda$ and the matching block $B_{l,g}$ by
+$\lambda^{-1}$ leaves that group contribution unchanged, giving
+\eqref{eq:positive-rescale} groupwise.  With the implemented floor, write
 \begin{align}
-    r_\epsilon(z)=\sqrt{m^{-1}\lVert z\rVert_2^2+\epsilon_{\rm rms}},
-    \qquad
-    u_\epsilon(z)=z/r_\epsilon(z),
-    \qquad
-    h_\epsilon(z)=r_\epsilon(z)R(u_\epsilon(z)).
+    r_\epsilon(z)
+    &=
+    \sqrt{m^{-1}\lVert z\rVert_2^2+\epsilon_{\rm rms}},
+    &
+    u_\epsilon(z)
+    &=
+    z/r_\epsilon(z),
+    &
+    h_\epsilon(z)
+    &=
+    r_\epsilon(z)R(u_\epsilon(z)).
 \end{align}
 For $\rho^2=m^{-1}\lVert z\rVert_2^2$,
 \begin{align}
@@ -972,225 +994,147 @@ For $\rho^2=m^{-1}\lVert z\rVert_2^2$,
     {\sqrt{\lambda^2\rho^2+\epsilon_{\rm rms}}}.
     \label{eq:appendix-kappa}
 \end{align}
-Let $L_R$ be a Lipschitz constant of the scalar curve over an interval containing
-all coordinates of $u_\epsilon(z)$ and
-$\kappa(\lambda,z)u_\epsilon(z)$.  Applying this scalar Lipschitz bound
-coordinatewise, and then compensating the output matrix by $\lambda^{-1}$, gives
+If $L_R$ is a Lipschitz constant of the scalar response on an interval
+containing the coordinates of $u_\epsilon(z)$ and
+$\kappa(\lambda,z)u_\epsilon(z)$, then after the reciprocal output compensation,
 \begin{align}
     \left\|\lambda^{-1}h_\epsilon(\lambda z)-h_\epsilon(z)\right\|_2
     &\le
     \left|\frac{r_\epsilon(\lambda z)}{\lambda}-r_\epsilon(z)\right|
-    \left\|R(u_\epsilon(z))\right\|_2 \\
+    \left\|R(u_\epsilon(z))\right\|_2 \notag\\
     &\quad+
     \frac{r_\epsilon(\lambda z)}{\lambda}
-    L_R |\kappa(\lambda,z)-1|\left\|u_\epsilon(z)\right\|_2 .
+    L_R|\kappa(\lambda,z)-1|\left\|u_\epsilon(z)\right\|_2 .
     \label{eq:appendix-floor-bound}
 \end{align}
-Both terms vanish when $\epsilon_{\rm rms}=0$.  With a bounded rescaling
-$|\log\lambda|\le c$, the same bound is small when
-$e^{2c}\epsilon_{\rm rms}/\rho^2$ is small and the scalar response and derivative
-are bounded on the compact interval above.  Near the floor, or under an
-arbitrarily large reciprocal rescaling, the positive pair-rescaling identity no
-longer gives a useful invariance.  The wrapper therefore uses this direction
-only through a clipped log step with floored matrix RMS values and matching
-optimizer-state rescaling.
-
-
+Both terms vanish when $\epsilon_{\rm rms}=0$.  Under bounded rescaling
+$|\log\lambda|\le c$, the deviation is controlled when
+$e^{2c}\epsilon_{\rm rms}/\rho^2$ is small and the response is bounded with a
+bounded derivative on the interval above.  Near the RMS floor, the coordinate is
+therefore a clipped representative-balancing direction rather than an exact
+symmetry of the implemented floored block.
 
 \section{MatrixPolicy Update Geometry}
 \label{app:matrixpolicy-step}
 
-MatrixPolicy uses the RLB calculus because the two adjacent matrices see
-different local factors.  For one training example, let
-$\bar y_l=\nabla_{y_l}\mathcal{L}$ be the upstream gradient, and let
-$J_{l,g}=\partial h_{l,g}/\partial z_{l,g}$ be the group Jacobian in
+\subsection{Matrix-Role Gradients and Proxy Status}
+\label{app:matrixpolicy-proxies}
+
+For one training example, let $\bar y_l=\nabla_{y_l}\mathcal{L}$ and
+$J_{l,g}=\partial h_{l,g}/\partial z_{l,g}$ from
 \eqref{eq:appendix-group-jacobian}.  The adjacent matrix gradients factor as
 \begin{align}
     \nabla_{B_{l,g}}\mathcal{L}
     &=
-    \bar y_l h_{l,g}^\top, \\
+    \bar y_l h_{l,g}^\top,
+    &
     \nabla_{A_{l,g}}\mathcal{L}
     &=
     \left(J_{l,g}^\top B_{l,g}^\top\bar y_l\right)x_l^\top .
     \label{eq:appendix-matrix-gradients}
 \end{align}
-The output matrix is coupled directly to the realized feature $h_{l,g}$, whereas
-the input matrix is coupled to the tangent and radial components of the RLB
-Jacobian before the upstream gradient reaches $x_l$.  Minibatch and sequence
-gradients sum these factors over positions and examples.  Response RMS summaries
-therefore align with the output role, and derivative RMS summaries align with the
-input role.  They remain proxies because the full output feature contains the
-group radius $r(z)$, and the full input gradient depends on $B_{l,g}$, the
-upstream gradient, and the radial term in \eqref{eq:appendix-group-jacobian}.
+The output matrix sees the realized feature, while the input matrix sees the RLB
+Jacobian before the upstream gradient reaches $x_l$.  The response and
+derivative RMS summaries in \eqref{eq:live-gains} are local role proxies because
+the full gradients also include data, output-matrix, radius, and upstream factors.
 
-The optimizer step consumes these role signals in the same order as
-Section~\ref{sec:method-update}.  Backpropagation first produces gradients with
-respect to the pre-update parameters.  Pressure and activity statistics are then
-computed from these gradients, $A_l^t$, $B_l^t$, and the rational coefficient
-set $\Theta^R_{l,g}$ before any parameter is changed.  With EMA decay
-$\beta=0.95$, the implemented statistics follow the same recurrence as
-\eqref{eq:pressure-ema},
+The pressure memories in \eqref{eq:pressure-ema} summarize post-global-clipping,
+pre-group-policy gradients as update-magnitude proxies, not signed directional
+derivatives.  Along the exact positive pair direction of the unfloored fixed-curve
+map, function preservation would cancel the data-loss directional derivative.
+For nonzero unfloored $W$ and a small update $W^+=W-\eta\mathcal{G}$
+with $\eta\lVert\mathcal{G}\rVert_F<c\lVert W\rVert_F$ for fixed $c<1$,
 \begin{align}
-    q^{\rm in}_{l,g,t}
-    &=
-    \beta q^{\rm in}_{l,g,t-1}+(1-\beta)p^{\rm in}_{l,g,t}, \\
-    q^{\rm out}_{l,g,t}
-    &=
-    \beta q^{\rm out}_{l,g,t-1}+(1-\beta)p^{\rm out}_{l,g,t}, \\
-    q^{R}_{l,g,t}
-    &=
-    \beta q^{R}_{l,g,t-1}+(1-\beta)p^{R}_{l,g,t}.
-\end{align}
-The first observed post-backpropagation values initialize these EMA states.
-Live curve gains are read from the RLB forward-statistics hook, which stores
-subsampled per-group response and derivative RMS summaries with the
-$\epsilon_{\rm live}$ floor, and enter the group-gradient multipliers in
-\eqref{eq:group-multiplier}.  The fixed-grid probe gains in
-\eqref{eq:probe-gains} use the $\epsilon_{\rm probe}$ floor and enter only the
-pair-rescale target.  The Muon fraction in \eqref{eq:muon-fraction} and the
-balancing quantities in equations~\ref{eq:rescale-target}--\ref{eq:rescale-activity}
-use pre-update pressure/activity EMAs.  Non-matrix Transformer parameters and
-rational coefficients follow AdamW.  The RLB matrix blocks use the scaled
-gradients in \eqref{eq:scaled-gradients} for the sequential AdamW and Muon matrix
-branches in \eqref{eq:matrix-branch-step}.  After the AdamW/Muon matrix branch, the
-on-policy wrapper applies the positive matrix-pair move in
-\eqref{eq:rescale-update} on scheduled rescaling steps, and scales first- and
-second-moment-like optimizer-state buffers in the matching direction.
-
-The pressure signal is a stable magnitude proxy for motion along the
-input/output balance direction.  In the idealized unfloored rescaling direction,
-an infinitesimal increase of the input representative and reciprocal decrease of
-the output representative has the loss derivative
-\begin{align}
-    \Delta_g
+    \log\rms(W^+)-\log\rms(W)
     =
-    \left\langle\nabla_{A_{l,g}}\mathcal{L},A_{l,g}\right\rangle_F
-    -
-    \left\langle\nabla_{B_{l,g}}\mathcal{L},B_{l,g}\right\rangle_F .
-    \label{eq:appendix-signed-pressure}
-\end{align}
-MatrixPolicy does not estimate $\Delta_g$ directly.  Instead it uses RMS
-relative-gradient proxies.  For same-shaped nonzero unfloored
-$W,\mathcal{G}$, if $W^+=W-\eta \mathcal{G}$ and
-$\eta\lVert\mathcal{G}\rVert_F<c\lVert W\rVert_F$ for a fixed $c<1$, then
-\begin{align}
-    \log \rms(W^+)-\log\rms(W)
-    =
-    -\eta\frac{\langle \mathcal{G},W\rangle_F}{\lVert W\rVert_F^2}
+    -\eta
+    \frac{\langle\mathcal{G},W\rangle_F}{\lVert W\rVert_F^2}
     +O\!\left(
     \eta^2\frac{\lVert\mathcal{G}\rVert_F^2}{\lVert W\rVert_F^2}
     \right),
+    \label{eq:appendix-log-rms-update}
 \end{align}
-and Cauchy--Schwarz implies
+and Cauchy--Schwarz gives
 \begin{align}
-    \left|\frac{\langle \mathcal{G},W\rangle_F}{\lVert W\rVert_F^2}\right|
+    \left|
+    \frac{\langle\mathcal{G},W\rangle_F}{\lVert W\rVert_F^2}
+    \right|
     \le
-    \frac{\lVert \mathcal{G}\rVert_F}{\lVert W\rVert_F}
+    \frac{\lVert\mathcal{G}\rVert_F}{\lVert W\rVert_F}
     =
     \frac{\rms(\mathcal{G})}{\rms(W)} .
     \label{eq:appendix-pressure-bound}
 \end{align}
-The implemented quantities $p^{\rm in}$ and $p^{\rm out}$ replace the unfloored
-ratio on the right-hand side by floored RMS proxies.  The floor makes the signals
-stable near zero, but it also means they are no longer exact upper bounds on
-$\rms(\mathcal{G})/\rms(W)$ near the floor.  Thus
-$\pi_{l,g}=\log q^{\rm in}_{l,g}-\log q^{\rm out}_{l,g}$ is an RMS-imbalance
-proxy.  Its sign identifies which role has the larger EMA of the floored proxy,
-and its clipped magnitude supplies the pressure term used by
-\eqref{eq:pressure-policy} and \eqref{eq:rescale-target}.
+The implemented $p^{\rm in}$ and $p^{\rm out}$ replace the last ratio by
+floored RMS proxies.  Floors keep the measurements finite near zero, while the
+clips in the method turn their log contrasts into bounded controls.  Thus
+$\pi_{l,g}$ identifies which role currently has the larger EMA of the relative
+update proxy, and $\alpha_{l,g}$ identifies when raw rational-coefficient
+gradient energy is large relative to adjacent matrix-pressure memories.
 
-The gain and pressure rules in equations~\ref{eq:gain-policy}--\ref{eq:pressure-policy}
-are log-space redistribution rules.  High derivative gain reduces the input-role
-multiplier for that group, high response gain reduces the output-role multiplier,
-and a positive $\pi_{l,g}$ reduces the input-role multiplier while increasing the
-output-role multiplier.  Coefficient activity in \eqref{eq:activity-policy}
-damps groups whose rational curve is changing faster than the adjacent matrix
-pair.  These corrections would change the layer-wide step scale unless they were
-centered.  Before clipping,
+\subsection{Log-Space Redistribution and Pair-Rescale Dynamics}
+\label{app:matrixpolicy-rescale}
+
+The group-gradient policy in equations~\ref{eq:gain-policy}--\ref{eq:activity-policy}
+acts in log space.  Before clipping, recentering by the group geometric mean
+gives
 \begin{align}
     \widehat c_{l,g,\sigma}
     =
-    \frac{c_{l,g,\sigma}}{\geom_{j=1}^{G} c_{l,j,\sigma}},
+    \frac{c_{l,g,\sigma}}{\geom_{j=1}^{G}c_{l,j,\sigma}},
     \qquad
     \frac{1}{G}\sum_{g=1}^{G}\log \widehat c_{l,g,\sigma}=0 .
     \label{eq:appendix-centered-policy}
 \end{align}
-The policy redistributes update scale across groups while preserving the
-role-wise mean log multiplier before clipping.  The subsequent clip in
-\eqref{eq:group-center-clip} bounds noisy group statistics and can break exact
-centering.
+The gate redistributes role-specific update scale while preserving the role-wise
+mean log multiplier before clipping.  The signs in \eqref{eq:pressure-policy}
+reduce input-role scale and increase output-role scale when $\pi_{l,g}>0$.
 
-The pair-rescale target is motivated by equalizing representative input/output
-role scales in the positive log coordinate.  For the unfloored nonzero-matrix
-calculation, write
+For pair balancing, ignore floors and clipping temporarily and define
 \begin{align}
-    \gamma_{l,g}=\log\rms(A_{l,g})-\log\rms(B_{l,g}).
-\end{align}
-An active rescaling step applies
-$A_{l,g}\leftarrow e^{\ell_{l,g,t}}A_{l,g}$ and
-$B_{l,g}\leftarrow e^{-\ell_{l,g,t}}B_{l,g}$, hence
-\begin{align}
-    \gamma_{l,g}^{+}=\gamma_{l,g}+2\ell_{l,g,t}.
-    \label{eq:appendix-gamma-update}
-\end{align}
-If clipping is ignored and
-$\lambda_{l,g,t}=s_{l,t}\chi^{\rm rs}_{l,g}$ uses the schedule and activity
-factor from equations~\ref{eq:rescale-activity}--\ref{eq:rescale-schedule}, then
-\eqref{eq:rescale-log-step} gives
-\begin{align}
+    \gamma_{l,g}
+    &=
+    \log\rms(A_{l,g})-\log\rms(B_{l,g}),
+    \notag\\
+    \lambda_{l,g,t}
+    &=
+    s_{l,t}\chi^{\rm rs}_{l,g},
+    \notag\\
     \gamma_{l,g}^{+}
     =
+    \gamma_{l,g}+2\ell_{l,g,t}
+    &=
     (1-\lambda_{l,g,t})\gamma_{l,g}
-    +
-    \lambda_{l,g,t}\tau_{l,g}.
+    +\lambda_{l,g,t}\tau_{l,g}.
     \label{eq:appendix-rescale-contraction}
 \end{align}
-Because $0\le s_{l,t}\le 0.625$ and
-$\chi^{\rm rs}_{l,g}\le \exp(0.125)$ under the stated clips,
-$0\le\lambda_{l,g,t}<1$ before log-step clipping.  Thus this is an exact
-contraction only in the nonzero-matrix, unfloored matrix-RMS, unclipped
-idealization.  Separately, the function-preserving interpretation of the same
-positive pair direction also uses the unfloored activation map
-$\epsilon_{\rm rms}=0$ from Appendix~\ref{app:rlb-calculus}.  The implementation
-uses the floored proxy in \eqref{eq:current-ratio}; near the matrix floor, the
-log-ratio interpretation and the contraction model are approximate.
+The last equality substitutes the unclipped step in \eqref{eq:rescale-log-step}.
+Because $0\le s_{l,t}\le0.625$ and
+$\chi^{\rm rs}_{l,g}\le\exp(0.125)$ under the method clips,
+$0\le\lambda_{l,g,t}<1$ before log-step clipping, so the representative coordinate
+contracts toward $\tau_{l,g}$.  This model assumes nonzero matrices, unfloored RMS
+values, and an unclipped update; the implementation uses floored $\gamma_{l,g}$
+and clipped $\ell_{l,g,t}$.
 
-In the representative model that ignores group-dependent orientation, radius,
-and upstream-gradient constants, reciprocal rescaling makes the input-side role
-scale vary as $\hat d^{\rm probe}e^{-\gamma}$ and the output-side role scale
-vary as $\hat o^{\rm probe}e^{\gamma}$.  Equalizing these two log scales gives
-$\gamma^\star=\frac{1}{2}(\log\hat d^{\rm probe}-\log\hat o^{\rm probe})$.
-The wrapper target adds a smaller clipped RMS-pressure bias,
+The target in \eqref{eq:rescale-target} equalizes a local representative model
+that ignores orientation, radius variation, upstream gradients, and floors:
+input-role scale varies as $\hat d^{\rm probe}e^{-\gamma}$ and output-role scale
+as $\hat o^{\rm probe}e^{\gamma}$.  Equalizing the two log scales gives
 \begin{align}
-    \tau_{l,g}
+    \gamma^\star_{l,g}
     =
     \frac{1}{2}
     \left(
-    \log \hat d^{\rm probe}_{l,g}
+    \log\hat d^{\rm probe}_{l,g}
     -
-    \log \hat o^{\rm probe}_{l,g}
-    \right)
-    +0.25\,\bar{\pi}_{l,g},
-    \qquad
-    \bar{\pi}_{l,g}=\clip(\pi_{l,g},-1.25,1.25)
+    \log\hat o^{\rm probe}_{l,g}
+    \right).
+    \label{eq:appendix-gamma-star}
 \end{align}
-using fixed-grid probe gains from \eqref{eq:probe-gains}.  Probe gains tie the
-balance target to the current curve shape, while the $\bar\pi$ term lets recent
-matrix-pressure imbalance shift the target within a bounded range.
-
-The wrapper's final pair-rescale operation follows the approximate representative geometry
-above.  The AdamW/Muon branch in \eqref{eq:matrix-branch-step} updates the
-represented map through the scaled matrix gradients.  The time window inside the
-Muon fraction in \eqref{eq:muon-fraction} is
-\begin{align}
-    w(\xi_t)=\smooth(0.02,0.12,\xi_t)
-    \left[1-\smooth(0.20,0.36,\xi_t)\right].
-\end{align}
-Together with the role factor $\varrho_\sigma(l)$, penalty $\psi_{l,t}$, and
-clipping in the full $\mu_{l,\sigma,t}$ formula, this window confines the
-matrix-direction update to a fixed early interval.  The penalty $\psi_{l,t}$
-reduces this branch when RMS imbalance or coefficient-gradient activity is high.
-Muon enters as a bounded, state-dependent matrix-direction substep for the RLB
-matrix pair.
+The implemented target adds the clipped RMS-pressure bias
+$0.25\bar\pi_{l,g}\in[-0.3125,0.3125]$, while $\chi^{\rm rs}_{l,g}$ changes only
+the representative-balancing speed.  Together with
+Appendix~\ref{app:rlb-positive-coordinate}, these equations specify the
+approximation boundary of the pair-rescale move used in the method.
 
 \end{document}
