@@ -1,137 +1,208 @@
 % Step 1 design document.
-% Goal: show that MatrixPolicy is a selective optimizer route, not a general
-% optimizer replacement.  The top rail is the only special path and is reserved
-% for the RLB matrix pair A_l,B_l.  The bottom rail is a muted AdamW-only bypass
-% for rational coefficients and ordinary Transformer tensors.  Exact update
-% equations remain in the method text; the figure emphasizes routing, gates,
-% transient Muon, and reciprocal pair balancing without cramped formulas.
-\documentclass[tikz,border=6pt]{standalone}
+% Domain: ICLR method figure for an optimizer/activation interface in language
+% model training. Format: TikZ standalone, because formulas and the paper font
+% must remain vector and LaTeX-native. Complexity: medium system overview.
+% Layout: 16.4 cm by 7.15 cm, preserving the original three-lane purpose:
+% detached summary bus above, MatrixPolicy route for A_l and B_l in the middle,
+% and AdamW-only bypass below. The top bus is extended with compact source
+% capsules above the four summary families, so readers can see where each
+% detached statistic comes from before it enters the MatrixPolicy route.
+% Modules: forward/probe gain source, A/B gradient source, rational-coefficient
+% gradient source, pair-state source, four detached-summary families, group
+% gradient gates, AdamW/Muon matrix branch, post-step pair rescale, updated
+% matrix pair, bypass lane. Core = the MatrixPolicy route and stop-gradient
+% boundary. Lines: solid purple arrows for matrix updates, dashed gray arrows
+% for detached reads, muted gray arrows for the bypass. Space planning keeps the
+% dashed read rail above action boxes, with use-site labels placed in whitespace.
+\documentclass[tikz,border=5pt]{standalone}
 \usepackage{tikz}
 \usepackage{amsmath,amssymb}
 \usepackage[T1]{fontenc}
 \usepackage{helvet}
 \renewcommand{\familydefault}{\sfdefault}
-\usetikzlibrary{arrows.meta,calc,backgrounds,positioning}
+\usetikzlibrary{arrows.meta,bending,backgrounds,positioning,calc}
 
 \definecolor{mpInk}{HTML}{202020}
-\definecolor{mpMuted}{HTML}{696969}
+\definecolor{mpMuted}{HTML}{686868}
 \definecolor{mpLine}{HTML}{8A8A8A}
-\definecolor{mpPurple}{HTML}{6F4AA4}
+\definecolor{mpPurple}{HTML}{6B46A0}
 \definecolor{mpPurpleFill}{HTML}{F4EFFA}
-\definecolor{mpBlue}{HTML}{386B9B}
+\definecolor{mpBlue}{HTML}{315F8A}
 \definecolor{mpBlueFill}{HTML}{E7F0FA}
-\definecolor{mpAmber}{HTML}{9B6700}
+\definecolor{mpGreen}{HTML}{2F855A}
+\definecolor{mpGreenFill}{HTML}{E7F5ED}
+\definecolor{mpAmber}{HTML}{9A6500}
 \definecolor{mpAmberFill}{HTML}{FFF2CF}
-\definecolor{mpGreen}{HTML}{2D8A5F}
-\definecolor{mpGreenFill}{HTML}{E8F6EF}
 \definecolor{mpGreyFill}{HTML}{F4F4F4}
+\definecolor{mpSoftGrey}{HTML}{FAFAFA}
 
 \pgfdeclarelayer{background}
 \pgfsetlayers{background,main}
 
 \tikzset{
   every node/.style={font=\footnotesize, text=mpInk},
-  small/.style={font=\scriptsize, text=mpMuted, align=center, inner sep=1pt},
-  chamber/.style={rectangle, rounded corners=8pt, draw=mpPurple!58,
-    fill=mpPurpleFill!70, line width=0.82pt},
-  card/.style={rectangle, rounded corners=4pt, line width=0.78pt, fill=white,
-    minimum height=0.74cm, align=center, inner sep=4pt},
-  station/.style={rectangle, rounded corners=4pt, fill=white, line width=0.82pt,
-    minimum height=0.92cm, align=center, inner sep=4pt},
-  controller/.style={rectangle, rounded corners=4pt, draw=mpPurple,
-    fill=white, line width=0.88pt, minimum width=1.78cm, minimum height=0.58cm,
-    align=center, inner sep=4pt, font=\scriptsize\bfseries},
-  adamOnly/.style={rectangle, rounded corners=4pt, draw=mpMuted,
-    fill=mpGreyFill, line width=0.72pt, minimum width=1.50cm,
-    minimum height=0.72cm, align=center, inner sep=4pt,
-    font=\footnotesize\bfseries},
-  flow/.style={-{Stealth[length=5pt 1.45, width'=0pt 0.56, sep=0pt 0.5]},
+  purpleBand/.style={rectangle, rounded corners=7pt, draw=mpPurple!55,
+    fill=mpPurple!7, line width=0.72pt},
+  greyBand/.style={rectangle, rounded corners=7pt, draw=mpLine!55,
+    fill=mpLine!7, line width=0.72pt},
+  titlePurple/.style={font=\scriptsize\bfseries, text=mpPurple, anchor=west},
+  titleMuted/.style={font=\scriptsize\bfseries, text=mpMuted, anchor=west},
+  sourceBase/.style={rectangle, rounded corners=3pt, fill=mpSoftGrey,
+    line width=0.58pt, minimum height=0.53cm, align=center, inner sep=2.2pt,
+    font=\scriptsize},
+  sourceBlue/.style={sourceBase, draw=mpBlue!70},
+  sourcePurple/.style={sourceBase, draw=mpPurple!70},
+  sourceGreen/.style={sourceBase, draw=mpGreen!70},
+  sourceAmber/.style={sourceBase, draw=mpAmber!75},
+  chipBase/.style={rectangle, rounded corners=4pt, fill=white,
+    line width=0.76pt, minimum height=0.82cm, align=center, inner sep=3.0pt,
+    font=\scriptsize},
+  chipBlue/.style={chipBase, draw=mpBlue},
+  chipPurple/.style={chipBase, draw=mpPurple},
+  chipGreen/.style={chipBase, draw=mpGreen},
+  chipAmber/.style={chipBase, draw=mpAmber},
+  actionBase/.style={rectangle, rounded corners=4pt, line width=0.86pt,
+    minimum height=0.98cm, align=center, inner sep=3.6pt, font=\scriptsize},
+  actionBlue/.style={actionBase, draw=mpBlue, fill=mpBlueFill},
+  actionGreen/.style={actionBase, draw=mpGreen, fill=mpGreenFill},
+  actionPurple/.style={actionBase, draw=mpPurple, fill=white},
+  actionAmber/.style={actionBase, draw=mpAmber, fill=mpAmberFill},
+  actionGrey/.style={actionBase, draw=mpMuted, fill=mpGreyFill},
+  actionWhiteGrey/.style={actionBase, draw=mpMuted, fill=white},
+  smallnote/.style={font=\scriptsize, text=mpMuted, align=center, inner sep=1pt},
+  flow/.style={-{Stealth[length=5pt 1.35, width'=0pt 0.55]},
     line width=1.00pt, shorten >=2pt, shorten <=1pt, color=mpPurple},
-  bypass/.style={-{Stealth[length=4pt 1.2, width'=0pt 0.52, sep=0pt 0.4]},
-    line width=0.86pt, shorten >=2pt, shorten <=1pt, color=mpMuted},
-  read/.style={-{Stealth[length=3pt 1.0, width'=0pt 0.48]},
+  flowShort/.style={-{Stealth[length=3.6pt 1.05, width'=0pt 0.50]},
+    line width=0.92pt, shorten >=1pt, shorten <=0pt, color=mpPurple},
+  read/.style={-{Stealth[length=3.3pt 1.0, width'=0pt 0.48]},
+    densely dashed, line width=0.62pt, shorten >=1pt, shorten <=1pt,
+    color=mpLine},
+  readStem/.style={densely dashed, line width=0.62pt, color=mpLine},
+  sourceFlow/.style={-{Stealth[length=3.1pt 1.0, width'=0pt 0.46]},
     densely dashed, line width=0.58pt, shorten >=1pt, shorten <=1pt,
     color=mpLine},
+  bypass/.style={-{Stealth[length=4pt 1.1, width'=0pt 0.50]},
+    line width=0.82pt, shorten >=2pt, shorten <=1pt, color=mpMuted},
 }
 
 \begin{document}
 \begin{tikzpicture}[x=1cm,y=1cm]
+  \useasboundingbox (0,0) rectangle (16.4,7.15);
+
   \begin{pgfonlayer}{background}
-    \node[chamber, minimum width=10.96cm, minimum height=2.82cm]
-      (mpChamber) at (10.00,4.36) {};
+    \node[purpleBand, minimum width=15.45cm, minimum height=2.31cm]
+      (summaryBand) at (8.23,5.75) {};
+    \node[purpleBand, minimum width=15.34cm, minimum height=1.78cm]
+      (matrixBand) at (8.22,2.78) {};
+    \node[greyBand, minimum width=13.60cm, minimum height=0.98cm]
+      (bypassBand) at (7.64,0.74) {};
   \end{pgfonlayer}
 
-  % Left role split: a partition, not a data dependency.
-  \node[small, fill=white, inner sep=1.5pt, anchor=east]
-    at (1.02,2.68) {role split};
-  \node[card, draw=mpBlue, fill=mpBlueFill, minimum width=2.28cm,
-    minimum height=0.82cm] (matrixPair) at (2.82,4.00)
-    {$A_l,B_l$\\[1pt]matrix pair};
-  \node[card, draw=mpMuted, fill=mpGreyFill, minimum width=2.96cm,
-    minimum height=0.82cm] (otherParams) at (2.78,1.34)
-    {rational coefficients\\[1pt]ordinary tensors};
-  \coordinate (splitTop) at (1.16,4.00);
-  \coordinate (splitBot) at (1.16,1.34);
-  \draw[mpLine, line width=0.62pt, line cap=round] (splitTop) -- (splitBot);
-  \draw[mpLine, line width=0.62pt, line cap=round] (splitTop) -- (matrixPair.west);
-  \draw[mpLine, line width=0.62pt, line cap=round] (splitBot) -- (otherParams.west);
+  \node[titlePurple] at (0.82,6.72)
+    {detached summary bus: sources $\rightarrow$ summaries};
+  \node[smallnote, anchor=east] at (15.78,6.72)
+    {all statistics are read-only control signals};
+  \node[titlePurple, fill=white, inner sep=1.3pt] at (0.72,3.55)
+    {MatrixPolicy route for $A_l,B_l$};
+  \node[titleMuted, fill=white, inner sep=1.3pt] at (1.18,1.15)
+    {AdamW-only bypass};
 
-  % MatrixPolicy chamber: one clean optimizer rail and one orthogonal control row.
-  \node[font=\footnotesize\bfseries, text=mpPurple, anchor=west]
-    at (4.64,5.54) {MatrixPolicy route for $A_l,B_l$ only};
+  \node[sourceBlue, minimum width=3.05cm] (srcGain) at (3.08,6.24)
+    {forward RLB hook\\[-1pt]
+     $u$, $R$, $R'$ RMS};
+  \node[sourcePurple, minimum width=2.98cm] (srcPressure) at (6.30,6.24)
+    {backprop $A/B$\\[-1pt]
+     $p^{\rm in},p^{\rm out}\!\rightarrow$ EMA $q$};
+  \node[sourceGreen, minimum width=2.64cm] (srcActivity) at (9.38,6.24)
+    {backprop coeffs\\[-1pt]
+     $p^R\!\rightarrow q^R$};
+  \node[sourceAmber, minimum width=3.22cm] (srcBalance) at (12.62,6.24)
+    {pair state/probes\\[-1pt]
+     $\gamma,\tau$ inputs};
 
-  \node[station, draw=mpLine, minimum width=1.22cm, minimum height=0.54cm,
-    font=\scriptsize]
-    (signals) at (3.48,4.98) {signals $s_l$};
-  \node[controller] (controller) at (5.50,4.98) {controller};
-  \draw[read] (signals.east) -- (controller.west);
+  \node[chipBlue, minimum width=3.05cm] (gain) at (3.08,5.16)
+    {\textbf{gain summaries}\\[-1pt]
+     live $\hat d,\hat o$ for gates\\[-1pt]
+     probe gains for rescale};
+  \node[chipPurple, minimum width=2.98cm] (pressure) at (6.30,5.16)
+    {\textbf{A/B grad EMAs}\\[-1pt]
+     $q^{\rm in},q^{\rm out}$\\[-1pt]
+     $\pi=\log q^{\rm in}-\log q^{\rm out}$};
+  \node[chipGreen, minimum width=2.64cm] (activity) at (9.38,5.16)
+    {\textbf{coefficient activity}\\[-1pt]
+     rational curve motion\\[-1pt]
+     $\alpha(q^R,q^{\rm in},q^{\rm out})$};
+  \node[chipAmber, minimum width=3.22cm] (balance) at (12.62,5.16)
+    {\textbf{pair balance}\\[-1pt]
+     $\gamma=\log\operatorname{rms}A-\log\operatorname{rms}B$\\[-1pt]
+     target $\tau$};
 
-  \node[station, draw=mpGreen, fill=mpGreenFill, minimum width=1.52cm]
-    (gates) at (5.50,4.00) {};
-  \node[font=\scriptsize\bfseries, text=mpGreen] at (5.50,4.22) {group gates};
-  \foreach \k/\c in {0/mpGreen!25,1/mpGreen!45,2/mpGreen!70,3/mpGreen!35} {
-    \fill[\c, draw=white, line width=0.3pt]
-      ({5.08+0.22*\k},3.82) rectangle ++(0.16,0.27);
+  \draw[sourceFlow] (srcGain.south) -- (gain.north);
+  \draw[sourceFlow] (srcPressure.south) -- (pressure.north);
+  \draw[sourceFlow] (srcActivity.south) -- (activity.north);
+  \draw[sourceFlow] (srcBalance.south) -- (balance.north);
+
+  \draw[mpLine, densely dashed, line width=0.78pt]
+    (1.92,4.34) -- (14.72,4.34);
+  \node[smallnote, fill=white, inner sep=1.8pt, anchor=east] at (14.70,4.34)
+    {detach / stop-gradient boundary};
+  \foreach \n in {gain,pressure,activity,balance} {
+    \draw[readStem] (\n.south) -- (\n.south |- 0,4.34);
   }
 
-  \node[station, draw=mpBlue, fill=mpBlueFill, minimum width=1.82cm]
-    (adamStep) at (7.78,4.00) {AdamW\\[2pt]matrix step};
+  \node[actionBlue, minimum width=1.78cm, minimum height=0.88cm]
+    (matrixPair) at (1.46,2.70)
+    {$A_l,B_l$\\[-1pt]matrix pair};
 
-  \node[station, draw=mpPurple, fill=white, minimum width=1.70cm]
-    (muon) at (10.00,4.00) {};
-  \node[font=\scriptsize\bfseries, text=mpPurple] at (10.00,4.22) {Muon pulse};
-  \draw[mpPurple, line width=1.04pt, -{Stealth[length=3pt]}]
-    (9.62,3.84) .. controls (9.78,4.12) and (10.20,4.12) .. (10.42,3.84);
+  \node[actionGreen, minimum width=2.52cm, minimum height=1.15cm]
+    (gates) at (4.10,2.70)
+    {\textbf{1. group gradient gates}\\[-1pt]
+     live gains + $\pi,\alpha$\\[-1pt]
+     scale $\nabla A_{l,g},\nabla B_{l,g}$};
+  \node[actionPurple, minimum width=2.98cm, minimum height=1.15cm]
+    (childStep) at (7.35,2.70)
+    {\textbf{2. AdamW/Muon branch}\\[-1pt]
+     consumes scaled gradients\\[-1pt]
+     $\pi,\alpha$ attenuate Muon};
+  \node[actionAmber, minimum width=3.06cm, minimum height=1.15cm]
+    (rescale) at (10.95,2.70)
+    {\textbf{3. post-step pair rescale}\\[-1pt]
+     probe gains + $\pi,\alpha,\gamma$\\[-2pt]
+     $A_{l,g}\!\leftarrow e^\ell A_{l,g}$\\[-2pt]
+     $B_{l,g}\!\leftarrow e^{-\ell}B_{l,g}$};
+  \node[actionBlue, minimum width=1.70cm, minimum height=0.88cm]
+    (updated) at (14.18,2.70)
+    {updated\\[-1pt]$A_l,B_l$};
 
-  \node[station, draw=mpAmber, fill=mpAmberFill, minimum width=1.94cm]
-    (rescale) at (12.22,4.00) {};
-  \node[font=\scriptsize\bfseries, text=mpAmber] at (12.22,4.23)
-    {pair rescale};
-  \node[font=\scriptsize, text=mpAmber] at (12.22,3.84)
-    {$A_g\uparrow\quad B_g\downarrow$};
+  \draw[flowShort] (matrixPair.east) -- (gates.west);
+  \draw[flowShort] (gates.east) -- (childStep.west);
+  \draw[flowShort] (childStep.east) -- (rescale.west);
+  \draw[flow] (rescale.east) -- (updated.west);
 
-  \node[station, draw=mpBlue, fill=mpBlueFill, minimum width=1.64cm]
-    (updatedAB) at (14.48,4.00) {updated\\[2pt]$A_l,B_l$};
+  \draw[read] (4.10,4.34) -- (gates.north);
+  \draw[read] (7.35,4.34) -- (childStep.north);
+  \draw[read] (10.95,4.34) -- (rescale.north);
+  \node[smallnote, fill=white, inner sep=1.5pt] at (4.10,4.02)
+    {enter gates};
+  \node[smallnote, fill=white, inner sep=1.5pt] at (7.35,4.02)
+    {enter matrix step};
+  \node[smallnote, fill=white, inner sep=1.5pt] at (10.95,4.02)
+    {enter rescale};
 
-  \draw[flow] (matrixPair.east) -- (gates.west);
-  \draw[flow] (controller.south) -- (gates.north);
-  \draw[flow] (gates.east) -- (adamStep.west);
-  \draw[flow] (adamStep.east) -- (muon.west);
-  \draw[flow] (muon.east) -- (rescale.west);
-  \draw[flow] (rescale.east) -- (updatedAB.west);
+  \node[actionGrey, minimum width=4.10cm, minimum height=0.52cm,
+    font=\scriptsize]
+    (other) at (3.12,0.62)
+    {rational coeffs + other Transformer tensors};
+  \node[actionWhiteGrey, minimum width=1.34cm, minimum height=0.52cm,
+    font=\scriptsize\bfseries]
+    (adamOnly) at (7.14,0.62)
+    {AdamW};
+  \node[actionGrey, minimum width=2.88cm, minimum height=0.52cm,
+    font=\scriptsize]
+    (noPolicy) at (10.60,0.62)
+    {no gates, Muon, or pair rescale};
 
-  % Quiet AdamW bypass for everything outside the matrix pair.
-  \node[font=\footnotesize\bfseries, text=mpMuted, anchor=west]
-    at (4.64,2.12) {AdamW-only bypass};
-  \node[adamOnly] (adamOnly) at (6.18,1.34) {AdamW\\[2pt]only};
-  \node[card, draw=mpMuted, fill=mpGreyFill, minimum width=1.90cm]
-    (updatedOther) at (8.90,1.34) {updated\\[2pt]$\theta_{\mathrm{nonAB}}$};
-  \node[card, draw=mpLine!70, fill=white, minimum width=2.92cm,
-    minimum height=0.60cm, font=\scriptsize, text=mpMuted]
-    (exclude) at (12.10,1.34) {no gates, Muon, or pair rescale};
-
-  \draw[bypass] (otherParams.east) -- (adamOnly.west);
-  \draw[bypass] (adamOnly.east) -- (updatedOther.west);
-  \draw[bypass] (updatedOther.east) -- (exclude.west);
+  \draw[bypass, shorten >=4pt] (other.east) -- (adamOnly.west);
+  \draw[bypass, shorten <=4pt, shorten >=4pt] (adamOnly.east) -- (noPolicy.west);
 \end{tikzpicture}
 \end{document}

@@ -1,17 +1,23 @@
 % Step 1 design document.
-% Goal: make the activation--optimizer interface visible in five seconds.
-% The figure shows only three ideas: (i) A_l and B_l are the matrix handles
-% around an RLB rational response, (ii) RLB exposes a stop-gradient
-% summary bus, and (iii) MatrixPolicy reads that bus and writes only the two
-% matrix handles.  The caption carries prose; the figure uses short labels,
-% matrix glyphs, a visible detachment membrane, and direct write rails.
+% Domain / format / density: ML method overview, TikZ standalone, medium density.
+% Five-second message: MatrixPolicy observes detached summaries and writes only
+% Delta A_l / Delta B_l, never the activation stream itself.
+% Layout: left-to-right forward path A_l -> normalized grouped rational response
+% -> B_l, with the detached summary bus below a clean stop-gradient boundary.
+% MatrixPolicy sits below the bus; one purple write bus exits its Delta-only box
+% and terminates at visible write ports on the two matrix handles.
+% Modules: A_l matrix glyph, RLB response card, B_l matrix glyph, four detached
+% summary chips, MatrixPolicy, and a Delta-only update box.
+% Space plan: keep the membrane label centered in a white break, keep summaries
+% inside their panel, and route purple write rails below the policy boxes so no
+% text is crossed by a line.
 \documentclass[tikz,border=6pt]{standalone}
 \usepackage{tikz}
 \usepackage{amsmath,amssymb}
 \usepackage[T1]{fontenc}
 \usepackage{helvet}
 \renewcommand{\familydefault}{\sfdefault}
-\usetikzlibrary{arrows.meta,calc,backgrounds,positioning}
+\usetikzlibrary{arrows.meta,bending,calc,backgrounds,positioning}
 
 \definecolor{mpInk}{HTML}{202020}
 \definecolor{mpMuted}{HTML}{686868}
@@ -49,6 +55,8 @@
   updateBox/.style={rectangle, rounded corners=4pt, draw=mpPurple, fill=white,
     line width=0.88pt, minimum width=2.06cm, minimum height=0.62cm,
     align=center, inner sep=4pt, text=mpPurple},
+  writePort/.style={circle, fill=mpPurple, draw=white, line width=0.48pt,
+    minimum size=4.2pt, inner sep=0pt},
   forward/.style={-{Stealth[length=5pt 1.45, width'=0pt 0.58, sep=0pt 0.5]},
     line width=1.03pt, color=mpInk, shorten >=2pt, shorten <=1pt},
   read/.style={-{Stealth[length=3.2pt 1.0, width'=0pt 0.48]},
@@ -82,7 +90,7 @@
 \begin{document}
 \begin{tikzpicture}[x=1cm,y=1cm]
   \node[font=\footnotesize\bfseries, text=mpInk] at (8.02,6.48)
-    {Activation-optimizer interface};
+    {MatrixPolicy writes only $\Delta A_l,\Delta B_l$};
 
   % Quiet forward context: the matrices are the only policy write handles.
   \matrixglyph{(1.16,4.62)}{(0.16,0.15) rectangle (0.48,1.03)}{23}
@@ -90,6 +98,7 @@
     at (2.02,5.92) {$A_l$};
   \node[small, text=mpPurple, fill=white, anchor=west, inner sep=1.5pt]
     (targetA) at (1.66,4.27) {$\Delta A_l$};
+  \node[inner sep=0pt, minimum size=0pt] (writeAport) at (1.48,4.78) {};
 
   \node[rlbCard] (rlb) at (8.02,5.20) {};
   \node[font=\small\bfseries, text=mpAmber] at (8.02,5.90) {RLB};
@@ -101,12 +110,14 @@
   \draw[mpAmber!85!black, line width=1.25pt]
     (7.14,4.86) .. controls (7.44,5.22) and (7.72,4.77) .. (8.04,5.05)
     .. controls (8.30,5.30) and (8.63,5.22) .. (8.94,5.30);
-  \node[small, text=mpAmber] at (8.02,4.58) {groupwise rational response};
+  \node[small, text=mpAmber] at (8.02,4.56)
+    {normalized grouped\\rational response};
   \matrixglyph{(13.16,4.62)}{(1.12,0.15) rectangle (1.44,1.03)}{29}
   \node[font=\footnotesize\bfseries, text=mpBlue, fill=white, inner sep=1pt]
     at (14.02,5.92) {$B_l$};
   \node[small, text=mpPurple, fill=white, anchor=east, inner sep=1.5pt]
     (targetB) at (14.28,4.27) {$\Delta B_l$};
+  \node[inner sep=0pt, minimum size=0pt] (writeBport) at (14.44,4.78) {};
 
   \draw[forward] (2.92,5.20) -- (5.72,5.20);
   \node[small, fill=white] at (4.35,5.39) {$u_{l,g}$};
@@ -116,15 +127,13 @@
   % Detachment summary bus.
   \node[summaryPanel, minimum width=9.95cm, minimum height=1.24cm]
     (summary) at (8.02,3.14) {};
-  \node[font=\scriptsize\bfseries, text=mpMuted, fill=mpSlateFill, inner sep=1pt,
-    anchor=west] at (3.38,3.60) {detached summaries};
 
   \summarychip{pressure}{4.24}{3.05}{pressure}{mpBlue}
-  \node[font=\scriptsize, text=mpBlue] at (4.24,2.88) {$p^{in},p^{out}$};
+  \node[font=\scriptsize, text=mpBlue] at (4.24,2.88) {$p^{\rm in},p^{\rm out}$};
   \summarychip{gain}{6.76}{3.05}{response}{mpGreen}
   \node[font=\scriptsize, text=mpGreen] at (6.76,2.88) {$\hat d,\hat o$};
   \summarychip{state}{9.28}{3.05}{rational state}{mpAmber}
-  \node[font=\scriptsize, text=mpAmber] at (9.28,2.88) {$q^R,\alpha,\theta_R$};
+  \node[font=\scriptsize, text=mpAmber] at (9.28,2.88) {$q^R,\alpha,\Theta^R$};
   \summarychip{balance}{11.80}{3.05}{balance}{mpPurple}
   \node[font=\scriptsize, text=mpPurple] at (11.80,2.88) {$\gamma,\tau$};
 
@@ -134,24 +143,34 @@
   \draw[read] (8.88,4.42) -- ++(0,-0.34) -| (state.north);
   \draw[read] (14.02,4.60) .. controls (13.96,4.10) and (12.62,3.82)
     .. (balance.north);
+  \node[font=\scriptsize\bfseries, text=mpMuted, fill=mpSlateFill, inner sep=1pt,
+    anchor=west] at (3.38,3.60) {detached summaries};
 
   % Foreground membrane: the white underlay makes the stop-gradient boundary
   % remain legible where detached read arrows cross it.
   \draw[line width=1.12pt, dash pattern=on 5.0pt off 2.4pt,
     color=mpLine!96, line cap=round,
     preaction={draw=white, line width=3.2pt, line cap=round}]
-    (3.02,4.04) -- (13.02,4.04);
-  \node[small, fill=white, text=mpMuted, inner sep=1.7pt]
-    at (4.16,4.30) {stop-gradient boundary};
+    (3.02,4.04) -- (6.66,4.04);
+  \draw[line width=1.12pt, dash pattern=on 5.0pt off 2.4pt,
+    color=mpLine!96, line cap=round,
+    preaction={draw=white, line width=3.2pt, line cap=round}]
+    (9.34,4.04) -- (13.02,4.04);
+  \node[small, fill=white, text=mpMuted, inner sep=2.0pt]
+    at (8.02,4.04) {stop-gradient boundary};
 
   % MatrixPolicy reads the detached bus and writes only to the two matrices.
   \node[policy] (policy) at (7.28,1.28) {MatrixPolicy};
   \node[updateBox] (updates) at (10.32,1.28) {$\Delta A_l,\Delta B_l$ only};
-  \draw[read] (summary.south) -- node[small, right=3pt, fill=white] {$s_l$}
+  \draw[read] (summary.south) -- node[small, right=3pt, fill=white] {detached}
     (policy.north);
   \draw[forward, color=mpPurple, line width=0.88pt] (policy.east) -- (updates.west);
 
-  \draw[write] (policy.west) -- (4.78,1.28) -- (1.48,1.28) -- (1.48,4.78);
-  \draw[write] (updates.east) -- (12.64,1.28) -- (14.44,1.28) -- (14.44,4.78);
+  \coordinate (writeHub) at (10.32,0.58);
+  \draw[line width=0.98pt, color=mpPurple] (updates.south) -- (writeHub);
+  \draw[write] (writeHub) -- (1.48,0.58) -- (writeAport);
+  \draw[write] (writeHub) -- (14.44,0.58) -- (writeBport);
+  \node[writePort] at (writeAport) {};
+  \node[writePort] at (writeBport) {};
 \end{tikzpicture}
 \end{document}

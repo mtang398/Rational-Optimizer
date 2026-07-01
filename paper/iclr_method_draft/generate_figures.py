@@ -334,7 +334,7 @@ def make_matrixpolicy_overview(out_path: Path) -> None:
         cx = x0 + 0.062
         ax.plot([cx, cx], [0.382, bus_y], color="#b8b8b8", linewidth=0.42, linestyle="--", zorder=1)
     ax.plot([0.170, 0.846], [bus_y, bus_y], color="#b8b8b8", linewidth=0.42, linestyle="--", zorder=1)
-    labeled_box(0.378, 0.240, 0.230, 0.078, "detached summaries", "$s_l$", "#ffffff", "#8a8a8a", title_size=6.85, body_size=6.25, lw=0.70)
+    labeled_box(0.378, 0.240, 0.230, 0.078, "detached summaries", "detached", "#ffffff", "#8a8a8a", title_size=6.85, body_size=6.25, lw=0.70)
     _arrow(ax, (0.508, bus_y), (0.508, 0.318), color="#a8a8a8", lw=0.54, scale=4.8, linestyle="--")
 
     labeled_box(0.370, 0.115, 0.250, 0.100, "MatrixPolicy", "outputs $\\Delta A_l,\\Delta B_l$ only", lavender, policy, title_size=8.0, body_size=6.6, lw=0.95)
@@ -430,7 +430,7 @@ def make_matrixpolicy_signal_flow(out_path: Path) -> None:
     internal_arrow.set_zorder(7)
     ax.text(x4 + w4 / 2, y + 0.026, "separate optimizer states", ha="center", va="center", fontsize=5.8, color=muted)
 
-    stage(0.728, y, 0.114, h, 5, "pair balance", "every 5 steps\n$A_g\\leftarrow e^\\ell A_g$\n$B_g\\leftarrow e^{-\\ell}B_g$", fc=amber, ec=amber_edge, title_size=6.10, body_size=5.50)
+    stage(0.728, y, 0.114, h, 5, "pair balance", "every 5 steps\n$A_{l,g}\\leftarrow e^\\ell A_{l,g}$\n$B_{l,g}\\leftarrow e^{-\\ell}B_{l,g}$", fc=amber, ec=amber_edge, title_size=6.10, body_size=5.50)
     stage(0.884, y + 0.010, 0.080, h - 0.020, 6, "updated", "$A_l^{t+1}$\n$B_l^{t+1}$", fc=blue, ec="#325d84", title_size=5.80, body_size=6.20)
 
     for start, end in [
