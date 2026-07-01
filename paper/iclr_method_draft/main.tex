@@ -385,21 +385,45 @@ gain is the output-role gain proxy.  If a cache is unavailable at a step, the
 implementation sets the corresponding gain multiplier to identity while keeping
 the pressure/activity memories active.
 
-The third family is used only by the post-step pair rescale.  It consists of
-fixed-grid response and derivative probe gains and the post-branch log matrix
-ratio $\gamma_{l,g}$ defined in the third control below.  These fixed-grid probes
-describe the rational curve shape on a shared interval; they are separate from
-the sampled live gains in \eqref{eq:live-gains}.
+The third family is produced only for the post-step pair rescale.  Let
+$\mathcal{U}=\{u_k\}_{k=1}^{129}$ be a uniform probe grid over $[-5,5]$, and
+define
+$\rms_{\mathcal{U}}(\varphi)=\sqrt{|\mathcal{U}|^{-1}\sum_{u_k\in\mathcal{U}}\varphi(u_k)^2}$.
+The fixed-grid probe producer refreshes every ten optimizer steps and emits
+\begin{align}
+    \hat d^{\rm probe}_{l,g}
+    &=
+    \sqrt{\rms_{\mathcal U}(R'_{l,g})^2+\epsilon_{\rm probe}},
+    \qquad
+    \hat o^{\rm probe}_{l,g}
+    =
+    \sqrt{\rms_{\mathcal U}(R_{l,g})^2+\epsilon_{\rm probe}}.
+    \label{eq:probe-gains}
+\end{align}
+These probes describe rational curve shape on a shared interval; they are
+separate from the sampled live gains in \eqref{eq:live-gains}.  After the
+role/depth matrix step and immediately before reciprocal rescaling, the wrapper
+also measures the detached pair-state coordinate
+\begin{align}
+    \gamma_{l,g}
+    =
+    \log\rms_{\epsilon_p}(A_{l,g})
+    -\log\rms_{\epsilon_p}(B_{l,g}).
+    \label{eq:post-step-pair-ratio}
+\end{align}
+Only the probe gains and $\gamma_{l,g}$ are emitted by this summary family.  The
+third control then computes $\tau_{l,g}$ and $\chi^{\rm rs}_{l,g}$ from those
+summaries and from the pressure and activity memories.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{figures/matrixpolicy_signal_flow.pdf}
 \caption{Detached-summary route for the evaluated MatrixPolicy system.  The
 top band produces stop-gradient summaries from forward hooks, pre-policy
-gradients, and pair probes; the read-only bus routes them to three
-MatrixPolicy consumers.  The lower policy band separates the gradient/update
-lane from the current matrix-pair state lane, while rational coefficients and
-non-RLB tensors remain AdamW-only.}
+gradients, fixed-grid probes, and post-step pair-state measurements; the
+read-only bus routes them to three MatrixPolicy consumers.  The lower policy
+band separates the gradient/update lane from the current matrix-pair state lane,
+while rational coefficients and non-RLB tensors remain AdamW-only.}
 \label{fig:matrixpolicy-signal-flow}
 \end{figure}
 
@@ -576,30 +600,12 @@ The third control chooses a bounded positive representative of the same RLB
 matrix pair after the matrix update.  It is implemented by the surrounding
 transport wrapper and is evaluated every five optimizer steps after the
 AdamW/Muon branch; fixed-grid probe gains are refreshed every ten optimizer
-steps and reused between refreshes.
-Let $\mathcal{U}=\{u_k\}_{k=1}^{129}$ be a uniform probe grid over $[-5,5]$, and
-define
-$\rms_{\mathcal{U}}(\varphi)=\sqrt{|\mathcal{U}|^{-1}\sum_{u_k\in\mathcal{U}}\varphi(u_k)^2}$.
-Fixed-grid probe gains describe curve shape for pair balancing, while live gains
-in \eqref{eq:live-gains} describe sampled forward distributions for
-group-gradient gating.  The target combines the probe-gain balance coordinate
-derived in Appendix~\ref{app:matrixpolicy-rescale} with a bounded pressure
-offset:
+steps and reused between refreshes.  It consumes the probe gains, the post-step
+log ratio $\gamma_{l,g}$, and the pressure/activity memories.  The target
+combines the probe-gain balance coordinate derived in
+Appendix~\ref{app:matrixpolicy-rescale} with a bounded pressure offset:
 \begin{equation}
 \begin{aligned}
-    \hat d^{\rm probe}_{l,g}
-    &=
-    \sqrt{\rms_{\mathcal U}(R'_{l,g})^2+\epsilon_{\rm probe}},
-    \\
-    \hat o^{\rm probe}_{l,g}
-    &=
-    \sqrt{\rms_{\mathcal U}(R_{l,g})^2+\epsilon_{\rm probe}},
-    \\[2pt]
-    \gamma_{l,g}
-    &=
-    \log\rms_{\epsilon_p}(A_{l,g})
-    -\log\rms_{\epsilon_p}(B_{l,g}),
-    \\
     \bar{\pi}_{l,g}
     &=
     \clip(\pi_{l,g},-1.25,1.25),

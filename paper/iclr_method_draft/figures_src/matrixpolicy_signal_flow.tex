@@ -136,7 +136,7 @@
     at (13.28,6.43) {};
   \node[prodTitle] at ($(balance.center)+(0,0.34)$) {pair state and probes};
   \node[prodVars, text=mpAmber] at ($(balance.center)+(0,-0.15)$)
-    {probe gains\\[-1pt]log-ratio $\gamma$, target $\tau$};
+    {probe gains $\hat d^{\rm probe},\hat o^{\rm probe}$\\[-1pt]post-step log-ratio $\gamma$};
 
   \node[summaryLane, minimum width=11.85cm] (summarybus) at (8.08,5.18)
     {$\operatorname{sg}(\text{detached read-only summary bus})$};
@@ -154,10 +154,11 @@
     {\textbf{matrix-step controls}\\[-1pt]
      role/depth; Muon reads \textcolor{mpPurple}{$\pi$},
      \textcolor{mpGreen}{$\alpha$}};
-  \node[readCard, minimum width=3.16cm] (rrescale) at (13.08,4.34)
+  \node[readCard, minimum width=3.32cm] (rrescale) at (13.08,4.34)
     {\textbf{pair-rescale controls}\\[-1pt]
-     probe gains; \textcolor{mpPurple}{$\pi$},
-     \textcolor{mpGreen}{$\alpha$}, \textcolor{mpAmber}{$\gamma,\tau$}};
+     probe gains, \textcolor{mpAmber}{$\gamma$}\\[-1pt]
+     \textcolor{mpPurple}{$\pi$}, \textcolor{mpGreen}{$\alpha$}
+     $\mapsto \tau,\chi^{\rm rs},\ell$};
 
   \draw[tapArrow] (summarybus.south -| rgate.north) -- (rgate.north);
   \draw[tapArrow] (summarybus.south -| rbranch.north) -- (rbranch.north);
