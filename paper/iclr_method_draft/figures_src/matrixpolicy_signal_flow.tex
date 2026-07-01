@@ -59,13 +59,20 @@
   bypass/.style={rectangle, rounded corners=4pt, draw=mpMuted, fill=white,
     line width=0.70pt, minimum height=0.48cm, align=center, inner sep=3pt,
     font=\scriptsize},
-  busLabel/.style={font=\scriptsize\bfseries, text=mpMuted!92, fill=mpSoft,
-    rounded corners=2pt, inner xsep=4pt, inner ysep=1.1pt},
-  boundaryLabel/.style={font=\scriptsize, text=mpMuted!88, fill=mpPurple!5,
-    rounded corners=2pt, inner xsep=3.5pt, inner ysep=1.0pt},
+  busPill/.style={rectangle, rounded corners=4pt, draw=mpLine!55, fill=white,
+    line width=0.50pt, font=\tiny\bfseries, text=mpMuted!94,
+    inner xsep=3.8pt, inner ysep=1.4pt},
+  busLine/.style={line width=0.82pt, color=mpLine!70},
+  busPort/.style={circle, draw=mpLine!70, fill=white, line width=0.55pt,
+    inner sep=0pt, minimum size=3.5pt},
+  boundaryLabel/.style={font=\tiny, text=mpMuted!90, fill=white,
+    rounded corners=2pt, inner xsep=3.0pt, inner ysep=0.8pt},
   title/.style={font=\scriptsize\bfseries, text=mpPurple, anchor=west,
     align=center,
     fill=mpPurpleFill, rounded corners=2pt, inner xsep=4pt, inner ysep=1.2pt},
+  sideTab/.style={rectangle, rounded corners=3pt, fill=mpPurpleFill,
+    font=\tiny\bfseries, text=mpPurple, align=center,
+    inner xsep=3.0pt, inner ysep=1.8pt},
   mutedTitle/.style={font=\scriptsize\bfseries, text=mpMuted, anchor=west,
     fill=white, rounded corners=2pt, inner xsep=4pt, inner ysep=1.2pt},
   arrow/.style={-{Stealth[length=4.2pt 1.2, width'=0pt 0.50]},
@@ -92,7 +99,8 @@
   \end{pgfonlayer}
 
   \node[mutedTitle] at (0.92,6.86) {detached summary producers};
-  \node[title] at (0.86,4.70) {MatrixPolicy\\consumers};
+  \node[sideTab, minimum width=1.48cm] at (1.35,4.12)
+    {MatrixPolicy\\consumers};
   \node[mutedTitle] at (1.36,1.13) {AdamW-only bypass};
 
   \node[cardBlue, minimum width=2.75cm, minimum height=1.20cm] (live)
@@ -119,33 +127,41 @@
   \node[prodVars, text=mpAmber] at ($(balance.center)+(0,-0.15)$)
     {probe gains\\[-1pt]log-ratio $\gamma$, target $\tau$};
 
-  \draw[bus] (1.00,5.18) -- (15.58,5.18);
-  \node[boundaryLabel, anchor=east] at (15.18,5.02)
+  \draw[bus] (1.00,5.24) -- (15.58,5.24);
+  \node[boundaryLabel, anchor=east] at (15.20,5.34)
     {stop-gradient boundary};
-  \node[busLabel] at (8.10,4.94)
+  \draw[busLine] (2.18,4.76) -- (12.80,4.76);
+  \node[busPill, anchor=west] (busTag) at (12.94,4.76)
     {detached summary bus};
 
-  \draw[readArrow, color=mpBlue!72] (live.south) -- (2.30,5.21);
-  \draw[readArrow, color=mpPurple!72] (pressure.south) -- (5.63,5.21);
-  \draw[readArrow, color=mpGreen!72] (activity.south) -- (9.10,5.21);
-  \draw[readArrow, color=mpAmber!82] (balance.south) -- (12.70,5.21);
+  \draw[readArrow, color=mpBlue!72] (live.south) -- (2.30,4.78);
+  \draw[readArrow, color=mpPurple!72] (pressure.south) -- (5.63,4.78);
+  \draw[readArrow, color=mpGreen!72] (activity.south) -- (9.10,4.78);
+  \draw[readArrow, color=mpAmber!82] (balance.south) -- (12.70,4.78);
+  \node[busPort] at (2.30,4.76) {};
+  \node[busPort] at (5.63,4.76) {};
+  \node[busPort] at (9.10,4.76) {};
+  \node[busPort] at (12.70,4.76) {};
+  \node[busPort] at (4.15,4.76) {};
+  \node[busPort] at (7.82,4.76) {};
+  \node[busPort] at (11.45,4.76) {};
 
-  \node[readCard, minimum width=3.18cm] (rgate) at (4.08,4.38)
+  \node[readCard, minimum width=3.18cm] (rgate) at (4.15,4.08)
     {\textbf{group gates}\\[-1pt]
      \textcolor{mpGreen}{$\hat d,\hat o$}; \textcolor{mpPurple}{$\pi$};
      \textcolor{mpGreen}{$\alpha$}};
-  \node[readCard, minimum width=3.72cm] (rbranch) at (7.78,4.38)
+  \node[readCard, minimum width=3.72cm] (rbranch) at (7.82,4.08)
     {\textbf{AdamW/Muon branch}\\[-1pt]
      role/depth; Muon reads \textcolor{mpPurple}{$\pi$},
      \textcolor{mpGreen}{$\alpha$}};
-  \node[readCard, minimum width=3.38cm] (rrescale) at (11.42,4.38)
+  \node[readCard, minimum width=3.38cm] (rrescale) at (11.45,4.08)
     {\textbf{pair rescale}\\[-1pt]
      probe gains; \textcolor{mpPurple}{$\pi$},
      \textcolor{mpGreen}{$\alpha$}, \textcolor{mpAmber}{$\gamma,\tau$}};
 
-  \draw[readArrow] (4.08,4.88) -- (rgate.north);
-  \draw[readArrow] (7.78,4.88) -- (rbranch.north);
-  \draw[readArrow] (11.42,4.88) -- (rrescale.north);
+  \draw[readArrow] (4.15,4.73) -- (rgate.north);
+  \draw[readArrow] (7.82,4.73) -- (rbranch.north);
+  \draw[readArrow] (11.45,4.73) -- (rrescale.north);
 
   \node[opBlue, minimum width=1.72cm] (pair) at (1.58,2.62)
     {$A_l,B_l$\\matrix pair};
