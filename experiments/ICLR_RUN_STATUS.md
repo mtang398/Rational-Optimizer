@@ -29,12 +29,12 @@ Raw row outputs are JSONL files under `experiments/runs/iclr26_main/<phase>/<dat
 
 Rejected MatrixPolicy proposal artifacts were pruned from the active repo surface and raw run tree on 2026-06-23. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; this status file keeps the completed implementation-speed records plus the current global-rational MatrixPolicy and non-MatrixPolicy RLB-control paper-facing summaries.
 
-## Rational-Only RLB MatrixPolicy Replacement Status
-Completed: 2026-06-25. Decision: adopt the corrected global-rational/no-local-atom RLB MatrixPolicy rows as the paper-facing MatrixPolicy source for completed E1/E2 summaries.
+## Global-Rational RLB MatrixPolicy Replacement Status
+Completed: 2026-06-25. Decision: adopt the corrected global-rational RLB MatrixPolicy rows as the paper-facing MatrixPolicy source for completed E1/E2 summaries.
 
-Purpose: test whether the local rational atom path is needed for the MatrixPolicy result. This run keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted global rational P5/Q4, telemetry, gauge/stat hooks, and original `rational_matrix_policy_onpolicy` optimizer settings, but removes the R-local atom path entirely.
+Purpose: test whether MatrixPolicy can retain its result with the grouped global P5/Q4 rational alone. This run keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted global rational P5/Q4, telemetry, gauge/stat hooks, and original `rational_matrix_policy_onpolicy` optimizer settings.
 
-Correction note: the 2026-06-24 15:36 queue used `rlb_fused_rational_only`, which set `centers=()` but still constructed `coeff_logits` as a zero-sized `Parameter`. That means an atom/coefficient parameter group still existed structurally, and the MatrixPolicy activity path could consume empty atom statistics. Jobs `830651`-`830681` completed under that flawed definition, jobs `830683` and `830685` were cancelled while active, and jobs `830688`-`830717` were cancelled before starting. Those JSONLs are obsolete and must not be used for the ablation or paper-facing replacement.
+Correction note: the 2026-06-24 15:36 queue used `rlb_fused_rational_only`, which set `centers=()` but still constructed `coeff_logits` as a zero-sized `Parameter`. That means a coefficient parameter group still existed structurally, and the MatrixPolicy activity path could consume empty coefficient statistics. Jobs `830651`-`830681` completed under that flawed definition, jobs `830683` and `830685` were cancelled while active, and jobs `830688`-`830717` were cancelled before starting. Those JSONLs are obsolete and must not be used for the ablation or paper-facing replacement.
 
 | Field | Value |
 | --- | --- |
@@ -44,11 +44,11 @@ Correction note: the 2026-06-24 15:36 queue used `rlb_fused_rational_only`, whic
 | Completed rows | `30/30` corrected rows complete |
 | Correct activation alias | `rlb_fused_global_rational` |
 | Implementation | `RationalFusedGlobalA5_4` in `activation/rational_opt/rational.py` |
-| Definition | global grouped rational P/Q only; no R-local atoms and no atom/coefficient `Parameter` |
+| Definition | global grouped rational P/Q only; trainable rational parameters are `numerator` and `denominator` |
 | Trainable rational parameters | `numerator`, `denominator` only |
 | Jobs | even chain `835104`, `835105`, `835106`, `835107`, `835108`, `835109`, `835110`, `835111`, `835112`, `835121`, `835122`, `835124`, `835125`, `835126`, `835127`; odd chain `835128`, `835129`, `835130`, `835131`, `835132`, `835133`, `835134`, `835135`, `835137`, `835138`, `835139`, `835140`, `835141`, `835142`, `835143` |
 | Slurm completion | all corrected jobs completed `0:0`; jobs `835106` and `835132` had `Restarts=1` but the final JSONL summaries are complete |
-| Constraint | `--constraint=nvlink`; launcher guards rational-only timing rows for NVLink |
+| Constraint | `--constraint=nvlink`; launcher guards global-rational timing rows for NVLink |
 
 Verification:
 
@@ -56,10 +56,10 @@ Verification:
 | --- | --- |
 | Direct activation parameters | `['denominator', 'numerator']` |
 | `coeff_logits` attribute | absent |
-| Activation stats | `abs_moments`, `raw_moments`, `num_gram`, `den_gram`, `output_rms`, `derivative_rms`; no atom stats |
+| Activation stats | `abs_moments`, `raw_moments`, `num_gram`, `den_gram`, `output_rms`, `derivative_rms`; no `coeff_logits` stats |
 | Training constructor | `RationalLocalBasisFFN(..., 'rlb_fused_global_rational', ...)` constructs `RationalFusedGlobalA5_4` |
 | MatrixPolicy group collector | returns `coeff_logits=None` |
-| Completed JSONL atom telemetry | atom fields are `null`/absent for corrected rows |
+| Completed JSONL legacy basis telemetry | legacy basis fields are `null`/absent for corrected rows |
 
 E1 final validation-loss anchor with the global-rational MatrixPolicy overlay:
 
@@ -81,7 +81,7 @@ E2 final validation-loss anchor with the global-rational MatrixPolicy overlay:
 | Dolma-sample | 3.806155 +/- 0.007278 | rlb_lion 3.841206 +/- 0.008478 | 0.035051 |
 | C4 | 3.877713 +/- 0.014444 | rlb_lion 3.913219 +/- 0.013928 | 0.035505 |
 
-Interpretation: the corrected global-rational rows are the intended no-local-atom RLB control, not plain SiLU and not removal of the RLB wrapper. They replace the MatrixPolicy row in E1/E2 generated summaries; the completed global-rational optimizer-control sweep now replaces every non-MatrixPolicy RLB optimizer-control row as well.
+Interpretation: the corrected global-rational rows are the intended global-rational RLB control, not plain SiLU and not removal of the RLB wrapper. They replace the MatrixPolicy row in E1/E2 generated summaries; the completed global-rational optimizer-control sweep now replaces every non-MatrixPolicy RLB optimizer-control row as well.
 
 ## MatrixPolicy Timing Node Guard and Repair Queue
 Queued: 2026-06-25 15:54 EDT. Policy correction: MatrixPolicy timing repair is node-based, not a fixed seconds-per-step exclusion rule. The launcher denylist rejects `sablab-gpu-12` before archiving/writing timing JSONL for timing-critical rows. The training harness still supports an optional `--timing-guard-max-seconds-per-step`, but launcher default is now `0.0` and the active repair queue disables that cutoff.
@@ -99,14 +99,14 @@ Rows completed for in-place repair with `FORCE_RERUN_COMPLETE_JSONL=1`, `TIMING_
 Downstream global-rational optimizer-control heads `982030` and `982031` were held while replacing the earlier strict-cutoff repair jobs, then updated to `afterany:986795` and released. The repair jobs `986793`, `986794`, and `986795` completed on accepted nodes, and the downstream global-rational control sweep has now also completed.
 
 ## Global-Rational RLB Optimizer-Control Sweep Status
-Completed: 2026-06-29. Purpose: rerun every non-MatrixPolicy RLB optimizer control with the corrected global-rational/no-local-atom activation so the completed MatrixPolicy overlay is compared against matched global-rational RLB controls.
+Completed: 2026-06-29. Purpose: rerun every non-MatrixPolicy RLB optimizer control with the corrected global-rational RLB activation so the completed MatrixPolicy overlay is compared against matched global-rational RLB controls.
 
 | Field | Value |
 | --- | --- |
 | Manifest | `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv` |
 | Scope | `210` rows = 7 non-MatrixPolicy RLB optimizers x 5 datasets x 3 seeds x 2 phases |
 | Phases | `E1_global_rational_optimizers_100m`, `E2_global_rational_optimizers_300m` |
-| Activation | `rlb_fused_global_rational`; no local atom path and no atom/coefficient `Parameter` |
+| Activation | `rlb_fused_global_rational`; trainable rational parameters are `numerator` and `denominator` |
 | Optimizers | `rlb_adamw`, `rlb_muon`, `rlb_lion`, `rlb_soap`, `rlb_ademamix`, `rlb_came`, `rlb_schedulefree` |
 | Jobs | `982026`-`982237` scheduler range, excluding non-sweep gaps `982086` and `982192`; queue is now empty |
 | Submission shape | one manifest row per Slurm job, two parity dependency chains, `--constraint=nvlink`, at most two active 4-A6000 jobs |
@@ -114,9 +114,9 @@ Completed: 2026-06-29. Purpose: rerun every non-MatrixPolicy RLB optimizer contr
 | Launcher guard | NVLink timing guard includes both global-rational optimizer-control phases |
 | Artifact audit | `180` full completions, `30` RLB+ADeMaMix early stops from non-finite loss, `0` missing/partial/bad JSONLs |
 
-Verification: completed JSONLs under `experiments/runs/iclr26_main/E1_global_rational_optimizers_100m/` and `experiments/runs/iclr26_main/E2_global_rational_optimizers_300m/` use `rlb_fused_global_rational`, report no atom/coefficient parameter path, and are now the paper-facing source for non-MatrixPolicy RLB controls.
+Verification: completed JSONLs under `experiments/runs/iclr26_main/E1_global_rational_optimizers_100m/` and `experiments/runs/iclr26_main/E2_global_rational_optimizers_300m/` use `rlb_fused_global_rational`, report trainable rational parameters only in `numerator` and `denominator`, and are now the paper-facing source for non-MatrixPolicy RLB controls.
 
-Interpretation: these controls are complete and included in the paper-facing tables. Non-MatrixPolicy RLB controls now match MatrixPolicy on the global-rational/no-local-atom activation; RLB+ADeMaMix is retained as a negative/divergent row rather than excluded.
+Interpretation: these controls are complete and included in the paper-facing tables. Non-MatrixPolicy RLB controls now match MatrixPolicy on the global-rational RLB activation; RLB+ADeMaMix is retained as a negative/divergent row rather than excluded.
 
 ## MatrixPolicy Safe Muon-Off Speed P0 Pilot
 Queued: 2026-06-22 20:54:36 EDT. Completed: 2026-06-22 22:32:09 EDT. Decision: pass as an implementation-speed validation and prune the temporary P0 manifest.
@@ -238,7 +238,7 @@ Completed clean jobs:
 | 13 | `812528` | afterok:`812527`; replaces cancelled `810105` |
 | 14 | `810106` | afterok:`810104` |
 
-Final clean rows finished without Slurm restarts. These rows validated the speed-fixed implementation path for E2. The current generated runtime summary now overlays the corrected global-rational MatrixPolicy JSONL rows instead of these local-atom safe-speed timing rows.
+Final clean rows finished without Slurm restarts. These rows validated the speed-fixed implementation path for E2. The current generated runtime summary now overlays the corrected global-rational MatrixPolicy JSONL rows instead of these earlier safe-speed timing rows.
 
 ## E1 FineWeb-Edu Runtime Repair Rerun
 
@@ -304,7 +304,7 @@ This package summarizes clean per optimizer/activation-combo runtime from JSONL 
 Included in tracked runtime aggregates:
 
 - E1 M0/100M clean rows: `225` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `8/8`. Row `89` is replaced by the completed MatrixPolicy replacement rerun when available.
-- Non-MatrixPolicy RLB optimizer controls overlaid from global-rational/no-local-atom runs: `210` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `30`.
+- Non-MatrixPolicy RLB optimizer controls overlaid from global-rational RLB runs: `210` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `30`.
 - E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb completed cell: `45` rows, one dataset x three seeds x 15 methods.
@@ -350,7 +350,7 @@ Generated from completed E1 M0/100M JSONL eval records. All rows still trained t
 
 Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 steps, or `1.64M` tokens per readout interval.
 
-`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational/no-local-atom rows.
+`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational RLB rows.
 
 #### DCLM
 
@@ -416,7 +416,7 @@ Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 st
 
 Completed E1 M0/100M datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. Figures use every native JSONL log point from step 500 through 3050. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
-MatrixPolicy curves and tables use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom replacement rows passed with `--replacement-manifest`; SiLU controls use the clean main E1 rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable.
+MatrixPolicy curves and tables use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational RLB replacement rows passed with `--replacement-manifest`; SiLU controls use the clean main E1 rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable.
 
 Final validation-loss overview across completed E1 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 
@@ -639,7 +639,7 @@ Tracked package: `results/iclr26_e2_dclm_2026_06_10/`.
 Completed: 2026-06-10. Manifest rows `240-284` define the full DCLM E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 DCLM slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -741,7 +741,7 @@ Tracked package: `results/iclr26_e2_fineweb_edu_2026_06_12/`.
 Completed: 2026-06-12. Manifest rows `285-329` define the full FineWeb-Edu E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 FineWeb-Edu slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -844,7 +844,7 @@ Tracked package: `results/iclr26_e2_fineweb_2026_06_15/`.
 Completed: 2026-06-15. Manifest rows `330-374` define the full FineWeb E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 FineWeb slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -946,7 +946,7 @@ Tracked package: `results/iclr26_e2_dolma_sample_2026_06_17/`.
 Completed: 2026-06-17. Manifest rows `375-419` define the full Dolma-sample E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 Dolma-sample slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -1049,7 +1049,7 @@ Tracked package: `results/iclr26_e2_c4_2026_06_19/`.
 Completed: 2026-06-19. Manifest rows `420-464` define the full C4 E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 C4 slice from the manifest: `val_skip_tokens=0`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
@@ -1250,7 +1250,7 @@ This table asks how many training tokens were needed to first reach a validation
 
 Completed E2 M0/300M datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
-MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
+MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the global-rational RLB replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
 
 Final validation-loss overview across completed E2 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 

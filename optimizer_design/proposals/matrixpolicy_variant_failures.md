@@ -1,6 +1,6 @@
 # MatrixPolicy Variant Failure Log
 
-Status: retained negative-result state plus activation-ablation correction log. All V2-V12 proposal files, standalone manifests, live optimizer aliases, and raw V-variant run directories were pruned from the active repo surface on 2026-06-23. The paper-facing MatrixPolicy optimizer is still the original `rational_matrix_policy_onpolicy` method with the accepted safe Muon-off implementation-speed fix. The current paper-facing MatrixPolicy activation overlay is the corrected global-rational/no-local-atom `rlb_fused_global_rational` row set.
+Status: retained negative-result state plus activation-ablation correction log. All V2-V12 proposal files, standalone manifests, live optimizer aliases, and raw V-variant run directories were pruned from the active repo surface on 2026-06-23. The paper-facing MatrixPolicy optimizer is still the original `rational_matrix_policy_onpolicy` method with the accepted safe Muon-off implementation-speed fix. The current paper-facing MatrixPolicy activation overlay is the corrected global-rational RLB `rlb_fused_global_rational` row set.
 
 ## Summary
 
@@ -22,8 +22,8 @@ Status: retained negative-result state plus activation-ablation correction log. 
 
 | Ablation | What was tried | Outcome | Failure reason |
 | --- | --- | --- | --- |
-| Rational-only RLB flawed alias | `rlb_fused_rational_only`: attempted global-only control by setting `centers=()`, but still constructed a zero-sized `coeff_logits` `Parameter`. | Rejected and excluded from ablation aggregates. | This was not the requested no-atom ablation because an atom/coefficient parameter group still existed structurally; rows that completed under this alias showed early nonfinite behavior and the remaining queue was cancelled. |
-| Rational-only RLB corrected alias | `rlb_fused_global_rational`: keep the RLB single-branch wrapper and grouped SiLU-fitted global P5/Q4 rational scalar, with no R-local atom path and no atom/coefficient `Parameter`. | Full E1/E2 MatrixPolicy replacement completed and adopted on 2026-06-25; non-MatrixPolicy RLB optimizer controls are queued separately. | Not a failure; retained here to document the corrected ablation definition and adoption decision. |
+| Global-rational RLB flawed alias | `rlb_fused_rational_only`: attempted global-rational control by setting `centers=()`, but still constructed a zero-sized `coeff_logits` `Parameter`. | Rejected and excluded from ablation aggregates. | This was not the requested global-rational ablation because a coefficient parameter group still existed structurally; rows that completed under this alias showed early nonfinite behavior and the remaining queue was cancelled. |
+| Global-rational RLB corrected alias | `rlb_fused_global_rational`: keep the RLB single-branch wrapper and grouped SiLU-fitted global P5/Q4 rational scalar, with trainable rational parameters only in `numerator` and `denominator`. | Full E1/E2 MatrixPolicy replacement completed and adopted on 2026-06-25; non-MatrixPolicy RLB optimizer controls are queued separately. | Not a failure; retained here to document the corrected ablation definition and adoption decision. |
 
 ## Decision
 

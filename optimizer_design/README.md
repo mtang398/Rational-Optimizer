@@ -6,7 +6,7 @@ Rejected proposal branches have been removed from the live optimizer surface and
 
 ## Current Result Anchor
 
-The current paper-facing optimizer evidence is the completed E1 matched main suite plus completed E2 M0/300M cells on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy values use corrected global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows from `../experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv`; non-MatrixPolicy RLB controls use matched global-rational rows from `../experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the fixed main-manifest rows.
+The current paper-facing optimizer evidence is the completed E1 matched main suite plus completed E2 M0/300M cells on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy values use corrected global-rational RLB (`rlb_fused_global_rational`) replacement rows from `../experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv`; non-MatrixPolicy RLB controls use matched global-rational rows from `../experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the fixed main-manifest rows.
 
 E1 M0/100M final validation-loss anchor:
 
@@ -237,7 +237,7 @@ Retained source files are limited to the current training surface: `matrix_polic
 
 ## Empirical Readout
 
-Current E1 M0/100M manifest-suite readout, with the MatrixPolicy row replaced by the completed global-rational/no-local-atom (`rlb_fused_global_rational`) overlay:
+Current E1 M0/100M manifest-suite readout, with the MatrixPolicy row replaced by the completed global-rational RLB (`rlb_fused_global_rational`) overlay:
 
 | Dataset | MatrixPolicy final val loss | next best current method | gap |
 | --- | ---: | ---: | ---: |
@@ -257,7 +257,7 @@ Rejected method attempts are consolidated in `proposals/matrixpolicy_variant_fai
 
 ## Next Proposal Direction
 
-The method-preserving Muon-off speed fix remains in production: once every MatrixPolicy Muon group has passed its decay end and `final_muon=min_muon=0`, `RationalMatrixPolicyOptimizer` skips the otherwise zero-LR Muon step. The current paper-facing MatrixPolicy rows additionally use `rlb_fused_global_rational`, which removes the local atom path and atom parameter group while preserving the single-branch RLB wrapper and grouped global P5/Q4 rational. The completed E1 replacement aggregate is `24.5` min, `0.4563` s/step, and `72,344.1` tokens/s over 15 rows. E2 median row time is faster than the local-atom safe-speed rows, but the mean is affected by three slow-row outliers, so use the generated per-dataset runtime tables for exact wall-clock claims. This is still the original MatrixPolicy optimizer, not a new optimizer method.
+The method-preserving Muon-off speed fix remains in production: once every MatrixPolicy Muon group has passed its decay end and `final_muon=min_muon=0`, `RationalMatrixPolicyOptimizer` skips the otherwise zero-LR Muon step. The current paper-facing MatrixPolicy rows additionally use `rlb_fused_global_rational`, which preserves the single-branch RLB wrapper while using only the grouped global P5/Q4 numerator and denominator for the trainable rational parameters. The completed E1 replacement aggregate is `24.5` min, `0.4563` s/step, and `72,344.1` tokens/s over 15 rows. E2 median row time is faster than the earlier safe-speed rows, but the mean is affected by three slow-row outliers, so use the generated per-dataset runtime tables for exact wall-clock claims. This is still the original MatrixPolicy optimizer, not a new optimizer method.
 
 The next method candidate should be a MatrixPolicy rule that is explainable from existing optimizer/RLB quantities and does not add expensive hooks, extra forward/backward passes, or matrix snapshots. It must pass a fast paired pilot before any E1 expansion.
 

@@ -12,7 +12,7 @@ Every comparison must keep the base protocol matched: model size, token budget, 
 
 The paper-facing result boundary is complete for E1 M0/100M and E2 M0/300M across all five matched datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. E1 has three seeds per dataset with matched outer configs, dense validation every 50 steps, and full mean +/- sample std curves in `experiments/results/iclr26_e1_figures/`. E2 has three seeds per dataset, final eval at step `9150`, and full result packages under `experiments/results/iclr26_e2_*` plus curves in `experiments/results/iclr26_e2_figures/`.
 
-All MatrixPolicy values and non-MatrixPolicy RLB optimizer-control values below use corrected global-rational/no-local-atom replacement rows: `experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv` for MatrixPolicy and `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv` for RLB controls. Token-to-target savings are tracked in the E1 package and in each E2 dataset package; RLB+ADeMaMix is retained as a divergent/early-stop negative row.
+All MatrixPolicy values and non-MatrixPolicy RLB optimizer-control values below use corrected global-rational RLB replacement rows: `experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv` for MatrixPolicy and `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv` for RLB controls. Token-to-target savings are tracked in the E1 package and in each E2 dataset package; RLB+ADeMaMix is retained as a divergent/early-stop negative row.
 
 E1 M0/100M final validation-loss anchor:
 

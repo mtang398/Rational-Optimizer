@@ -346,7 +346,7 @@ def make_matrixpolicy_overview(out_path: Path) -> None:
 
     ax.plot([0.620, 0.640], [0.165, 0.165], color="#9aa0a6", linewidth=0.55)
     ax.text(0.650, 0.186, "coefficients are observed signals and follow AdamW", fontsize=6.15, color=muted, ha="left")
-    ax.text(0.650, 0.158, "global-only variant: no local atom parameters", fontsize=6.15, color=muted, ha="left")
+    ax.text(0.650, 0.158, "global-rational variant: grouped P5/Q4 only", fontsize=6.15, color=muted, ha="left")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04, facecolor="white", transparent=False)
@@ -1087,9 +1087,9 @@ def make_e1_e2_silu_summary_table(out_path: Path) -> None:
     rows = _target_arrival_rows()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        r"\begin{table}[t]",
+        r"\begin{table}[H]",
         r"\centering",
-        r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 Transformer. RLB denotes the global-rational, no-local-atom activation without MatrixPolicy. At the hardest validation-loss target reached by every listed method in all three seeds, MatrixPolicy is always fastest; each token-saving column reports MatrixPolicy's savings relative to the method named below it.}",
+        r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 Transformer. RLB denotes the global-rational RLB activation without MatrixPolicy. At the hardest validation-loss target reached by every listed method in all three seeds, MatrixPolicy is always fastest; each token-saving column reports MatrixPolicy's savings relative to the method named below it.}",
         r"\label{tab:e1e2-silu-comparison}",
         r"\begingroup",
         r"\footnotesize",
@@ -1141,7 +1141,7 @@ def make_broad_final_validation_table(out_path: Path) -> None:
     lines = [
         r"\begin{table}[H]",
         r"\centering",
-        r"\caption{Final validation loss for the broader optimizer sweep on the fixed 12-layer, width-768 language model. Values are mean $\pm$ sample standard deviation over three seeds; lower is better. RLB rows use the global-rational, no-local-atom activation without MatrixPolicy.}",
+        r"\caption{Final validation loss for the broader optimizer sweep on the fixed 12-layer, width-768 language model. Values are mean $\pm$ sample standard deviation over three seeds; lower is better. RLB rows use the global-rational RLB activation without MatrixPolicy.}",
         r"\label{tab:broad-final-validation}",
         r"\begingroup",
         r"\scriptsize",

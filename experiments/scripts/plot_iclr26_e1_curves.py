@@ -325,7 +325,7 @@ def write_readme(out_dir: Path, curves, uses_safe_matrixpolicy: bool, uses_globa
         else "MatrixPolicy curves and tables use the manifest rows passed to this generator."
     )
     control_note = (
-        " Non-MatrixPolicy RLB optimizer controls use the global-rational/no-local-atom (`rlb_fused_global_rational`) "
+        " Non-MatrixPolicy RLB optimizer controls use the global-rational RLB (`rlb_fused_global_rational`) "
         "replacement rows passed with `--replacement-manifest`; SiLU controls use the clean main E1 rows "
         "plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable."
         if uses_global_rational_controls
