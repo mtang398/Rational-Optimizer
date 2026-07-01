@@ -14,7 +14,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Normalize, TwoSlopeNorm
-import matplotlib.patheffects as path_effects
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
 
 plt.rcParams.update({
@@ -878,53 +877,20 @@ def _target_arrival_rows() -> list[dict[str, object]]:
 def make_target_arrival_evidence_matrix(out_path: Path) -> None:
     curves_by_regime = {"E1": load_e1_curves(), "E2": load_e2_curves()}
     method_sets = {regime: _completed_broad_methods(curves) for regime, curves in curves_by_regime.items()}
-    dataset_markers = {
-        "dclm": "o",
-        "fineweb_edu": "s",
-        "fineweb": "^",
-        "dolma_sample": "D",
-        "c4_en": "P",
-    }
-    label_offsets = {
-        "E1": {
-            "dclm": (-30.0, 15.0),
-            "fineweb_edu": (10.0, 16.0),
-            "fineweb": (16.0, 10.0),
-            "dolma_sample": (-26.0, -16.0),
-            "c4_en": (18.0, 18.0),
-        },
-        "E2": {
-            "dclm": (-38.0, 18.0),
-            "fineweb_edu": (11.0, 17.0),
-            "fineweb": (18.0, 9.0),
-            "dolma_sample": (-36.0, -17.0),
-            "c4_en": (18.0, 21.0),
-        },
-    }
-
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 4.35))
-    fig.subplots_adjust(left=0.072, right=0.990, bottom=0.135, top=0.790, wspace=0.205)
-
-    for ax, regime in zip(axes, ["E1", "E2"]):
+    panel_data: dict[tuple[str, str], list[tuple[str, str, str, list[float], list[float]]]] = {}
+    row_ranges: dict[str, tuple[float, float, float, float] | None] = {}
+    for regime in ["E1", "E2"]:
         curves = curves_by_regime[regime]
         methods = method_sets[regime]
-        x_values: list[float] = []
-        y_values: list[float] = []
-        hard_labels: list[tuple[float, float, str, str]] = []
+        row_x_values: list[float] = []
+        row_y_values: list[float] = []
         for dataset, dataset_label, e2_dir_name in DATASETS:
             targets = sorted(_target_candidates(regime, dataset, e2_dir_name), reverse=True)
             if not targets:
+                panel_data[(regime, dataset)] = []
                 continue
-            mp_hits = [
-                (target, stats)
-                for target in targets
-                if (stats := _hit_token_stats(curves, dataset, "rlb_matrixpolicy_original", target)) is not None
-            ]
-            if mp_hits:
-                hard_target, mp_hard = min(mp_hits, key=lambda item: item[0])
-                hard_labels.append((mp_hard[0] / 1_000_000, hard_target, dataset, DATASET_ABBR[dataset_label]))
+            traces: list[tuple[str, str, str, list[float], list[float]]] = []
             for method, _label, family, optimizer in methods:
-                color, linestyle, linewidth, alpha = _target_line_style(method)
                 xs, ys = [], []
                 for target in targets:
                     stats = _hit_token_stats(curves, dataset, method, target)
@@ -932,21 +898,45 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                         continue
                     xs.append(stats[0] / 1_000_000)
                     ys.append(target)
-                    x_values.append(xs[-1])
-                    y_values.append(target)
+                    row_x_values.append(xs[-1])
+                    row_y_values.append(target)
                 if not xs:
                     continue
-                marker = dataset_markers[dataset]
+                traces.append((method, family, optimizer, xs, ys))
+            panel_data[(regime, dataset)] = traces
+        if row_x_values and row_y_values:
+            x_pad = max(6.0, 0.045 * (max(row_x_values) - min(row_x_values)))
+            y_pad = max(0.045, 0.070 * (max(row_y_values) - min(row_y_values)))
+            xmin = max(0.0, math.floor((min(row_x_values) - x_pad) / 10.0) * 10.0)
+            xmax = math.ceil((max(row_x_values) + x_pad) / 10.0) * 10.0
+            ymin = math.floor((min(row_y_values) - y_pad) * 20.0) / 20.0
+            ymax = math.ceil((max(row_y_values) + y_pad) * 20.0) / 20.0
+            row_ranges[regime] = (xmin, xmax, ymin, ymax)
+        else:
+            row_ranges[regime] = None
+
+    fig, axes = plt.subplots(2, len(DATASETS), figsize=(7.2, 4.15), sharex="row", sharey="row")
+    fig.subplots_adjust(left=0.070, right=0.994, bottom=0.122, top=0.805, wspace=0.105, hspace=0.245)
+
+    for row_idx, regime in enumerate(["E1", "E2"]):
+        for col_idx, (dataset, dataset_label, _e2_dir_name) in enumerate(DATASETS):
+            ax = axes[row_idx, col_idx]
+            traces = panel_data[(regime, dataset)]
+            for method, family, optimizer, xs, ys in traces:
+                color, linestyle, linewidth, alpha = _target_line_style(method)
                 is_matrix_policy = method == "rlb_matrixpolicy_original"
                 is_primary_optimizer = optimizer in {"AdamW", "Muon"}
-                base_size = 15 if is_matrix_policy or is_primary_optimizer else 8
-                final_size = 46 if is_matrix_policy else (23 if is_primary_optimizer else 12)
+                marker = "o" if is_matrix_policy else ("s" if family == "RLB" else "^")
+                base_size = 8.5 if is_matrix_policy else (5.4 if is_primary_optimizer else 3.2)
+                final_size = 28 if is_matrix_policy else (13.0 if is_primary_optimizer else 6.0)
                 sizes = [base_size] * len(xs)
                 sizes[-1] = final_size
                 line_z = 7 if is_matrix_policy else (5 if is_primary_optimizer else 2)
                 point_z = 9 if is_matrix_policy else (6 if is_primary_optimizer else 3)
-                scatter_alpha = 1.0 if is_matrix_policy else (min(0.96, alpha + 0.10) if is_primary_optimizer else min(0.34, alpha + 0.08))
-                scatter_lw = 0.58 if is_matrix_policy or is_primary_optimizer else 0.18
+                scatter_alpha = 1.0 if is_matrix_policy else (
+                    min(0.95, alpha + 0.10) if is_primary_optimizer else min(0.32, alpha + 0.08)
+                )
+                scatter_lw = 0.42 if is_matrix_policy or is_primary_optimizer else 0.12
                 ax.plot(xs, ys, color=color, linestyle=linestyle, linewidth=linewidth, alpha=alpha, zorder=line_z)
                 ax.scatter(
                     xs,
@@ -959,45 +949,27 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                     linewidth=scatter_lw,
                     zorder=point_z,
                 )
-        if x_values and y_values:
-            xmin = max(0.0, math.floor((min(x_values) - 7.0) / 10.0) * 10.0)
-            xmax = math.ceil((max(x_values) + 12.0) / 10.0) * 10.0
-            ymin = math.floor((min(y_values) - 0.055) * 20.0) / 20.0
-            ymax = math.ceil((max(y_values) + 0.105) * 20.0) / 20.0
-            ax.set_xlim(xmin, xmax)
-            ax.set_ylim(ymin, ymax)
-            ax.text(
-                xmin + 0.03 * (xmax - xmin),
-                ymin + 0.075 * (ymax - ymin),
-                "left = fewer tokens\nlower = harder target",
-                fontsize=6.0,
-                color="#555555",
-                linespacing=1.05,
-                zorder=8,
-            )
-        for x, y, dataset, dataset_abbr in hard_labels:
-            dx, dy = label_offsets[regime].get(dataset, (5.0, 5.0))
-            text = ax.annotate(
-                f"{dataset_abbr}",
-                (x, y),
-                xytext=(dx, dy),
-                textcoords="offset points",
-                fontsize=6.25,
-                color="#202020",
-                ha="left" if dx >= 0 else "right",
-                va="center",
-                bbox={"boxstyle": "round,pad=0.10", "facecolor": "white", "edgecolor": "none", "alpha": 0.82},
-                arrowprops={"arrowstyle": "-", "color": "#777777", "linewidth": 0.40, "shrinkA": 1.0, "shrinkB": 3.4},
-                zorder=9,
-            )
-            text.set_path_effects([path_effects.withStroke(linewidth=1.2, foreground="white")])
-        ax.set_title(BUDGET_LABELS[regime], fontsize=8.3, pad=5, weight="bold")
-        ax.set_xlabel("tokens to validation-loss target (M)", fontsize=7.6)
-        ax.grid(True, color="#d7d7d7", linewidth=0.45, alpha=0.72)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.tick_params(axis="both", labelsize=6.8, pad=1.6)
-    axes[0].set_ylabel("target validation loss", fontsize=7.6)
+            limits = row_ranges[regime]
+            if limits is not None:
+                xmin, xmax, ymin, ymax = limits
+                ax.set_xlim(xmin, xmax)
+                ax.set_ylim(ymin, ymax)
+            if not traces:
+                ax.text(0.5, 0.5, "not available", transform=ax.transAxes, ha="center", va="center", fontsize=6.0, color="#777777")
+            if row_idx == 0:
+                ax.set_title(dataset_label, fontsize=6.55, pad=3.0, weight="bold")
+            if col_idx == 0:
+                ax.set_ylabel(f"{BUDGET_LABELS[regime]}\ntarget val. loss", fontsize=6.6, labelpad=2.0)
+            else:
+                ax.tick_params(axis="y", labelleft=False)
+            ax.grid(True, color="#dddddd", linewidth=0.36, alpha=0.72)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            ax.tick_params(axis="both", labelsize=5.75, pad=1.1, length=2.1)
+            ax.locator_params(axis="x", nbins=3)
+            ax.locator_params(axis="y", nbins=4)
+    fig.text(0.535, 0.052, "tokens to validation-loss target (M)", ha="center", va="center", fontsize=7.1)
+    fig.text(0.075, 0.833, "left = fewer tokens; lower = harder target", ha="left", va="bottom", fontsize=6.1, color="#555555")
 
     present_optimizers = []
     for methods in method_sets.values():
@@ -1006,9 +978,9 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 present_optimizers.append(optimizer)
     optimizer_order = [name for name in ["AdamW", "Muon", "Lion", "SOAP", "ScheduleFree", "CAME"] if name in present_optimizers]
     method_handles = [
-        plt.Line2D([0], [0], color=OKABE_ITO["black"], linestyle="-", linewidth=2.35, marker="o", markersize=4.8),
-        plt.Line2D([0], [0], color="#303030", linestyle="-", linewidth=1.25),
-        plt.Line2D([0], [0], color="#303030", linestyle=(0, (2.4, 1.8)), linewidth=1.25),
+        plt.Line2D([0], [0], color=OKABE_ITO["black"], linestyle="-", linewidth=2.05, marker="o", markersize=4.3),
+        plt.Line2D([0], [0], color="#303030", linestyle="-", linewidth=1.20, marker="s", markersize=3.4),
+        plt.Line2D([0], [0], color="#303030", linestyle=(0, (2.4, 1.8)), linewidth=1.20, marker="^", markersize=3.5),
     ]
     method_labels = ["MatrixPolicy", "RLB-only", "SiLU"]
     optimizer_handles = []
@@ -1024,53 +996,34 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 alpha=0.96 if is_primary else 0.48,
             )
         )
-    dataset_handles = [
-        plt.Line2D([0], [0], color="#777777", linestyle="", marker=dataset_markers[dataset], markersize=4.3, markerfacecolor="#d7d7d7", markeredgecolor="#333333", markeredgewidth=0.35)
-        for dataset, _label, _e2 in DATASETS
-    ]
-    dataset_labels = [DATASET_ABBR[label] for _dataset, label, _e2 in DATASETS]
     method_legend = fig.legend(
         method_handles,
         method_labels,
         loc="upper left",
-        bbox_to_anchor=(0.075, 0.995),
+        bbox_to_anchor=(0.070, 0.995),
         ncol=3,
         frameon=False,
-        fontsize=6.35,
+        fontsize=6.05,
         title="Method",
-        title_fontsize=6.45,
-        handlelength=1.55,
-        columnspacing=0.82,
-        handletextpad=0.42,
+        title_fontsize=6.20,
+        handlelength=1.45,
+        columnspacing=0.70,
+        handletextpad=0.35,
     )
     fig.add_artist(method_legend)
     fig.legend(
         optimizer_handles,
         optimizer_order,
         loc="upper right",
-        bbox_to_anchor=(0.992, 0.995),
+        bbox_to_anchor=(0.994, 0.995),
         ncol=len(optimizer_order),
         frameon=False,
-        fontsize=6.20,
+        fontsize=5.95,
         title="Optimizer color",
-        title_fontsize=6.40,
-        handlelength=1.45,
-        columnspacing=0.72,
-        handletextpad=0.34,
-    )
-    fig.legend(
-        dataset_handles,
-        dataset_labels,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.885),
-        ncol=5,
-        frameon=False,
-        fontsize=6.20,
-        title="Dataset",
-        title_fontsize=6.40,
-        handlelength=0.95,
-        columnspacing=0.90,
-        handletextpad=0.34,
+        title_fontsize=6.15,
+        handlelength=1.28,
+        columnspacing=0.58,
+        handletextpad=0.28,
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, bbox_inches="tight", pad_inches=0.05, facecolor="white", transparent=False)

@@ -706,12 +706,14 @@ in every listed comparison.
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.99\textwidth]{figures/target_arrival_evidence_matrix.pdf}
-\caption{Target-arrival map for the completed fixed-scale study.  Each point is
-the mean token count needed by one method to reach one validation-loss target on
-one dataset; connected points trace the same method and dataset from easier to
-harder targets.  The horizontal coordinate is target-arrival tokens, and the
-vertical coordinate is the target validation loss, so curves further left reach
-the same loss with fewer tokens.  The hard-target timing and token-saving percentages are quantified in Table~\ref{tab:e1e2-silu-comparison}.}
+\caption{Target-arrival map for the completed fixed-scale study.  Rows show the
+100M- and 300M-token budgets, and columns show datasets.  Each point is the mean
+token count needed by one method to reach one validation-loss target; connected
+points trace the same method from easier to harder targets within that
+dataset-setting panel.  The horizontal coordinate is target-arrival tokens, and
+the vertical coordinate is target validation loss, so curves further left reach
+the same loss with fewer tokens.  The hard-target timing and token-saving
+percentages are quantified in Table~\ref{tab:e1e2-silu-comparison}.}
 \label{fig:target-arrival-evidence}
 \end{figure}
 
