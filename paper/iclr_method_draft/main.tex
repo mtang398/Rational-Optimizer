@@ -39,93 +39,89 @@
 \maketitle
 
 \begin{abstract}
-Language-model pretraining is often constrained by how quickly a model reaches a
-useful loss as well as by the final loss after a fixed budget has been spent.
-Modern nonlinear sublayers are usually improved by changing the forward response:
-fixed curves such as GELU or SiLU are replaced by gated variants such as SwiGLU.
-Once the response is surrounded by learned projections and gates, however, the
-optimizer still treats the participating matrices as generic tensors.  This paper
-studies the complementary interface: make the nonlinear sublayer expose the roles
-of its adjacent matrices.  Rational Latent Basis (RLB) maps residual states into
-RMS-normalized groups and applies trainable real-pole-free P5/Q4 rational
-responses.  MatrixPolicy reads the resulting response, derivative, pressure, and
-matrix-pair balance signals to update only the RLB input and output matrices,
-while AdamW updates rational coefficients and all remaining Transformer
-parameters.  On five 12-layer, width-768 language-model pretraining corpora,
-MatrixPolicy reaches shared validation-loss targets with fewer tokens and less
-measured time than matched SiLU controls.  At the 100M-token scale, target-arrival
-tokens are reduced by 19.5--22.8\% relative to SiLU with AdamW and by
-29.2--34.0\% relative to SiLU with Muon; at the 300M-token scale, where endpoint
-losses are closer, the corresponding reductions remain 22.3--26.4\% and
-6.7--9.8\%.  [todo: Insert the larger-scale training result here.]
+Modern LLM development is constrained by how many pretraining tokens and hours
+are needed before a model is useful enough to enter the downstream loop of
+evaluation, post-training, and iteration.  We make the nonlinear Transformer
+sublayer optimizer-visible.  Rational Latent Basis (RLB) replaces a fixed
+response with grouped, RMS-normalized, real-pole-free P5/Q4 rational responses
+and exposes derivative gains, response gains, coefficient activity, and
+matrix-pair balance summaries.  MatrixPolicy consumes these summaries to update
+only the adjacent input and output matrices, while rational coefficients and all
+other Transformer parameters remain on AdamW.  On five pretraining corpora with
+a fixed 12-layer, width-768 decoder, MatrixPolicy reaches matched
+validation-loss targets with fewer tokens and lower measured arrival time than
+SiLU controls.  It saves 19.5--22.8\% target-arrival tokens versus SiLU with
+AdamW and 29.2--34.0\% versus SiLU with Muon at 100M tokens, and 22.3--26.4\%
+and 6.7--9.8\%, respectively, at 300M tokens.  [todo: Insert the larger-scale
+training result here.]
 \end{abstract}
 
 \section{Introduction}
 \label{sec:introduction}
 
-Large language models are trained under budgets in which every token and every
-hour has an opportunity cost.  Architectural work therefore matters when it
-lowers the final loss after a prescribed budget and when it changes the number
-of tokens needed to reach the same validation loss.  The nonlinear
-sublayer is a natural place to look for such changes.  Early Transformer
-implementations used pointwise responses such as ReLU or GELU
-\citep{vaswani2017attention,hendrycks2016gelu}; later language models adopted
-gated variants descended from GLU, including SwiGLU in PaLM and LLaMA-style
-decoders \citep{dauphin2017language,shazeer2020glu,chowdhery2022palm,touvron2023llama}.
-Gating made the sublayer a learned interaction among several matrices, extending
-the older view of an activation as a scalar curve inserted between two
-projections.
+For 2027-era LLMs, the practical question has shifted from final model size
+alone to capability purchased per token, per optimizer step, and per hour of
+training.  A pretraining run is not an isolated curve-fitting exercise: it gates
+architecture search, data-mixture revision, post-training, safety evaluation,
+and release cadence.  Recent open model reports therefore foreground training
+data, token budgets, architecture choices, stability, and hardware cost
+alongside benchmark quality
+\citep{grattafiori2024llama3,qwen2025qwen25,deepseekai2024deepseekv3}.
+Recent scaling and training-protocol studies make the same point from a more
+controlled angle: loss depends on data mixture, repetition, optimizer choice,
+and the full training configuration, so small design changes should be judged by
+how quickly they reach useful loss, not only by the endpoint after a fixed budget
+\citep{li2025farseer,liu2026infolaw,volkova2026optimizerlaws,semenov2025benchmarking,wen2026fantastic}.
+We therefore use target arrival as the main readout: when two runs eventually
+approach similar endpoint losses, the one that reaches the same validation loss
+earlier has changed the cost of pretraining.
 
-That shift changes what an activation can usefully control.  A scalar response
-can alter smoothness, saturation, and sign behavior, but the learned projections
-around it can rescale and remix the coordinates on which the response is
-evaluated.  Recent rational-activation theory strengthens the case that learned
-low-degree rational responses are expressive objects
-\citep{boulle2020rational,tang2026rationalexpressivity}.  That theory motivates
-the response family; the optimizer still needs matrix-role information from the
-sub-layer that contains the response.  At the same time, optimizer research for
-language modeling has moved from entrywise adaptive rules toward questions of
-matrix structure, update scale, and fair target-budget evaluation
-\citep{zhao2025deconstructing,liu2025muon,vyas2025soap,wen2026fantastic}.
-The missing interface is local to the nonlinear sublayer: the optimizer sees
-parameter tensors and gradients, but not which matrix selects latent coordinates,
-which matrix recombines transformed features, or how their scales represent the
-same function.
+The nonlinear Transformer sublayer is a plausible place to improve target
+arrival, but only if it is treated as a matrix interaction rather than as an
+isolated scalar curve.  Early Transformer implementations used pointwise
+responses such as ReLU or GELU
+\citep{vaswani2017attention,hendrycks2016gelu}.  Modern decoder blocks instead
+often use GLU-derived gated sublayers, including SwiGLU in PaLM and LLaMA-style
+models
+\citep{dauphin2017language,shazeer2020glu,chowdhery2022palm,touvron2023llama}.
+This made nonlinear sublayers stronger, but it also made many fixed-curve swaps
+less structurally decisive: learned projections choose latent coordinates, a
+response transforms them, and another matrix recombines the features.  The scalar
+curve matters, but the surrounding matrices decide what the curve sees and how
+its features return to the residual stream.
 
-Rational Latent Basis (RLB) supplies this interface.  It maps the residual stream
-into grouped latent coordinates, normalizes each group by its RMS radius, and
-applies one trainable real-pole-free P5/Q4 rational response per group.  The
-normalization separates the coordinate at which the curve is evaluated from the
-group scale returned to the residual stream.  The adjacent input and output
-matrices also have a positive pair-rescaling coordinate: away from the RMS floor,
-scaling one representative up and the other down leaves the represented map
-unchanged.  RLB therefore provides the optimizer with response gains, derivative
-gains, relative matrix-pressure summaries, coefficient activity, and a bounded
-matrix-pair balance coordinate.
+Learned rational responses are a natural response family for this interaction.
+Rational neural networks have approximation-theoretic advantages for smooth
+functions, and recent theory extends the separation to modern fixed activations,
+including gated and Transformer-style nonlinearities
+\citep{boulle2020rational,tang2026rationalexpressivity}.  Prior Transformer
+work with rational activations shows that replacing a fixed curve by a trainable
+rational curve can help \citep{fang2023transformers}.  The missing piece is the
+optimizer interface.  If the rational curve is trained as just another tensor,
+the optimizer does not know which adjacent matrix selects rational coordinates,
+which matrix recombines rational features, or which reciprocal rescalings leave
+the represented sublayer map nearly unchanged.
 
-MatrixPolicy is the corresponding optimizer rule for the RLB input and output
-matrices.  It uses summaries exposed by RLB to redistribute group-gradient scale
-separately for the input and output roles, to add a transient matrix-direction
-substep during the early phase of training, and to keep the two matrix
-representatives close to a bounded balance target.  Rational coefficients,
-attention weights, embeddings, normalization parameters, and all other
-Transformer tensors remain on the AdamW path.  The optimizer change is localized:
-MatrixPolicy is a role-aware update for the two matrices whose roles are exposed
-by the nonlinear sublayer.
+Rational Latent Basis (RLB) exposes exactly these quantities.  It maps residual
+states into grouped latent coordinates, normalizes each group by its RMS radius,
+and applies a trainable real-pole-free P5/Q4 rational response.  This
+parameterization produces response gains, derivative gains, coefficient-activity
+signals, relative matrix-pressure summaries, and a positive matrix-pair balance
+coordinate.  MatrixPolicy is the optimizer rule paired with that interface: it
+updates only the RLB input and output matrices by role, while rational
+coefficients, attention weights, embeddings, normalization parameters, and all
+other Transformer tensors remain on AdamW.
 
 The completed fixed-scale study uses the same 12-layer, width-768 causal
-Transformer across DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4.  In the
-100M-token setting, MatrixPolicy reaches shared validation-loss targets earlier
-than matched SiLU with AdamW and SiLU with Muon baselines.  In the 300M-token
-setting, where endpoint losses are closer because the runs are longer, the
-target-arrival advantage remains visible in both tokens and measured time.
-[todo: Insert the larger-scale training result here.]
-
-This paper contributes a global-rational RLB sublayer that turns activation
-statistics into optimizer-visible matrix-role signals; MatrixPolicy, which uses
-those signals to update only the RLB input and output matrices; and matched
-evidence across five pretraining corpora showing faster target arrival in tokens
-and wall-clock time against strong AdamW and Muon SiLU controls.
+Transformer across DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4.  At the
+100M-token budget, MatrixPolicy reaches shared validation-loss targets earlier
+than matched SiLU with AdamW and SiLU with Muon baselines.  At the 300M-token
+budget, where longer runs compress endpoint gaps, the target-arrival advantage
+remains visible in both tokens and measured time.  [todo: Insert the larger-scale
+training result here.]  The contribution is an activation design that exposes
+optimizer-visible matrix roles, a localized role-aware optimizer for the exposed
+matrix pair, and matched evidence that this interface reduces target-arrival
+tokens and wall-clock time across five pretraining corpora.
 
 \section{Related Work}
 \label{sec:related}
@@ -178,6 +174,7 @@ alone.  RLB supplies derivative/response gains, relative input/output pressure,
 coefficient activity, and pair-balance signals, and MatrixPolicy applies them
 only to the input/output matrix pair of the nonlinear sublayer.
 
+\clearpage
 \section{Method}
 \label{sec:method}
 
@@ -274,17 +271,13 @@ training dynamics.
 \label{sec:method-update}
 
 MatrixPolicy acts only on the RLB matrix pair $(A_l,B_l)$.  The RLB calculus
-exposes three quantities with direct update roles: response/derivative gains
-distinguish output and input groups, relative matrix-gradient pressure tracks
-which side of the pair is moving faster, and the positive pair coordinate defines
-a bounded balance direction.  At step $t$, MatrixPolicy reads gradients, cached
-RLB response summaries from the optimizer statistics path, and pressure/activity
-EMAs.  It then rescales matrix gradients by group and role, applies the
-AdamW/Muon matrix branch, and finally performs the scheduled positive
-matrix-pair balancing move.  Unless stated otherwise, gradient-derived
-statistics in this subsection are computed after backpropagation and before any
-parameter update.  The final pair-balance operation is applied after the
-AdamW/Muon matrix branch and computes its current matrix ratio at that point.
+exposes the signals used below: live response/derivative gains for output/input
+roles, relative matrix-gradient pressure, coefficient activity, and a positive
+pair-balance coordinate.  After backpropagation at step $t$, MatrixPolicy forms
+bounded group/role multipliers, applies the AdamW/Muon matrix branch to the
+scaled gradients, and then applies the scheduled positive pair-rescaling move.
+Gradient statistics are computed before parameter updates; the pair-rescaling
+ratio is computed after the AdamW/Muon branch.
 For any tensor $V$, define
 \begin{align}
     \rms(V)=\sqrt{\operatorname{mean}(V^2)},
@@ -342,13 +335,12 @@ decay $0.95$, and forms
     -\frac{1}{2}\left(\log q^{\rm in}_{l,g}+\log q^{\rm out}_{l,g}\right).
     \label{eq:pressure-activity}
 \end{align}
-Here each matrix pressure is an unsigned RMS relative-gradient scale.
-Consequently $\pi_{l,g}$ is a signed log imbalance between two unsigned
-magnitudes: its sign records which role currently has the larger RMS-relative
-scale.  MatrixPolicy uses this imbalance only as a bounded control signal for
-redistribution and pair balancing.  The score $\alpha_{l,g}$ compares
-coefficient-gradient activity with adjacent matrix pressure and is used only
-inside bounded redistribution and gating rules.
+Each matrix pressure is an unsigned relative RMS-gradient scale, so
+$\pi_{l,g}$ is signed only because it compares input and output magnitudes.
+MatrixPolicy uses $\pi_{l,g}$ as a bounded redistribution and pair-balance
+signal.  The score $\alpha_{l,g}$ compares coefficient-gradient activity with
+adjacent matrix pressure and is used only inside bounded redistribution and
+gating rules.
 
 The activation also provides batch-estimated curve gains.  From a recent sample
 of normalized coordinates $u_{l,g}$ cached by the RLB forward path, MatrixPolicy
@@ -363,14 +355,11 @@ uses floored summaries
     \sqrt{\operatorname{mean}\!\left(R_{l,g}(u_{l,g})^2\right)+\epsilon_g}.
     \label{eq:live-gains}
 \end{align}
-In \eqref{eq:live-gains}, the mean is over all cached scalar normalized
-coordinates for group $(l,g)$ across batch, sequence positions, and the $m$
-group coordinates.  The derivative gain is a proxy for the input-domain role.
-The output gain is a curve-response proxy for the recombination role; it does
-not include the group radius $r_{l,g}$ and therefore is not the full feature
-scale seen by $B_l$.
-Both gains are bounded role summaries; they are not full block-Jacobian
-preconditioners.
+The mean is over cached scalar normalized coordinates for group $(l,g)$ across
+batch, sequence positions, and the $m$ group coordinates.  The derivative gain is
+the input-role proxy; the response gain is the recombination-role proxy.  The
+latter excludes the group radius $r_{l,g}$, so neither gain is a full feature
+scale or block-Jacobian preconditioner.
 
 \begin{figure}[H]
 \centering
@@ -543,15 +532,13 @@ Muon fractions have decayed to zero, this branch is inactive.
 
 The last operation is a bounded positive rescaling of the two matrix blocks
 around each rational curve.  It is evaluated after the AdamW/Muon matrix branch
-every five optimizer steps; on other steps it is skipped.  Let
+every five optimizer steps.  Let
 $\mathcal{U}=\{u_k\}_{k=1}^{129}$ be a uniform probe grid over $[-5,5]$, and
 define
 $\rms_{\mathcal{U}}(\varphi)=\sqrt{|\mathcal{U}|^{-1}\sum_{u_k\in\mathcal{U}}\varphi(u_k)^2}$.
-The fixed-grid probe gains are diagnostics of the curve shape, not estimates of
-the current feature distribution.  They are read inside the post-branch balancing
-operation when the probe metric is refreshed.  The live gains in
-\eqref{eq:live-gains} provide the batch-distribution summaries for group-gradient
-redistribution.  The probe gains are
+Fixed-grid probe gains describe curve shape for pair balancing; live gains in
+\eqref{eq:live-gains} describe the current batch distribution for
+group-gradient redistribution.  The probe gains are
 \begin{align}
     \hat d^{\rm probe}_{l,g}
     =
@@ -598,10 +585,10 @@ through
     \bar{\alpha}_{l,g}=\clip(\alpha_{l,g},-1.25,1.25).
     \label{eq:rescale-activity}
 \end{align}
-The positive sign is intentional: high group coefficient activity damps the
-group-gradient path, while high layer-average coefficient activity damps the Muon
-branch, but the bounded balancing step moves slightly more quickly toward the
-representative ratio; the later log-step clip limits this effect.
+High group coefficient activity damps the group-gradient path, while high
+layer-average coefficient activity damps the Muon branch; in the bounded
+rescaling step it instead moves the pair slightly faster toward the
+representative ratio, with the log-step clip limiting the effect.
 With schedule
 \begin{align}
     s_{l,t}
