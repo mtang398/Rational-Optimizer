@@ -40,156 +40,116 @@
 \maketitle
 
 \begin{abstract}
-Reducing the tokens needed to reach a target validation loss expands how many
-architecture, optimizer, and data-recipe choices can be tested before expensive
-LLM scale-up and post-training.  We show that this target-arrival cost can be
-reduced by exposing the Transformer nonlinear sublayer to the optimizer that
-updates its adjacent matrices.  MatrixPolicy with Rational Latent Basis (RLB)
+A useful LLM pretraining recipe moves the loss-time frontier by reaching the
+same validation loss with fewer tokens or less wall-clock time.  We target this
+objective through the Transformer nonlinear sublayer, treating it as an
+optimizer-visible interface.  MatrixPolicy with Rational Latent Basis (RLB)
 replaces a fixed scalar response with grouped rational responses that expose
 local gain, coefficient-activity, and matrix-balance statistics to a role-aware
 update.  MatrixPolicy uses these signals to update only the sublayer input and
 output matrices, while rational coefficients and the rest of the Transformer
 remain on AdamW.  Across DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 with a
 fixed 12-layer, width-768 decoder, MatrixPolicy reaches matched validation-loss
-targets with fewer tokens and lower measured arrival time than SiLU controls.  It
-saves 19.5--22.8\% target-arrival tokens versus SiLU with AdamW and
-29.2--34.0\% versus SiLU with Muon at 100M tokens, and 22.3--26.4\% and
-6.7--9.8\%, respectively, at 300M tokens.  [todo: Insert the larger-scale
-training result here.]
+targets with fewer tokens and lower measured arrival time than SiLU controls
+under the same protocol.  It saves 19.5--22.8\% target-arrival tokens versus
+SiLU with AdamW and 29.2--34.0\% versus SiLU with Muon at 100M tokens, and
+22.3--26.4\% and 6.7--9.8\%, respectively, at 300M tokens.  [todo: Insert the
+larger-scale training result here.]
 \end{abstract}
 
 \section{Introduction}
 \label{sec:introduction}
 
-LLM pretraining is now judged less as a single long run and more as a sequence
-of budgeted decisions about which architecture, data recipe, optimizer, and
-stability mechanism should be promoted before the full training budget is
-committed.  Recent open model reports emphasize performance per token,
-performance per training compute, stable long runs, post-training readiness, and
-the hardware cost of reaching a useful base model
-\citep{grattafiori2024llama3,deepseekai2024deepseekv3,yang2025qwen3,olmo2025olmo2,kimiteam2026kimik2}.
-Scaling-law and optimizer studies make the same pressure quantitative by
-modeling loss against consumed tokens, data mixture, repetition, model size,
-compute budget, and optimizer choice
-\citep{li2025farseer,liu2026infolaw,volkova2026optimizerlaws,semenov2025benchmarking,wen2026fantastic}.
-This changes the role of small- and mid-scale pretraining experiments.  They are
-filters for deciding which architecture, optimizer, and data choices deserve
-scale-up, a role made explicit in recent work on pretraining-data decisions
-\citep{magnusson2025datadecide}.  We therefore study target arrival, measured as
-the tokens and wall-clock time needed to reach a fixed validation-loss target
-under a fixed model, corpus, and measurement protocol.
+Recent LLM optimizer papers frame practical efficiency through loss-time and
+compute-time frontiers, asking which training recipe reaches a target loss with
+fewer tokens, FLOPs, or wall-clock time
+\citep{shah2025practicalefficiency,liu2025muon,semenov2025benchmarking}.  This
+criterion also exposes an activation-design question.  In a modern decoder
+block, the nonlinear sublayer is a learned matrix--nonlinearity--matrix map.  The
+activation sets local gain and curvature, while the adjacent matrices choose and
+recombine the coordinates on which that response acts.  Standard training
+pipelines leave this local structure implicit to the optimizer.  Activation
+coefficients and adjacent matrices are updated as ordinary parameters, so matrix
+updates do not receive the gain, coefficient-activity, or role information
+generated inside the sublayer.
 
-We target this decision point by making the nonlinear Transformer sublayer
-visible to the optimizer that updates its adjacent matrices.  Rational Latent
-Basis (RLB) exposes grouped rational-response statistics and matrix-pair balance
-signals; MatrixPolicy consumes those signals to update only the input and output
-matrices around the response.  The resulting interface is local to the nonlinear
-sublayer, leaving attention, embeddings, normalization parameters, rational
-coefficients, and ordinary Transformer tensors on AdamW.
+We make this interface concrete with Rational Latent Basis (RLB) and
+MatrixPolicy.  RLB maps residual states into grouped latent coordinates,
+normalizes each group by its RMS radius, and applies a trainable real-pole-free
+P5/Q4 rational response.  The resulting response-gain, coefficient-activity,
+matrix-pressure, and pair-balance signals are detached from the forward graph and
+passed to MatrixPolicy.  MatrixPolicy uses them to update only the RLB input and
+output matrices; attention, embeddings, normalization parameters, rational
+coefficients, and ordinary Transformer tensors remain on AdamW.  This local
+division lets the nonlinear sublayer expose the quantities it creates without
+changing the optimizer used for the rest of the model.
 
-The nonlinear Transformer sublayer is an attractive place to improve target
-arrival because it sits between architectural expressivity and optimizer-visible
-matrix geometry.  Early Transformer-style sublayers used pointwise responses
-such as ReLU, GELU, or SiLU
-\citep{vaswani2017attention,hendrycks2016gelu,ramachandran2017swish}.  GLU and
-SwiGLU then made the block a learned matrix--nonlinearity--matrix interaction,
-with gated sublayers becoming standard in modern decoder models
-\citep{dauphin2017language,shazeer2020glu,chowdhery2022palm,touvron2023llama}.
-After this shift, the scalar curve is no longer the whole object.  The matrices
-before the response choose the latent coordinates that enter the nonlinearity,
-and the matrix after the response decides how transformed features return to the
-residual stream.
-
-Optimizer design has moved in a complementary direction.  AdamW remains the
-dominant baseline, but matrix-aware optimizers such as Shampoo, SOAP, Muon, and
-MuonClip show that update geometry can matter for LLM token efficiency and
-training stability
-\citep{kingma2015iclr-adam,loshchilov2019decoupled,gupta2018shampoo,vyas2025soap,liu2025muon,kimiteam2026kimik2}.
-Recent optimizer benchmarks and scaling studies reinforce that optimizer choice
-is part of the pretraining budget, not a minor implementation detail
-\citep{schlotthauer2025budget,semenov2025benchmarking,volkova2026optimizerlaws,wen2026fantastic}.
-The missing interface is local semantic information.  A generic matrix optimizer
-can see tensor shape and gradients, but it is not told which matrix selects
-nonlinear coordinates, which matrix recombines nonlinear features, or which
-paired rescalings leave the represented sublayer map nearly unchanged.
-
-Learned rational responses provide the scalar family for such an interface.
-Rational neural networks have approximation-theoretic advantages for smooth
-functions, and recent theory extends the separation to modern fixed activations,
-including gated and Transformer-style nonlinearities
-\citep{boulle2020rational,tang2026rationalexpressivity}.  Transformer work with
-rational activations shows that replacing a fixed curve by a trainable rational
-curve can help \citep{fang2023transformers}.  We use the rational response as a
-stronger curve and as a source of quantities an optimizer can read, including
-response gains, derivative gains, coefficient activity, and a balance coordinate
-for the adjacent matrix pair.
-
-Rational Latent Basis (RLB) implements this interface.  It maps residual states
-into grouped latent coordinates, normalizes each group by its RMS radius, and
-applies a trainable real-pole-free P5/Q4 rational response.  MatrixPolicy is the
-paired optimizer rule.  It updates only the RLB input and output matrices by
-their roles, while rational coefficients, attention weights, embeddings,
-normalization parameters, and all other Transformer tensors remain on AdamW.  In
-the completed fixed-scale study, the same 12-layer, width-768 causal Transformer
-is trained on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4.  MatrixPolicy
-reaches shared validation-loss targets earlier than matched SiLU with AdamW and
-SiLU with Muon baselines at both 100M and 300M token budgets.  [todo: Insert the
-larger-scale training result here.]  The contribution is an activation design
-that exposes optimizer-visible matrix roles, a localized role-aware optimizer for
-the exposed matrix pair, and matched evidence that this interface reduces
-target-arrival tokens and wall-clock time across five pretraining corpora.
+We evaluate target arrival by measuring the tokens and wall-clock time required
+to reach a fixed validation-loss target under the same model, corpus, and
+protocol.
+In the completed study, the same 12-layer, width-768 causal Transformer is
+trained on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4.  The experiments
+include RLB-only controls and matched SiLU with AdamW and SiLU with Muon
+baselines under the same model, data, and measurement protocol.  MatrixPolicy
+reaches shared validation-loss targets earlier at both 100M and 300M token
+budgets.  [todo: Insert the larger-scale training result here.]  The contribution
+is an activation design that exposes optimizer-visible matrix roles, a localized
+role-aware optimizer for the exposed matrix pair, and matched evidence that this
+interface reduces target-arrival tokens and wall-clock time across five
+pretraining corpora.
 
 \section{Related Work}
 \label{sec:related}
 
-The nonlinear sublayer is where scalar response design became entangled with
-learned matrix roles.  Early Transformer-style sublayers used fixed pointwise
-responses such as GELU or Swish/SiLU
+Activation design for Transformer nonlinear sublayers has moved from fixed
+pointwise curves to gated matrix sublayers.  Early Transformer-style sublayers
+used fixed pointwise responses such as GELU or Swish/SiLU
 \citep{vaswani2017attention,hendrycks2016gelu,ramachandran2017swish}.  GLU
 introduced multiplicative feature selection for language modeling
 \citep{dauphin2017language}, GLU variants such as SwiGLU improved Transformer
 sublayers in compute-matched settings \citep{shazeer2020glu}, and large decoder
 models adopted SwiGLU together with pre-normalized Transformer components
-\citep{chowdhery2022palm,touvron2023llama}.  This history motivates treating the
-nonlinear block as a latent-matrix map, not as a scalar curve in isolation.  RLB keeps that sublayer location
-but exposes the grouped coordinates, curve gains, and adjacent matrix roles that
-fixed-curve GLU variants leave implicit.
+\citep{chowdhery2022palm,touvron2023llama}.  These works identify the nonlinear
+block as the natural comparison point for RLB because the response is coupled to
+the matrices that prepare and mix it.  RLB keeps that sublayer location while
+replacing the fixed curve with grouped trainable rational responses.
 
-A rational response is the scalar side of this interface.  Pad\'e Activation
-Units showed that low-degree quotients can be learned end to end as activation
-functions \citep{molina2020pade}, rational neural networks gave approximation
-efficiency results for smooth-function classes \citep{boulle2020rational}, and
-RAFT evaluated rational activation functions inside Transformer pretraining and
+Choosing a trainable rational response builds on earlier evidence that
+low-degree quotients can serve as learnable nonlinearities.  Pad\'e Activation
+Units learned such quotients end to end as activation functions
+\citep{molina2020pade}, rational neural networks gave approximation efficiency
+results for smooth-function classes \citep{boulle2020rational}, and RAFT
+evaluated rational activation functions inside Transformer pretraining and
 fine-tuning \citep{fang2023transformers}.  Recent theory strengthens the
 motivation by proving expressivity advantages for trainable low-degree rational
 activations over a broad set of modern fixed activations, including gated and
-Transformer-style nonlinearities \citep{tang2026rationalexpressivity}.  Our use
-of rational functions follows this family, but the empirical question is not
-whether a trainable curve alone is helpful.  The controls distinguish RLB
-without MatrixPolicy from the same activation paired with the optimizer-visible
-matrix interface.
+Transformer-style nonlinearities \citep{tang2026rationalexpressivity}.  RLB
+therefore follows the rational-activation lineage; MatrixPolicy tests the
+additional effect of making the surrounding matrices optimizer-visible.
 
-The matrix side connects RLB to LLM pretraining optimizers.  Adam and AdamW remain central baselines
+Making the surrounding matrices optimizer-visible connects RLB to a fast-moving
+LLM optimizer literature.  Adam and AdamW remain central baselines
 \citep{kingma2015iclr-adam,loshchilov2019decoupled}, while state-efficient or
 diagonal adaptive methods such as Adafactor and CAME reduce optimizer memory or
 alter adaptive-state estimates \citep{shazeer2018adafactor,luo2023came}.  Other
-recent methods change the update rule itself: Lion, Schedule-Free methods, and
+recent methods change the update rule itself.  Lion, Schedule-Free methods, and
 cautious optimizers alter momentum, sign, or schedule behavior
 \citep{chen2023lion,defazio2024road,liang2026cautious}, while Sophia, GaLore,
 and Adam-mini change curvature, low-rank, or per-block learning-rate structure
-\citep{liu2024sophia,zhao2024galore,zhang2025adammini}.  Matrix-aware optimizers
-are the closest context: Shampoo uses tensor preconditioners
-\citep{gupta2018shampoo}, SOAP stabilizes Shampoo-style preconditioning by
-running Adam in the preconditioner eigenbasis \citep{vyas2025soap}, and Muon uses
-orthogonalized matrix updates for LLM training \citep{liu2025muon}.  Recent
-optimizer comparisons emphasize fair tuning, model-scale dependence, and the
-fact that matrix-structured optimizers can change token or compute efficiency
-without uniformly dominating across settings
-\citep{zhao2025deconstructing,wen2026fantastic}.  MatrixPolicy follows the
-matrix-aware direction, but RLB supplies role information beyond tensor shape:
-derivative and response gains, relative input/output pressure, coefficient
-activity, and pair-balance signals applied only to the nonlinear sublayer's
-input/output matrix pair.
+\citep{liu2024sophia,zhao2024galore,zhang2025adammini}.  Practical-efficiency
+studies evaluate optimizers by the tokens, compute, or time needed to reach
+matched losses
+\citep{shah2025practicalefficiency,schlotthauer2025budget,semenov2025benchmarking,wen2026fantastic}.
+The matrix restriction in MatrixPolicy connects most directly to matrix-aware
+optimization.  Shampoo uses tensor preconditioners \citep{gupta2018shampoo},
+SOAP stabilizes Shampoo-style preconditioning by running Adam in the
+preconditioner eigenbasis \citep{vyas2025soap}, and Muon uses orthogonalized
+matrix updates for LLM training \citep{liu2025muon}.  Recent optimizer
+comparisons emphasize fair tuning, model-scale dependence, and
+setting-dependent tradeoffs \citep{zhao2025deconstructing,wen2026fantastic}.
+MatrixPolicy follows this matrix-aware direction, with updates restricted to the
+RLB input/output matrix pair and conditioned on activation-derived sublayer
+statistics.
 
 \clearpage
 \section{Method}
@@ -281,10 +241,9 @@ $D_l(\lambda)=\diag(\lambda_1I_m,\ldots,\lambda_GI_m)$,
     f_l(x;D_l(\lambda)A_l,B_lD_l(\lambda)^{-1},R_l).
     \label{eq:positive-rescale}
 \end{align}
-This positive matrix-pair rescaling is exact only in the unfloored map.  With the
-stabilizing RMS floor and optimizer state, the same direction becomes a bounded
-balance coordinate for MatrixPolicy rather than an exact invariance of the full
-training dynamics.
+This positive matrix-pair rescaling is exact only in the unfloored map.  In the
+actual training dynamics with the stabilizing RMS floor and optimizer state,
+MatrixPolicy uses the same direction as a bounded balance coordinate.
 
 \subsection{MatrixPolicy}
 \label{sec:method-update}
@@ -338,8 +297,8 @@ The coefficient-gradient energy scale for the groupwise rational response is
     \right]^{1/2}.
     \label{eq:rational-activity-raw}
 \end{align}
-The same numerical floor is used in $p^R_{l,g}$, although this quantity is raw
-coefficient-gradient energy rather than a relative matrix pressure.
+The same numerical floor is used in $p^R_{l,g}$, where the measured quantity is
+raw coefficient-gradient energy.
 MatrixPolicy maintains positive exponential moving averages
 $q^{\rm in}_{l,g}$, $q^{\rm out}_{l,g}$, and $q^R_{l,g}$ of these quantities with
 decay $0.95$, initialized from the first observed post-backpropagation values,
@@ -705,8 +664,7 @@ MatrixPolicy separates early in validation loss and validation perplexity while
 keeping training loss competitive.  A long fixed budget eventually compresses
 many activation/optimizer endpoints, especially under the 300M-token budget,
 so the paper emphasizes the number of tokens and minutes needed to reach the same
-useful validation-loss levels rather than only the final loss after every method
-has consumed the full budget.
+useful validation-loss levels.
 
 \FloatBarrier
 
@@ -751,14 +709,14 @@ conclusion after the larger-scale and ablation results are added.]
 \subsubsection{Model and Data Pipeline}
 \label{app:model-data}
 
-The fixed-scale experiments use a custom causal decoder Transformer rather than
-an off-the-shelf GPT-2 or LLaMA implementation.  The block uses a LLaMA-style
-pre-normalized layout with RMSNorm before attention and before the nonlinear
-sublayer, bias-free query/key/value and output attention projections, rotary
-position embeddings, causal scaled-dot-product attention, residual attention and
-nonlinear-sublayer updates, a final RMSNorm, and a tied token-embedding/output
-head \citep{zhang2019rmsnorm,su2021roformer,touvron2023llama}.  The fixed model
-has 12 layers, width 768, 12 heads of dimension 64, and context length 256.
+The fixed-scale experiments use a custom causal decoder Transformer.  The block
+uses a LLaMA-style pre-normalized layout with RMSNorm before attention and before
+the nonlinear sublayer, bias-free query/key/value and output attention
+projections, rotary position embeddings, causal scaled-dot-product attention,
+residual attention and nonlinear-sublayer updates, a final RMSNorm, and a tied
+token-embedding/output head \citep{zhang2019rmsnorm,su2021roformer,touvron2023llama}.
+The fixed model has 12 layers, width 768, 12 heads of dimension 64, and context
+length 256.
 
 The SiLU controls use a SwiGLU-like gated nonlinear sublayer with bias-free
 matrices $W_g,W_v\in\mathbb{R}^{768\times 2048}$ and
@@ -1174,10 +1132,9 @@ MatrixPolicy adds a smaller clipped RMS-pressure bias:
     \qquad
     \bar{\pi}_{l,g}=\clip(\pi_{l,g},-1.25,1.25)
 \end{align}
-using fixed-grid probe gains from \eqref{eq:probe-gains}.  Probe gains make the
-balance target depend on the current curve shape rather than the current sampled
-feature distribution, while the $\bar\pi$ term lets recent matrix-pressure
-imbalance shift the target within a bounded range.
+using fixed-grid probe gains from \eqref{eq:probe-gains}.  Probe gains tie the
+balance target to the current curve shape, while the $\bar\pi$ term lets recent
+matrix-pressure imbalance shift the target within a bounded range.
 
 The final pair-rescale operation follows the approximate representative geometry
 above.  The AdamW/Muon branch in \eqref{eq:matrix-branch-step} updates the
