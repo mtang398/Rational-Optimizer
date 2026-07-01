@@ -398,85 +398,95 @@ the input-role proxy; the response gain is the recombination-role proxy.  The
 latter excludes the group radius $\rho_{l,g}(x_l)$, so neither gain is a full
 feature scale or block-Jacobian preconditioner.
 
-The detached summaries have distinct consumers.  The live gains
-$(\hat d^{\rm live},\hat o^{\rm live})$ enter only the gain term of the
-group-gradient multiplier.  The pressure memory contrast $\pi_{l,g}$ enters
-role-opposed group gates, the Muon attenuation term, and the pair-balance target.
-The coefficient-activity contrast $\alpha_{l,g}$ damps group gates and the Muon
-branch when coefficient gradients are large relative to adjacent matrix-pressure
-memories, while the wrapper uses it as a bounded rescale-speed factor.  Finally,
-the post-branch matrix log-ratio $\gamma_{l,g}$ and target $\tau_{l,g}$, defined
-below, are used only by the wrapper's reciprocal pair rescale.
+The detached summaries have distinct consumers.  The group-gradient gate reads
+the cached live gains, the pressure contrast $\pi_{l,g}$, and the
+coefficient-activity contrast $\alpha_{l,g}$, then rescales only the matrix
+gradients.  The matrix branch uses a role/depth AdamW learning-rate multiplier;
+in the evaluated configuration, pressure and activity enter this branch through
+the early Muon attenuation factor.  The surrounding wrapper then performs a
+reciprocal pair rescale using fixed-grid probe gains, $\pi_{l,g}$,
+$\alpha_{l,g}$, and the post-branch matrix log-ratio $\gamma_{l,g}$.  No
+summary tensor enters the forward graph, and no summary directly updates the
+rational coefficients.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{figures/matrixpolicy_signal_flow.pdf}
 \caption{Detached-summary route for the evaluated MatrixPolicy system.  The top
-lane shows where each detached summary family is produced; the middle lane shows
-where those summaries enter group-gradient gates, the AdamW/Muon matrix branch,
-and the post-step reciprocal pair rescale.  Rational coefficients and non-RLB
-Transformer parameters remain AdamW-only.}
+lane shows where each detached summary family is produced, the middle cards
+show which MatrixPolicy operation consumes each family, and the bottom lane
+separates AdamW-only tensors from the matrix-pair update path.}
 \label{fig:matrixpolicy-signal-flow}
 \end{figure}
 
 Let $t$ be the one-based internal optimizer step after the wrapper increments
 its counter, $T$ the planned number of training steps, and $\xi_t=t/T$.  A
-smooth gate $\phi_t=\smooth(0.02,0.30,\xi_t)$
-turns on the group-gradient policy.  The evaluated configuration enables this
-optional policy with gain, pressure, and activity strengths
+smooth gate $\phi_t=\smooth(0.02,0.30,\xi_t)$ turns on the group-gradient
+policy.  The evaluated configuration uses gain, pressure, and activity strengths
 $0.20$, $0.10$, and $0.20$, and clips group multipliers to $[0.75,1.35]$.
 For positive group values $v_j$, define
-$\geom_{j=1}^{G}(v_j)=\exp\!\left(G^{-1}\sum_{j=1}^{G}\log v_j\right)$.
-For group $g$ and role $\sigma$, the multiplier is grouped as
-\begin{align}
-    c_{l,g,\sigma}
+$\geom_{j=1}^{G}(v_j)=\exp\!\left(G^{-1}\sum_{j=1}^{G}\log v_j\right)$.  The
+complete group-gradient rule is
+\begin{equation}
+\begin{alignedat}{2}
+    \tilde{\pi}_{l,g}
     &=
-    c^{\rm gain}_{l,g,\sigma}
-    c^{\rm pressure}_{l,g,\sigma}
-    c^{\rm activity}_{l,g},
-    \label{eq:group-multiplier}\\
+    \clip(\pi_{l,g},-1.50,1.50),
+    \qquad&
+    c^{\rm activity}_{l,g}
+    &=
+    \exp\!\left[
+    -0.20\phi_t
+    \relu\!\left(\frac{\alpha_{l,g}-0.05}{0.45}\right)
+    \right],
+    \\[2pt]
     c^{\rm gain}_{l,g,\mathrm{in}}
     &=
-    \left(\frac{\geom_{j=1}^{G} \hat d^{\rm live}_{l,j}}{\hat d^{\rm live}_{l,g}}\right)^{0.20\phi_t},
+    \left(
+    \frac{\geom_{j=1}^{G}\hat d^{\rm live}_{l,j}}
+         {\hat d^{\rm live}_{l,g}}
+    \right)^{0.20\phi_t},
     &
     c^{\rm gain}_{l,g,\mathrm{out}}
     &=
-    \left(\frac{\geom_{j=1}^{G} \hat o^{\rm live}_{l,j}}{\hat o^{\rm live}_{l,g}}\right)^{0.20\phi_t}.
-    \label{eq:gain-policy}\\
+    \left(
+    \frac{\geom_{j=1}^{G}\hat o^{\rm live}_{l,j}}
+         {\hat o^{\rm live}_{l,g}}
+    \right)^{0.20\phi_t},
+    \\[2pt]
     c^{\rm pressure}_{l,g,\mathrm{in}}
     &=
     \exp(-0.10\phi_t\tilde{\pi}_{l,g}),
     &
     c^{\rm pressure}_{l,g,\mathrm{out}}
     &=
-    \exp(+0.10\phi_t\tilde{\pi}_{l,g}).
-    \label{eq:pressure-policy}\\
-    c^{\rm activity}_{l,g}
+    \exp(+0.10\phi_t\tilde{\pi}_{l,g}),
+    \\[2pt]
+    c^{\rm raw}_{l,g,\sigma}
     &=
-    \exp\left[
-    -0.20\phi_t
-    \relu\left(\frac{\alpha_{l,g}-0.05}{0.45}\right)
-    \right].
-    \label{eq:activity-policy}
-\end{align}
-where $\tilde{\pi}_{l,g}=\clip(\pi_{l,g},-1.50,1.50)$.  Thus live derivative
-gain controls the input role, live response gain controls the output role,
-relative-gradient pressure acts with opposite signs on the two roles, and
-coefficient activity downweights groups whose coefficient-gradient activity is
-large relative to the adjacent matrix proxies.  A positive $\pi_{l,g}$ means the
-input-side relative-gradient EMA is larger than the output-side EMA; the gate
-therefore reduces input-role step scale and increases output-role step scale.
-The final multiplier is recentered and clipped,
-\begin{align}
-    c_{l,g,\sigma}\leftarrow
-    \frac{c_{l,g,\sigma}}{\geom_{j=1}^{G} c_{l,j,\sigma}},
-    \qquad
-    c_{l,g,\sigma}\leftarrow\clip(c_{l,g,\sigma},0.75,1.35),
-    \label{eq:group-center-clip}
-\end{align}
-so the policy redistributes update scale across groups, separately for each
-matrix role, without changing the role-wise mean log multiplier before
-clipping.
+    c^{\rm gain}_{l,g,\sigma}
+    c^{\rm pressure}_{l,g,\sigma}
+    c^{\rm activity}_{l,g},
+    &
+    c_{l,g,\sigma}
+    &=
+    \clip\!\left(
+    \frac{c^{\rm raw}_{l,g,\sigma}}
+         {\geom_{j=1}^{G}c^{\rm raw}_{l,j,\sigma}},
+    0.75,1.35
+    \right).
+\end{alignedat}
+\label{eq:group-policy}
+\end{equation}
+Thus live derivative gain controls the input role, live response gain controls
+the output role, relative-gradient pressure acts with opposite signs on the two
+roles, and coefficient activity downweights groups whose coefficient-gradient
+activity is large relative to the adjacent matrix proxies.  A positive
+$\pi_{l,g}$ means the input-side relative-gradient EMA is larger than the
+output-side EMA; the gate therefore reduces input-role step scale and increases
+output-role step scale.  The geometric recentering in
+\eqref{eq:group-policy} redistributes update scale across groups without
+changing the role-wise mean log multiplier before clipping.
 
 The scaled matrix gradients are
 \begin{align}
@@ -490,48 +500,56 @@ $\{\widetilde\nabla A_{l,g}\}_{g=1}^{G}$, and let
 $\widetilde\nabla M_{l,\mathrm{out}}$ be the column-block concatenation of
 $\{\widetilde\nabla B_{l,g}\}_{g=1}^{G}$.
 After this scaling, the RLB matrices are updated by a role/depth AdamW branch and
-a transient Muon branch.  Define $\delta_l=(l-1)/(L-1)$ for $L>1$ and
-$\delta_l=1/2$ otherwise.  The role/depth factors, AdamW multiplier, Muon
-attenuation, and Muon gate are
-\begin{align}
+a transient Muon branch.  Let $\delta_l=(l-1)/(L-1)$ for $L>1$ and
+$\delta_l=1/2$ otherwise.  The evaluated branch schedules are
+\begin{equation}
+\begin{aligned}
     \varrho_{\mathrm{in}}(l)
-    =
+    &=
     \clip(1-0.50(\delta_l-0.5),0.55,1.40),
-    \qquad
+    \\
     \varrho_{\mathrm{out}}(l)
-    =
+    &=
     \clip(1+1.00(\delta_l-0.5),0.55,1.40),
-    \label{eq:role-factors}\\
+    \\[2pt]
     s^{\rm Adam}_{l,\sigma}
-    =
-    \clip\left(
+    &=
+    \clip\!\left(
     3.0\max\{0.10,1+1.20(\varrho_\sigma(l)-1)\},
     0.40,4.0
-    \right).
-    \label{eq:adam-role-scale}\\
+    \right),
+    \\[2pt]
     \Psi_{l,t}
-    =
-    \clip\left(\frac{1}{G}\sum_{g=1}^{G}|\pi_{l,g}|,0,1.50\right),
-    \qquad
+    &=
+    \clip\!\left(G^{-1}\sum_{g=1}^{G}|\pi_{l,g}|,0,1.50\right),
+    \\
     \Omega_{l,t}
-    =
-    \relu\left(\frac{G^{-1}\sum_{g=1}^{G}\alpha_{l,g}-0.05}{0.45}\right),
-    \label{eq:pressure-activity-aggregates}\\
+    &=
+    \relu\!\left(\frac{G^{-1}\sum_{g=1}^{G}\alpha_{l,g}-0.05}{0.45}\right),
+    \\[2pt]
     \psi_{l,t}
-    =
-    \clip\left(\exp[-0.30\Psi_{l,t}-0.65\Omega_{l,t}],0.10,1.15\right).
-    \label{eq:stat-penalty}\\
-    \mu_{l,\sigma,t}
-    =
-    \clip\left(
-    0.75\,
+    &=
+    \clip\!\left(\exp[-0.30\Psi_{l,t}-0.65\Omega_{l,t}],0.10,1.15\right),
+    \\[2pt]
+    \omega^{\mu}_t
+    &=
     \smooth(0.02,0.12,\xi_t)
-    [1-\smooth(0.20,0.36,\xi_t)]
-    \varrho_\sigma(l)\psi_{l,t},
+    [1-\smooth(0.20,0.36,\xi_t)],
+    \\[2pt]
+    \mu_{l,\sigma,t}
+    &=
+    \clip\!\left(
+    0.75\,\omega^{\mu}_t\varrho_\sigma(l)\psi_{l,t},
     0,0.75
     \right).
-    \label{eq:muon-fraction}
-\end{align}
+\end{aligned}
+\label{eq:matrix-branch-schedule}
+\end{equation}
+Here $s^{\rm Adam}_{l,\sigma}$ is the role/depth AdamW multiplier.  The aggregate
+pressure $\Psi_{l,t}$ and coefficient activity $\Omega_{l,t}$ form the Muon
+attenuation $\psi_{l,t}$, so $\mu_{l,\sigma,t}$ is large only during the early
+Muon window and when the detached summaries do not indicate high imbalance or
+high coefficient-gradient activity.
 For $M_{l,\mathrm{in}}=A_l$ and $M_{l,\mathrm{out}}=B_l$, let $\eta_t$ be the
 base learning rate.  MatrixPolicy applies an AdamW matrix step followed by any
 active Muon substep.  The gate $\mu_{l,\sigma,t}$ scales the two learning rates;
@@ -570,20 +588,25 @@ for group-gradient redistribution.  The first term of the target below equalizes
 derivative and response probe gains in the positive log coordinate derived in
 Appendix~\ref{app:matrixpolicy-rescale}; the pressure term lets recent
 role-imbalance shift that target within a bounded range.  The wrapper computes
-\begin{align}
+\begin{equation}
+\begin{aligned}
     \hat d^{\rm probe}_{l,g}
     &=
     \sqrt{\rms_{\mathcal U}(R'_{l,g})^2+\epsilon_{\rm probe}},
-    \notag\\
+    \\
     \hat o^{\rm probe}_{l,g}
     &=
     \sqrt{\rms_{\mathcal U}(R_{l,g})^2+\epsilon_{\rm probe}},
-    \label{eq:probe-gains}\\
+    \\[2pt]
     \gamma_{l,g}
     &=
     \log\rms_{\epsilon_p}(A_{l,g})
     -\log\rms_{\epsilon_p}(B_{l,g}),
-    \label{eq:current-ratio}\\
+    \\
+    \bar{\pi}_{l,g}
+    &=
+    \clip(\pi_{l,g},-1.25,1.25),
+    \\[2pt]
     \tau_{l,g}
     &=
     \frac{1}{2}
@@ -593,48 +616,50 @@ role-imbalance shift that target within a bounded range.  The wrapper computes
     \log \hat o^{\rm probe}_{l,g}
     \right)
     +0.25\,\bar{\pi}_{l,g},
-    \notag\\
-    \bar{\pi}_{l,g}
+    \\
+    \bar{\alpha}_{l,g}
     &=
-    \clip(\pi_{l,g},-1.25,1.25).
-    \label{eq:rescale-target}\\
+    \clip(\alpha_{l,g},-1.25,1.25),
+    \\[2pt]
     \chi^{\rm rs}_{l,g}
     &=
     \exp(0.10\,\bar{\alpha}_{l,g}),
-    \notag\\
-    \bar{\alpha}_{l,g}
-    &=
-    \clip(\alpha_{l,g},-1.25,1.25).
-    \label{eq:rescale-activity}\\
+    \\
     s_{l,t}
     &=
     0.50\,\smooth(0.03,0.35,\xi_t)
-    \clip(1+0.15(\delta_l-0.5),0.75,1.25),
-    \label{eq:rescale-schedule}\\
+    \clip(1+0.15(\delta_l-0.5),0.75,1.25).
+\end{aligned}
+\label{eq:rescale-signals}
+\end{equation}
+The clipped log step and reciprocal matrix update are
+\begin{equation}
+\begin{aligned}
     \ell_{l,g,t}
     &=
-    \clip\left(
+    \clip\!\left(
     \frac{1}{2}[\tau_{l,g}-\gamma_{l,g}]s_{l,t}\chi^{\rm rs}_{l,g},
     -0.030,0.030
-    \right).
-    \label{eq:rescale-log-step}\\
+    \right),
+    \\
     A_{l,g}
     &\leftarrow
     e^{\ell_{l,g,t}}A_{l,g},
-    \notag\\
+    \qquad
     B_{l,g}
-    &\leftarrow
+    \leftarrow
     e^{-\ell_{l,g,t}}B_{l,g}.
-    \label{eq:rescale-update}
-\end{align}
+\end{aligned}
+\label{eq:rescale-step}
+\end{equation}
 Here $\gamma_{l,g}$ is a floored matrix-RMS proxy.  The first term of
 $\tau_{l,g}$ equalizes derivative and response probe gains in the positive log
 coordinate, the pressure term shifts the target boundedly, and $\chi^{\rm rs}$
 changes only the clipped rescale speed; larger $\alpha_{l,g}$ accelerates only
 this representative-balancing move, while earlier group gates and Muon penalties
 use the same activity contrast to reduce gradient-driven matrix motion.  Since
-\eqref{eq:current-ratio} is
-floored, \eqref{eq:rescale-update} is exact only in the nonzero, unfloored
+\eqref{eq:rescale-signals} is
+floored, \eqref{eq:rescale-step} is exact only in the nonzero, unfloored
 idealization; near the floor it is a clipped balance step.  Optimizer-state
 buffers are scaled covariantly: first-moment-like entries for $A_{l,g}$ use
 $e^{\ell_{l,g,t}}$, first-moment-like entries for $B_{l,g}$ use
@@ -1075,9 +1100,8 @@ gradient energy is large relative to adjacent matrix-pressure memories.
 \subsection{Log-Space Redistribution and Pair-Rescale Dynamics}
 \label{app:matrixpolicy-rescale}
 
-The group-gradient policy in equations~\ref{eq:gain-policy}--\ref{eq:activity-policy}
-acts in log space.  Before clipping, recentering by the group geometric mean
-gives
+The group-gradient policy in \eqref{eq:group-policy} acts in log space.  Before
+clipping, recentering by the group geometric mean gives
 \begin{align}
     \widehat c_{l,g,\sigma}
     =
@@ -1087,8 +1111,9 @@ gives
     \label{eq:appendix-centered-policy}
 \end{align}
 The gate redistributes role-specific update scale while preserving the role-wise
-mean log multiplier before clipping.  The signs in \eqref{eq:pressure-policy}
-reduce input-role scale and increase output-role scale when $\pi_{l,g}>0$.
+mean log multiplier before clipping.  The pressure signs in
+\eqref{eq:group-policy} reduce input-role scale and increase output-role scale
+when $\pi_{l,g}>0$.
 
 For pair balancing, ignore floors and clipping temporarily and define
 \begin{align}
@@ -1108,7 +1133,7 @@ For pair balancing, ignore floors and clipping temporarily and define
     +\lambda_{l,g,t}\tau_{l,g}.
     \label{eq:appendix-rescale-contraction}
 \end{align}
-The last equality substitutes the unclipped step in \eqref{eq:rescale-log-step}.
+The last equality substitutes the unclipped step in \eqref{eq:rescale-step}.
 Because $0\le s_{l,t}\le0.625$ and
 $\chi^{\rm rs}_{l,g}\le\exp(0.125)$ under the method clips,
 $0\le\lambda_{l,g,t}<1$ before log-step clipping, so the representative coordinate
@@ -1116,7 +1141,7 @@ contracts toward $\tau_{l,g}$.  This model assumes nonzero matrices, unfloored R
 values, and an unclipped update; the implementation uses floored $\gamma_{l,g}$
 and clipped $\ell_{l,g,t}$.
 
-The target in \eqref{eq:rescale-target} equalizes a local representative model
+The target in \eqref{eq:rescale-signals} equalizes a local representative model
 that ignores orientation, radius variation, upstream gradients, and floors:
 input-role scale varies as $\hat d^{\rm probe}e^{-\gamma}$ and output-role scale
 as $\hat o^{\rm probe}e^{\gamma}$.  Equalizing the two log scales gives
