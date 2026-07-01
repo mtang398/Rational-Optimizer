@@ -413,9 +413,11 @@ rational coefficients.
 \centering
 \includegraphics[width=\linewidth]{figures/matrixpolicy_signal_flow.pdf}
 \caption{Detached-summary route for the evaluated MatrixPolicy system.  The
-top band shows where each summary family is produced, the read-only summary
-bus carries those detached signals to the MatrixPolicy consumers, and the
-bottom lane separates AdamW-only tensors from the matrix-pair update path.}
+top band produces stop-gradient summaries from forward hooks, pre-policy
+gradients, and pair probes; the read-only bus routes them to three
+MatrixPolicy consumers.  The lower policy band separates the gradient/update
+lane from the current matrix-pair state lane, while rational coefficients and
+non-RLB tensors remain AdamW-only.}
 \label{fig:matrixpolicy-signal-flow}
 \end{figure}
 
