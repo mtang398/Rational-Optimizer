@@ -1047,17 +1047,17 @@ def make_e1_e2_silu_summary_table(out_path: Path) -> None:
     lines = [
         r"\begin{table}[t]",
         r"\centering",
-        r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 Transformer. RLB denotes the global-rational, no-local-atom activation without MatrixPolicy. At the hardest validation-loss target reached by every listed method in all three seeds, MatrixPolicy is always fastest; token-saving columns report its savings relative to each control.}",
+        r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 Transformer. RLB denotes the global-rational, no-local-atom activation without MatrixPolicy. At the hardest validation-loss target reached by every listed method in all three seeds, MatrixPolicy is always fastest; each token-saving column reports MatrixPolicy's savings relative to the method named below it.}",
         r"\label{tab:e1e2-silu-comparison}",
         r"\begingroup",
         r"\footnotesize",
-        r"\setlength{\tabcolsep}{2.1pt}",
+        r"\setlength{\tabcolsep}{1.9pt}",
         r"\renewcommand{\arraystretch}{1.04}",
-        r"\begin{tabular}{@{}llc*{4}{r}@{\hspace{0.8em}}*{5}{r}@{}}",
+        r"\begin{tabular}{@{}llc*{4}{r}@{\hspace{0.55em}}*{5}{r}@{}}",
         r"\toprule",
-        r"& & & \multicolumn{4}{c}{Token saving vs. control (\%)} & \multicolumn{5}{c}{Time to target (min)} \\",
+        r"& & & \multicolumn{4}{c}{MatrixPolicy token savings (\%)} & \multicolumn{5}{c}{Time to target (min)} \\",
         r"\cmidrule(lr){4-7}\cmidrule(l){8-12}",
-        r"Budget & Dataset & \shortstack{Target\\loss} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} & \shortstack{RLB\\AdamW} & \shortstack{RLB\\Muon} & \shortstack{Matrix\\Policy} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} & \shortstack{RLB\\AdamW} & \shortstack{RLB\\Muon} \\",
+        r"Budget & Dataset & \shortstack{Target\\loss} & \shortstack{vs. SiLU\\AdamW} & \shortstack{vs. SiLU\\Muon} & \shortstack{vs. RLB\\AdamW} & \shortstack{vs. RLB\\Muon} & \shortstack{Matrix\\Policy} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} & \shortstack{RLB\\AdamW} & \shortstack{RLB\\Muon} \\",
         r"\midrule",
     ]
     for row_idx, row in enumerate(rows):
