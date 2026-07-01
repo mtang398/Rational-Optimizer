@@ -671,10 +671,10 @@ def make_e1_representative_silu_dynamics(out_path: Path) -> None:
     e1 = load_e1_curves()
     panels = [("dclm", "DCLM"), ("fineweb_edu", "FineWeb-Edu")]
     metrics = [("val_loss", "validation loss"), ("val_ppl", "validation perplexity"), ("train_loss", "training loss")]
-    fig, axes = plt.subplots(3, 2, figsize=(7.2, 5.25), sharex=True)
-    fig.subplots_adjust(left=0.082, right=0.992, bottom=0.092, top=0.850, hspace=0.285, wspace=0.210)
-    for col, (dataset, dataset_label) in enumerate(panels):
-        for row, (metric, metric_label) in enumerate(metrics):
+    fig, axes = plt.subplots(2, 3, figsize=(7.2, 3.38), sharex=True)
+    fig.subplots_adjust(left=0.074, right=0.994, bottom=0.145, top=0.780, hspace=0.285, wspace=0.250)
+    for row, (dataset, dataset_label) in enumerate(panels):
+        for col, (metric, metric_label) in enumerate(metrics):
             ax = axes[row, col]
             for method in MAIN_SILU_METHODS:
                 label, color, linestyle, linewidth, marker = _style(method)
@@ -685,15 +685,25 @@ def make_e1_representative_silu_dynamics(out_path: Path) -> None:
                 ax.plot(steps, means, color=color, linestyle=linestyle, linewidth=linewidth, label=label, marker=marker, markevery=mark_every, markersize=2.8)
                 ax.fill_between(steps, means - stds, means + stds, color=color, alpha=0.045, linewidth=0)
             if row == 0:
-                ax.set_title(dataset_label, fontsize=9.5, pad=5)
+                ax.set_title(metric_label, fontsize=8.8, pad=4.5)
             if col == 0:
-                ax.set_ylabel(metric_label, fontsize=8.3)
-            if row == 2:
-                ax.set_xlabel("optimizer step", fontsize=8.3)
+                ax.text(
+                    -0.205,
+                    0.5,
+                    dataset_label,
+                    transform=ax.transAxes,
+                    rotation=90,
+                    ha="center",
+                    va="center",
+                    fontsize=8.5,
+                    fontweight="bold",
+                    color="#202020",
+                )
             ax.margins(x=0.035, y=0.10)
-            _finish_axis(ax, labelsize=7.4)
+            _finish_axis(ax, labelsize=6.9)
+    fig.text(0.540, 0.045, "optimizer step", ha="center", va="center", fontsize=8.0)
     handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.985), ncol=3, frameon=False, fontsize=8.0, handlelength=2.0, columnspacing=1.6)
+    fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.982), ncol=3, frameon=False, fontsize=7.8, handlelength=1.95, columnspacing=1.35)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04, facecolor="white", transparent=False)
     plt.close(fig)
