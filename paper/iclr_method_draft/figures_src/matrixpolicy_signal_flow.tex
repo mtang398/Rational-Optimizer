@@ -59,7 +59,12 @@
   bypass/.style={rectangle, rounded corners=4pt, draw=mpMuted, fill=white,
     line width=0.70pt, minimum height=0.48cm, align=center, inner sep=3pt,
     font=\scriptsize},
+  busLabel/.style={font=\scriptsize\bfseries, text=mpMuted!92, fill=mpSoft,
+    rounded corners=2pt, inner xsep=4pt, inner ysep=1.1pt},
+  boundaryLabel/.style={font=\scriptsize, text=mpMuted!88, fill=mpPurple!5,
+    rounded corners=2pt, inner xsep=3.5pt, inner ysep=1.0pt},
   title/.style={font=\scriptsize\bfseries, text=mpPurple, anchor=west,
+    align=center,
     fill=mpPurpleFill, rounded corners=2pt, inner xsep=4pt, inner ysep=1.2pt},
   mutedTitle/.style={font=\scriptsize\bfseries, text=mpMuted, anchor=west,
     fill=white, rounded corners=2pt, inner xsep=4pt, inner ysep=1.2pt},
@@ -82,13 +87,13 @@
       at (8.34,6.10) {};
     \node[policyBand, minimum width=15.35cm, minimum height=3.86cm]
       at (8.34,3.34) {};
-    \node[bypassBand, minimum width=12.90cm, minimum height=0.88cm]
-      at (7.60,0.72) {};
+    \node[bypassBand, minimum width=13.28cm, minimum height=1.02cm]
+      at (8.04,0.72) {};
   \end{pgfonlayer}
 
   \node[mutedTitle] at (0.92,6.86) {detached summary producers};
-  \node[title] at (0.92,4.86) {MatrixPolicy consumers};
-  \node[mutedTitle] at (0.92,1.04) {AdamW-only bypass};
+  \node[title] at (0.86,4.70) {MatrixPolicy\\consumers};
+  \node[mutedTitle] at (1.36,1.13) {AdamW-only bypass};
 
   \node[cardBlue, minimum width=2.75cm, minimum height=1.20cm] (live)
     at (2.30,6.05) {};
@@ -114,18 +119,16 @@
   \node[prodVars, text=mpAmber] at ($(balance.center)+(0,-0.15)$)
     {probe gains\\[-1pt]log-ratio $\gamma$, target $\tau$};
 
-  \draw[bus] (1.00,5.13) -- (15.58,5.13);
-  \node[font=\scriptsize\bfseries, text=mpMuted, fill=white,
-    inner xsep=4pt, inner ysep=1.2pt] at (8.34,5.13)
-    {detached summary bus};
-  \node[font=\scriptsize, text=mpMuted, fill=white,
-    inner xsep=4pt, inner ysep=1.2pt] at (13.82,5.13)
+  \draw[bus] (1.00,5.18) -- (15.58,5.18);
+  \node[boundaryLabel, anchor=east] at (15.18,5.02)
     {stop-gradient boundary};
+  \node[busLabel] at (8.10,4.94)
+    {detached summary bus};
 
-  \draw[readArrow, color=mpBlue!72] (live.south) -- (2.30,5.16);
-  \draw[readArrow, color=mpPurple!72] (pressure.south) -- (5.63,5.16);
-  \draw[readArrow, color=mpGreen!72] (activity.south) -- (9.10,5.16);
-  \draw[readArrow, color=mpAmber!82] (balance.south) -- (12.70,5.16);
+  \draw[readArrow, color=mpBlue!72] (live.south) -- (2.30,5.21);
+  \draw[readArrow, color=mpPurple!72] (pressure.south) -- (5.63,5.21);
+  \draw[readArrow, color=mpGreen!72] (activity.south) -- (9.10,5.21);
+  \draw[readArrow, color=mpAmber!82] (balance.south) -- (12.70,5.21);
 
   \node[readCard, minimum width=3.18cm] (rgate) at (4.08,4.38)
     {\textbf{group gates}\\[-1pt]
@@ -140,9 +143,9 @@
      probe gains; \textcolor{mpPurple}{$\pi$},
      \textcolor{mpGreen}{$\alpha$}, \textcolor{mpAmber}{$\gamma,\tau$}};
 
-  \draw[readArrow] (4.08,5.10) -- (rgate.north);
-  \draw[readArrow] (7.78,5.10) -- (rbranch.north);
-  \draw[readArrow] (11.42,5.10) -- (rrescale.north);
+  \draw[readArrow] (4.08,4.88) -- (rgate.north);
+  \draw[readArrow] (7.78,4.88) -- (rbranch.north);
+  \draw[readArrow] (11.42,4.88) -- (rrescale.north);
 
   \node[opBlue, minimum width=1.72cm] (pair) at (1.58,2.62)
     {$A_l,B_l$\\matrix pair};
@@ -164,12 +167,12 @@
   \draw[readArrow] (rbranch.south) -- (branch.north);
   \draw[readArrow] (rrescale.south) -- (rescale.north);
 
-  \node[bypass, minimum width=4.18cm] (other) at (3.10,0.56)
-    {rational coefficients and other Transformer tensors};
-  \node[bypass, minimum width=1.34cm, font=\scriptsize\bfseries] (adam) at (7.20,0.56)
+  \node[bypass, minimum width=3.72cm, text width=3.46cm] (other) at (3.08,0.54)
+    {rational coefficients\\and other Transformer tensors};
+  \node[bypass, minimum width=1.28cm, font=\scriptsize\bfseries] (adam) at (7.20,0.54)
     {AdamW};
-  \node[bypass, minimum width=3.50cm] (outside) at (10.95,0.56)
-    {outside MatrixPolicy gates, Muon, and rescale};
+  \node[bypass, minimum width=3.66cm, text width=3.38cm] (outside) at (10.92,0.54)
+    {outside MatrixPolicy gates,\\Muon, and rescale};
   \draw[bypassArrow] (other.east) -- (adam.west);
   \draw[bypassArrow] (adam.east) -- (outside.west);
 \end{tikzpicture}
