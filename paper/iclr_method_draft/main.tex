@@ -39,88 +39,77 @@
 \maketitle
 
 \begin{abstract}
-Transformer nonlinear sublayers contain an input matrix, a coordinatewise
-nonlinearity, and an output matrix, but standard optimizers usually update these
-matrices without using their distinct functional roles.  We introduce a
-global-rational Rational Latent Basis (RLB) sublayer that exposes normalized
-group coordinates, trainable real-pole-free P5/Q4 responses, derivative/output
-response summaries, and an idealized positive matrix-pair rescaling relation
-that becomes approximate under the implemented RMS floor.  We then introduce MatrixPolicy, a
-role-aware optimizer for the RLB input and output matrices.  In the reported
-configuration, rational coefficients and all non-RLB-matrix Transformer
-parameters use AdamW, while MatrixPolicy applies centered group-gradient
-redistribution, a transient gated Muon substep, and bounded matrix-pair
-rescaling only to the RLB matrices.  The main empirical benefit is faster arrival
-at useful loss levels, measured primarily as the percentage of comparator
-target-arrival tokens saved.  Across five 12-layer, width-768 language-model
-pretraining corpora, MatrixPolicy saves 19.5--22.8\% versus SiLU with AdamW and
-29.2--34.0\% versus SiLU with Muon under the 100M-token budget; under the
-300M-token budget it saves 22.3--26.4\% versus SiLU with AdamW and
-6.7--9.8\% versus SiLU with Muon, with lower measured target-arrival time
-for every dataset/comparator pair.  TODO: Test whether these percentage
-target-arrival savings persist in a larger-scale experiment beyond the current
-fixed-scale setting.
+Transformer nonlinear sublayers combine an input matrix, a coordinatewise
+response, and an output matrix, yet standard optimizers receive them as ordinary
+tensor parameters.  We make this sublayer optimizer-visible.  Rational Latent
+Basis (RLB) maps residual states into RMS-normalized groups, applies trainable
+real-pole-free P5/Q4 rational responses, and exposes derivative, output, and
+matrix-pair scale summaries.  MatrixPolicy uses these summaries to update the
+RLB input and output matrices with centered group-gradient redistribution, a
+transient gated Muon substep, and bounded matrix-pair rescaling; rational
+coefficients and all remaining Transformer parameters use AdamW.  Across five
+12-layer, width-768 language-model pretraining corpora, MatrixPolicy reaches
+shared validation-loss targets with fewer tokens and lower measured
+target-arrival time than matched SiLU and RLB controls.  Under a 100M-token
+budget, it saves 19.5--22.8\% of target-arrival tokens versus SiLU with AdamW
+and 29.2--34.0\% versus SiLU with Muon.  Under a 300M-token budget, it saves
+22.3--26.4\% versus SiLU with AdamW and 6.7--9.8\% versus SiLU with Muon; in
+every listed dataset/comparator pair, MatrixPolicy also has lower clean
+target-arrival time.  [todo: Add the larger-scale training result once the next
+experiment is complete.]
 \end{abstract}
 
 \section{Introduction}
 \label{sec:introduction}
 
-Transformer nonlinear sublayers are usually described by their scalar activation:
+Transformer nonlinear sublayers are usually named by their scalar response:
 GELU, SiLU, SwiGLU, or a related gated variant
-\citep{hendrycks2016gelu,ramachandran2017swish,shazeer2020glu}.  That shorthand
-hides a larger optimization object.  A sublayer first chooses coordinates through
-an input matrix, applies a nonlinear response in those coordinates, and then
-recombines the resulting features through an output matrix.  The two matrices do
-not play the same role, yet AdamW, Muon, and other general optimizers
-usually see them as ordinary tensors with no knowledge of which side of the
-nonlinearity they occupy.
+\citep{hendrycks2016gelu,ramachandran2017swish,shazeer2020glu}.  The name hides a
+role structure that matters for optimization.  A sublayer selects latent
+coordinates with an input matrix, transforms those coordinates with a nonlinear
+response, and recombines the resulting features with an output matrix.  Standard
+optimizers such as AdamW and Muon update both matrices through the same
+parameter-gradient interface, so role-specific information reaches the update
+rule only indirectly through the observed gradients.
 
-We study whether the nonlinear sublayer can expose enough structure for
-the optimizer to use.  The key idea is to make the activation an interface, not
-only a pointwise function.  If the sublayer provides normalized groups, a
-trainable rational response in each group, observable derivative and curve-response
-scales, and a controlled positive rescaling relation between the adjacent
-matrices, then the optimizer can assign different update behavior to the input
-and output roles without changing the rest of the Transformer.
+This paper asks whether the nonlinear sublayer can expose optimizer-facing
+signals directly.  Our answer is Rational Latent Basis (RLB), a grouped rational
+sublayer that reports the quantities an optimizer needs to reason about matrix
+roles: normalized group coordinates, trainable rational response curves,
+derivative/output response scales, and a positive matrix-pair scale relation.
+The evaluated RLB variant is global-rational: it uses one trainable
+real-pole-free P5/Q4 response per group, omits local atom parameters, and
+projects the transformed groups back to the model width.
 
-We instantiate this idea with a global-rational Rational Latent Basis (RLB) sublayer.  It projects the
-residual stream into grouped latent coordinates, RMS-normalizes each group,
-applies one trainable real-pole-free P5/Q4 response per group, and projects back
-to the model width.  The main variant used in this paper has no active local
-atoms: there are no trainable atom centers and no atom coefficient parameters.
-This choice keeps the nonlinear response simple enough to audit while preserving
-the matrix-role signals that MatrixPolicy uses.
-
-MatrixPolicy is the optimizer coupled to this sublayer.  It is not a generic
-optimizer for every Transformer tensor.  It acts only on the two RLB matrices,
-using batch-estimated rational gain proxies, relative gradient scales, and the
-matrix pair ratio to redistribute group updates, apply a transient matrix-direction
-substep, and keep the input/output representatives balanced.  In the reported
-configuration, rational coefficients, attention weights, embeddings, and all
-other non-RLB-matrix parameters use AdamW.
+MatrixPolicy is the role-aware update rule paired with RLB.  For the RLB input
+and output matrices, it uses the exposed response and scale summaries to perform
+centered group-gradient redistribution, a transient gated Muon substep, and
+bounded matrix-pair rescaling.  Rational coefficients, attention weights,
+embeddings, and all remaining Transformer parameters use AdamW in the reported
+configuration.  This separation keeps the optimizer change concentrated on the
+two matrices whose roles are made explicit by the sublayer.
 
 We evaluate the method on a fixed 12-layer, width-768 causal Transformer across
 DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4.  The 100M-token budget
-captures early optimization differences before long-budget saturation compresses
-endpoints.  In this regime MatrixPolicy reaches common validation-loss targets
-substantially earlier than AdamW and Muon comparators on both SiLU and
-global-rational RLB controls.  The 300M-token budget extends the same
-architecture to a longer run; endpoint gaps are smaller after longer training,
-but MatrixPolicy still keeps lower endpoint validation loss across all five
-datasets.
+captures early optimization behavior, where MatrixPolicy reaches shared
+validation-loss targets substantially earlier than AdamW and Muon comparators on
+matched SiLU and RLB controls.  The 300M-token budget tests the same architecture
+after longer training, where endpoint gaps narrow but the target-arrival
+advantage remains visible in both tokens and measured clean time.  [todo: Add
+the larger-scale experiment result here once the next run is complete.]
 
 The contributions are:
 \begin{itemize}
-    \item a global-rational RLB sublayer that exposes matrix roles, curve-gain
-    summaries, and an idealized positive matrix-pair relation without local atom
+    \item a global-rational RLB sublayer that exposes normalized groups,
+    rational response summaries, and matrix-pair scale information to the
+    optimizer;
+    \item MatrixPolicy, a role-aware update rule for the RLB input and output
+    matrices that combines group-gradient redistribution, a gated matrix
+    substep, and bounded pair rescaling while AdamW handles the remaining
     parameters;
-    \item MatrixPolicy, a role-aware optimizer for the global-rational RLB input and output
-    matrices in a reported configuration where rational coefficients and
-    non-RLB-matrix parameters use AdamW;
-    \item a matched empirical package showing faster 100M-token-budget target
-    arrival in both tokens and measured clean target-arrival time against AdamW and Muon
-    controls, with 300M-token-budget saturation results showing that the endpoint
-    advantage persists after longer training.
+    \item matched evidence across five pretraining corpora showing faster
+    target arrival in tokens and measured clean time against AdamW and Muon
+    controls, with longer-budget runs measuring the saturation regime.
 \end{itemize}
 
 \section{Related Work}
