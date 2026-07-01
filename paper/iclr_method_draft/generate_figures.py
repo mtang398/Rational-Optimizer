@@ -105,11 +105,11 @@ OKABE_ITO = {
 }
 TARGET_OPTIMIZER_COLORS = {
     "AdamW": OKABE_ITO["blue"],
-    "Lion": OKABE_ITO["orange"],
+    "Lion": "#B07D00",
     "Muon": OKABE_ITO["green"],
-    "SOAP": OKABE_ITO["purple"],
-    "ScheduleFree": OKABE_ITO["vermillion"],
-    "CAME": OKABE_ITO["sky"],
+    "SOAP": "#B45F93",
+    "ScheduleFree": "#C66525",
+    "CAME": "#3C9DCA",
 }
 
 METHOD_STYLE = {
@@ -654,8 +654,8 @@ def _target_line_style(method: str) -> tuple[str, object, float, float]:
         linewidth = 1.45 if family == "RLB" else 1.28
         alpha = 0.88 if family == "RLB" else 0.76
     else:
-        linewidth = 0.66
-        alpha = 0.24 if family == "RLB" else 0.17
+        linewidth = 0.82 if family == "RLB" else 0.74
+        alpha = 0.38 if family == "RLB" else 0.29
     return TARGET_OPTIMIZER_COLORS.get(optimizer, "#777777"), linestyle, linewidth, alpha
 
 
@@ -878,18 +878,19 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
     curves_by_regime = {"E1": load_e1_curves(), "E2": load_e2_curves()}
     method_sets = {regime: _completed_broad_methods(curves) for regime, curves in curves_by_regime.items()}
     panel_data: dict[tuple[str, str], list[tuple[str, str, str, list[float], list[float]]]] = {}
-    row_ranges: dict[str, tuple[float, float, float, float] | None] = {}
+    panel_ranges: dict[tuple[str, str], tuple[float, float, float, float] | None] = {}
     for regime in ["E1", "E2"]:
         curves = curves_by_regime[regime]
         methods = method_sets[regime]
-        row_x_values: list[float] = []
-        row_y_values: list[float] = []
         for dataset, dataset_label, e2_dir_name in DATASETS:
             targets = sorted(_target_candidates(regime, dataset, e2_dir_name), reverse=True)
             if not targets:
                 panel_data[(regime, dataset)] = []
+                panel_ranges[(regime, dataset)] = None
                 continue
             traces: list[tuple[str, str, str, list[float], list[float]]] = []
+            panel_x_values: list[float] = []
+            panel_y_values: list[float] = []
             for method, _label, family, optimizer in methods:
                 xs, ys = [], []
                 for target in targets:
@@ -898,25 +899,31 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                         continue
                     xs.append(stats[0] / 1_000_000)
                     ys.append(target)
-                    row_x_values.append(xs[-1])
-                    row_y_values.append(target)
+                    panel_x_values.append(xs[-1])
+                    panel_y_values.append(target)
                 if not xs:
                     continue
                 traces.append((method, family, optimizer, xs, ys))
             panel_data[(regime, dataset)] = traces
-        if row_x_values and row_y_values:
-            x_pad = max(6.0, 0.045 * (max(row_x_values) - min(row_x_values)))
-            y_pad = max(0.045, 0.070 * (max(row_y_values) - min(row_y_values)))
-            xmin = max(0.0, math.floor((min(row_x_values) - x_pad) / 10.0) * 10.0)
-            xmax = math.ceil((max(row_x_values) + x_pad) / 10.0) * 10.0
-            ymin = math.floor((min(row_y_values) - y_pad) * 20.0) / 20.0
-            ymax = math.ceil((max(row_y_values) + y_pad) * 20.0) / 20.0
-            row_ranges[regime] = (xmin, xmax, ymin, ymax)
-        else:
-            row_ranges[regime] = None
+            if panel_x_values and panel_y_values:
+                x_span = max(panel_x_values) - min(panel_x_values)
+                y_span = max(panel_y_values) - min(panel_y_values)
+                x_pad = max(2.6, 0.065 * x_span)
+                y_pad = max(0.030, 0.095 * y_span)
+                xmin = max(0.0, math.floor((min(panel_x_values) - x_pad) / 5.0) * 5.0)
+                xmax = math.ceil((max(panel_x_values) + x_pad) / 5.0) * 5.0
+                ymin = math.floor((min(panel_y_values) - y_pad) * 20.0) / 20.0
+                ymax = math.ceil((max(panel_y_values) + y_pad) * 20.0) / 20.0
+                if xmax <= xmin:
+                    xmax = xmin + 5.0
+                if ymax <= ymin:
+                    ymax = ymin + 0.05
+                panel_ranges[(regime, dataset)] = (xmin, xmax, ymin, ymax)
+            else:
+                panel_ranges[(regime, dataset)] = None
 
-    fig, axes = plt.subplots(2, len(DATASETS), figsize=(7.2, 4.15), sharex="row", sharey="row")
-    fig.subplots_adjust(left=0.070, right=0.994, bottom=0.122, top=0.805, wspace=0.105, hspace=0.245)
+    fig, axes = plt.subplots(2, len(DATASETS), figsize=(7.2, 4.18), sharex=False, sharey=False)
+    fig.subplots_adjust(left=0.060, right=0.996, bottom=0.114, top=0.855, wspace=0.235, hspace=0.255)
 
     for row_idx, regime in enumerate(["E1", "E2"]):
         for col_idx, (dataset, dataset_label, _e2_dir_name) in enumerate(DATASETS):
@@ -949,7 +956,7 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                     linewidth=scatter_lw,
                     zorder=point_z,
                 )
-            limits = row_ranges[regime]
+            limits = panel_ranges[(regime, dataset)]
             if limits is not None:
                 xmin, xmax, ymin, ymax = limits
                 ax.set_xlim(xmin, xmax)
@@ -960,16 +967,13 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 ax.set_title(dataset_label, fontsize=6.55, pad=3.0, weight="bold")
             if col_idx == 0:
                 ax.set_ylabel(f"{BUDGET_LABELS[regime]}\ntarget val. loss", fontsize=6.6, labelpad=2.0)
-            else:
-                ax.tick_params(axis="y", labelleft=False)
             ax.grid(True, color="#dddddd", linewidth=0.36, alpha=0.72)
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
-            ax.tick_params(axis="both", labelsize=5.75, pad=1.1, length=2.1)
+            ax.tick_params(axis="both", labelsize=5.15, pad=1.0, length=1.9)
             ax.locator_params(axis="x", nbins=3)
-            ax.locator_params(axis="y", nbins=4)
-    fig.text(0.535, 0.052, "tokens to validation-loss target (M)", ha="center", va="center", fontsize=7.1)
-    fig.text(0.075, 0.833, "left = fewer tokens; lower = harder target", ha="left", va="bottom", fontsize=6.1, color="#555555")
+            ax.locator_params(axis="y", nbins=3)
+    fig.text(0.535, 0.043, "tokens to validation-loss target (M)", ha="center", va="center", fontsize=7.1)
 
     present_optimizers = []
     for methods in method_sets.values():
@@ -982,7 +986,7 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         plt.Line2D([0], [0], color="#303030", linestyle="-", linewidth=1.20, marker="s", markersize=3.4),
         plt.Line2D([0], [0], color="#303030", linestyle=(0, (2.4, 1.8)), linewidth=1.20, marker="^", markersize=3.5),
     ]
-    method_labels = ["MatrixPolicy", "RLB-only", "SiLU"]
+    method_labels = ["MatrixPolicy", "RLB + optimizer", "SiLU + optimizer"]
     optimizer_handles = []
     for optimizer in optimizer_order:
         is_primary = optimizer in {"AdamW", "Muon"}
@@ -1000,11 +1004,11 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         method_handles,
         method_labels,
         loc="upper left",
-        bbox_to_anchor=(0.070, 0.995),
+        bbox_to_anchor=(0.070, 0.985),
         ncol=3,
         frameon=False,
         fontsize=6.05,
-        title="Method",
+        title="Activation / method",
         title_fontsize=6.20,
         handlelength=1.45,
         columnspacing=0.70,
@@ -1015,11 +1019,11 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         optimizer_handles,
         optimizer_order,
         loc="upper right",
-        bbox_to_anchor=(0.994, 0.995),
+        bbox_to_anchor=(0.994, 0.985),
         ncol=len(optimizer_order),
         frameon=False,
         fontsize=5.95,
-        title="Optimizer color",
+        title="RLB/SiLU optimizer color",
         title_fontsize=6.15,
         handlelength=1.28,
         columnspacing=0.58,

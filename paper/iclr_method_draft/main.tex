@@ -706,13 +706,13 @@ in every listed comparison.
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.99\textwidth]{figures/target_arrival_evidence_matrix.pdf}
-\caption{Target-arrival map for the completed fixed-scale study.  Rows show the
-100M- and 300M-token budgets, and columns show datasets.  Each point is the mean
-token count needed by one method to reach one validation-loss target; connected
-points trace the same method from easier to harder targets within that
-dataset-setting panel.  The horizontal coordinate is target-arrival tokens, and
-the vertical coordinate is target validation loss, so curves further left reach
-the same loss with fewer tokens.  The hard-target timing and token-saving
+\caption{MatrixPolicy shifts target arrival left across the completed fixed-scale
+study.  Rows show the 100M- and 300M-token budgets, and columns show datasets.
+Each point is the mean token count needed to reach one validation-loss target in
+all three seeds; connected points trace one method from easier to harder targets.
+Black circles are MatrixPolicy.  For every optimizer color, solid squares are
+RLB with that optimizer and dashed triangles are SiLU with the same optimizer.
+Lower targets are harder, and the hard-target timing and token-saving
 percentages are quantified in Table~\ref{tab:e1e2-silu-comparison}.}
 \label{fig:target-arrival-evidence}
 \end{figure}
