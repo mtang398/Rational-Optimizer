@@ -60,18 +60,21 @@ training result here.]
 \section{Introduction}
 \label{sec:introduction}
 
-Current LLM development is limited by the capability purchased per token, per
-optimizer step, and per hour of training, rather than by final model size alone.
-A pretraining run is not an isolated curve-fitting exercise: it gates
-architecture search, data-mixture revision, post-training, safety evaluation,
-and release cadence.  Recent open model reports therefore foreground training
-data, token budgets, architecture choices, stability, and hardware cost
+Training competitive language models is now constrained by how quickly a run
+turns tokens, accelerator hours, and engineering attention into useful
+capability.  For a product team, an earlier arrival curve leaves more room for
+data-mixture revision, post-training, evaluation, and safety work before a
+release decision; for a research group, it means more hypotheses tested under
+the same compute allocation.  The relevant question is therefore how soon a
+design reaches a loss level worth continuing, not just how low a model can drive
+loss after a fixed budget.  Recent open model reports accordingly foreground
+training data, token budgets, architecture choices, stability, and hardware cost
 alongside benchmark quality
 \citep{grattafiori2024llama3,qwen2025qwen25,deepseekai2024deepseekv3}.
 Recent scaling and training-protocol studies make the same point from a more
 controlled angle: loss depends on data mixture, repetition, optimizer choice,
 and the full training configuration, so small design changes should be judged by
-how quickly they reach useful loss, not only by the endpoint after a fixed budget
+how quickly they reach useful loss, rather than solely by the endpoint after a fixed budget
 \citep{li2025farseer,liu2026infolaw,volkova2026optimizerlaws,semenov2025benchmarking,wen2026fantastic}.
 We therefore use target arrival as the main readout: when two runs eventually
 approach similar endpoint losses, the one that reaches the same validation loss
@@ -150,9 +153,9 @@ motivation by proving expressivity advantages for trainable low-degree rational
 activations over a broad set of modern fixed activations, including gated and
 Transformer-style nonlinearities \citep{tang2026rationalexpressivity}.  Our use
 of rational functions follows this family, but the empirical question is not
-whether a trainable curve alone is helpful.  The controls distinguish a
-global-rational RLB activation without MatrixPolicy from the same activation
-paired with the optimizer-visible matrix interface.
+whether a trainable curve alone is helpful.  The controls distinguish RLB
+without MatrixPolicy from the same activation paired with the optimizer-visible
+matrix interface.
 
 The matrix side connects RLB to LLM pretraining optimizers.  Adam and AdamW remain central baselines
 \citep{kingma2015iclr-adam,loshchilov2019decoupled}, while state-efficient or
@@ -197,7 +200,7 @@ Throughout the method we use
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{figures/matrixpolicy_overview.pdf}
-\caption{Activation--optimizer interface for global-rational RLB.  In layer
+\caption{Activation--optimizer interface for RLB.  In layer
 $l$, $A_l$ maps the sublayer input into normalized rational groups and $B_l$
 recombines the rational features.  RLB exposes matrix-pressure, response-gain,
 coefficient-activity, and pair-balance summaries through a stop-gradient
@@ -218,13 +221,13 @@ $B_{l,g}\in\mathbb{R}^{d\times m}$ denote the matching column block of $B_l$.
 Each group has a trainable P5/Q4 rational response
 \begin{align}
     P_{l,g}(u)&=\sum_{i=0}^{5}a_{l,g,i}u^i,
-    \label{eq:global-rational-p}\\
+    \label{eq:rlb-p}\\
     Q_{l,g}(u)&=
     1+|b_{l,g,1}|\,|u|+|b_{l,g,2}|\,u^2
      +|b_{l,g,3}|\,|u|^3+|b_{l,g,4}|\,u^4,
-    \label{eq:global-rational-q}\\
+    \label{eq:rlb-q}\\
     R_{l,g}(u)&=P_{l,g}(u)/Q_{l,g}(u).
-    \label{eq:global-rational}
+    \label{eq:rlb-response}
 \end{align}
 The RLB forward map is the single block expression
 \begin{equation}
@@ -250,7 +253,7 @@ rational because of the absolute-value terms; derivative statistics use the
 autodiff convention $\sign(0)=0$ and equations involving $R'_{l,g}$ are
 interpreted almost everywhere.  Numerator and denominator coefficients are
 initialized by a SiLU fit on $[-5,5]$ and are then trained by AdamW.  The evaluated
-model uses only these group-specific global P5/Q4 rational responses.
+model uses only these groupwise P5/Q4 rational responses.
 
 The forward map in \eqref{eq:rlb-forward} separates the normalized coordinate at which the
 rational response is evaluated from the group radius returned to the residual
@@ -308,7 +311,7 @@ matrix-gradient scales are
     {\rms_{\epsilon_p}(B_{l,g})} .
     \label{eq:matrix-pressure}
 \end{align}
-The coefficient-gradient energy scale for the global response is
+The coefficient-gradient energy scale for the groupwise rational response is
 \begin{align}
     p^{R}_{l,g}
     =
@@ -641,7 +644,7 @@ the 300M-token budget uses 9150 optimizer steps, with three seeds per
 method/dataset pair.  The main comparison keeps the architecture and data fixed
 while changing the activation and optimizer used in the nonlinear sublayer:
 MatrixPolicy is compared with SiLU controls and with RLB-only controls, where
-RLB-only uses the same global-rational RLB activation but no MatrixPolicy
+RLB-only uses the same RLB activation but no MatrixPolicy
 updates.  Shared optimizer, evaluation-cadence, and
 throughput-measurement details are reported in
 Appendix~\ref{app:experiment-protocol}; broader optimizer comparisons beyond
@@ -709,15 +712,15 @@ TODO: Insert the component ablation study here.
 \section{Conclusion}
 \label{sec:conclusion}
 
-Global-rational RLB turns the nonlinear Transformer sublayer into an
+RLB turns the nonlinear Transformer sublayer into an
 optimizer-visible interface: it exposes grouped normalized coordinates, trainable
-global rational responses, and an idealized positive matrix-pair relation used as
+groupwise rational responses, and an idealized positive matrix-pair relation used as
 a bounded balancing coordinate.  MatrixPolicy uses that interface to update the
 RLB input and output matrices with role-aware statistics, while rational
 coefficients and non-RLB-matrix parameters use AdamW.  The completed 100M-token
 and 300M-token runs show a consistent target-arrival pattern: MatrixPolicy
 reaches common validation losses with fewer tokens and lower measured
-target-arrival time than the listed SiLU and global-rational controls.  [todo:
+target-arrival time than the listed SiLU and RLB controls.  [todo:
 Complete this conclusion after the larger-scale and ablation results are added.]
 
 \bibliography{references}
@@ -748,14 +751,14 @@ has 12 layers, width 768, 12 heads of dimension 64, and context length 256.
 The SiLU controls use a SwiGLU-like gated nonlinear sublayer with bias-free
 matrices $W_g,W_v\in\mathbb{R}^{768\times 2048}$ and
 $W_o\in\mathbb{R}^{2048\times 768}$, computing
-$(\operatorname{SiLU}(xW_g)\odot xW_v)W_o$.  The global-rational RLB rows use a
+$(\operatorname{SiLU}(xW_g)\odot xW_v)W_o$.  The RLB rows use a
 matched single-branch matrix pair: an input matrix maps width 768 to 3072 latent
 coordinates, the coordinates are partitioned into groups and transformed by the
-real-pole-free P5/Q4 global rational response, and an output matrix maps the 3072
+real-pole-free P5/Q4 rational response, and an output matrix maps the 3072
 coordinates back to width 768.  With the default group size 256, this gives
 $G=12$ groups of width $m=256$; the RMS floor is
-$\epsilon_{\rm rms}=10^{-6}$.  This is the global-rational RLB variant used by
-the main MatrixPolicy results.
+$\epsilon_{\rm rms}=10^{-6}$.  This is the RLB configuration used by the main
+MatrixPolicy results.
 
 Tokenization uses the GPT-2 tokenizer through the Hugging Face tokenizer
 interface, without adding tokenizer-specific special tokens; an EOS or pad token
@@ -775,9 +778,9 @@ method/dataset pair is run with seeds 1337, 2027, and 3407.  Validation is
 performed every 50 optimizer steps, so token-to-target arrivals are quantized in
 increments of 1.64M tokens.
 
-The MatrixPolicy rows in the main table use the global-rational RLB activation:
-the active nonlinearity is the group-specific global P5/Q4 response in
-equations~\ref{eq:global-rational-p}--\ref{eq:global-rational-q}.  The
+The MatrixPolicy rows in the main table use the RLB activation: the active
+nonlinearity is the groupwise P5/Q4 response in
+equations~\ref{eq:rlb-p}--\ref{eq:rlb-response}.  The
 evaluated configuration uses AdamW as the backbone optimizer and disables the
 separate rational-coefficient optimizer.  It enables MatrixPolicy group
 redistribution with gain/pressure/activity strengths $0.20/0.10/0.20$, schedule
@@ -874,8 +877,8 @@ absolute-value kink.  The coefficient features are explicit:
 \end{align}
 where $\sign(0)=0$ is also used at $b_j=0$.  The response factor $R(u)$, the
 input derivative $R'(u)$, and the coefficient features in
-\eqref{eq:appendix-coeff-features} are all observable from the group-specific global
-curve.  These coefficient derivatives are classical away from $b_j=0$ and use
+\eqref{eq:appendix-coeff-features} are all observable from the group-specific
+rational response.  These coefficient derivatives are classical away from $b_j=0$ and use
 the stated autodiff subgradient convention at $b_j=0$.
 
 The RMS-normalized group map turns these curve quantities into matrix-role
@@ -978,7 +981,7 @@ coordinatewise, and then compensating the output matrix by $\lambda^{-1}$, gives
 \end{align}
 Both terms vanish when $\epsilon_{\rm rms}=0$.  With a bounded rescaling
 $|\log\lambda|\le c$, the same bound is small when
-$e^{2c}\epsilon_{\rm rms}/\rho^2$ is small and the global response and derivative
+$e^{2c}\epsilon_{\rm rms}/\rho^2$ is small and the scalar response and derivative
 are bounded on the compact interval above.  Near the floor, or under an
 arbitrarily large reciprocal rescaling, the positive pair-rescaling identity no
 longer gives a useful invariance.  MatrixPolicy therefore uses this direction

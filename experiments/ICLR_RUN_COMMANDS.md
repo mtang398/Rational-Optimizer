@@ -184,11 +184,11 @@ E1 completion note: all jobs `155411`, `155412`, `158114`, `158115`, `158117`, `
 
 Rejected proposal launch artifacts have been pruned from the active repo surface and raw run tree. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; detailed rejected-variant submission blocks are intentionally not retained here.
 
-## Global-Rational RLB Ablation Full Queue
+## RLB Ablation Full Queue
 
 Corrected submission: 2026-06-24 16:02 EDT. Manifest: `experiments/manifests/iclr26_rational_only_ablation_manifest.csv`. Scope: E1 + E2 across five datasets x three seeds per phase using `rlb_fused_global_rational` and the original `rational_matrix_policy_onpolicy` optimizer settings.
 
-Definition: this is the intended global-rational RLB control. It keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted global rational P5/Q4, telemetry, gauge/stat hooks, and MatrixPolicy settings. The activation has no `coeff_logits` parameter; trainable rational parameters are only `numerator` and `denominator`.
+Definition: this is the intended RLB control. It keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted P5/Q4 rational, telemetry, gauge/stat hooks, and MatrixPolicy settings. The activation has no `coeff_logits` parameter; trainable rational parameters are only `numerator` and `denominator`.
 
 Correction: the 2026-06-24 15:36 queue used `rlb_fused_rational_only`, which still created a zero-sized `coeff_logits` parameter. That queue is rejected for this ablation. Jobs `830651`-`830681` completed under the flawed definition, jobs `830683` and `830685` were cancelled while active, and jobs `830688`-`830717` were cancelled before starting.
 
@@ -214,11 +214,11 @@ sbatch --parsable --constraint=nvlink [--dependency=afterok:<previous_same_parit
   experiments/scripts/run_iclr26_manifest_job.sh
 ```
 
-## Global-Rational RLB Optimizer-Control Sweep
+## RLB Optimizer-Control Sweep
 
-Submitted: 2026-06-25 15:10 EDT. Manifest: `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`. Scope: all non-MatrixPolicy RLB optimizer controls under the corrected global-rational RLB activation.
+Submitted: 2026-06-25 15:10 EDT. Manifest: `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`. Scope: all non-MatrixPolicy RLB optimizer controls under the corrected RLB activation.
 
-Definition: this keeps each existing non-MatrixPolicy optimizer recipe fixed (`adamw`, `muon`, `lion`, `soap_adamw`, `ademamix`, `adafactor_came`, `schedule_free_adamw`) and swaps only the RLB activation to `rlb_fused_global_rational`. It has trainable rational parameters only in `numerator` and `denominator`. MatrixPolicy rows are not in this manifest because the completed `E1_rational_only_100m` and `E2_rational_only_300m` rows already provide the global-rational MatrixPolicy overlay.
+Definition: this keeps each existing non-MatrixPolicy optimizer recipe fixed (`adamw`, `muon`, `lion`, `soap_adamw`, `ademamix`, `adafactor_came`, `schedule_free_adamw`) and swaps only the RLB activation to `rlb_fused_global_rational`. It has trainable rational parameters only in `numerator` and `denominator`. MatrixPolicy rows are not in this manifest because the completed `E1_rational_only_100m` and `E2_rational_only_300m` rows already provide the RLB MatrixPolicy overlay.
 
 Submission shape: one manifest row per Slurm job, two parity dependency chains with `afterany` dependencies, `--constraint=nvlink`, and at most two active 4-A6000 jobs. The launcher NVLink timing guard includes `E1_global_rational_optimizers_100m` and `E2_global_rational_optimizers_300m`.
 
@@ -229,7 +229,7 @@ Submitted jobs:
 | even rows `0,2,...,208` | `982026`-`982236` scheduler range, excluding non-sweep gaps | terminal `982236` |
 | odd rows `1,3,...,209` | `982027`-`982237` scheduler range, excluding non-sweep gaps | terminal `982237` |
 
-Initial state at 2026-06-25 15:10 EDT: jobs `982026` and `982027` started on NVLink nodes; later rows were dependency-held. Early logs wrote global-rational JSONLs and confirmed legacy basis telemetry is null. Completion note on 2026-06-29: the sweep finished with `180` full completions and `30` RLB+ADeMaMix early stops from non-finite loss; no JSONLs were missing, partial, or bad. The regenerated E1/E2 paper-facing packages now overlay these rows for every non-MatrixPolicy RLB optimizer control.
+Initial state at 2026-06-25 15:10 EDT: jobs `982026` and `982027` started on NVLink nodes; later rows were dependency-held. Early logs wrote RLB JSONLs and confirmed legacy basis telemetry is null. Completion note on 2026-06-29: the sweep finished with `180` full completions and `30` RLB+ADeMaMix early stops from non-finite loss; no JSONLs were missing, partial, or bad. The regenerated E1/E2 paper-facing packages now overlay these rows for every non-MatrixPolicy RLB optimizer control.
 
 The submission used this pattern, once per row with the previous same-parity job passed as `--dependency=afterany:<job>`:
 
@@ -277,7 +277,7 @@ Submitted jobs:
 
 Initial scheduler state after submission: jobs `767136` and `767137` were running on `ma-compute-01` and `monakhova-compute-01`; jobs `767138`-`767150` were dependency-held.
 
-Completion note: all jobs `767136`-`767150` completed with exit `0:0` by `2026-06-23 18:16:55 EDT`. Job `767137` had `Restarts=1`; its preempted partial JSONL was archived as `.incomplete_767137_1_20260623150154`, and the final clean rerun is the only row included in aggregates. The completed rerun passes the E1 acceptance gate: final losses match the original MatrixPolicy E1 table within seed/dataset noise. This established the historical 15-row safe-speed MatrixPolicy aggregate (`27.3` min, `0.5102` s/step, `67,078.3` tokens/s); the current paper-facing runtime summary is later superseded by the global-rational RLB MatrixPolicy overlay.
+Completion note: all jobs `767136`-`767150` completed with exit `0:0` by `2026-06-23 18:16:55 EDT`. Job `767137` had `Restarts=1`; its preempted partial JSONL was archived as `.incomplete_767137_1_20260623150154`, and the final clean rerun is the only row included in aggregates. The completed rerun passes the E1 acceptance gate: final losses match the original MatrixPolicy E1 table within seed/dataset noise. This established the historical 15-row safe-speed MatrixPolicy aggregate (`27.3` min, `0.5102` s/step, `67,078.3` tokens/s); the current paper-facing runtime summary is later superseded by the RLB MatrixPolicy overlay.
 
 ## E2 Main 300M Submissions
 
@@ -721,7 +721,7 @@ Replacement odd-chain jobs:
 
 The E2 safe-speed terminal jobs are now `810106` for the original even chain and `812528` for the replacement odd chain. At 2026-06-23 21:41 EDT, the still-pending original even-chain jobs `810096`, `810098`, `810100`, `810102`, `810104`, and `810106` were updated with `Features=nvlink`; `scontrol show job` verified the constraint on all six jobs before they started. The manifest launcher also has a timing-row NVLink guard: phases `E1_matrixpolicy_safe_speed_100m`, `E2_matrixpolicy_safe_speed_300m`, and `E1_fineweb_edu_seed2027_runtime_repair_100m` exit before JSONL archive/write if the allocated node lacks the `nvlink` feature, unless `ALLOW_NON_NVLINK_TIMING=1` is explicitly set.
 
-Completion note on 2026-06-24: clean E2 safe-speed jobs `810092`, `810094`, `810096`, `810098`, `810100`, `810102`, `810104`, `810106`, and replacement odd-chain jobs `812522`-`812528` all completed with exit `0:0` and `Restarts=0`. These JSONL `summary.total_seconds` rows validated clean E2 RLB+MatrixPolicy timing and exclude cancelled non-NVLink job `810093` plus its cancelled odd-chain descendants; the current paper-facing runtime summary is later superseded by the global-rational RLB MatrixPolicy overlay.
+Completion note on 2026-06-24: clean E2 safe-speed jobs `810092`, `810094`, `810096`, `810098`, `810100`, `810102`, `810104`, `810106`, and replacement odd-chain jobs `812522`-`812528` all completed with exit `0:0` and `Restarts=0`. These JSONL `summary.total_seconds` rows validated clean E2 RLB+MatrixPolicy timing and exclude cancelled non-NVLink job `810093` plus its cancelled odd-chain descendants; the current paper-facing runtime summary is later superseded by the RLB MatrixPolicy overlay.
 
 ## E1 FineWeb-Edu Seed 2027 Runtime Repair Submission
 
@@ -771,9 +771,9 @@ Replacement repair jobs:
 
 Completion note on 2026-06-24: replacement repair jobs `812529`-`812536` all completed with exit `0:0` and `Restarts=0`. The regenerated runtime summary overlays these eight rows and restores SOAP, ADeMaMix, CAME, and ScheduleFree to 15 E1 timing runs.
 
-## Global-Rational MatrixPolicy Timing Node Repair
+## RLB MatrixPolicy Timing Node Repair
 
-Policy correction on 2026-06-25 15:54 EDT: repair is based on bad-node provenance, not a universal seconds-per-step cutoff. The old pending strict-cutoff repair jobs `984723`, `984724`, and `984725` were cancelled before starting. Downstream global-rational optimizer-control heads `982030` and `982031` were held during the replacement, then updated to depend on the new terminal repair job and released.
+Policy correction on 2026-06-25 15:54 EDT: repair is based on bad-node provenance, not a universal seconds-per-step cutoff. The old pending strict-cutoff repair jobs `984723`, `984724`, and `984725` were cancelled before starting. Downstream RLB optimizer-control heads `982030` and `982031` were held during the replacement, then updated to depend on the new terminal repair job and released.
 
 Audited legacy-node mapping is recorded in `experiments/manifests/iclr26_timing_node_overrides.csv`; it is only used when a legacy JSONL lacks `slurm_node`. New repaired JSONLs carry their own Slurm metadata and bypass that override.
 

@@ -1,6 +1,6 @@
 # Activation
 
-This directory implements rational activation blocks used inside Transformer MLP sublayers. The research activation is Rational Local Basis, abbreviated RLB.
+This directory implements rational activation blocks used inside Transformer MLP sublayers. The research activation is Rational Latent Basis, abbreviated RLB.
 
 RLB is not presented as a standalone activation improvement. Its purpose is to expose structure that an optimizer can use: group normalization, rational curve coefficients, per-group activity statistics, and a positive `W_in`/`W_out` scale gauge that is exact in the homogeneous radius and approximate under the stabilizing RMS floor.
 
@@ -77,7 +77,7 @@ These are optimizer-diagnostic fields. They do not change the activation claim b
 
 ## Evidence Boundary
 
-The current paper-facing evidence is the manifest-based E1 M0/100M suite and E2 M0/300M suite on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy and non-MatrixPolicy RLB optimizer-control rows in the paper-facing packages use the corrected global-rational RLB activation: `rlb_fused_global_rational`, which keeps the single-branch RLB wrapper and grouped P5/Q4 rational with trainable rational parameters limited to the numerator and denominator. Full E1 curves, token-savings, and checkpoint tables are in `../experiments/results/iclr26_e1_figures/` and `../experiments/results/iclr26_e1_token_savings_2026_06_12/`; full E2 final/runtime/token/curve tables are in `../experiments/results/iclr26_e2_*` and `../experiments/results/iclr26_e2_figures/`. This remains evidence for RLB plus MatrixPolicy and matched RLB controls, not an activation-only claim; RLB+ADeMaMix is retained as a divergent/early-stop negative row.
+The current paper-facing evidence is the manifest-based E1 M0/100M suite and E2 M0/300M suite on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy and non-MatrixPolicy RLB optimizer-control rows in the paper-facing packages use the corrected `rlb_fused_global_rational` activation, which keeps the single-branch RLB wrapper and grouped P5/Q4 rational with trainable rational parameters limited to the numerator and denominator. Full E1 curves, token-savings, and checkpoint tables are in `../experiments/results/iclr26_e1_figures/` and `../experiments/results/iclr26_e1_token_savings_2026_06_12/`; full E2 final/runtime/token/curve tables are in `../experiments/results/iclr26_e2_*` and `../experiments/results/iclr26_e2_figures/`. This remains evidence for RLB plus MatrixPolicy and matched RLB controls, not an activation-only claim; RLB+ADeMaMix is retained as a divergent/early-stop negative row.
 
 ## Paper Use
 

@@ -3,7 +3,7 @@
 Completed: 2026-06-19. Manifest rows `420-464` define the full C4 E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 C4 slice from the manifest: `val_skip_tokens=0`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational/no-local-atom (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use `rlb_fused_global_rational` replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 ## Final Validation Loss
 
