@@ -59,12 +59,10 @@
   bypass/.style={rectangle, rounded corners=4pt, draw=mpMuted, fill=white,
     line width=0.70pt, minimum height=0.48cm, align=center, inner sep=3pt,
     font=\scriptsize},
-  busPill/.style={rectangle, rounded corners=4pt, draw=mpLine!55, fill=white,
-    line width=0.50pt, font=\tiny\bfseries, text=mpMuted!94,
-    inner xsep=3.8pt, inner ysep=1.4pt},
-  busLine/.style={line width=0.82pt, color=mpLine!70},
-  busPort/.style={circle, draw=mpLine!70, fill=white, line width=0.55pt,
-    inner sep=0pt, minimum size=3.5pt},
+  summaryLane/.style={rectangle, rounded corners=5pt, draw=mpLine!58,
+    fill=white, line width=0.60pt, minimum height=0.44cm,
+    font=\scriptsize\bfseries, text=mpMuted!94, align=center,
+    inner xsep=4pt, inner ysep=1.2pt},
   boundaryLabel/.style={font=\tiny, text=mpMuted!90, fill=white,
     rounded corners=2pt, inner xsep=3.0pt, inner ysep=0.8pt},
   title/.style={font=\scriptsize\bfseries, text=mpPurple, anchor=west,
@@ -73,12 +71,17 @@
   sideTab/.style={rectangle, rounded corners=3pt, fill=mpPurpleFill,
     font=\tiny\bfseries, text=mpPurple, align=center,
     inner xsep=3.0pt, inner ysep=1.8pt},
+  footerTitle/.style={font=\scriptsize\bfseries, text=mpMuted,
+    fill=mpGreyFill, rounded corners=2pt, inner xsep=4pt, inner ysep=1.2pt},
   mutedTitle/.style={font=\scriptsize\bfseries, text=mpMuted, anchor=west,
     fill=white, rounded corners=2pt, inner xsep=4pt, inner ysep=1.2pt},
   arrow/.style={-{Stealth[length=4.2pt 1.2, width'=0pt 0.50]},
     line width=0.82pt, shorten >=2pt, shorten <=1pt, color=mpPurple},
   readArrow/.style={-{Stealth[length=3.4pt 1.0, width'=0pt 0.46]},
     densely dashed, line width=0.58pt, shorten >=2pt, shorten <=1pt,
+    color=mpLine},
+  tapArrow/.style={-{Stealth[length=2.8pt 1.0, width'=0pt 0.44]},
+    densely dashed, line width=0.54pt, shorten >=1pt, shorten <=0pt,
     color=mpLine},
   bus/.style={densely dashed, line width=0.82pt, color=mpLine},
   bypassArrow/.style={-{Stealth[length=3.7pt 1.0, width'=0pt 0.48]},
@@ -94,14 +97,14 @@
       at (8.34,6.10) {};
     \node[policyBand, minimum width=15.35cm, minimum height=3.86cm]
       at (8.34,3.34) {};
-    \node[bypassBand, minimum width=13.28cm, minimum height=1.02cm]
-      at (8.04,0.72) {};
+    \node[bypassBand, minimum width=12.18cm, minimum height=0.98cm]
+      at (7.15,0.72) {};
   \end{pgfonlayer}
 
   \node[mutedTitle] at (0.92,6.86) {detached summary producers};
-  \node[sideTab, minimum width=1.48cm] at (1.35,4.12)
-    {MatrixPolicy\\consumers};
-  \node[mutedTitle] at (1.36,1.13) {AdamW-only bypass};
+  \node[sideTab, minimum width=1.34cm] at (1.30,4.28)
+    {MatrixPolicy};
+  \node[footerTitle, anchor=west] at (1.36,1.03) {AdamW-only bypass};
 
   \node[cardBlue, minimum width=2.75cm, minimum height=1.20cm] (live)
     at (2.30,6.05) {};
@@ -127,24 +130,16 @@
   \node[prodVars, text=mpAmber] at ($(balance.center)+(0,-0.15)$)
     {probe gains\\[-1pt]log-ratio $\gamma$, target $\tau$};
 
-  \draw[bus] (1.00,5.24) -- (15.58,5.24);
-  \node[boundaryLabel, anchor=east] at (15.20,5.34)
+  \node[summaryLane, minimum width=11.75cm] (summarybus) at (8.08,4.82)
+    {detached read-only summary lane};
+  \draw[bus] (2.20,5.04) -- (13.96,5.04);
+  \node[boundaryLabel, anchor=west] at (13.96,5.18)
     {stop-gradient boundary};
-  \draw[busLine] (2.18,4.76) -- (12.80,4.76);
-  \node[busPill, anchor=west] (busTag) at (12.94,4.76)
-    {detached summary bus};
 
-  \draw[readArrow, color=mpBlue!72] (live.south) -- (2.30,4.78);
-  \draw[readArrow, color=mpPurple!72] (pressure.south) -- (5.63,4.78);
-  \draw[readArrow, color=mpGreen!72] (activity.south) -- (9.10,4.78);
-  \draw[readArrow, color=mpAmber!82] (balance.south) -- (12.70,4.78);
-  \node[busPort] at (2.30,4.76) {};
-  \node[busPort] at (5.63,4.76) {};
-  \node[busPort] at (9.10,4.76) {};
-  \node[busPort] at (12.70,4.76) {};
-  \node[busPort] at (4.15,4.76) {};
-  \node[busPort] at (7.82,4.76) {};
-  \node[busPort] at (11.45,4.76) {};
+  \draw[readArrow, color=mpBlue!72] (live.south) -- (2.30,5.05);
+  \draw[readArrow, color=mpPurple!72] (pressure.south) -- (5.63,5.05);
+  \draw[readArrow, color=mpGreen!72] (activity.south) -- (9.10,5.05);
+  \draw[readArrow, color=mpAmber!82] (balance.south) -- (12.70,5.05);
 
   \node[readCard, minimum width=3.18cm] (rgate) at (4.15,4.08)
     {\textbf{group gates}\\[-1pt]
@@ -159,9 +154,9 @@
      probe gains; \textcolor{mpPurple}{$\pi$},
      \textcolor{mpGreen}{$\alpha$}, \textcolor{mpAmber}{$\gamma,\tau$}};
 
-  \draw[readArrow] (4.15,4.73) -- (rgate.north);
-  \draw[readArrow] (7.82,4.73) -- (rbranch.north);
-  \draw[readArrow] (11.45,4.73) -- (rrescale.north);
+  \draw[tapArrow] (4.15,4.60) -- (rgate.north);
+  \draw[tapArrow] (7.82,4.60) -- (rbranch.north);
+  \draw[tapArrow] (11.45,4.60) -- (rrescale.north);
 
   \node[opBlue, minimum width=1.72cm] (pair) at (1.58,2.62)
     {$A_l,B_l$\\matrix pair};
@@ -183,12 +178,13 @@
   \draw[readArrow] (rbranch.south) -- (branch.north);
   \draw[readArrow] (rrescale.south) -- (rescale.north);
 
-  \node[bypass, minimum width=3.72cm, text width=3.46cm] (other) at (3.08,0.54)
+  \node[bypass, minimum width=3.72cm, text width=3.46cm] (other) at (3.08,0.50)
     {rational coefficients\\and other Transformer tensors};
-  \node[bypass, minimum width=1.28cm, font=\scriptsize\bfseries] (adam) at (7.20,0.54)
+  \node[bypass, minimum width=1.46cm, fill=mpGreyFill,
+    font=\scriptsize\bfseries] (adam) at (7.20,0.50)
     {AdamW};
-  \node[bypass, minimum width=3.66cm, text width=3.38cm] (outside) at (10.92,0.54)
-    {outside MatrixPolicy gates,\\Muon, and rescale};
+  \node[bypass, minimum width=3.66cm, text width=3.38cm] (outside) at (10.92,0.50)
+    {outside MatrixPolicy\\gates, Muon, and rescale};
   \draw[bypassArrow] (other.east) -- (adam.west);
   \draw[bypassArrow] (adam.east) -- (outside.west);
 \end{tikzpicture}
