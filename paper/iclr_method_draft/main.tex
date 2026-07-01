@@ -412,10 +412,10 @@ rational coefficients.
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{figures/matrixpolicy_signal_flow.pdf}
-\caption{Detached-summary route for the evaluated MatrixPolicy system.  The top
-lane shows where each detached summary family is produced, the middle cards
-show which MatrixPolicy operation consumes each family, and the bottom lane
-separates AdamW-only tensors from the matrix-pair update path.}
+\caption{Detached-summary route for the evaluated MatrixPolicy system.  The
+top band shows where each summary family is produced, the read-only summary
+bus carries those detached signals to the MatrixPolicy consumers, and the
+bottom lane separates AdamW-only tensors from the matrix-pair update path.}
 \label{fig:matrixpolicy-signal-flow}
 \end{figure}
 

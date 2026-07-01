@@ -63,7 +63,7 @@
     fill=white, line width=0.60pt, minimum height=0.44cm,
     font=\scriptsize\bfseries, text=mpMuted!94, align=center,
     inner xsep=4pt, inner ysep=1.2pt},
-  boundaryLabel/.style={font=\tiny, text=mpMuted!90, fill=white,
+  boundaryLabel/.style={font=\scriptsize, text=mpMuted!90, fill=white,
     rounded corners=2pt, inner xsep=3.0pt, inner ysep=0.8pt},
   title/.style={font=\scriptsize\bfseries, text=mpPurple, anchor=west,
     align=center,
@@ -78,14 +78,14 @@
   arrow/.style={-{Stealth[length=4.2pt 1.2, width'=0pt 0.50]},
     line width=0.82pt, shorten >=2pt, shorten <=1pt, color=mpPurple},
   readArrow/.style={-{Stealth[length=3.4pt 1.0, width'=0pt 0.46]},
-    densely dashed, line width=0.58pt, shorten >=2pt, shorten <=1pt,
-    color=mpLine},
+    densely dashed, line width=0.64pt, shorten >=2pt, shorten <=1pt,
+    color=mpLine!92},
   tapArrow/.style={-{Stealth[length=2.8pt 1.0, width'=0pt 0.44]},
-    densely dashed, line width=0.54pt, shorten >=1pt, shorten <=0pt,
-    color=mpLine},
+    densely dashed, line width=0.60pt, shorten >=1pt, shorten <=0pt,
+    color=mpLine!92},
   bus/.style={densely dashed, line width=0.82pt, color=mpLine},
   bypassArrow/.style={-{Stealth[length=3.7pt 1.0, width'=0pt 0.48]},
-    line width=0.76pt, shorten >=2pt, shorten <=1pt, color=mpMuted},
+    line width=0.84pt, shorten >=2pt, shorten <=1pt, color=mpMuted},
 }
 
 \begin{document}
@@ -131,10 +131,10 @@
     {probe gains\\[-1pt]log-ratio $\gamma$, target $\tau$};
 
   \node[summaryLane, minimum width=11.75cm] (summarybus) at (8.08,4.82)
-    {detached read-only summary lane};
+    {detached read-only summary bus};
   \draw[bus] (2.20,5.04) -- (13.96,5.04);
-  \node[boundaryLabel, anchor=west] at (13.96,5.18)
-    {stop-gradient boundary};
+  \node[boundaryLabel, anchor=west] at (14.10,5.04)
+    {stop-gradient};
 
   \draw[readArrow, color=mpBlue!72] (live.south) -- (2.30,5.05);
   \draw[readArrow, color=mpPurple!72] (pressure.south) -- (5.63,5.05);
@@ -184,7 +184,7 @@
     font=\scriptsize\bfseries] (adam) at (7.20,0.50)
     {AdamW};
   \node[bypass, minimum width=3.66cm, text width=3.38cm] (outside) at (10.92,0.50)
-    {outside MatrixPolicy\\gates, Muon, and rescale};
+    {AdamW update only\\no gates, Muon, or rescale};
   \draw[bypassArrow] (other.east) -- (adam.west);
   \draw[bypassArrow] (adam.east) -- (outside.west);
 \end{tikzpicture}
