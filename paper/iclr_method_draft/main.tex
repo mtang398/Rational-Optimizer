@@ -654,9 +654,10 @@ five corpora: DCLM/DataComp-LM \citep{li2024datacomp}, FineWeb-Edu and FineWeb
 the 300M-token budget uses 9150 optimizer steps, with three seeds per
 method/dataset pair.  The main comparison keeps the architecture and data fixed
 while changing the activation and optimizer used in the nonlinear sublayer:
-MatrixPolicy with the global rational activation is compared with SiLU and
-global-rational activation controls under AdamW and Muon.  Shared optimizer,
-evaluation-cadence, and throughput-measurement details are reported in
+MatrixPolicy is compared with SiLU controls and with RLB-only controls, where
+RLB-only uses the same global-rational, no-local-atom activation but no
+MatrixPolicy updates.  Shared optimizer, evaluation-cadence, and
+throughput-measurement details are reported in
 Appendix~\ref{app:experiment-protocol}; broader optimizer comparisons beyond
 AdamW and Muon are summarized in Table~\ref{tab:broad-final-validation}.
 
@@ -685,14 +686,6 @@ vertical coordinate is the target validation loss, so curves further left reach
 the same loss with fewer tokens.  The hard-target timing and token-saving percentages are quantified in Table~\ref{tab:e1e2-silu-comparison}.}
 \label{fig:target-arrival-evidence}
 \end{figure}
-
-Figure~\ref{fig:target-arrival-evidence} complements the table rather than
-repeating it.  The table reports token-saving percentages and clean target-arrival
-minutes at the hardest common targets; the map shows the full ladder of common
-targets.  Across both token budgets and all five datasets, MatrixPolicy traces
-are consistently left of the SiLU and global-rational controls, so the hard-target
-table is not a single-threshold artifact but a compact accounting of the same
-target-arrival pattern.
 
 \begin{figure}[H]
 \centering

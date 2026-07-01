@@ -117,9 +117,9 @@ METHOD_STYLE = {
     "rlb_matrixpolicy_original": ("MatrixPolicy", OKABE_ITO["black"], "-", 2.05, "o"),
     "silu_adamw": ("SiLU+AdamW", OKABE_ITO["blue"], "--", 1.35, "s"),
     "silu_muon": ("SiLU+Muon", OKABE_ITO["green"], "--", 1.35, "^"),
-    "rlb_adamw": ("Global rational+AdamW", OKABE_ITO["blue"], "-", 1.45, "D"),
-    "rlb_muon": ("Global rational+Muon", OKABE_ITO["green"], "-", 1.45, "v"),
-    "rlb_lion": ("Global rational+Lion", OKABE_ITO["orange"], "-", 1.25, "P"),
+    "rlb_adamw": ("RLB+AdamW", OKABE_ITO["blue"], "-", 1.45, "D"),
+    "rlb_muon": ("RLB+Muon", OKABE_ITO["green"], "-", 1.45, "v"),
+    "rlb_lion": ("RLB+Lion", OKABE_ITO["orange"], "-", 1.25, "P"),
 }
 MAIN_SILU_METHODS = ["rlb_matrixpolicy_original", "silu_adamw", "silu_muon"]
 FULL_METHODS = ["rlb_matrixpolicy_original", "silu_adamw", "silu_muon", "rlb_adamw", "rlb_muon"]
@@ -127,10 +127,10 @@ SILU_COMPARATORS = [("silu_adamw", "SiLU+AdamW"), ("silu_muon", "SiLU+Muon")]
 MAIN_COMPARATORS = [
     ("silu_adamw", "SiLU+AdamW"),
     ("silu_muon", "SiLU+Muon"),
-    ("rlb_adamw", "Global rational+AdamW"),
-    ("rlb_muon", "Global rational+Muon"),
+    ("rlb_adamw", "RLB+AdamW"),
+    ("rlb_muon", "RLB+Muon"),
 ]
-TABLE_COMPARATORS = [("silu_adamw", "SiLU+AdamW"), ("rlb_adamw", "Global rational+AdamW"), ("rlb_muon", "Global rational+Muon")]
+TABLE_COMPARATORS = [("silu_adamw", "SiLU+AdamW"), ("rlb_adamw", "RLB+AdamW"), ("rlb_muon", "RLB+Muon")]
 BUDGET_LABEL = BUDGET_LABELS
 BUDGET_SHORT = BUDGET_LABELS
 BROAD_CONTROL_METHODS = [
@@ -140,12 +140,12 @@ BROAD_CONTROL_METHODS = [
     ("silu_soap", "SiLU + SOAP", "SiLU", "SOAP"),
     ("silu_schedulefree", "SiLU + ScheduleFree", "SiLU", "ScheduleFree"),
     ("silu_came", "SiLU + CAME", "SiLU", "CAME"),
-    ("rlb_adamw", "Global rational + AdamW", "Global rational", "AdamW"),
-    ("rlb_lion", "Global rational + Lion", "Global rational", "Lion"),
-    ("rlb_muon", "Global rational + Muon", "Global rational", "Muon"),
-    ("rlb_soap", "Global rational + SOAP", "Global rational", "SOAP"),
-    ("rlb_schedulefree", "Global rational + ScheduleFree", "Global rational", "ScheduleFree"),
-    ("rlb_came", "Global rational + CAME", "Global rational", "CAME"),
+    ("rlb_adamw", "RLB + AdamW", "RLB", "AdamW"),
+    ("rlb_lion", "RLB + Lion", "RLB", "Lion"),
+    ("rlb_muon", "RLB + Muon", "RLB", "Muon"),
+    ("rlb_soap", "RLB + SOAP", "RLB", "SOAP"),
+    ("rlb_schedulefree", "RLB + ScheduleFree", "RLB", "ScheduleFree"),
+    ("rlb_came", "RLB + CAME", "RLB", "CAME"),
 ]
 BROAD_METHODS = [("rlb_matrixpolicy_original", "MatrixPolicy", "MatrixPolicy", "MatrixPolicy")] + BROAD_CONTROL_METHODS
 BROAD_METHOD_INFO = {method: (label, family, optimizer) for method, label, family, optimizer in BROAD_METHODS}
@@ -650,13 +650,13 @@ def _target_line_style(method: str) -> tuple[str, object, float, float]:
     if method == "rlb_matrixpolicy_original":
         return OKABE_ITO["black"], "-", 2.05, 1.0
     _label, family, optimizer = BROAD_METHOD_INFO[method]
-    linestyle = "-" if family == "Global rational" else (0, (2.4, 1.8))
+    linestyle = "-" if family == "RLB" else (0, (2.4, 1.8))
     if optimizer in {"AdamW", "Muon"}:
         linewidth = 1.12
-        alpha = 0.70 if family == "Global rational" else 0.62
+        alpha = 0.70 if family == "RLB" else 0.62
     else:
         linewidth = 0.78
-        alpha = 0.32 if family == "Global rational" else 0.24
+        alpha = 0.32 if family == "RLB" else 0.24
     return TARGET_OPTIMIZER_COLORS.get(optimizer, "#777777"), linestyle, linewidth, alpha
 
 
@@ -994,7 +994,7 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         plt.Line2D([0], [0], color="#333333", linestyle="-", linewidth=1.0),
         plt.Line2D([0], [0], color="#333333", linestyle=(0, (2.4, 1.8)), linewidth=1.0),
     ])
-    encoding_labels.extend(["global rational", "SiLU"])
+    encoding_labels.extend(["RLB-only", "SiLU"])
     for optimizer in optimizer_order:
         encoding_handles.append(plt.Line2D([0], [0], color=TARGET_OPTIMIZER_COLORS[optimizer], linestyle="-", linewidth=1.2))
         encoding_labels.append(optimizer)
@@ -1045,20 +1045,19 @@ def make_e1_e2_silu_summary_table(out_path: Path) -> None:
     rows = _target_arrival_rows()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        r"\begin{table}[H]",
+        r"\begin{table}[t]",
         r"\centering",
-        r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 language model. Each row uses the hardest validation-loss target reached by MatrixPolicy and all listed controls in all three seeds. Token-savings percentages are shown first, followed by the corresponding clean target-arrival minutes.}",
+        r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 Transformer. RLB denotes the global-rational, no-local-atom activation without MatrixPolicy. At the hardest validation-loss target reached by every listed method in all three seeds, MatrixPolicy is always fastest; token-saving columns report its savings relative to each control.}",
         r"\label{tab:e1e2-silu-comparison}",
         r"\begingroup",
-        r"\scriptsize",
-        r"\setlength{\tabcolsep}{1.5pt}",
-        r"\renewcommand{\arraystretch}{0.94}",
-        r"\resizebox{\textwidth}{!}{%",
-        r"\begin{tabular}{@{}llr*{4}{r}@{\hspace{0.55em}}*{5}{r}@{}}",
+        r"\footnotesize",
+        r"\setlength{\tabcolsep}{2.1pt}",
+        r"\renewcommand{\arraystretch}{1.04}",
+        r"\begin{tabular}{@{}llc*{4}{r}@{\hspace{0.8em}}*{5}{r}@{}}",
         r"\toprule",
-        r"& & & \multicolumn{4}{c}{Target-arrival tokens saved (\%)} & \multicolumn{5}{c}{Time to target (min)} \\",
+        r"& & & \multicolumn{4}{c}{Token saving vs. control (\%)} & \multicolumn{5}{c}{Time to target (min)} \\",
         r"\cmidrule(lr){4-7}\cmidrule(l){8-12}",
-        r"Budget & Dataset & \shortstack{Target\\loss} & \shortstack{SiLU +\\AdamW} & \shortstack{SiLU +\\Muon} & \shortstack{Global\\rational +\\AdamW} & \shortstack{Global\\rational +\\Muon} & MatrixPolicy & \shortstack{SiLU +\\AdamW} & \shortstack{SiLU +\\Muon} & \shortstack{Global\\rational +\\AdamW} & \shortstack{Global\\rational +\\Muon} \\",
+        r"Budget & Dataset & \shortstack{Target\\loss} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} & \shortstack{RLB\\AdamW} & \shortstack{RLB\\Muon} & \shortstack{Matrix\\Policy} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} & \shortstack{RLB\\AdamW} & \shortstack{RLB\\Muon} \\",
         r"\midrule",
     ]
     for row_idx, row in enumerate(rows):
@@ -1069,20 +1068,18 @@ def make_e1_e2_silu_summary_table(out_path: Path) -> None:
             comp = by_method[method]
             saved_cells.append(f"{100.0 * float(comp['saved_fraction']):.1f}")
             time_cells.append(f"{float(comp['time_min']):.1f}")
+        budget_cell = _budget_table_label(str(row["regime"])) if row_idx in {0, 5} else ""
         lines.append(
-            f"{_budget_table_label(str(row['regime']))} & {row['dataset_label']} & {float(row['target']):.2f} & "
+            f"{budget_cell} & {row['dataset_label']} & {float(row['target']):.2f} & "
             + " & ".join(saved_cells)
             + f" & {float(row['mp_time_min']):.1f} & "
             + " & ".join(time_cells)
             + r" \\")
         if row_idx == 4:
-            lines.append(r"\midrule")
+            lines.append(r"\addlinespace[1pt]\midrule")
     lines.extend([
         r"\bottomrule",
-        r"\end{tabular}%",
-        r"}",
-        r"\vspace{1pt}",
-        r"\parbox{0.98\textwidth}{\footnotesize All rows use the same 12-layer, width-768 Transformer. Saved percentages are MatrixPolicy token savings relative to the listed control at the shared target. Times are clean target-arrival minutes computed seed-wise from the first target-hit step and that run's measured seconds per step.}",
+        r"\end{tabular}",
         r"\endgroup",
         r"\end{table}",
     ])
@@ -1102,7 +1099,7 @@ def make_broad_final_validation_table(out_path: Path) -> None:
     lines = [
         r"\begin{table}[H]",
         r"\centering",
-        r"\caption{Final validation loss for the broader optimizer sweep on the fixed 12-layer, width-768 language model. Values are mean $\pm$ sample standard deviation over three seeds; lower is better. Global-rational rows use the no-local-atom activation.}",
+        r"\caption{Final validation loss for the broader optimizer sweep on the fixed 12-layer, width-768 language model. Values are mean $\pm$ sample standard deviation over three seeds; lower is better. RLB rows use the global-rational, no-local-atom activation without MatrixPolicy.}",
         r"\label{tab:broad-final-validation}",
         r"\begingroup",
         r"\scriptsize",
