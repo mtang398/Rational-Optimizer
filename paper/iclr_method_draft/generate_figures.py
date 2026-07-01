@@ -498,18 +498,106 @@ def _legend_panel(ax, handles, labels, fontsize=7.3):
     ax.legend(handles, labels, loc="center", frameon=False, fontsize=fontsize, handlelength=2.5)
 
 
+def _saturation_zoom_bounds(regime: str, steps: np.ndarray) -> tuple[float, float]:
+    finite_steps = steps[np.isfinite(steps)]
+    if finite_steps.size == 0:
+        return 0.0, 1.0
+    x_min = float(np.min(finite_steps))
+    x_max = float(np.max(finite_steps))
+    span = max(x_max - x_min, 1.0)
+    if regime == "E2":
+        return x_min + 0.30 * span, x_min + 0.62 * span
+    return x_min + 0.72 * span, x_max
+
+
+def _add_saturation_inset(
+    ax,
+    traces: list[tuple[np.ndarray, np.ndarray, np.ndarray, str, object, float, str]],
+    regime: str,
+) -> None:
+    if not traces:
+        return
+    all_steps = np.concatenate([steps for steps, _means, _stds, _color, _linestyle, _linewidth, _marker in traces])
+    x0, x1 = _saturation_zoom_bounds(regime, all_steps)
+    inset_traces = []
+    y_values: list[np.ndarray] = []
+    for steps, means, stds, color, linestyle, linewidth, marker in traces:
+        mask = np.isfinite(steps) & np.isfinite(means) & (steps >= x0) & (steps <= x1)
+        if np.count_nonzero(mask) < 2:
+            finite = np.flatnonzero(np.isfinite(steps) & np.isfinite(means))
+            if finite.size < 2:
+                continue
+            take = finite[-min(4, finite.size):]
+            mask = np.zeros_like(steps, dtype=bool)
+            mask[take] = True
+        xs = steps[mask]
+        ys = means[mask]
+        es = stds[mask] if stds.size == means.size else np.zeros_like(ys)
+        if xs.size < 2:
+            continue
+        inset_traces.append((xs, ys, es, color, linestyle, linewidth, marker))
+        y_values.append(ys)
+    if not inset_traces or not y_values:
+        return
+
+    y_concat = np.concatenate(y_values)
+    y_min = float(np.min(y_concat))
+    y_max = float(np.max(y_concat))
+    y_span = max(y_max - y_min, abs(y_max) * 0.012, 1e-6)
+    y_pad = 0.18 * y_span
+
+    inset = ax.inset_axes([0.555, 0.565, 0.405, 0.380])
+    inset.set_facecolor((1.0, 1.0, 1.0, 0.94))
+    for xs, ys, es, color, linestyle, linewidth, marker in inset_traces:
+        inset.plot(
+            xs,
+            ys,
+            color=color,
+            linestyle=linestyle,
+            linewidth=max(0.82, 0.78 * linewidth),
+            marker=marker,
+            markersize=1.55,
+            markevery=max(1, xs.size // 2),
+        )
+        inset.fill_between(xs, ys - es, ys + es, color=color, alpha=0.025, linewidth=0)
+    inset.set_xlim(x0, x1)
+    inset.set_ylim(y_min - y_pad, y_max + y_pad)
+    inset.grid(True, color="#dddddd", linewidth=0.28, alpha=0.58)
+    inset.tick_params(axis="both", labelsize=3.7, pad=0.5, length=1.0, width=0.35)
+    inset.locator_params(axis="x", nbins=2)
+    inset.locator_params(axis="y", nbins=2)
+    for spine in inset.spines.values():
+        spine.set_linewidth(0.45)
+        spine.set_edgecolor("#444444")
+    rect = Rectangle(
+        (x0, y_min - y_pad),
+        x1 - x0,
+        (y_max - y_min) + 2.0 * y_pad,
+        fill=False,
+        edgecolor="#666666",
+        linewidth=0.50,
+        linestyle=(0, (2.2, 1.8)),
+        alpha=0.75,
+        zorder=5,
+    )
+    ax.add_patch(rect)
+
+
 def _make_multimetric_all_datasets(curves, aggregate_fn, out_path: Path, title: str) -> None:
     metrics = [("val_loss", "validation loss"), ("val_ppl", "validation PPL"), ("train_loss", "training loss")]
+    regime = "E2" if "300M" in title else "E1"
     fig, axes = plt.subplots(len(DATASETS), len(metrics), figsize=(7.2, 8.35), sharex=True)
     fig.subplots_adjust(left=0.082, right=0.992, bottom=0.072, top=0.920, hspace=0.335, wspace=0.215)
     for row, (dataset, dataset_label, _dir_name) in enumerate(DATASETS):
         for col, (metric, metric_label) in enumerate(metrics):
             ax = axes[row, col]
+            traces: list[tuple[np.ndarray, np.ndarray, np.ndarray, str, object, float, str]] = []
             for method in MAIN_SILU_METHODS:
                 label, color, linestyle, linewidth, marker = _style(method)
                 steps, means, stds = aggregate_fn(curves, dataset, method, metric)
                 if steps.size == 0:
                     continue
+                traces.append((steps, means, stds, color, linestyle, linewidth, marker))
                 mark_every = max(1, len(steps) // 5)
                 ax.plot(
                     steps,
@@ -523,6 +611,7 @@ def _make_multimetric_all_datasets(curves, aggregate_fn, out_path: Path, title: 
                     label=label,
                 )
                 ax.fill_between(steps, means - stds, means + stds, color=color, alpha=0.035, linewidth=0)
+            _add_saturation_inset(ax, traces, regime)
             if row == 0:
                 ax.set_title(metric_label, fontsize=8.5, pad=4)
             if col == 0:
@@ -675,14 +764,17 @@ def make_e1_representative_silu_dynamics(out_path: Path) -> None:
     for row, (dataset, dataset_label) in enumerate(panels):
         for col, (metric, metric_label) in enumerate(metrics):
             ax = axes[row, col]
+            traces: list[tuple[np.ndarray, np.ndarray, np.ndarray, str, object, float, str]] = []
             for method in MAIN_SILU_METHODS:
                 label, color, linestyle, linewidth, marker = _style(method)
                 steps, means, stds = e1_curves.aggregate(e1, dataset, method, metric)
                 if steps.size == 0:
                     continue
+                traces.append((steps, means, stds, color, linestyle, linewidth, marker))
                 mark_every = max(1, len(steps) // 5)
                 ax.plot(steps, means, color=color, linestyle=linestyle, linewidth=linewidth, label=label, marker=marker, markevery=mark_every, markersize=2.8)
                 ax.fill_between(steps, means - stds, means + stds, color=color, alpha=0.045, linewidth=0)
+            _add_saturation_inset(ax, traces, "E1")
             if row == 0:
                 ax.set_title(metric_label, fontsize=8.8, pad=4.5)
             if col == 0:
