@@ -648,15 +648,15 @@ def _completed_broad_methods(curves) -> list[tuple[str, str, str, str]]:
 
 def _target_line_style(method: str) -> tuple[str, object, float, float]:
     if method == "rlb_matrixpolicy_original":
-        return OKABE_ITO["black"], "-", 2.05, 1.0
+        return OKABE_ITO["black"], "-", 2.55, 1.0
     _label, family, optimizer = BROAD_METHOD_INFO[method]
     linestyle = "-" if family == "RLB" else (0, (2.4, 1.8))
     if optimizer in {"AdamW", "Muon"}:
-        linewidth = 1.12
-        alpha = 0.70 if family == "RLB" else 0.62
+        linewidth = 1.45 if family == "RLB" else 1.28
+        alpha = 0.88 if family == "RLB" else 0.76
     else:
-        linewidth = 0.78
-        alpha = 0.32 if family == "RLB" else 0.24
+        linewidth = 0.66
+        alpha = 0.24 if family == "RLB" else 0.17
     return TARGET_OPTIMIZER_COLORS.get(optimizer, "#777777"), linestyle, linewidth, alpha
 
 
@@ -893,7 +893,7 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
     }
 
     fig, axes = plt.subplots(1, 2, figsize=(7.2, 4.35))
-    fig.subplots_adjust(left=0.072, right=0.990, bottom=0.135, top=0.735, wspace=0.205)
+    fig.subplots_adjust(left=0.072, right=0.990, bottom=0.135, top=0.790, wspace=0.205)
 
     for ax, regime in zip(axes, ["E1", "E2"]):
         curves = curves_by_regime[regime]
@@ -913,7 +913,7 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
             if mp_hits:
                 hard_target, mp_hard = min(mp_hits, key=lambda item: item[0])
                 hard_labels.append((mp_hard[0] / 1_000_000, hard_target, dataset, DATASET_ABBR[dataset_label]))
-            for method, _label, _family, _optimizer in methods:
+            for method, _label, family, optimizer in methods:
                 color, linestyle, linewidth, alpha = _target_line_style(method)
                 xs, ys = [], []
                 for target in targets:
@@ -927,10 +927,16 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                 if not xs:
                     continue
                 marker = dataset_markers[dataset]
-                sizes = [12] * len(xs)
-                sizes[-1] = 36 if method == "rlb_matrixpolicy_original" else 18
-                line_z = 5 if method == "rlb_matrixpolicy_original" else 2
-                point_z = 7 if method == "rlb_matrixpolicy_original" else 4
+                is_matrix_policy = method == "rlb_matrixpolicy_original"
+                is_primary_optimizer = optimizer in {"AdamW", "Muon"}
+                base_size = 15 if is_matrix_policy or is_primary_optimizer else 8
+                final_size = 46 if is_matrix_policy else (23 if is_primary_optimizer else 12)
+                sizes = [base_size] * len(xs)
+                sizes[-1] = final_size
+                line_z = 7 if is_matrix_policy else (5 if is_primary_optimizer else 2)
+                point_z = 9 if is_matrix_policy else (6 if is_primary_optimizer else 3)
+                scatter_alpha = 1.0 if is_matrix_policy else (min(0.96, alpha + 0.10) if is_primary_optimizer else min(0.34, alpha + 0.08))
+                scatter_lw = 0.58 if is_matrix_policy or is_primary_optimizer else 0.18
                 ax.plot(xs, ys, color=color, linestyle=linestyle, linewidth=linewidth, alpha=alpha, zorder=line_z)
                 ax.scatter(
                     xs,
@@ -938,9 +944,9 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
                     color=color,
                     marker=marker,
                     s=sizes,
-                    alpha=min(1.0, alpha + 0.18),
+                    alpha=scatter_alpha,
                     edgecolor="white",
-                    linewidth=0.52,
+                    linewidth=scatter_lw,
                     zorder=point_z,
                 )
         if x_values and y_values:
@@ -987,47 +993,73 @@ def make_target_arrival_evidence_matrix(out_path: Path) -> None:
         for _method, _label, family, optimizer in methods:
             if family != "MatrixPolicy" and optimizer not in present_optimizers:
                 present_optimizers.append(optimizer)
-    optimizer_order = [name for name in TARGET_OPTIMIZER_COLORS if name in present_optimizers]
-    encoding_handles = [plt.Line2D([0], [0], color=OKABE_ITO["black"], linestyle="-", linewidth=1.85, marker="o", markersize=4.0)]
-    encoding_labels = ["MatrixPolicy"]
-    encoding_handles.extend([
-        plt.Line2D([0], [0], color="#333333", linestyle="-", linewidth=1.0),
-        plt.Line2D([0], [0], color="#333333", linestyle=(0, (2.4, 1.8)), linewidth=1.0),
-    ])
-    encoding_labels.extend(["RLB-only", "SiLU"])
+    optimizer_order = [name for name in ["AdamW", "Muon", "Lion", "SOAP", "ScheduleFree", "CAME"] if name in present_optimizers]
+    method_handles = [
+        plt.Line2D([0], [0], color=OKABE_ITO["black"], linestyle="-", linewidth=2.35, marker="o", markersize=4.8),
+        plt.Line2D([0], [0], color="#303030", linestyle="-", linewidth=1.25),
+        plt.Line2D([0], [0], color="#303030", linestyle=(0, (2.4, 1.8)), linewidth=1.25),
+    ]
+    method_labels = ["MatrixPolicy", "RLB-only", "SiLU"]
+    optimizer_handles = []
     for optimizer in optimizer_order:
-        encoding_handles.append(plt.Line2D([0], [0], color=TARGET_OPTIMIZER_COLORS[optimizer], linestyle="-", linewidth=1.2))
-        encoding_labels.append(optimizer)
+        is_primary = optimizer in {"AdamW", "Muon"}
+        optimizer_handles.append(
+            plt.Line2D(
+                [0],
+                [0],
+                color=TARGET_OPTIMIZER_COLORS[optimizer],
+                linestyle="-",
+                linewidth=1.75 if is_primary else 1.00,
+                alpha=0.96 if is_primary else 0.48,
+            )
+        )
     dataset_handles = [
         plt.Line2D([0], [0], color="#777777", linestyle="", marker=dataset_markers[dataset], markersize=4.3, markerfacecolor="#d7d7d7", markeredgecolor="#333333", markeredgewidth=0.35)
         for dataset, _label, _e2 in DATASETS
     ]
     dataset_labels = [DATASET_ABBR[label] for _dataset, label, _e2 in DATASETS]
-    fig.legend(
-        encoding_handles,
-        encoding_labels,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.995),
-        ncol=5,
+    method_legend = fig.legend(
+        method_handles,
+        method_labels,
+        loc="upper left",
+        bbox_to_anchor=(0.075, 0.995),
+        ncol=3,
         frameon=False,
-        fontsize=5.65,
-        title="Method encoding",
-        title_fontsize=6.10,
+        fontsize=6.35,
+        title="Method",
+        title_fontsize=6.45,
         handlelength=1.55,
-        columnspacing=0.65,
+        columnspacing=0.82,
+        handletextpad=0.42,
+    )
+    fig.add_artist(method_legend)
+    fig.legend(
+        optimizer_handles,
+        optimizer_order,
+        loc="upper right",
+        bbox_to_anchor=(0.992, 0.995),
+        ncol=len(optimizer_order),
+        frameon=False,
+        fontsize=6.20,
+        title="Optimizer color",
+        title_fontsize=6.40,
+        handlelength=1.45,
+        columnspacing=0.72,
+        handletextpad=0.34,
     )
     fig.legend(
         dataset_handles,
         dataset_labels,
         loc="upper center",
-        bbox_to_anchor=(0.5, 0.820),
+        bbox_to_anchor=(0.5, 0.885),
         ncol=5,
         frameon=False,
-        fontsize=6.05,
+        fontsize=6.20,
         title="Dataset",
-        title_fontsize=6.35,
+        title_fontsize=6.40,
         handlelength=0.95,
-        columnspacing=0.86,
+        columnspacing=0.90,
+        handletextpad=0.34,
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, bbox_inches="tight", pad_inches=0.05, facecolor="white", transparent=False)
