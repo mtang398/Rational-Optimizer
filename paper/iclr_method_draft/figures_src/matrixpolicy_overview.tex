@@ -46,6 +46,9 @@
     minimum height=1.88cm, align=center, inner sep=5pt},
   summaryPanel/.style={rectangle, rounded corners=5pt, draw=mpLine!72,
     fill=mpSlateFill, line width=0.78pt},
+  summaryTab/.style={rectangle, rounded corners=2pt, fill=mpSlateFill,
+    align=center, font=\scriptsize, text=mpMuted!88,
+    inner xsep=3.6pt, inner ysep=0.9pt},
   chip/.style={rectangle, rounded corners=3pt, fill=white, line width=0.76pt,
     minimum width=2.12cm, minimum height=0.68cm, align=center, inner sep=2.2pt},
   policy/.style={rectangle, rounded corners=5pt, draw=mpPurple,
@@ -60,10 +63,10 @@
   forward/.style={-{Stealth[length=5pt 1.45, width'=0pt 0.58, sep=0pt 0.5]},
     line width=1.03pt, color=mpInk, shorten >=2pt, shorten <=1pt},
   read/.style={-{Stealth[length=3.2pt 1.0, width'=0pt 0.48]},
-    densely dashed, line width=0.52pt, color=mpLine!62, shorten >=2pt,
+    densely dashed, line width=0.46pt, color=mpLine!56, shorten >=2pt,
     shorten <=1pt},
   write/.style={-{Stealth[length=5pt 1.45, width'=0pt 0.56, sep=0pt 0.5]},
-    line width=0.98pt, color=mpPurple, rounded corners=8pt, shorten >=0pt,
+    line width=0.84pt, color=mpPurple!90, rounded corners=8pt, shorten >=0pt,
     shorten <=1pt},
 }
 
@@ -125,54 +128,52 @@
   \node[small, fill=white] at (11.75,5.39) {$h_l$};
 
   % Detachment summary bus.
-  \node[summaryPanel, minimum width=10.60cm, minimum height=1.22cm]
-    (summary) at (8.02,3.06) {};
+  \node[summaryPanel, minimum width=10.60cm, minimum height=1.18cm]
+    (summary) at (8.02,2.98) {};
 
-  \node[font=\scriptsize\bfseries, text=mpMuted, fill=white,
-    rounded corners=2pt, inner xsep=4.2pt, inner ysep=1.2pt]
-    at ([yshift=0.02cm]summary.north)
+  \node[summaryTab, anchor=west]
+    at ([xshift=0.25cm,yshift=-0.22cm]summary.north west)
     {detached summaries};
 
-  \summarychip{pressure}{4.16}{2.98}{pressure}{mpBlue}
-  \node[font=\scriptsize, text=mpBlue] at (4.16,2.80) {$p^{\rm in},p^{\rm out}$};
-  \summarychip{gain}{6.74}{2.98}{response}{mpGreen}
-  \node[font=\scriptsize, text=mpGreen] at (6.74,2.80) {$\hat d,\hat o$};
-  \summarychip{state}{9.30}{2.98}{rational state}{mpAmber}
-  \node[font=\scriptsize, text=mpAmber] at (9.30,2.80) {$q^R,\alpha,\Theta^R$};
-  \summarychip{balance}{11.88}{2.98}{balance}{mpPurple}
-  \node[font=\scriptsize, text=mpPurple] at (11.88,2.80) {$\gamma,\tau$};
+  \summarychip{pressure}{4.16}{2.84}{pressure}{mpBlue}
+  \node[font=\scriptsize, text=mpBlue] at (4.16,2.66) {$p^{\rm in},p^{\rm out}$};
+  \summarychip{gain}{6.74}{2.84}{response}{mpGreen}
+  \node[font=\scriptsize, text=mpGreen] at (6.74,2.66) {$\hat d,\hat o$};
+  \summarychip{state}{9.30}{2.84}{rational state}{mpAmber}
+  \node[font=\scriptsize, text=mpAmber] at (9.30,2.66) {$q^R,\alpha,\Theta^R$};
+  \summarychip{balance}{11.88}{2.84}{balance}{mpPurple}
+  \node[font=\scriptsize, text=mpPurple] at (11.88,2.66) {$\gamma,\tau$};
 
   \draw[read] (2.56,4.62)
-    .. controls (3.02,4.20) and (3.38,3.70) ..
-    ([xshift=-0.08cm,yshift=0.04cm]pressure.north west);
-  \draw[read] (7.28,4.42) -- ++(0,-0.34) -| (gain.north);
-  \draw[read] (8.88,4.42) -- ++(0,-0.34) -| (state.north);
+    .. controls (2.48,4.00) and (2.88,2.84) .. (pressure.west);
+  \draw[read] (6.94,4.42) -- ++(0,-0.46) -| (gain.north);
+  \draw[read] (9.10,4.42) -- ++(0,-0.46) -| (state.north);
   \draw[read] (13.48,4.62)
-    .. controls (13.02,4.20) and (12.66,3.70) ..
-    ([xshift=0.08cm,yshift=0.04cm]balance.north east);
+    .. controls (13.56,4.00) and (13.16,2.84) .. (balance.east);
 
   % Foreground membrane: the white underlay makes the stop-gradient boundary
   % remain legible where detached read arrows cross it.
   \draw[line width=1.12pt, dash pattern=on 5.0pt off 2.4pt,
     color=mpLine!96, line cap=round,
     preaction={draw=white, line width=3.2pt, line cap=round}]
-    (3.02,4.04) -- (6.66,4.04);
+    (3.34,4.04) -- (6.62,4.04);
   \draw[line width=1.12pt, dash pattern=on 5.0pt off 2.4pt,
     color=mpLine!96, line cap=round,
     preaction={draw=white, line width=3.2pt, line cap=round}]
-    (9.34,4.04) -- (13.02,4.04);
+    (9.42,4.04) -- (12.70,4.04);
   \node[small, fill=white, text=mpMuted, inner sep=2.0pt]
     at (8.02,4.04) {stop-gradient boundary};
 
   % MatrixPolicy reads the detached bus and writes only to the two matrices.
   \node[policy] (policy) at (7.28,1.28) {MatrixPolicy};
   \node[updateBox] (updates) at (10.32,1.28) {$\Delta A_l,\Delta B_l$ only};
-  \draw[read] (summary.south) -- node[small, right=3pt, fill=white] {detached}
+  \draw[read] ([xshift=-0.74cm]summary.south)
+    -- node[small, right=3pt, fill=white] {detached}
     (policy.north);
   \draw[forward, color=mpPurple, line width=0.88pt] (policy.east) -- (updates.west);
 
   \coordinate (writeHub) at (10.32,0.58);
-  \draw[line width=0.98pt, color=mpPurple] (updates.south) -- (writeHub);
+  \draw[line width=0.84pt, color=mpPurple!90] (updates.south) -- (writeHub);
   \draw[write] (writeHub) -- (1.48,0.58) -- (writeAport);
   \draw[write] (writeHub) -- (14.44,0.58) -- (writeBport);
   \node[writePort] at (writeAport) {};
