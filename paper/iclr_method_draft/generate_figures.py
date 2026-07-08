@@ -1265,12 +1265,17 @@ def _e8_best_loss(record: dict[str, object]) -> float:
 def _e8_first_hit(record: dict[str, object], target: float) -> tuple[int, float, float] | None:
     row = record["row"]  # type: ignore[index]
     summary = record["summary"]  # type: ignore[index]
+    completed_steps = float(summary.get("completed_steps", 0.0))
+    total_seconds = float(summary.get("total_seconds", 0.0))
+    if completed_steps <= 0.0 or total_seconds <= 0.0:
+        raise RuntimeError(f"E8 sensitivity record has invalid timing summary: {row['row_id']}")
+    seconds_per_step = total_seconds / completed_steps
     for entry in record["evals"]:  # type: ignore[index]
         loss = entry.get("val_loss")
         if isinstance(loss, (int, float)) and math.isfinite(float(loss)) and float(loss) <= target:
             step = int(entry["step"])
             tokens = step * int(row["global_tokens_per_step"])
-            minutes = step * float(summary["mean_seconds_per_step"]) / 60.0
+            minutes = step * seconds_per_step / 60.0
             return step, float(tokens), float(minutes)
     return None
 
@@ -1280,6 +1285,12 @@ def _fmt_median_range(values: list[float], digits: int = 1) -> str:
         raise RuntimeError("cannot format empty value list")
     arr = np.asarray(values, dtype=float)
     return f"{float(np.median(arr)):.{digits}f} [{float(np.min(arr)):.{digits}f},{float(np.max(arr)):.{digits}f}]"
+
+
+def _fmt_median(values: list[float], digits: int = 1) -> str:
+    if not values:
+        raise RuntimeError("cannot format empty value list")
+    return f"{float(np.median(np.asarray(values, dtype=float))):.{digits}f}"
 
 
 def _e8_sensitivity_rows() -> list[dict[str, object]]:
@@ -1296,42 +1307,46 @@ def _e8_sensitivity_rows() -> list[dict[str, object]]:
         if len(dataset_records) != 48:
             raise RuntimeError(f"unexpected E8 sensitivity coverage for {dataset}: {len(dataset_records)}")
         raw_target = max(_e8_best_loss(record) for record in dataset_records)
-        target = math.ceil(raw_target * 20.0) / 20.0
-        savings_vs_adamw: list[float] = []
-        savings_vs_muon: list[float] = []
-        mp_times: list[float] = []
-        adamw_times: list[float] = []
-        muon_times: list[float] = []
-        wins_adamw = wins_muon = 0
-        for lr in sorted({key[1] for key in records if key[0] == dataset}):
-            for wd in sorted({key[2] for key in records if key[0] == dataset}):
-                mp_hit = _e8_first_hit(records[(dataset, lr, wd, "rlb_matrixpolicy_original")], target)
-                adamw_hit = _e8_first_hit(records[(dataset, lr, wd, "silu_adamw")], target)
-                muon_hit = _e8_first_hit(records[(dataset, lr, wd, "silu_muon")], target)
-                if mp_hit is None or adamw_hit is None or muon_hit is None:
-                    raise RuntimeError(f"E8 sensitivity common target was not reached: {dataset} {lr} {wd}")
-                _mp_step, mp_tokens, mp_minutes = mp_hit
-                _adamw_step, adamw_tokens, adamw_minutes = adamw_hit
-                _muon_step, muon_tokens, muon_minutes = muon_hit
-                savings_vs_adamw.append(100.0 * (adamw_tokens - mp_tokens) / adamw_tokens)
-                savings_vs_muon.append(100.0 * (muon_tokens - mp_tokens) / muon_tokens)
-                mp_times.append(mp_minutes)
-                adamw_times.append(adamw_minutes)
-                muon_times.append(muon_minutes)
-                wins_adamw += int(mp_tokens < adamw_tokens)
-                wins_muon += int(mp_tokens < muon_tokens)
-        rows.append({
-            "dataset": label,
-            "target": target,
-            "cells": 16,
-            "wins_adamw": wins_adamw,
-            "wins_muon": wins_muon,
-            "savings_vs_adamw": savings_vs_adamw,
-            "savings_vs_muon": savings_vs_muon,
-            "mp_times": mp_times,
-            "adamw_times": adamw_times,
-            "muon_times": muon_times,
-        })
+        hard_target = math.ceil(raw_target * 20.0) / 20.0
+        targets = [hard_target + 0.10, hard_target + 0.05, hard_target]
+        for target_index, target in enumerate(targets):
+            target = round(target, 2)
+            savings_vs_adamw: list[float] = []
+            savings_vs_muon: list[float] = []
+            mp_times: list[float] = []
+            adamw_times: list[float] = []
+            muon_times: list[float] = []
+            wins_adamw = wins_muon = 0
+            for lr in sorted({key[1] for key in records if key[0] == dataset}):
+                for wd in sorted({key[2] for key in records if key[0] == dataset}):
+                    mp_hit = _e8_first_hit(records[(dataset, lr, wd, "rlb_matrixpolicy_original")], target)
+                    adamw_hit = _e8_first_hit(records[(dataset, lr, wd, "silu_adamw")], target)
+                    muon_hit = _e8_first_hit(records[(dataset, lr, wd, "silu_muon")], target)
+                    if mp_hit is None or adamw_hit is None or muon_hit is None:
+                        raise RuntimeError(f"E8 sensitivity common target was not reached: {dataset} {lr} {wd} {target}")
+                    _mp_step, mp_tokens, mp_minutes = mp_hit
+                    _adamw_step, adamw_tokens, adamw_minutes = adamw_hit
+                    _muon_step, muon_tokens, muon_minutes = muon_hit
+                    savings_vs_adamw.append(100.0 * (adamw_tokens - mp_tokens) / adamw_tokens)
+                    savings_vs_muon.append(100.0 * (muon_tokens - mp_tokens) / muon_tokens)
+                    mp_times.append(mp_minutes)
+                    adamw_times.append(adamw_minutes)
+                    muon_times.append(muon_minutes)
+                    wins_adamw += int(mp_tokens < adamw_tokens)
+                    wins_muon += int(mp_tokens < muon_tokens)
+            rows.append({
+                "dataset": label,
+                "show_dataset": target_index == 0,
+                "target": target,
+                "cells": 16,
+                "wins_adamw": wins_adamw,
+                "wins_muon": wins_muon,
+                "savings_vs_adamw": savings_vs_adamw,
+                "savings_vs_muon": savings_vs_muon,
+                "mp_times": mp_times,
+                "adamw_times": adamw_times,
+                "muon_times": muon_times,
+            })
     return rows
 
 
@@ -1341,32 +1356,35 @@ def make_e8_sensitivity_target_arrival_table(out_path: Path) -> None:
     lines = [
         r"\begin{table}[H]",
         r"\centering",
-        r"\caption{Learning-rate and weight-decay sensitivity at the 100M-token budget. Each row uses a 0.05-rounded common validation-loss target reached by all paired settings; savings and minutes are median [min,max] across those settings.}",
+        r"\caption{Target-arrival efficiency under learning-rate and weight-decay sensitivity at the 100M-token budget. Entries are medians over 16 paired hyperparameter cells.}",
         r"\label{tab:e8-sensitivity-target-arrival}",
         r"\begingroup",
-        r"\scriptsize",
-        r"\setlength{\tabcolsep}{2.2pt}",
-        r"\renewcommand{\arraystretch}{1.05}",
-        r"\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccrrrrr@{}}",
+        r"\footnotesize",
+        r"\setlength{\tabcolsep}{1.9pt}",
+        r"\renewcommand{\arraystretch}{0.98}",
+        r"\begin{tabular}{@{}llc*{2}{r}@{\hspace{0.55em}}*{3}{r}@{}}",
         r"\toprule",
         r"& & & \multicolumn{2}{c}{MatrixPolicy token savings (\%)} & \multicolumn{3}{c}{Time to target (min)} \\",
         r"\cmidrule(lr){4-5}\cmidrule(l){6-8}",
-        r"Dataset & \shortstack{Target\\loss} & \shortstack{Wins vs.\\AdamW, Muon} & \shortstack{vs. SiLU\\with AdamW} & \shortstack{vs. SiLU\\with Muon} & MatrixPolicy & \shortstack{SiLU\\with AdamW} & \shortstack{SiLU\\with Muon} \\",
+        r"Budget & Dataset & \shortstack{Target\\loss} & \shortstack{vs. SiLU\\AdamW} & \shortstack{vs. SiLU\\Muon} & \shortstack{Matrix\\Policy} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} \\",
         r"\midrule",
     ]
-    for row in rows:
+    for row_index, row in enumerate(rows):
+        if row_index and row["show_dataset"]:
+            lines.append(r"\addlinespace[1pt]\midrule")
+        budget_cell = "100M" if row_index == 0 else ""
+        dataset_cell = str(row["dataset"]) if row["show_dataset"] else ""
         lines.append(
-            f"{row['dataset']} & {float(row['target']):.2f} & "
-            f"{int(row['wins_adamw'])}/{int(row['cells'])}, {int(row['wins_muon'])}/{int(row['cells'])} & "
-            f"{_fmt_median_range(row['savings_vs_adamw'])} & "
-            f"{_fmt_median_range(row['savings_vs_muon'])} & "
-            f"{_fmt_median_range(row['mp_times'])} & "
-            f"{_fmt_median_range(row['adamw_times'])} & "
-            f"{_fmt_median_range(row['muon_times'])} \\\\"
+            f"{budget_cell} & {dataset_cell} & {float(row['target']):.2f} & "
+            f"{_fmt_median(row['savings_vs_adamw'])} & "
+            f"{_fmt_median(row['savings_vs_muon'])} & "
+            f"{_fmt_median(row['mp_times'])} & "
+            f"{_fmt_median(row['adamw_times'])} & "
+            f"{_fmt_median(row['muon_times'])} \\\\"
         )
     lines.extend([
         r"\bottomrule",
-        r"\end{tabular*}",
+        r"\end{tabular}",
         r"\endgroup",
         r"\end{table}",
     ])

@@ -892,23 +892,21 @@ two standard SiLU controls.  The grid crosses learning rates
 $\{1,2,3,5\}\times10^{-4}$ with weight decays $0$, $0.05$, $0.10$, and $0.20$,
 using the same model, corpora, tokenizer, evaluation cadence, and timing source
 as Appendix~\ref{app:training-protocol}.  For each dataset,
-Table~\ref{tab:e8-sensitivity-target-arrival} selects a 0.05-rounded
+Table~\ref{tab:e8-sensitivity-target-arrival} uses the hardest 0.05-rounded
 validation-loss target reached by all three methods in all 16 paired
-hyperparameter settings, then reports paired target-arrival token savings and
-measured minutes.  The win column is ordered as comparisons against SiLU with
-AdamW and SiLU with Muon.  This all-cell common-target rule keeps the full grid
-in the comparison and avoids selecting only the easiest or best-tuned settings.
+hyperparameter settings, together with the two adjacent easier targets.  It then
+reports median paired target-arrival token savings and measured minutes over the
+full learning-rate/weight-decay grid.
 
 \input{tables/e8_sensitivity_target_arrival_table.tex}
 
-Across the five corpora, MatrixPolicy reaches the all-cell common target with
-fewer tokens than both SiLU controls in every paired learning-rate/weight-decay
-cell.  The median token saving is 17.1--19.5\% relative to SiLU with AdamW and
-37.2--41.5\% relative to SiLU with Muon; median measured target-arrival minutes
-are also lower for every dataset row.  The sensitivity grid therefore supports
-the same interpretation as the main fixed-scale study, where the gain is a
-target-arrival effect that persists under moderate optimizer-hyperparameter
-variation.
+Across all 15 dataset--target rows, MatrixPolicy has positive median token
+savings relative to both SiLU controls.  At the hardest common targets, the
+median saving is 17.1--19.5\% relative to SiLU with AdamW and 37.2--41.5\%
+relative to SiLU with Muon, with lower median measured target-arrival minutes in
+each dataset row.  The sensitivity grid therefore supports the same
+interpretation as the main fixed-scale study: the gain is a target-arrival
+effect that persists under moderate optimizer-hyperparameter variation.
 \FloatBarrier
 
 \subsection{TODO: Larger-Scale Training Results}
@@ -935,20 +933,24 @@ indices are shown explicitly.
 \label{app:rlb-response-derivatives}
 
 The evaluated response is the groupwise P5/Q4 function defined in the method.
-For a fixed layer-group pair $(l,g)$, suppress indices and write
+For a fixed layer-group pair $(l,g)$, suppress indices and collect the four
+nonconstant denominator features as
 \begin{align}
     P(u)
     &=
     \sum_{i=0}^{5}a_i u^i,
     \notag\\
-    \phi_1(u)=|u|,\quad
-    \phi_2(u)=u^2,\quad
-    \phi_3(u)=|u|^3,\quad
-    \phi_4(u)=u^4,
+    \bm\phi(u)
+    &=
+    \big(|u|,\;u^2,\;|u|^3,\;u^4\big),
     \notag\\
-    Q(u)=1+\sum_{j=1}^{4}|b_j|\phi_j(u),
+    Q(u)
+    &=
+    1+\sum_{j=1}^{4}|b_j|\phi_j(u),
     \qquad
-    R(u)=P(u)/Q(u).
+    R(u)
+    =
+    \frac{P(u)}{Q(u)} .
     \label{eq:appendix-local-pq}
 \end{align}
 For vector inputs below, $R(u)$ and $R'(u)$ are applied coordinatewise.  Since
