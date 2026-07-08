@@ -846,6 +846,24 @@ training-script wall time recorded in the run summary divided by completed
 optimizer steps for that run; target arrivals are therefore measured with the
 same evaluation cadence and timing source across methods.
 
+\subsubsection{Learning-Rate and Weight-Decay Sensitivity}
+\label{app:lr-wd-sensitivity}
+
+The main comparison fixes one optimizer hyperparameter setting per method.  To
+test whether the target-arrival pattern survives nearby choices, we run a paired
+100M-token grid on DCLM, FineWeb-Edu, and C4 with learning rates
+\(\{10^{-4},2\cdot10^{-4},3\cdot10^{-4},5\cdot10^{-4}\}\) and weight decays
+\(\{0,0.05,0.10,0.20\}\).  Table~\ref{tab:lr-wd-sensitivity} reports the same
+target-arrival quantities as Table~\ref{tab:e1e2-silu-comparison}.  All-grid
+rows use the hardest 0.05-spaced target reached by every listed method in all
+16 cells; main-target rows reuse the harder targets from
+Table~\ref{tab:e1e2-silu-comparison} where all listed methods reach them.
+MatrixPolicy saves tokens and lowers mean target-arrival minutes in both
+readouts, and it has lower final validation loss in all 48 matched endpoint
+comparisons.
+
+\input{tables/lr_wd_sensitivity_table.tex}
+
 \subsubsection{Supporting Fixed-Scale Curves}
 \label{app:supporting-curves}
 
