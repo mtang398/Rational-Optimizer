@@ -592,7 +592,8 @@ learning-rate schedule in Appendix~\ref{app:experiment-protocol}.  The Muon
 substep is the \texttt{torch.optim.Muon} update on two-dimensional RLB matrices
 with momentum $0.95$, five Newton--Schulz steps, and match-RMS learning-rate
 adjustment \citep{liu2025muon}; it becomes inactive when all
-$\mu_{l,\sigma,t}$ decay to zero.
+$\mu_{l,\sigma,t}$ decay to zero.  Appendix~\ref{app:matrixpolicy-muon-control}
+states the matrix-spectrum geometry behind this transient branch.
 
 \subsubsection{Reciprocal Pair Rescaling}
 
@@ -603,7 +604,7 @@ AdamW/Muon branch; fixed-grid probe gains are refreshed every ten optimizer
 steps and reused between refreshes.  It consumes the probe gains, the post-step
 log ratio $\gamma_{l,g}$, and the pressure/activity memories.  The target
 combines the probe-gain balance coordinate derived in
-Appendix~\ref{app:matrixpolicy-rescale} with a bounded pressure offset:
+Appendix~\ref{app:matrixpolicy-pair-rescale} with a bounded pressure offset:
 \begin{equation}
 \begin{aligned}
     \bar{\pi}_{l,g}
@@ -1049,7 +1050,7 @@ bounded derivative on the interval above.  Near the RMS floor, the coordinate is
 therefore a clipped representative direction, with exact balance symmetry
 recovered in the unfloored block.
 
-\section{MatrixPolicy Update Geometry}
+\section{Optimizer Design and MatrixPolicy Geometry}
 \label{app:matrixpolicy-step}
 
 \subsection{Detached Summaries as Matrix-Role Proxies}
@@ -1111,7 +1112,7 @@ $\pi_{l,g}$ identifies which role currently has the larger EMA of the relative
 update proxy, and $\alpha_{l,g}$ identifies when raw rational-coefficient
 gradient energy is large relative to adjacent matrix-pressure memories.
 
-\subsection{Geometry of the Three MatrixPolicy Controls}
+\subsection{Role-Gate Log Geometry}
 \label{app:matrixpolicy-rescale}
 
 The group-gradient policy in \eqref{eq:group-policy} acts in log space.  Let
@@ -1164,86 +1165,133 @@ bounded redistribution of role-specific update scale.
 The role-wise mean log multiplier is zero before clipping, and all nonzero
 directional information comes from the current gradient.
 
+\subsection{Early Matrix-Normalized Branch}
+\label{app:matrixpolicy-muon-control}
+
 The second control allocates the matrix learning-rate budget between a
 coordinate-adaptive AdamW direction and a transient matrix-normalized Muon
-direction.  Let $D^{\rm Adam}_{l,\sigma,t}$ be the AdamW matrix direction and
-let $D^\mu_{l,\sigma,t}$ be the Muon direction.  To first order in $\eta_t$,
-suppressing weight decay and the $O(\eta_t^2)$ term from sequential composition,
-the branch in \eqref{eq:matrix-branch-step} has the allocation
-\begin{align}
-    \Delta M_{l,\sigma}
-    =
-    -\eta_t s^{\rm Adam}_{l,\sigma}(1-\mu_{l,\sigma,t})
-    D^{\rm Adam}_{l,\sigma,t}
-    -\eta_t s_\mu\mu_{l,\sigma,t}D^\mu_{l,\sigma,t}
-    +O(\eta_t^2).
-    \label{eq:appendix-adam-muon-allocation}
-\end{align}
-For the compact singular value decomposition of the Muon momentum matrix
-$H_{l,\sigma,t}=U\Sigma V^\top$, define the polar direction
-\begin{align}
-    \mathcal{P}(H_{l,\sigma,t})=UV^\top .
-\end{align}
-This polar direction is the solution of the spectral-norm constrained
-linearized descent problem,
-\begin{align}
-    \mathcal{P}(H)
-    \in
-    \argmax_{\lVert D\rVert_2\le 1}\langle D,H\rangle_F,
-    \qquad
-    \langle\mathcal{P}(H),H\rangle_F=\lVert H\rVert_*,
-    \qquad
-    \mathcal{P}(aH)=\mathcal{P}(H)\quad(a>0).
-    \label{eq:appendix-polar-steepest}
-\end{align}
+direction.  AdamW stores first and second moments entrywise
+\citep{kingma2015iclr-adam,loshchilov2019decoupled}.  Suppressing bias
+correction and weight decay, its direction has entries
+$D^{\rm Adam}_{ij}=M_{ij}/(\sqrt{V_{ij}}+\epsilon)$, with
+$M\leftarrow\beta_1M+(1-\beta_1)G$ and
+$V\leftarrow\beta_2V+(1-\beta_2)(G\odot G)$.  This coordinatewise normalization
+adapts matrix entries without explicitly forming row subspaces, column
+subspaces, or the singular-value spectrum of the update as a linear map.  This
+matters for the RLB pair because
+\eqref{eq:appendix-matrix-gradients} gives the single-example adjacent
+gradients as outer products; after averaging over batch and sequence positions,
+the training gradients are sums of such terms.  Singular modes of $B_l$ couple
+output-residual directions to latent features, and singular modes of $A_l$
+couple latent coordinates to input-residual directions.  Early in training,
+while the latent basis is still being formed, a highly anisotropic singular
+spectrum therefore moves a narrow set of basis directions disproportionately.
+
+Let $D^{\rm Adam}_{l,\sigma,t}$ and $D^\mu_{l,\sigma,t}$ be the AdamW and Muon
+matrix directions.  To first order in $\eta_t$, \eqref{eq:matrix-branch-step}
+allocates the step between
+$s^{\rm Adam}_{l,\sigma}(1-\mu_{l,\sigma,t})D^{\rm Adam}_{l,\sigma,t}$ and
+$s_\mu\mu_{l,\sigma,t}D^\mu_{l,\sigma,t}$, up to the usual
+$O(\eta_t^2)$ sequential-composition term.  For the compact singular value
+decomposition of the Muon momentum matrix $H_{l,\sigma,t}=U\Sigma V^\top$, the
+ideal polar direction is $\mathcal{P}(H_{l,\sigma,t})=UV^\top$.  Equivalently,
+the idealized Muon direction keeps the singular vectors of the
+momentum matrix and flattens the nonzero singular values:
+$H=\sum_i\sigma_i u_iv_i^\top$ is mapped to a direction proportional to
+${\sum_i u_iv_i^\top}$ on its nonzero singular subspace.  Its row and column
+spaces are inherited from the matrix gradient momentum; the intervention is the
+singular-value reweighting.
+This polar direction is a canonical maximizer for the spectral-norm constrained linearized descent
+problem
+$\mathcal{P}(H)\in\argmax_{\lVert D\rVert_2\le 1}\langle D,H\rangle_F$,
+with $\langle\mathcal{P}(H),H\rangle_F=\lVert H\rVert_*$ and
+$\mathcal{P}(aH)=\mathcal{P}(H)$ for $a>0$ and $H\ne0$.
 Muon applies the finite Newton--Schulz approximation supplied by
 \texttt{torch.optim.Muon}, with momentum and the match-RMS learning-rate
-adjustment used in the implementation.  The branch supplies an early
-matrix-normalized component whose singular-direction scale is equalized before
-the scalar learning-rate gate is applied.  The gate in
-\eqref{eq:matrix-branch-schedule} is monotone in the two layer summaries.  Inside
-the clipping interval,
-\begin{align}
-    \frac{\partial \log\psi_{l,t}}{\partial \Psi_{l,t}}=-0.30,
-    \qquad
-    \frac{\partial \log\psi_{l,t}}{\partial \Omega_{l,t}}=-0.65.
-    \label{eq:appendix-muon-gate-monotone}
-\end{align}
+adjustment used in the implementation \citep{liu2025muon}.  The branch supplies
+an early matrix-normalized component after the role-aware group scaling has
+already set the group/role gradient scales.  Flatter singular
+weighting gives weaker but nonzero basis-forming directions of $A_l$ and $B_l$
+more relative movement during this early window.  Later, singular magnitudes can
+carry useful late-stage adaptation or noise-discrimination information, so the
+persistent part of the second control returns to AdamW and pair rescaling.
+
+The Muon gate in \eqref{eq:matrix-branch-schedule} is monotone in the two layer
+summaries.  Away from clipping boundaries and the ReLU kink in
+\eqref{eq:matrix-branch-schedule}, the derivatives of $\log\psi_{l,t}$ with
+respect to $\Psi_{l,t}$ and $\Omega_{l,t}$ are $-0.30$ and $-0.65$ inside the
+$\psi$ clipping interval.
 Thus the matrix-polar direction is strongest when role pressure and
-rational-coefficient activity are both small.  The scheduled window
-$\omega_t^\mu$ makes this component transient, while AdamW remains the persistent
-matrix update in the second control.
+rational-coefficient activity are both small.  Large $|\pi_{l,g}|$ marks
+unequal input/output pressure, and large $\alpha_{l,g}$ marks rational
+coefficients moving strongly relative to the matrix pair.  In either case the
+spectrum-flattened substep is attenuated, so the spectrum-normalized matrix
+update stays subordinate when the pair is imbalanced or the rational curve is
+changing quickly.
+The scheduled window $\omega_t^\mu$ makes this component transient, while AdamW
+remains the persistent matrix update in the second control.
 
-In the unfloored, unclipped pair-rescale model, define
+\subsection{Reciprocal Pair-Rescale Geometry}
+\label{app:matrixpolicy-pair-rescale}
+
+The final MatrixPolicy operation on each RLB group is the reciprocal
+reparameterization in \eqref{eq:rescale-step}.  It is applied after the
+AdamW/Muon matrix branch by the transport wrapper, every five optimizer steps in
+the reported configuration.  The move changes the representative of the same
+matrix pair,
 \begin{align}
-    \gamma_{l,g}
-    &=
-    \log\rms(A_{l,g})-\log\rms(B_{l,g}),
-    \notag\\
-    \lambda_{l,g,t}
-    &=
-    s_{l,t}\chi^{\rm rs}_{l,g},
-    \notag\\
-    \gamma_{l,g}^{+}
-    =
-    \gamma_{l,g}+2\ell_{l,g,t}
-    &=
-    (1-\lambda_{l,g,t})\gamma_{l,g}
-    +\lambda_{l,g,t}\tau_{l,g}.
-    \label{eq:appendix-rescale-contraction}
+    A_{l,g}^{+}=e^{\ell_{l,g,t}}A_{l,g},
+    \qquad
+    B_{l,g}^{+}=e^{-\ell_{l,g,t}}B_{l,g},
+    \label{eq:appendix-reciprocal-move}
 \end{align}
-Because $0\le s_{l,t}\le0.625$ and
-$\chi^{\rm rs}_{l,g}\le\exp(0.125)$ under the method clips,
-$0\le\lambda_{l,g,t}<1$ before log-step clipping, so the representative coordinate
-contracts toward $\tau_{l,g}$.  This model assumes nonzero matrices, unfloored RMS
-values, and an unclipped update; the implementation uses floored $\gamma_{l,g}$
-and clipped $\ell_{l,g,t}$.
+with descent directions supplied by the preceding optimizer branch.  The
+construction follows the positive pair coordinate in
+Appendix~\ref{app:rlb-positive-coordinate}: in the
+unfloored map, $h_{l,g}(\lambda A_{l,g}x)=\lambda h_{l,g}(A_{l,g}x)$ for
+$\lambda>0$, so replacing $(A_{l,g},B_{l,g})$ by
+$(\lambda A_{l,g},\lambda^{-1}B_{l,g})$ leaves the group contribution
+$B_{l,g}h_{l,g}$ unchanged.  The RMS floor breaks exact invariance near zero,
+which is why the implemented move uses floored RMS values and a small clipped
+log step.
 
-The target in \eqref{eq:rescale-signals} equalizes a local representative model
-that suppresses orientation, radius variation, upstream gradients, and floors.
-In that coordinate, input-role scale varies as
-$\hat d^{\rm probe}e^{-\gamma}$ and output-role scale varies as
-$\hat o^{\rm probe}e^{\gamma}$.  Equalizing the two log scales gives
+This coordinate controls training dynamics: near-equivalent representatives can
+have different relative gradient pressures.
+Let
+\begin{align}
+    p^{A}_{l,g}
+    =
+    \frac{\rms(\nabla A_{l,g})}{\rms(A_{l,g})},
+    \qquad
+    p^{B}_{l,g}
+    =
+    \frac{\rms(\nabla B_{l,g})}{\rms(B_{l,g})}.
+\end{align}
+In the homogeneous unfloored model, $J_h(\lambda z)=J_h(z)$ almost everywhere.
+Combining this with \eqref{eq:appendix-matrix-gradients}, the reciprocal
+change in \eqref{eq:appendix-reciprocal-move} gives the role-pressure scaling
+\begin{align}
+    p^{A,+}_{l,g}
+    \approx
+    e^{-2\ell_{l,g,t}}p^{A}_{l,g},
+    \qquad
+    p^{B,+}_{l,g}
+    \approx
+    e^{2\ell_{l,g,t}}p^{B}_{l,g}.
+    \label{eq:appendix-pressure-gauge}
+\end{align}
+Thus increasing the log-ratio coordinate reduces relative input-side pressure
+and increases relative output-side pressure in the representative model.  This
+is the sign used by the pressure term in \eqref{eq:rescale-signals}: when
+$\pi_{l,g}=\log q^{\rm in}_{l,g}-\log q^{\rm out}_{l,g}>0$, the input side has
+larger recent relative-gradient EMA, and the positive bias
+$0.25\bar\pi_{l,g}$ raises the target ratio.
+
+The curve-shape part of the target is also a balance condition.  In the same
+representative coordinate, input-role scale varies as
+$\hat d^{\rm probe}_{l,g}e^{-\gamma_{l,g}}$ and output-role scale varies as
+$\hat o^{\rm probe}_{l,g}e^{\gamma_{l,g}}$.  Equalizing these two role scales
+gives
 \begin{align}
     \gamma^\star_{l,g}
     =
@@ -1252,13 +1300,54 @@ $\hat o^{\rm probe}e^{\gamma}$.  Equalizing the two log scales gives
     \log\hat d^{\rm probe}_{l,g}
     -
     \log\hat o^{\rm probe}_{l,g}
-    \right).
+    \right),
     \label{eq:appendix-gamma-star}
 \end{align}
-The implemented target adds the clipped RMS-pressure bias
-$0.25\bar\pi_{l,g}\in[-0.3125,0.3125]$, while $\chi^{\rm rs}_{l,g}$ changes only
-the representative-balancing speed.  Together with
-Appendix~\ref{app:rlb-positive-coordinate}, these equations specify the
-approximation boundary of the pair-rescale move used in the method.
+which is the first term of $\tau_{l,g}$.  The probes are fixed-grid summaries of
+the current rational curve; consequently the target follows the shared curve
+shape over $\mathcal U$.
+
+For nonzero matrices and unfloored RMS values,
+\begin{align}
+    \gamma_{l,g}
+    &=
+    \log\rms(A_{l,g})-\log\rms(B_{l,g}),
+    \notag\\
+    \gamma_{l,g}^{+}
+    &=
+    \gamma_{l,g}+2\ell_{l,g,t}.
+    \label{eq:appendix-gamma-shift}
+\end{align}
+Substituting the unclipped log step from \eqref{eq:rescale-step} gives
+\begin{align}
+    \lambda_{l,g,t}
+    &=
+    s_{l,t}\chi^{\rm rs}_{l,g},
+    \notag\\
+    \gamma_{l,g}^{+}
+    &=
+    (1-\lambda_{l,g,t})\gamma_{l,g}
+    +\lambda_{l,g,t}\tau_{l,g}.
+    \label{eq:appendix-rescale-contraction}
+\end{align}
+Because $0\le s_{l,t}\le0.625$ and
+$\chi^{\rm rs}_{l,g}\le\exp(0.125)$ under the method clips,
+$0\le\lambda_{l,g,t}<1$ before log-step clipping, so the representative
+coordinate contracts toward $\tau_{l,g}$.  The clip
+$|\ell_{l,g,t}|\le0.030$ bounds each active reciprocal move and keeps the floor
+error in Appendix~\ref{app:rlb-positive-coordinate} within the local regime.
+
+The activity factor has the opposite role here from the gradient and Muon
+paths.  Large $\alpha_{l,g}$ damps gradient-driven matrix motion in
+\eqref{eq:group-policy} and \eqref{eq:matrix-branch-schedule}; in the rescale
+path, $\chi^{\rm rs}_{l,g}=\exp(0.10\bar\alpha_{l,g})$ only changes the speed of
+movement along the approximate pair symmetry.  This keeps the matrix
+representative aligned with the current rational-curve scale while avoiding a
+larger descent step through a rapidly changing curve.  The wrapper also rescales
+optimizer-state buffers covariantly: first-moment-like entries use the same
+factor as the corresponding matrix block, and square-average entries use the
+squared factor.  Together with Appendix~\ref{app:rlb-positive-coordinate}, these
+relations specify both the mathematical direction and the approximation boundary
+of the pair-rescale move used in MatrixPolicy.
 
 \end{document}
