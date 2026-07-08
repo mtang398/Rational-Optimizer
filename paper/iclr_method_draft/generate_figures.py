@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
 import os
 import shutil
@@ -1219,6 +1220,158 @@ def make_broad_final_validation_table(out_path: Path) -> None:
     ])
     out_path.write_text("\n".join(lines) + "\n")
 
+def _load_e8_sensitivity_records() -> dict[tuple[str, str, str, str], dict[str, object]]:
+    manifest = ROOT / "experiments" / "manifests" / "iclr26_e8_primary_manifest.csv"
+    run_root = ROOT / "experiments" / "runs" / "iclr26_main" / "E8_primary_100m"
+    records: dict[tuple[str, str, str, str], dict[str, object]] = {}
+    for row in _read_rows(manifest):
+        if row.get("phase") != "E8_primary_100m":
+            continue
+        jsonl_path = run_root / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
+        if not jsonl_path.exists():
+            raise FileNotFoundError(jsonl_path)
+        evals: list[dict[str, object]] = []
+        summary: dict[str, object] | None = None
+        with jsonl_path.open("r", errors="replace") as handle:
+            for raw in handle:
+                if not raw.startswith("{"):
+                    continue
+                try:
+                    record = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                if record.get("event") == "eval":
+                    evals.append(record)
+                elif record.get("event") == "summary":
+                    summary = record
+        if summary is None or int(summary.get("completed_steps", -1)) < int(row["steps"]):
+            raise RuntimeError(f"incomplete E8 sensitivity JSONL: {jsonl_path}")
+        key = (row["dataset"], row["lr"], row["weight_decay"], row["method"])
+        records[key] = {"row": row, "evals": evals, "summary": summary}
+    return records
+
+
+def _e8_best_loss(record: dict[str, object]) -> float:
+    losses = [
+        float(entry["val_loss"])
+        for entry in record["evals"]  # type: ignore[index]
+        if isinstance(entry.get("val_loss"), (int, float)) and math.isfinite(float(entry["val_loss"]))
+    ]
+    if not losses:
+        raise RuntimeError("E8 sensitivity record has no finite validation losses")
+    return min(losses)
+
+
+def _e8_first_hit(record: dict[str, object], target: float) -> tuple[int, float, float] | None:
+    row = record["row"]  # type: ignore[index]
+    summary = record["summary"]  # type: ignore[index]
+    for entry in record["evals"]:  # type: ignore[index]
+        loss = entry.get("val_loss")
+        if isinstance(loss, (int, float)) and math.isfinite(float(loss)) and float(loss) <= target:
+            step = int(entry["step"])
+            tokens = step * int(row["global_tokens_per_step"])
+            minutes = step * float(summary["mean_seconds_per_step"]) / 60.0
+            return step, float(tokens), float(minutes)
+    return None
+
+
+def _fmt_median_range(values: list[float], digits: int = 1) -> str:
+    if not values:
+        raise RuntimeError("cannot format empty value list")
+    arr = np.asarray(values, dtype=float)
+    return f"{float(np.median(arr)):.{digits}f} [{float(np.min(arr)):.{digits}f},{float(np.max(arr)):.{digits}f}]"
+
+
+def _e8_sensitivity_rows() -> list[dict[str, object]]:
+    records = _load_e8_sensitivity_records()
+    datasets = [(dataset, label) for dataset, label, _e2 in DATASETS]
+    methods = ["rlb_matrixpolicy_original", "silu_adamw", "silu_muon"]
+    rows: list[dict[str, object]] = []
+    for dataset, label in datasets:
+        dataset_records = [
+            record
+            for (record_dataset, _lr, _wd, method), record in records.items()
+            if record_dataset == dataset and method in methods
+        ]
+        if len(dataset_records) != 48:
+            raise RuntimeError(f"unexpected E8 sensitivity coverage for {dataset}: {len(dataset_records)}")
+        raw_target = max(_e8_best_loss(record) for record in dataset_records)
+        target = math.ceil(raw_target * 20.0) / 20.0
+        savings_vs_adamw: list[float] = []
+        savings_vs_muon: list[float] = []
+        mp_times: list[float] = []
+        adamw_times: list[float] = []
+        muon_times: list[float] = []
+        wins_adamw = wins_muon = 0
+        for lr in sorted({key[1] for key in records if key[0] == dataset}):
+            for wd in sorted({key[2] for key in records if key[0] == dataset}):
+                mp_hit = _e8_first_hit(records[(dataset, lr, wd, "rlb_matrixpolicy_original")], target)
+                adamw_hit = _e8_first_hit(records[(dataset, lr, wd, "silu_adamw")], target)
+                muon_hit = _e8_first_hit(records[(dataset, lr, wd, "silu_muon")], target)
+                if mp_hit is None or adamw_hit is None or muon_hit is None:
+                    raise RuntimeError(f"E8 sensitivity common target was not reached: {dataset} {lr} {wd}")
+                _mp_step, mp_tokens, mp_minutes = mp_hit
+                _adamw_step, adamw_tokens, adamw_minutes = adamw_hit
+                _muon_step, muon_tokens, muon_minutes = muon_hit
+                savings_vs_adamw.append(100.0 * (adamw_tokens - mp_tokens) / adamw_tokens)
+                savings_vs_muon.append(100.0 * (muon_tokens - mp_tokens) / muon_tokens)
+                mp_times.append(mp_minutes)
+                adamw_times.append(adamw_minutes)
+                muon_times.append(muon_minutes)
+                wins_adamw += int(mp_tokens < adamw_tokens)
+                wins_muon += int(mp_tokens < muon_tokens)
+        rows.append({
+            "dataset": label,
+            "target": target,
+            "cells": 16,
+            "wins_adamw": wins_adamw,
+            "wins_muon": wins_muon,
+            "savings_vs_adamw": savings_vs_adamw,
+            "savings_vs_muon": savings_vs_muon,
+            "mp_times": mp_times,
+            "adamw_times": adamw_times,
+            "muon_times": muon_times,
+        })
+    return rows
+
+
+def make_e8_sensitivity_target_arrival_table(out_path: Path) -> None:
+    rows = _e8_sensitivity_rows()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        r"\begin{table}[H]",
+        r"\centering",
+        r"\caption{Learning-rate and weight-decay sensitivity at the 100M-token budget. Each row uses a 0.05-rounded common validation-loss target reached by all paired settings; savings and minutes are median [min,max] across those settings.}",
+        r"\label{tab:e8-sensitivity-target-arrival}",
+        r"\begingroup",
+        r"\scriptsize",
+        r"\setlength{\tabcolsep}{2.2pt}",
+        r"\renewcommand{\arraystretch}{1.05}",
+        r"\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccrrrrr@{}}",
+        r"\toprule",
+        r"& & & \multicolumn{2}{c}{MatrixPolicy token savings (\%)} & \multicolumn{3}{c}{Time to target (min)} \\",
+        r"\cmidrule(lr){4-5}\cmidrule(l){6-8}",
+        r"Dataset & \shortstack{Target\\loss} & \shortstack{Wins vs.\\AdamW, Muon} & \shortstack{vs. SiLU\\with AdamW} & \shortstack{vs. SiLU\\with Muon} & MatrixPolicy & \shortstack{SiLU\\with AdamW} & \shortstack{SiLU\\with Muon} \\",
+        r"\midrule",
+    ]
+    for row in rows:
+        lines.append(
+            f"{row['dataset']} & {float(row['target']):.2f} & "
+            f"{int(row['wins_adamw'])}/{int(row['cells'])}, {int(row['wins_muon'])}/{int(row['cells'])} & "
+            f"{_fmt_median_range(row['savings_vs_adamw'])} & "
+            f"{_fmt_median_range(row['savings_vs_muon'])} & "
+            f"{_fmt_median_range(row['mp_times'])} & "
+            f"{_fmt_median_range(row['adamw_times'])} & "
+            f"{_fmt_median_range(row['muon_times'])} \\\\"
+        )
+    lines.extend([
+        r"\bottomrule",
+        r"\end{tabular*}",
+        r"\endgroup",
+        r"\end{table}",
+    ])
+    out_path.write_text("\n".join(lines) + "\n")
+
 def main() -> int:
     outputs = [
         OUT_DIR / "matrixpolicy_overview.pdf",
@@ -1229,6 +1382,7 @@ def main() -> int:
         OUT_DIR / "e2_multimetric_all_datasets.pdf",
         TABLE_DIR / "e1_e2_silu_summary_table.tex",
         TABLE_DIR / "final_validation_broad_optimizer_table.tex",
+        TABLE_DIR / "e8_sensitivity_target_arrival_table.tex",
     ]
     compile_tikz_figure("matrixpolicy_overview.tex", outputs[0])
     compile_tikz_figure("matrixpolicy_signal_flow.tex", outputs[1])
@@ -1238,6 +1392,7 @@ def main() -> int:
     make_e2_multimetric_all_datasets(outputs[5])
     make_e1_e2_silu_summary_table(outputs[6])
     make_broad_final_validation_table(outputs[7])
+    make_e8_sensitivity_target_arrival_table(outputs[8])
     for path in outputs:
         print(path)
     return 0
