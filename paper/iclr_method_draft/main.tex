@@ -103,55 +103,62 @@ pretraining corpora.
 \section{Related Work}
 \label{sec:related}
 
-Activation design for Transformer nonlinear sublayers has moved from fixed
-pointwise curves to gated matrix sublayers.  Early Transformer-style sublayers
-used fixed pointwise responses such as GELU or Swish/SiLU
-\citep{vaswani2017attention,hendrycks2016gelu,ramachandran2017swish}.  GLU
-introduced multiplicative feature selection for language modeling
-\citep{dauphin2017language}, GLU variants such as SwiGLU improved Transformer
-sublayers in compute-matched settings \citep{shazeer2020glu}, and large decoder
-models adopted SwiGLU together with pre-normalized Transformer components
-\citep{chowdhery2022palm,touvron2023llama}.  These works identify the nonlinear
-block as the natural comparison point for RLB because the response is coupled to
-the matrices that prepare and mix it.  RLB keeps that sublayer location while
-replacing the fixed curve with grouped trainable rational responses.
+Transformer nonlinear sublayers couple a scalar response to the projections that
+present and recombine its inputs.  The original Transformer used ReLU, and GELU
+and Swish/SiLU supplied alternative fixed pointwise responses
+\citep{vaswani2017attention,hendrycks2016gelu,ramachandran2017swish}.  Gated
+linear units (GLUs) added a second projection and a multiplicative gate for
+language modeling \citep{dauphin2017language}.  The Swish-gated linear unit
+(SwiGLU) carried this topology into Transformer sublayers, improved
+compute-matched performance \citep{shazeer2020glu}, and was adopted by PaLM and
+LLaMA \citep{chowdhery2022palm,touvron2023llama}.  In each design, the response
+family is chosen before pretraining and the learned projections adapt around it.
 
-Choosing a trainable rational response builds on earlier evidence that
-low-degree quotients can serve as learnable nonlinearities.  Pad\'e Activation
-Units learned such quotients end to end as activation functions
-\citep{molina2020pade}, rational neural networks gave approximation efficiency
-results for smooth-function classes \citep{boulle2020rational}, and RAFT
-evaluated rational activation functions inside Transformer pretraining and
-fine-tuning \citep{fang2023transformers}.  Recent theory strengthens the
-motivation by proving expressivity advantages for trainable low-degree rational
-activations over a broad set of modern fixed activations, including gated and
-Transformer-style nonlinearities \citep{tang2026rationalexpressivity}.  RLB
-therefore follows the rational-activation lineage; MatrixPolicy tests the
-additional effect of making the surrounding matrices optimizer-visible.
+Rational activations make that prescribed response trainable.
+Pad\'e Activation Units learn low-degree rational functions end to end
+\citep{molina2020pade}, and rational neural networks provide
+approximation-efficiency results for smooth-function classes
+\citep{boulle2020rational}.  Rational responses have also been evaluated in
+Transformer pretraining and fine-tuning \citep{fang2023transformers}, while
+recent approximation theory establishes expressivity advantages over a broad
+class of fixed responses, including gated Transformer nonlinearities
+\citep{tang2026rationalexpressivity}.  Placed between two projections, a
+trainable response enters the output-matrix gradient through its realized
+features and the input-matrix gradient through its local Jacobian.  Its evolution
+therefore changes the geometry of both adjacent matrix gradients, as detailed in
+Appendix~\ref{app:matrixpolicy-proxies}.
 
-Making the surrounding matrices optimizer-visible connects RLB to a fast-moving
-LLM optimizer literature.  Adam and AdamW remain central baselines
-\citep{kingma2015iclr-adam,loshchilov2019decoupled}, while state-efficient or
-diagonal adaptive methods such as Adafactor and CAME reduce optimizer memory or
-alter adaptive-state estimates \citep{shazeer2018adafactor,luo2023came}.  Other
-recent methods change the update rule itself.  Lion, Schedule-Free methods, and
-cautious optimizers alter momentum, sign, or schedule behavior
-\citep{chen2023lion,defazio2024road,liang2026cautious}, while Sophia, GaLore,
-and Adam-mini change curvature, low-rank, or per-block learning-rate structure
-\citep{liu2024sophia,zhao2024galore,zhang2025adammini}.  Practical-efficiency
-studies evaluate optimizers by the tokens, compute, or time needed to reach
-matched losses
-\citep{shah2025practicalefficiency,schlotthauer2025budget,semenov2025benchmarking,wen2026fantastic}.
-The matrix restriction in MatrixPolicy connects most directly to matrix-aware
-optimization.  Shampoo uses tensor preconditioners \citep{gupta2018shampoo},
-SOAP stabilizes Shampoo-style preconditioning by running Adam in the
-preconditioner eigenbasis \citep{vyas2025soap}, and Muon uses orthogonalized
-matrix updates for LLM training \citep{liu2025muon}.  Recent optimizer
-comparisons emphasize fair tuning, model-scale dependence, and
-setting-dependent tradeoffs \citep{zhao2025deconstructing,wen2026fantastic}.
-MatrixPolicy follows this matrix-aware direction, with updates restricted to the
-RLB input/output matrix pair and conditioned on activation-derived sublayer
-statistics.
+The optimizer literature offers several ways to transform those adjacent matrix
+gradients into updates.  Adam and AdamW provide the coordinatewise adaptive
+reference
+\citep{kingma2015iclr-adam,loshchilov2019decoupled}.  Memory-efficient methods
+factor or reorganize adaptive state \citep{shazeer2018adafactor,luo2023came},
+while Lion, Schedule-Free methods, and cautious optimizers modify update signs,
+iterate averaging, or gradient-aligned masking
+\citep{chen2023lion,defazio2024road,liang2026cautious}.  Sophia uses
+diagonal-Hessian preconditioning, GaLore projects gradient matrices into
+low-rank subspaces, and Adam-mini shares adaptive rates within parameter blocks
+\citep{liu2024sophia,zhao2024galore,zhang2025adammini}.  These methods structure
+updates through optimizer history, curvature estimates, and parameter geometry.
+Within this spectrum, non-diagonal preconditioning and orthogonalization act on
+the full matrix update.
+
+That full-matrix geometry is explicit in the tensor-axis preconditioners of
+Shampoo \citep{gupta2018shampoo}, the Adam updates of SOAP in an evolving
+Shampoo eigenbasis \citep{vyas2025soap}, and the orthogonalized matrix momentum
+of Muon \citep{liu2025muon}.  Optimizer rankings depend on protocol, so recent
+studies
+compare fixed token budgets, compute-time frontiers, and standardized pretraining
+scenarios
+\citep{shah2025practicalefficiency,schlotthauer2025budget,semenov2025benchmarking,
+wen2026fantastic} and emphasize fair tuning and model or data scale
+\citep{zhao2025deconstructing,wen2026fantastic,volkova2026optimizerlaws}.
+Rational-activation research and matrix optimization meet inside the nonlinear
+sublayer, where response learning changes the features and Jacobians that shape
+projection gradients.  Matrix optimizers transform those gradients using
+matrix geometry derived from gradient statistics or momentum, leaving open how
+response-derived summaries should govern updates to the paired projections whose
+gradients depend on that response.
 
 \section{Method}
 \label{sec:method}
