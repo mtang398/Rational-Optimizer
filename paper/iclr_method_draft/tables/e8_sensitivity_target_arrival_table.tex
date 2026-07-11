@@ -1,37 +1,37 @@
-\begin{table}[H]
+\begin{table}[!t]
 \centering
-\caption{Target-arrival efficiency under learning-rate and weight-decay sensitivity at the 100M-token budget. Entries are medians over 16 paired hyperparameter cells.}
+\caption{Single-seed target-arrival sensitivity at the 100M-token budget. Each dataset uses the hard target from the main 100M-token study and two adjacent easier targets. Entries are medians over the common learning-rate/weight-decay cells in which all three methods reach the target. The paired-cells column reports common-arrival coverage out of 16.}
 \label{tab:e8-sensitivity-target-arrival}
 \begingroup
 \footnotesize
-\setlength{\tabcolsep}{1.9pt}
-\renewcommand{\arraystretch}{0.98}
-\begin{tabular}{@{}llc*{2}{r}@{\hspace{0.55em}}*{3}{r}@{}}
+\setlength{\tabcolsep}{3.0pt}
+\renewcommand{\arraystretch}{1.02}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccrrrrr@{}}
 \toprule
 & & & \multicolumn{2}{c}{MatrixPolicy token savings (\%)} & \multicolumn{3}{c}{Time to target (min)} \\
-\cmidrule(lr){4-5}\cmidrule(l){6-8}
-Budget & Dataset & \shortstack{Target\\loss} & \shortstack{vs. SiLU\\AdamW} & \shortstack{vs. SiLU\\Muon} & \shortstack{Matrix\\Policy} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} \\
+\cmidrule(lr){4-5}\cmidrule(lr){6-8}
+Dataset & \shortstack{Target\\loss} & \shortstack{Paired\\cells} & \shortstack{vs. SiLU\\AdamW} & \shortstack{vs. SiLU\\Muon} & \shortstack{Matrix\\Policy} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} \\
 \midrule
-100M & DCLM & 5.35 & 19.8 & 45.7 & 4.0 & 4.2 & 6.8 \\
- &  & 5.30 & 18.3 & 41.5 & 4.4 & 4.5 & 7.0 \\
- &  & 5.25 & 17.1 & 39.4 & 4.8 & 4.9 & 7.4 \\
-\addlinespace[1pt]\midrule
- & FineWeb-Edu & 5.30 & 18.3 & 40.2 & 4.2 & 4.4 & 6.6 \\
- &  & 5.25 & 17.1 & 36.1 & 4.6 & 4.7 & 6.8 \\
- &  & 5.20 & 19.5 & 37.2 & 4.7 & 5.0 & 7.1 \\
-\addlinespace[1pt]\midrule
- & FineWeb & 5.50 & 16.8 & 42.5 & 3.8 & 3.8 & 6.2 \\
- &  & 5.45 & 12.7 & 40.2 & 4.1 & 4.0 & 6.5 \\
- &  & 5.40 & 18.3 & 41.5 & 4.1 & 4.3 & 6.7 \\
-\addlinespace[1pt]\midrule
- & Dolma & 5.55 & 17.1 & 40.2 & 4.1 & 4.0 & 6.5 \\
- &  & 5.50 & 18.3 & 41.5 & 4.1 & 4.3 & 6.7 \\
- &  & 5.45 & 18.5 & 39.4 & 4.5 & 4.6 & 7.1 \\
-\addlinespace[1pt]\midrule
- & C4 & 5.50 & 19.8 & 42.5 & 3.8 & 4.1 & 6.3 \\
- &  & 5.45 & 18.3 & 40.2 & 4.2 & 4.4 & 6.6 \\
- &  & 5.40 & 18.5 & 38.1 & 4.6 & 4.7 & 7.0 \\
+DCLM & 4.75 & 12/16 & 14.8 & 28.1 & 9.0 & 9.1 & 11.5 \\
+ & 4.65 & 8/16 & 10.6 & 19.5 & 9.6 & 9.1 & 11.2 \\
+ & 4.55 & 8/16 & 14.4 & 19.1 & 11.1 & 11.1 & 13.1 \\
+\addlinespace[2pt]
+FineWeb-Edu & 4.60 & 12/16 & 14.3 & 25.0 & 9.4 & 9.3 & 11.4 \\
+ & 4.50 & 8/16 & 11.8 & 16.5 & 9.4 & 9.2 & 10.8 \\
+ & 4.40 & 8/16 & 14.4 & 19.1 & 10.8 & 10.8 & 12.7 \\
+\addlinespace[2pt]
+FineWeb & 4.80 & 12/16 & 16.1 & 26.6 & 8.8 & 8.8 & 11.1 \\
+ & 4.70 & 8/16 & 13.1 & 17.5 & 9.3 & 9.2 & 10.9 \\
+ & 4.60 & 8/16 & 16.4 & 19.1 & 10.7 & 11.0 & 12.9 \\
+\addlinespace[2pt]
+Dolma & 4.80 & 8/16 & 12.7 & 20.5 & 8.7 & 8.5 & 10.3 \\
+ & 4.70 & 8/16 & 13.8 & 20.6 & 9.9 & 9.7 & 11.9 \\
+ & 4.60 & 8/16 & 18.1 & 22.1 & 11.3 & 11.8 & 14.1 \\
+\addlinespace[2pt]
+C4 & 4.80 & 12/16 & 14.8 & 25.8 & 8.9 & 8.9 & 11.1 \\
+ & 4.70 & 8/16 & 12.2 & 18.9 & 9.1 & 9.0 & 10.7 \\
+ & 4.60 & 8/16 & 14.8 & 18.8 & 10.4 & 10.6 & 12.3 \\
 \bottomrule
-\end{tabular}
+\end{tabular*}
 \endgroup
 \end{table}
