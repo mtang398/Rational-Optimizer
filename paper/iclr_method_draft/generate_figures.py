@@ -1314,7 +1314,7 @@ def _e8_sensitivity_rows() -> list[dict[str, object]]:
         if dataset not in reference_targets:
             raise RuntimeError(f"missing 100M main-study target for E8 dataset: {dataset}")
         hard_target = reference_targets[dataset]
-        targets = [hard_target + 0.20, hard_target + 0.10, hard_target]
+        targets = [hard_target, hard_target - 0.10, hard_target - 0.20]
         for target_index, target in enumerate(targets):
             target = round(target, 2)
             savings_vs_adamw: list[float] = []
@@ -1364,15 +1364,15 @@ def make_e8_sensitivity_target_arrival_table(out_path: Path) -> None:
     lines = [
         r"\begin{table}[!t]",
         r"\centering",
-        r"\caption{Single-seed target-arrival sensitivity at the 100M-token budget. Each dataset uses the hard target from the main 100M-token study and two adjacent easier targets. Entries are medians over the common learning-rate/weight-decay cells in which all three methods reach the target. The paired-cells column reports common-arrival coverage out of 16.}",
+        r"\caption{Single-seed target-arrival sensitivity at the 100M-token budget. Each dataset uses the hard target from the main 100M-token study and two progressively lower targets. Entries are medians over the common learning-rate/weight-decay cells in which all three methods reach the target. The paired-cells column reports common-arrival coverage out of 16.}",
         r"\label{tab:e8-sensitivity-target-arrival}",
         r"\begingroup",
         r"\footnotesize",
-        r"\setlength{\tabcolsep}{3.0pt}",
+        r"\setlength{\tabcolsep}{3.5pt}",
         r"\renewcommand{\arraystretch}{1.02}",
-        r"\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccrrrrr@{}}",
+        r"\begin{tabular}{@{}lcc@{\hspace{0.8em}}rr@{\hspace{1.1em}}rrr@{}}",
         r"\toprule",
-        r"& & & \multicolumn{2}{c}{MatrixPolicy token savings (\%)} & \multicolumn{3}{c}{Time to target (min)} \\",
+        r"& & & \multicolumn{2}{c}{\shortstack{MatrixPolicy token\\savings (\%)}} & \multicolumn{3}{c}{Time to target (min)} \\",
         r"\cmidrule(lr){4-5}\cmidrule(lr){6-8}",
         r"Dataset & \shortstack{Target\\loss} & \shortstack{Paired\\cells} & \shortstack{vs. SiLU\\AdamW} & \shortstack{vs. SiLU\\Muon} & \shortstack{Matrix\\Policy} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} \\",
         r"\midrule",
@@ -1391,7 +1391,7 @@ def make_e8_sensitivity_target_arrival_table(out_path: Path) -> None:
         )
     lines.extend([
         r"\bottomrule",
-        r"\end{tabular*}",
+        r"\end{tabular}",
         r"\endgroup",
         r"\end{table}",
     ])
