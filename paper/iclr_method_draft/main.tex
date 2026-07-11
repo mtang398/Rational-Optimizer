@@ -103,53 +103,48 @@ pretraining corpora.
 \section{Related Work}
 \label{sec:related}
 
-Modern LLM nonlinear sublayers usually use a gated
-matrix--response--matrix map whose response family is selected before
-pretraining.  SwiGLU made this topology effective in compute-matched Transformer
-sublayers \citep{shazeer2020glu}, and closely related gated forms are used in
-Llama~3, DeepSeek-V3, and Qwen3
-\citep{grattafiori2024llama3,deepseekai2024deepseekv3,yang2025qwen3}.  Within
-these sublayers, pretraining adapts the surrounding projections while the
-response remains prescribed.
+Prior work on Transformer nonlinear sublayers has developed the projection
+topology and scalar response along largely separate lines.  The topology line
+begins with multiplicative GLU gates and reaches Transformer sublayers through
+SwiGLU \citep{dauphin2017language,shazeer2020glu}.  Related gated forms are used
+from LLaMA through Llama~3 and in recent DeepSeek-V3 and Qwen3 models
+\citep{touvron2023llama,grattafiori2024llama3,deepseekai2024deepseekv3,
+yang2025qwen3}.  These architectures learn the surrounding projections while
+retaining a response family selected before pretraining.
 
-Learnable activations change this last step by allowing pretraining to adapt the
-response itself.  Rational networks provide efficient approximation of smooth
-functions and recent expressivity separations from broad classes of fixed
-responses, including gated Transformer nonlinearities
-\citep{boulle2020rational,tang2026rationalexpressivity}.  Learnable rational
-activations have also been studied in Transformer pretraining and fine-tuning
-\citep{fang2023transformers}.  Every response placed
-between two projections enters their gradients in two different forms.  Its
-realized feature appears in the output-projection gradient, whereas its local
-derivative appears in the input-projection gradient, as derived in
-Appendix~\ref{app:matrixpolicy-proxies}.  Learning rational coefficients makes
-both factors evolve during training and adds coefficient-gradient activity as a
-measure of pressure on the response itself.  In the rational-activation
-formulations reviewed above, the base optimizer updates the coefficients and
-adjacent matrices without a response-summary interface.  This raises the
-question of how the matrix update should use that evolving state.
+The response line instead makes the scalar map trainable.  Rational networks
+provide efficient smooth-function approximation and recent expressivity
+separations from fixed and gated Transformer responses
+\citep{boulle2020rational,tang2026rationalexpressivity}.  Pad\'e Activation Units
+established end-to-end learning of rational coefficients, and later work studied
+learnable rational activations in Transformer pretraining and fine-tuning
+\citep{molina2020pade,fang2023transformers}.  Within a
+matrix--response--matrix sublayer, the realized response enters the
+output-projection gradient and its derivative enters the input-projection
+gradient, as derived in Appendix~\ref{app:matrixpolicy-proxies}.  Coefficient
+learning makes both factors evolve and supplies coefficient-gradient activity as
+an additional local signal.  The rational-activation formulations above retain a
+base optimizer for the coefficients and adjacent matrices, leaving a
+response-summary interface outside their scope.
 
-Optimizer research answers that question with increasingly structured updates.
-AdamW applies Adam's coordinatewise moment adaptation
-with decoupled weight decay \citep{loshchilov2019decoupled}.  SOAP and Muon move from
-per-entry scaling toward matrix geometry by adapting in an evolving eigenbasis
-or orthogonalizing matrix momentum \citep{vyas2025soap,liu2025muon}.  The matrix
-geometry is explicit; the module role remains implicit.  Their conditioning
-information comes from gradient history and parameter geometry, leaving the
-producing response and the two projection roles unobserved.
+Optimizer work differs primarily in the parameter structure used to transform
+those gradients.  AdamW retains coordinatewise moment adaptation with decoupled
+weight decay \citep{loshchilov2019decoupled}.  Sophia, Adam-mini, and GaLore add
+diagonal curvature, block-shared rates, or low-rank gradient subspaces
+\citep{liu2024sophia,zhang2025adammini,zhao2024galore}.  SOAP and Muon extend
+adaptation to matrix geometry through an evolving eigenbasis or orthogonalized
+momentum \citep{vyas2025soap,liu2025muon}.  Across these methods, conditioning is
+derived from gradient history, curvature, and parameter geometry.  The
+nonlinear response that produced the gradients and the input/output roles of its
+adjacent matrices remain implicit.
 
-MuonClip takes a further step by drawing an update-control signal from the
-forward computation.  Its maximum attention logit triggers post-update
-rescaling of the query and key matrices that produced it
-\citep{kimiteam2025kimik2}.  This establishes a direct path from a module-level
-statistic to selected matrices within that module.  For a learned rational
-response, the corresponding local state comprises per-group RMS summaries of
-the evolving response and derivative, coefficient-gradient activity, and the
-relative gradient pressure on the surrounding matrices.  These signals act
-locally within the sublayer.  MatrixPolicy uses them to condition the two matrix
-roles on the response state that produced their gradients, thereby connecting
-activation and optimizer design.  The resulting response-conditioned matrix-pair
-interface is developed next.
+MuonClip provides a directly relevant example of module-conditioned
+optimization.  Its maximum attention logit triggers post-update rescaling of the
+query and key matrices that produced it \citep{kimiteam2025kimik2}.  MatrixPolicy
+applies this module-conditioned viewpoint to the nonlinear sublayer, where
+detached response statistics condition the two projections surrounding a learned
+activation.  This links learnable activation and matrix-aware optimizer work
+through a module-specific control interface.
 
 \section{Method}
 \label{sec:method}
