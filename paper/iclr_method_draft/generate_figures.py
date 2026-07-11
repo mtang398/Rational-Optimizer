@@ -1251,46 +1251,209 @@ def _load_e8_sensitivity_records() -> dict[tuple[str, str, str, str], dict[str, 
     return records
 
 
-def _e8_best_loss(record: dict[str, object]) -> float:
-    losses = [
-        float(entry["val_loss"])
-        for entry in record["evals"]  # type: ignore[index]
-        if isinstance(entry.get("val_loss"), (int, float)) and math.isfinite(float(entry["val_loss"]))
-    ]
-    if not losses:
-        raise RuntimeError("E8 sensitivity record has no finite validation losses")
-    return min(losses)
-
-
-def _e8_first_hit(record: dict[str, object], target: float) -> tuple[int, float, float] | None:
-    row = record["row"]  # type: ignore[index]
-    summary = record["summary"]  # type: ignore[index]
-    completed_steps = float(summary.get("completed_steps", 0.0))
-    total_seconds = float(summary.get("total_seconds", 0.0))
-    if completed_steps <= 0.0 or total_seconds <= 0.0:
-        raise RuntimeError(f"E8 sensitivity record has invalid timing summary: {row['row_id']}")
-    seconds_per_step = total_seconds / completed_steps
+def _e8_validation_curve(record: dict[str, object]) -> dict[int, float]:
+    curve: dict[int, float] = {}
     for entry in record["evals"]:  # type: ignore[index]
         loss = entry.get("val_loss")
-        if isinstance(loss, (int, float)) and math.isfinite(float(loss)) and float(loss) <= target:
-            step = int(entry["step"])
+        if not isinstance(loss, (int, float)) or not math.isfinite(float(loss)):
+            raise RuntimeError("E8 sensitivity record contains a nonfinite validation loss")
+        step = int(entry["step"])
+        if step in curve:
+            raise RuntimeError(f"duplicate E8 validation step: {step}")
+        curve[step] = float(loss)
+    if not curve:
+        raise RuntimeError("E8 sensitivity record has no validation evaluations")
+    return curve
+
+
+def _e8_first_hit(
+    record: dict[str, object], target: float, min_step: int = 50
+) -> tuple[int, float] | None:
+    row = record["row"]  # type: ignore[index]
+    for step, loss in sorted(_e8_validation_curve(record).items()):
+        if step >= min_step and loss <= target:
             tokens = step * int(row["global_tokens_per_step"])
-            minutes = step * seconds_per_step / 60.0
-            return step, float(tokens), float(minutes)
+            return step, float(tokens)
     return None
 
 
-def _fmt_median_range(values: list[float], digits: int = 1) -> str:
-    if not values:
-        raise RuntimeError("cannot format empty value list")
-    arr = np.asarray(values, dtype=float)
-    return f"{float(np.median(arr)):.{digits}f} [{float(np.min(arr)):.{digits}f},{float(np.max(arr)):.{digits}f}]"
+def _e8_grid_values(records: dict[tuple[str, str, str, str], dict[str, object]]) -> tuple[list[str], list[str]]:
+    learning_rates = sorted({key[1] for key in records}, key=float)
+    weight_decays = sorted({key[2] for key in records}, key=float)
+    if len(learning_rates) != 4 or len(weight_decays) != 4:
+        raise RuntimeError(
+            f"unexpected E8 grid shape: {len(learning_rates)} learning rates x "
+            f"{len(weight_decays)} weight decays"
+        )
+    return learning_rates, weight_decays
 
 
-def _fmt_median(values: list[float], digits: int = 1) -> str:
-    if not values:
-        raise RuntimeError("cannot format empty value list")
-    return f"{float(np.median(np.asarray(values, dtype=float))):.{digits}f}"
+def _e8_paired_gaps(
+    matrixpolicy: dict[str, object], control: dict[str, object], min_step: int = 50
+) -> np.ndarray:
+    mp_curve = _e8_validation_curve(matrixpolicy)
+    control_curve = _e8_validation_curve(control)
+    if mp_curve.keys() != control_curve.keys():
+        raise RuntimeError("E8 paired runs do not share the same validation schedule")
+    steps = [step for step in sorted(mp_curve) if step >= min_step]
+    if not steps:
+        raise RuntimeError("E8 paired runs have no regular validation evaluations")
+    return np.asarray([control_curve[step] - mp_curve[step] for step in steps], dtype=float)
+
+
+def _e8_trajectory_dominance_grids(
+    records: dict[tuple[str, str, str, str], dict[str, object]],
+) -> tuple[dict[tuple[str, str], np.ndarray], int]:
+    learning_rates, weight_decays = _e8_grid_values(records)
+    grids: dict[tuple[str, str], np.ndarray] = {}
+    compared_checkpoints = 0
+    for dataset, _label, _e2 in DATASETS:
+        for control in ("silu_adamw", "silu_muon"):
+            grid = np.empty((len(learning_rates), len(weight_decays)), dtype=float)
+            for lr_index, learning_rate in enumerate(learning_rates):
+                for wd_index, weight_decay in enumerate(weight_decays):
+                    gaps = _e8_paired_gaps(
+                        records[(dataset, learning_rate, weight_decay, "rlb_matrixpolicy_original")],
+                        records[(dataset, learning_rate, weight_decay, control)],
+                    )
+                    grid[lr_index, wd_index] = float(np.min(gaps))
+                    compared_checkpoints += int(gaps.size)
+            grids[(dataset, control)] = grid
+    expected = len(DATASETS) * 2 * 16 * 61
+    if compared_checkpoints != expected:
+        raise RuntimeError(
+            f"unexpected E8 paired-checkpoint count: {compared_checkpoints}, expected {expected}"
+        )
+    return grids, compared_checkpoints
+
+
+def make_e8_trajectory_dominance_heatmap(out_path: Path) -> None:
+    records = _load_e8_sensitivity_records()
+    learning_rates, weight_decays = _e8_grid_values(records)
+    grids, _compared_checkpoints = _e8_trajectory_dominance_grids(records)
+    all_values = np.concatenate([grid.ravel() for grid in grids.values()])
+    if np.any(all_values <= 0.0):
+        raise RuntimeError("E8 trajectory-dominance figure contains a nonpositive paired margin")
+
+    limit = max(0.05, math.ceil(float(np.max(np.abs(all_values))) / 0.05) * 0.05)
+    norm = TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit)
+    cmap = plt.get_cmap("PuOr")
+    comparators = [
+        ("silu_adamw", "vs. SiLU + AdamW"),
+        ("silu_muon", "vs. SiLU + Muon"),
+    ]
+    fixed_lr_index = learning_rates.index("0.0003")
+    fixed_wd_index = weight_decays.index("0.10")
+
+    fig, axes = plt.subplots(2, len(DATASETS), figsize=(7.2, 3.28))
+    fig.subplots_adjust(left=0.078, right=0.925, bottom=0.155, top=0.915, wspace=0.16, hspace=0.18)
+    image_artist = None
+    for row_index, (control, control_label) in enumerate(comparators):
+        for column_index, (dataset, dataset_label, _e2) in enumerate(DATASETS):
+            ax = axes[row_index, column_index]
+            grid = grids[(dataset, control)]
+            image_artist = ax.imshow(
+                grid,
+                origin="lower",
+                cmap=cmap,
+                norm=norm,
+                interpolation="nearest",
+                aspect="equal",
+            )
+            for lr_index in range(grid.shape[0]):
+                for wd_index in range(grid.shape[1]):
+                    value = float(grid[lr_index, wd_index])
+                    rgba = cmap(norm(value))
+                    luminance = 0.2126 * rgba[0] + 0.7152 * rgba[1] + 0.0722 * rgba[2]
+                    label = f"{value:.2f}"
+                    if label.startswith("0"):
+                        label = label[1:]
+                    ax.text(
+                        wd_index,
+                        lr_index,
+                        label,
+                        ha="center",
+                        va="center",
+                        fontsize=6.0,
+                        color="white" if luminance < 0.48 else "#202020",
+                        fontweight="medium",
+                    )
+            ax.add_patch(
+                Rectangle(
+                    (fixed_wd_index - 0.46, fixed_lr_index - 0.46),
+                    0.92,
+                    0.92,
+                    fill=False,
+                    edgecolor="#202020",
+                    linewidth=0.9,
+                    linestyle="-",
+                    zorder=5,
+                )
+            )
+
+            ax.set_xticks(range(len(weight_decays)))
+            ax.set_yticks(range(len(learning_rates)))
+            if row_index == len(comparators) - 1:
+                ax.set_xticklabels([f"{float(value):.2f}" for value in weight_decays], fontsize=6.0)
+            else:
+                ax.set_xticklabels([])
+            if column_index == 0:
+                ax.set_yticklabels([f"{float(value) * 1e4:g}" for value in learning_rates], fontsize=6.0)
+                ax.set_ylabel(control_label, fontsize=6.8, labelpad=6.0, fontweight="bold")
+            else:
+                ax.set_yticklabels([])
+            if row_index == 0:
+                ax.set_title(dataset_label, fontsize=7.4, pad=4.0, fontweight="bold")
+
+            ax.set_xticks(np.arange(-0.5, len(weight_decays), 1.0), minor=True)
+            ax.set_yticks(np.arange(-0.5, len(learning_rates), 1.0), minor=True)
+            ax.grid(which="minor", color="white", linewidth=0.85)
+            ax.tick_params(which="major", length=0, pad=1.5)
+            ax.tick_params(which="minor", bottom=False, left=False)
+            for spine in ax.spines.values():
+                spine.set_color("#555555")
+                spine.set_linewidth(0.55)
+
+    if image_artist is None:
+        raise RuntimeError("E8 trajectory-dominance figure has no panels")
+    fig.text(0.505, 0.055, "weight decay", ha="center", va="center", fontsize=7.0)
+    fig.text(
+        0.017,
+        0.535,
+        r"learning rate ($\times 10^{-4}$)",
+        ha="center",
+        va="center",
+        rotation=90,
+        fontsize=7.0,
+    )
+    colorbar_axis = fig.add_axes([0.943, 0.19, 0.014, 0.66])
+    colorbar = fig.colorbar(image_artist, cax=colorbar_axis)
+    colorbar.ax.tick_params(labelsize=5.8, length=2.0, width=0.45, pad=1.8)
+    colorbar.outline.set_linewidth(0.5)
+    colorbar.set_label(
+        "minimum paired validation-loss gap\n(control - MatrixPolicy)",
+        fontsize=6.4,
+        labelpad=5.0,
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.04, facecolor="white", transparent=False)
+    plt.close(fig)
+
+
+def _e8_arrival_category(
+    matrixpolicy: tuple[int, float] | None, control: tuple[int, float] | None
+) -> str:
+    if matrixpolicy is None and control is None:
+        return "neither"
+    if matrixpolicy is None:
+        return "control_only"
+    if control is None:
+        return "matrixpolicy_only"
+    if matrixpolicy[0] < control[0]:
+        return "matrixpolicy_earlier"
+    if matrixpolicy[0] > control[0]:
+        return "control_earlier"
+    return "tied"
 
 
 def _e8_sensitivity_rows() -> list[dict[str, object]]:
@@ -1317,45 +1480,56 @@ def _e8_sensitivity_rows() -> list[dict[str, object]]:
         targets = [hard_target, hard_target - 0.10, hard_target - 0.20]
         for target_index, target in enumerate(targets):
             target = round(target, 2)
-            savings_vs_adamw: list[float] = []
-            savings_vs_muon: list[float] = []
-            mp_times: list[float] = []
-            adamw_times: list[float] = []
-            muon_times: list[float] = []
-            wins_adamw = wins_muon = 0
+            comparisons: dict[str, dict[str, object]] = {}
+            for control in ("silu_adamw", "silu_muon"):
+                comparisons[control] = {
+                    "categories": {
+                        "matrixpolicy_earlier": 0,
+                        "tied": 0,
+                        "control_earlier": 0,
+                        "matrixpolicy_only": 0,
+                        "control_only": 0,
+                        "neither": 0,
+                    },
+                    "token_savings": [],
+                }
             for lr in sorted({key[1] for key in records if key[0] == dataset}):
                 for wd in sorted({key[2] for key in records if key[0] == dataset}):
-                    mp_hit = _e8_first_hit(records[(dataset, lr, wd, "rlb_matrixpolicy_original")], target)
-                    adamw_hit = _e8_first_hit(records[(dataset, lr, wd, "silu_adamw")], target)
-                    muon_hit = _e8_first_hit(records[(dataset, lr, wd, "silu_muon")], target)
-                    if mp_hit is None or adamw_hit is None or muon_hit is None:
-                        continue
-                    _mp_step, mp_tokens, mp_minutes = mp_hit
-                    _adamw_step, adamw_tokens, adamw_minutes = adamw_hit
-                    _muon_step, muon_tokens, muon_minutes = muon_hit
-                    savings_vs_adamw.append(100.0 * (adamw_tokens - mp_tokens) / adamw_tokens)
-                    savings_vs_muon.append(100.0 * (muon_tokens - mp_tokens) / muon_tokens)
-                    mp_times.append(mp_minutes)
-                    adamw_times.append(adamw_minutes)
-                    muon_times.append(muon_minutes)
-                    wins_adamw += int(mp_tokens < adamw_tokens)
-                    wins_muon += int(mp_tokens < muon_tokens)
-            if not savings_vs_adamw:
-                raise RuntimeError(f"no paired E8 arrivals for {dataset} at target {target}")
+                    matrixpolicy_hit = _e8_first_hit(
+                        records[(dataset, lr, wd, "rlb_matrixpolicy_original")], target
+                    )
+                    for control in ("silu_adamw", "silu_muon"):
+                        control_hit = _e8_first_hit(records[(dataset, lr, wd, control)], target)
+                        category = _e8_arrival_category(matrixpolicy_hit, control_hit)
+                        categories = comparisons[control]["categories"]
+                        categories[category] += 1  # type: ignore[index]
+                        if matrixpolicy_hit is not None and control_hit is not None:
+                            token_savings = comparisons[control]["token_savings"]
+                            token_savings.append(  # type: ignore[union-attr]
+                                100.0 * (control_hit[1] - matrixpolicy_hit[1]) / control_hit[1]
+                            )
+
+            for control in ("silu_adamw", "silu_muon"):
+                categories = comparisons[control]["categories"]
+                if sum(categories.values()) != 16:  # type: ignore[union-attr]
+                    raise RuntimeError(f"incomplete E8 outcome partition for {dataset} at {target}")
             rows.append({
                 "dataset": label,
                 "show_dataset": target_index == 0,
                 "target": target,
-                "cells": len(savings_vs_adamw),
-                "wins_adamw": wins_adamw,
-                "wins_muon": wins_muon,
-                "savings_vs_adamw": savings_vs_adamw,
-                "savings_vs_muon": savings_vs_muon,
-                "mp_times": mp_times,
-                "adamw_times": adamw_times,
-                "muon_times": muon_times,
+                "comparisons": comparisons,
             })
     return rows
+
+
+def _format_e8_savings(values: list[float]) -> str:
+    if not values:
+        return r"--"
+    array = np.asarray(values, dtype=float)
+    return (
+        f"{float(np.median(array)):.1f} "
+        f"[{float(np.min(array)):.1f},{float(np.max(array)):.1f}]"
+    )
 
 
 def make_e8_sensitivity_target_arrival_table(out_path: Path) -> None:
@@ -1364,34 +1538,44 @@ def make_e8_sensitivity_target_arrival_table(out_path: Path) -> None:
     lines = [
         r"\begin{table}[!t]",
         r"\centering",
-        r"\caption{Single-seed target-arrival sensitivity at the 100M-token budget. Each dataset uses the hard target from the main 100M-token study and two progressively lower targets. Entries are medians over the common learning-rate/weight-decay cells in which all three methods reach the target. The paired-cells column reports common-arrival coverage out of 16.}",
+        r"\caption{Complete-grid target arrival for seed 1337 at 100M tokens. Within each dataset, rows give the main target followed by targets 0.10 and 0.20 lower. Each comparator block partitions all 16 cells. ``Both reach'' lists MatrixPolicy earlier / control earlier / tied, and ``only reaches'' lists MatrixPolicy / control. Token savings are medians [minimum, maximum] of $100(N_c-N_{\mathrm{MP}})/N_c$ over mutual arrivals, where $N$ is first-hit tokens.}",
         r"\label{tab:e8-sensitivity-target-arrival}",
         r"\begingroup",
-        r"\footnotesize",
-        r"\setlength{\tabcolsep}{3.5pt}",
-        r"\renewcommand{\arraystretch}{1.02}",
-        r"\begin{tabular}{@{}lcc@{\hspace{0.8em}}rr@{\hspace{1.1em}}rrr@{}}",
+        r"\scriptsize",
+        r"\setlength{\tabcolsep}{1.9pt}",
+        r"\renewcommand{\arraystretch}{1.05}",
+        r"\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc@{\hspace{0.45em}}cccc@{}}",
         r"\toprule",
-        r"& & & \multicolumn{2}{c}{\shortstack{MatrixPolicy token\\savings (\%)}} & \multicolumn{3}{c}{Time to target (min)} \\",
-        r"\cmidrule(lr){4-5}\cmidrule(lr){6-8}",
-        r"Dataset & \shortstack{Target\\loss} & \shortstack{Paired\\cells} & \shortstack{vs. SiLU\\AdamW} & \shortstack{vs. SiLU\\Muon} & \shortstack{Matrix\\Policy} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} \\",
+        r"& & \multicolumn{4}{c}{Compared with SiLU + AdamW} & \multicolumn{4}{c}{Compared with SiLU + Muon} \\",
+        r"\cmidrule(lr){3-6}\cmidrule(lr){7-10}",
+        r"Dataset & \shortstack{Target\\loss} & \shortstack{Both reach\\MP / control / tie} & \shortstack{Only reaches\\MP / control} & \shortstack{Neither\\reaches} & \shortstack{Token saved (\%)\\median [range]} & \shortstack{Both reach\\MP / control / tie} & \shortstack{Only reaches\\MP / control} & \shortstack{Neither\\reaches} & \shortstack{Token saved (\%)\\median [range]} \\",
         r"\midrule",
     ]
     for row_index, row in enumerate(rows):
         if row_index and row["show_dataset"]:
             lines.append(r"\addlinespace[2pt]")
         dataset_cell = str(row["dataset"]) if row["show_dataset"] else ""
+        comparisons = row["comparisons"]
+        adamw = comparisons["silu_adamw"]
+        muon = comparisons["silu_muon"]
+        adamw_categories = adamw["categories"]
+        muon_categories = muon["categories"]
         lines.append(
-            f"{dataset_cell} & {float(row['target']):.2f} & {int(row['cells'])}/16 & "
-            f"{_fmt_median(row['savings_vs_adamw'])} & "
-            f"{_fmt_median(row['savings_vs_muon'])} & "
-            f"{_fmt_median(row['mp_times'])} & "
-            f"{_fmt_median(row['adamw_times'])} & "
-            f"{_fmt_median(row['muon_times'])} \\\\"
+            f"{dataset_cell} & {float(row['target']):.2f} & "
+            f"{adamw_categories['matrixpolicy_earlier']}/"
+            f"{adamw_categories['control_earlier']}/{adamw_categories['tied']} & "
+            f"{adamw_categories['matrixpolicy_only']}/{adamw_categories['control_only']} & "
+            f"{adamw_categories['neither']} & "
+            f"{_format_e8_savings(adamw['token_savings'])} & "
+            f"{muon_categories['matrixpolicy_earlier']}/"
+            f"{muon_categories['control_earlier']}/{muon_categories['tied']} & "
+            f"{muon_categories['matrixpolicy_only']}/{muon_categories['control_only']} & "
+            f"{muon_categories['neither']} & "
+            f"{_format_e8_savings(muon['token_savings'])} \\\\"
         )
     lines.extend([
         r"\bottomrule",
-        r"\end{tabular}",
+        r"\end{tabular*}",
         r"\endgroup",
         r"\end{table}",
     ])
@@ -1407,6 +1591,7 @@ def main() -> int:
         OUT_DIR / "e2_multimetric_all_datasets.pdf",
         TABLE_DIR / "e1_e2_silu_summary_table.tex",
         TABLE_DIR / "final_validation_broad_optimizer_table.tex",
+        OUT_DIR / "e8_lr_wd_trajectory_dominance.pdf",
         TABLE_DIR / "e8_sensitivity_target_arrival_table.tex",
     ]
     compile_tikz_figure("matrixpolicy_overview.tex", outputs[0])
@@ -1417,7 +1602,8 @@ def main() -> int:
     make_e2_multimetric_all_datasets(outputs[5])
     make_e1_e2_silu_summary_table(outputs[6])
     make_broad_final_validation_table(outputs[7])
-    make_e8_sensitivity_target_arrival_table(outputs[8])
+    make_e8_trajectory_dominance_heatmap(outputs[8])
+    make_e8_sensitivity_target_arrival_table(outputs[9])
     for path in outputs:
         print(path)
     return 0

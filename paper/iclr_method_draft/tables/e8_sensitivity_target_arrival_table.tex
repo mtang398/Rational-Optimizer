@@ -1,37 +1,37 @@
 \begin{table}[!t]
 \centering
-\caption{Single-seed target-arrival sensitivity at the 100M-token budget. Each dataset uses the hard target from the main 100M-token study and two progressively lower targets. Entries are medians over the common learning-rate/weight-decay cells in which all three methods reach the target. The paired-cells column reports common-arrival coverage out of 16.}
+\caption{Complete-grid target arrival for seed 1337 at 100M tokens. Within each dataset, rows give the main target followed by targets 0.10 and 0.20 lower. Each comparator block partitions all 16 cells. ``Both reach'' lists MatrixPolicy earlier / control earlier / tied, and ``only reaches'' lists MatrixPolicy / control. Token savings are medians [minimum, maximum] of $100(N_c-N_{\mathrm{MP}})/N_c$ over mutual arrivals, where $N$ is first-hit tokens.}
 \label{tab:e8-sensitivity-target-arrival}
 \begingroup
-\footnotesize
-\setlength{\tabcolsep}{3.5pt}
-\renewcommand{\arraystretch}{1.02}
-\begin{tabular}{@{}lcc@{\hspace{0.8em}}rr@{\hspace{1.1em}}rrr@{}}
+\scriptsize
+\setlength{\tabcolsep}{1.9pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc@{\hspace{0.45em}}cccc@{}}
 \toprule
-& & & \multicolumn{2}{c}{\shortstack{MatrixPolicy token\\savings (\%)}} & \multicolumn{3}{c}{Time to target (min)} \\
-\cmidrule(lr){4-5}\cmidrule(lr){6-8}
-Dataset & \shortstack{Target\\loss} & \shortstack{Paired\\cells} & \shortstack{vs. SiLU\\AdamW} & \shortstack{vs. SiLU\\Muon} & \shortstack{Matrix\\Policy} & \shortstack{SiLU\\AdamW} & \shortstack{SiLU\\Muon} \\
+& & \multicolumn{4}{c}{Compared with SiLU + AdamW} & \multicolumn{4}{c}{Compared with SiLU + Muon} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-10}
+Dataset & \shortstack{Target\\loss} & \shortstack{Both reach\\MP / control / tie} & \shortstack{Only reaches\\MP / control} & \shortstack{Neither\\reaches} & \shortstack{Token saved (\%)\\median [range]} & \shortstack{Both reach\\MP / control / tie} & \shortstack{Only reaches\\MP / control} & \shortstack{Neither\\reaches} & \shortstack{Token saved (\%)\\median [range]} \\
 \midrule
-DCLM & 4.55 & 8/16 & 14.4 & 19.1 & 11.1 & 11.1 & 13.1 \\
- & 4.45 & 7/16 & 8.8 & 11.4 & 12.0 & 11.4 & 12.7 \\
- & 4.35 & 4/16 & 11.9 & 10.8 & 13.7 & 13.8 & 15.2 \\
+DCLM & 4.55 & 8/0/0 & 4/0 & 4 & 14.4 [7.1,18.4] & 8/0/0 & 4/0 & 4 & 19.1 [10.3,29.5] \\
+ & 4.45 & 8/0/0 & 4/0 & 4 & 16.9 [8.8,26.5] & 7/0/0 & 5/0 & 4 & 11.4 [8.8,40.0] \\
+ & 4.35 & 4/0/0 & 4/0 & 8 & 11.9 [11.6,14.0] & 4/0/0 & 4/0 & 8 & 10.8 [9.5,11.9] \\
 \addlinespace[2pt]
-FineWeb-Edu & 4.40 & 8/16 & 14.4 & 19.1 & 10.8 & 10.8 & 12.7 \\
- & 4.30 & 8/16 & 19.6 & 23.2 & 12.7 & 13.4 & 15.9 \\
- & 4.20 & 4/16 & 14.0 & 9.8 & 13.7 & 13.8 & 14.6 \\
+FineWeb-Edu & 4.40 & 8/0/0 & 4/0 & 4 & 14.4 [10.3,18.4] & 8/0/0 & 4/0 & 4 & 19.1 [10.3,27.9] \\
+ & 4.30 & 8/0/0 & 4/0 & 4 & 19.6 [11.4,26.5] & 8/0/0 & 4/0 & 4 & 23.2 [8.8,37.9] \\
+ & 4.20 & 4/0/0 & 4/0 & 8 & 14.0 [14.0,16.3] & 4/0/0 & 4/0 & 8 & 9.8 [7.5,12.2] \\
 \addlinespace[2pt]
-FineWeb & 4.60 & 8/16 & 16.4 & 19.1 & 10.7 & 11.0 & 12.9 \\
- & 4.50 & 8/16 & 21.4 & 22.0 & 12.8 & 13.8 & 16.3 \\
- & 4.40 & 4/16 & 15.9 & 10.8 & 14.2 & 14.3 & 14.7 \\
+FineWeb & 4.60 & 8/0/0 & 4/0 & 4 & 16.4 [10.3,22.5] & 8/0/0 & 4/0 & 4 & 19.1 [10.3,29.5] \\
+ & 4.50 & 8/0/0 & 4/0 & 4 & 21.4 [11.4,28.8] & 8/0/0 & 4/0 & 4 & 22.0 [8.8,38.3] \\
+ & 4.40 & 4/0/0 & 4/0 & 8 & 15.9 [13.6,15.9] & 4/0/0 & 4/0 & 8 & 10.8 [9.5,11.9] \\
 \addlinespace[2pt]
-Dolma & 4.60 & 8/16 & 18.1 & 22.1 & 11.3 & 11.8 & 14.1 \\
- & 4.50 & 4/16 & 13.5 & 13.5 & 12.5 & 12.3 & 13.3 \\
- & 4.40 & 4/16 & 14.3 & 13.3 & 15.3 & 15.0 & 16.2 \\
+Dolma & 4.60 & 8/0/0 & 4/0 & 4 & 18.1 [10.0,23.3] & 8/0/0 & 4/0 & 4 & 22.1 [12.9,34.0] \\
+ & 4.50 & 8/0/0 & 4/0 & 4 & 22.5 [13.5,32.8] & 4/0/0 & 8/0 & 4 & 13.5 [11.1,13.5] \\
+ & 4.40 & 4/0/0 & 4/0 & 8 & 14.3 [13.3,15.2] & 4/0/0 & 4/0 & 8 & 13.3 [11.4,13.3] \\
 \addlinespace[2pt]
-C4 & 4.60 & 8/16 & 14.8 & 18.8 & 10.4 & 10.6 & 12.3 \\
- & 4.50 & 8/16 & 19.3 & 21.7 & 12.2 & 13.3 & 15.2 \\
- & 4.40 & 4/16 & 14.6 & 10.3 & 13.0 & 13.3 & 13.9 \\
+C4 & 4.60 & 8/0/0 & 4/0 & 4 & 14.8 [10.7,18.9] & 8/0/0 & 4/0 & 4 & 18.8 [10.7,28.6] \\
+ & 4.50 & 8/0/0 & 4/0 & 4 & 19.3 [14.7,25.5] & 8/0/0 & 4/0 & 4 & 21.7 [9.4,34.0] \\
+ & 4.40 & 4/0/0 & 5/0 & 7 & 14.6 [14.6,16.7] & 4/0/0 & 5/0 & 7 & 10.3 [10.3,10.3] \\
 \bottomrule
-\end{tabular}
+\end{tabular*}
 \endgroup
 \end{table}

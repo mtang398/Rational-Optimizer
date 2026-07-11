@@ -883,30 +883,78 @@ while replacing the nonlinear-sublayer optimizer according to the table entry.
 \subsubsection{Learning-Rate and Weight-Decay Sensitivity}
 \label{app:lr-wd-sensitivity}
 
-We also ran a 100M-token, single-seed sensitivity grid for MatrixPolicy and the
-two standard SiLU controls.  The grid crosses learning rates
-$\{1,2,3,5\}\times10^{-4}$ with weight decays $0$, $0.05$, $0.10$, and $0.20$,
-using the same model, corpora, tokenizer, evaluation cadence, and timing source
-as Appendix~\ref{app:training-protocol}.  For each dataset,
-Table~\ref{tab:e8-sensitivity-target-arrival} anchors the analysis at the hard
-100M-token target used in Table~\ref{tab:e1e2-silu-comparison} and includes
-targets $0.10$ and $0.20$ loss units below it.  Each row uses the paired
-learning-rate/weight-decay cells in which all three methods reach that target;
-$n/16$ reports the resulting common-arrival coverage.  Target-arrival minutes
-equal the first-hit step multiplied by the measured run-level mean seconds per
-step.
+We ran a 100M-token, single-seed sensitivity grid for MatrixPolicy and the two
+standard SiLU controls.  The grid crosses learning rates
+$\{1,2,3,5\}\times10^{-4}$ with weight decays $0$, $0.05$, $0.10$, and $0.20$
+on all five corpora, using the model, tokenizer, evaluation cadence, and token
+budget in Appendix~\ref{app:training-protocol}.  Let $d$ index a corpus,
+$\eta$ denote the outer learning rate, $\lambda$ the weight-decay coefficient,
+$h=(\eta,\lambda)$ their matched grid cell, and
+$L_{d,h,a}(s_k)$ be method $a$'s validation loss at
+$s_k\in\mathcal S=\{50,100,\ldots,3050\}$.  Writing $\mathrm{MP}$ for
+MatrixPolicy and $c$ for either SiLU control, define the observed-checkpoint
+margin
+\begin{equation}
+    m_{d,h,c}
+    =
+    \min_{s_k\in\mathcal S}
+    \left[
+        L_{d,h,c}(s_k)-L_{d,h,\mathrm{MP}}(s_k)
+    \right].
+    \label{eq:e8-trajectory-margin}
+\end{equation}
+A positive margin certifies that MatrixPolicy has lower validation loss at
+every observed checkpoint from step 50 onward in that matched cell.
+For a target $\ell$, define its sampled first-hit token count as
+\begin{equation}
+    N_{d,h,a}(\ell)
+    =
+    32{,}768\min\{s_k\in\mathcal S:L_{d,h,a}(s_k)\le\ell\},
+    \label{eq:e8-first-hit-tokens}
+\end{equation}
+with $N_{d,h,a}(\ell)=+\infty$ when the set is empty.  Therefore
+$m_{d,h,c}>0$ implies
+$N_{d,h,\mathrm{MP}}(\ell)\le N_{d,h,c}(\ell)$ whenever the control's first hit
+is finite.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=0.99\textwidth]{figures/e8_lr_wd_trajectory_dominance.pdf}
+    \caption{Paired observed-checkpoint margins over the complete
+    learning-rate/weight-decay grid.  Each tile is
+    $m_{d,h,c}$ from equation~\ref{eq:e8-trajectory-margin} for one dataset,
+    grid cell, and comparator at seed 1337.  Positive values mean that
+    MatrixPolicy has lower validation loss at every observed checkpoint from
+    steps 50 through 3050.  The dark outline marks the fixed main-study
+    setting $(3\times10^{-4},0.10)$; all 160 tiles are positive.}
+    \label{fig:e8-trajectory-dominance}
+\end{figure}
+
+Figure~\ref{fig:e8-trajectory-dominance} gives strict observed-checkpoint
+dominance in all 80 dataset--grid cells against each control.  Every one of the
+4,880 paired checkpoint comparisons per control is positive; the smallest
+observed margin is $0.041$ against SiLU with AdamW and $0.045$ against SiLU with
+Muon.
+
+Table~\ref{tab:e8-sensitivity-target-arrival} makes this target-arrival
+consequence explicit at the main 100M-token targets from
+Table~\ref{tab:e1e2-silu-comparison} and at targets $0.10$ and $0.20$ loss units
+lower.  Each row partitions all 16 cells and reports mutual non-arrivals as a
+separate outcome.
 
 \input{tables/e8_sensitivity_target_arrival_table.tex}
 
-Across all 15 dataset--target rows, MatrixPolicy has positive median token
-savings relative to both SiLU controls.  At the hard main-study targets, the
-median saving is 14.4--18.1\% relative to SiLU with AdamW and 18.8--22.1\%
-relative to SiLU with Muon.  Across the two lower targets, the corresponding
-ranges are 8.8--21.4\% and 9.8--23.2\%, respectively.  MatrixPolicy has lower median
-target-arrival time than SiLU with Muon in all 15 rows and matches or improves
-the SiLU-with-AdamW median time in 12 rows.  The target-arrival advantage therefore
-persists across the moderate learning-rate and weight-decay perturbations that
-reach these lower loss regimes.
+At the main targets, MatrixPolicy arrives earlier in all 40 mutual-arrival
+comparisons per control and is the only method to arrive in 20 additional
+cells; no cell favors a control.  The same ordering holds at both harder target
+levels.  Pooled over mutual arrivals, median token savings at the main,
+$-0.10$, and $-0.20$ target levels are $15.7\%$, $19.3\%$, and $14.3\%$ against
+SiLU with AdamW and $19.9\%$, $13.5\%$, and $10.3\%$ against SiLU with Muon.
+Node assignments were not matched across the sensitivity sweep, so this
+analysis reports token arrivals only.  The primary-study wall-clock comparison
+remains in Table~\ref{tab:e1e2-silu-comparison}.  Together, the checkpoint and
+target analyses show the same convergence advantage at all 16 evaluated
+learning-rate and weight-decay settings for seed 1337.
 \FloatBarrier
 
 \subsection{TODO: Larger-Scale Training Results}

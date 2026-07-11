@@ -13,8 +13,8 @@ method: RLB and MatrixPolicy with defined notation, role-specific matrix signals
 main experiments: completed E1/E2 target-arrival table, one target-arrival map across common loss targets, and representative E1 loss/PPL/train-loss curves
 reserved main-paper slots: larger-scale results and component ablations, with no current claim relying on missing results
 appendix: shared protocol, E1/E2 support curves, E1 target-frontier controls, endpoint sanity table, and mathematical rationale for the activation and optimizer design
-figures: `matrixpolicy_overview.pdf`, `matrixpolicy_signal_flow.pdf`, `target_arrival_evidence_matrix.pdf`, `e1_representative_silu_dynamics.pdf`, plus appendix E1/E2 support figures
-tables: `tables/e1_e2_silu_summary_table.tex`, `tables/e1_target_time_table.tex`
+figures: `matrixpolicy_overview.pdf`, `matrixpolicy_signal_flow.pdf`, `target_arrival_evidence_matrix.pdf`, `e1_representative_silu_dynamics.pdf`, plus appendix E1/E2 support figures and the complete-grid LR/WD observed-checkpoint margin map
+tables: `tables/e1_e2_silu_summary_table.tex`, `tables/e1_target_time_table.tex`, and the exhaustive LR/WD target-arrival ledger
 ```
 
 ## Build
