@@ -103,70 +103,90 @@ pretraining corpora.
 \section{Related Work}
 \label{sec:related}
 
-A Transformer nonlinear sublayer couples a scalar response to learned
-projections that form and recombine latent features.  The original Transformer
-and T5 used prescribed ReLU responses, while GELU and Swish/SiLU supplied
-alternative fixed pointwise functions
-\citep{vaswani2017attention,raffel2020t5,hendrycks2016gelu,
-ramachandran2017swish}.  Gated linear units (GLUs) added a parallel projection
-and multiplicative gate, and SwiGLU adapted this topology to compute-matched
-Transformer sublayers \citep{dauphin2017language,shazeer2020glu}.  Gated
-nonlinear sublayers now appear across PaLM, LLaMA, Llama~3, Qwen2.5,
-DeepSeek-V3, Qwen3, and OLMo~2
-\citep{chowdhery2022palm,touvron2023llama,grattafiori2024llama3,
-qwen2025qwen25,deepseekai2024deepseekv3,yang2025qwen3,olmo2025olmo2}.
-Across these architectures, pretraining learns the projections around a response
-family selected in advance.  Rational responses make that family trainable.
-Rational-network theory supports this function class through efficient
-approximation of smooth functions \citep{boulle2020rational} and expressivity
-separations from broad classes of fixed responses, including gated Transformer
-nonlinearities \citep{tang2026rationalexpressivity}.  End-to-end coefficient
-learning has been demonstrated in Pad\'e Activation Units and in Transformer
-pretraining and fine-tuning \citep{molina2020pade,fang2023transformers}.  Once
-learned between two projections, the response determines the realized feature in
-the output-projection gradient and the local Jacobian in the input-projection
-gradient.  Response learning therefore changes both adjacent matrix gradients,
-as derived in Appendix~\ref{app:matrixpolicy-proxies}.
+Transformer nonlinear sublayers usually enter pretraining with their response
+family already specified.  The original Transformer and T5 prescribe ReLU
+\citep{vaswani2017attention,raffel2020t5},
+whereas GELU and Swish/SiLU provide smooth fixed responses
+\citep{hendrycks2016gelu,ramachandran2017swish}.  GLUs introduce a parallel
+projection and multiplicative gate \citep{dauphin2017language}, and SwiGLU
+adapts this topology to compute-matched Transformer sublayers
+\citep{shazeer2020glu}.  SwiGLU or closely related gated sublayers are used in
+PaLM and LLaMA \citep{chowdhery2022palm,touvron2023llama}, Llama~3 and Qwen2.5
+\citep{grattafiori2024llama3,qwen2025qwen25}, and DeepSeek-V3, Qwen3, and
+OLMo~2 \citep{deepseekai2024deepseekv3,yang2025qwen3,olmo2025olmo2}.
+Pretraining then adapts the projection weights around that choice.
 
-The optimizer then transforms these response-dependent matrix gradients.  Its
-adaptation scope ranges from individual coordinates to full matrices.
-Coordinatewise adaptation underlies Adam and AdamW, while memory-efficient
-variants factor or reorganize adaptive state in Adafactor and CAME
-\citep{kingma2015iclr-adam,loshchilov2019decoupled,shazeer2018adafactor,
-luo2023came}.  At the same local scope, Lion, Schedule-Free methods, and cautious
-optimizers alter update signs, iterate averaging, or gradient-aligned masking
-\citep{chen2023lion,defazio2024road,liang2026cautious}.  Richer parameter
-structure enters through diagonal-curvature estimates in Sophia, block-shared
-adaptive rates in Adam-mini, and low-rank matrix-gradient subspaces in GaLore
-\citep{liu2024sophia,zhang2025adammini,zhao2024galore}.  Full-matrix methods
-extend this scope further.  Shampoo preconditions tensor axes, SOAP applies Adam
-in an evolving Shampoo eigenbasis, and Muon orthogonalizes matrix momentum
-\citep{gupta2018shampoo,vyas2025soap,liu2025muon}.  Across this progression,
-adaptation expands from coordinates to blocks, subspaces, tensor axes, and
-singular directions.  Comparisons across these optimizer families span
-compute-time frontiers
-\citep{shah2025practicalefficiency}, fixed-token and GPU-hour budgets
-\citep{schlotthauer2025budget}, and standardized pretraining scenarios
-\citep{semenov2025benchmarking}.  Optimizer rankings also vary with
-hyperparameter tuning \citep{zhao2025deconstructing,wen2026fantastic} and with
-model or data scale \citep{wen2026fantastic,volkova2026optimizerlaws}.
+Learnable activations move adaptation into the response itself.  Rational
+networks efficiently approximate smooth functions \citep{boulle2020rational}
+and admit expressivity separations from broad classes of fixed responses,
+including gated Transformer nonlinearities
+\citep{tang2026rationalexpressivity}.  Pad\'e Activation Units demonstrate
+end-to-end coefficient learning in deep networks \citep{molina2020pade}, while
+learnable rational activations have also been studied in Transformer pretraining
+and fine-tuning \citep{fang2023transformers}.  For a learned response between
+two projections, its realized values enter the output-projection gradient and
+its local derivative enters the input-projection gradient, as derived in
+Appendix~\ref{app:matrixpolicy-proxies}.  These works establish the response as
+an expressive, trainable component.  The adjacent matrix pair remains governed
+by the base optimizer, leaving the response-conditioned matrix-pair problem
+outside their formulation.
 
-Within this literature, MuonClip is the closest signal-conditioned precedent
-because it uses the maximum attention logit to trigger post-update rescaling of
-query and key matrices \citep{kimiteam2025kimik2}.  Rational activation work
-exposes response-specific local structure because the response feature and
-Jacobian shape the two adjacent nonlinear-sublayer gradients, making
-response-conditioned updates to those paired projections the unresolved
-interface in the work reviewed here.
+Optimizer research approaches the complementary side by enlarging the structure
+recognized by an update.  Adam adapts individual coordinates through moment
+estimates \citep{kingma2015iclr-adam}, and AdamW decouples weight decay from that
+adaptive step \citep{loshchilov2019decoupled}.  Adafactor factors second-moment
+state for matrix parameters \citep{shazeer2018adafactor}, while CAME adds a
+confidence-guided correction to memory-efficient adaptation
+\citep{luo2023came}.  Lion forms sign-based updates from momentum
+\citep{chen2023lion}; Schedule-Free methods incorporate iterate interpolation
+and averaging \citep{defazio2024road}; cautious optimizers retain update
+coordinates aligned with the current gradient \citep{liang2026cautious}.
+Richer parameter structure enters through diagonal curvature in Sophia
+\citep{liu2024sophia}, block-shared adaptive rates in Adam-mini
+\citep{zhang2025adammini}, and low-rank matrix-gradient subspaces in GaLore
+\citep{zhao2024galore}.  Full-matrix methods extend this progression through
+tensor-axis preconditioning in Shampoo \citep{gupta2018shampoo}, Adam-like
+adaptation in a changing Shampoo eigenbasis in SOAP \citep{vyas2025soap}, and
+orthogonalized matrix momentum in Muon \citep{liu2025muon}.  This progression
+enriches update geometry while leaving the input and output roles around a
+learned response implicit.
+
+Richer updates can trade per-step cost against convergence, making the
+comparison protocol consequential.  Muon and AdamW have been compared through
+compute-time frontiers \citep{shah2025practicalefficiency}; AdamW, Lion, and
+Sophia have been studied under fixed-token and GPU-hour budgets
+\citep{schlotthauer2025budget}; broader optimizer families have been evaluated
+under standardized pretraining scenarios \citep{semenov2025benchmarking}.
+Controlled studies further show that conclusions vary with hyperparameter
+tuning \citep{zhao2025deconstructing,wen2026fantastic} and with model or data
+scale \citep{wen2026fantastic,volkova2026optimizerlaws}.  These findings motivate
+matched model and data settings, shared loss targets, and reporting both token
+and wall-clock arrival across multiple budgets.  With the comparison protocol
+fixed, the source of optimizer conditioning becomes the relevant technical
+distinction for the present work.
+
+MuonClip connects an internal model signal to selected matrix updates.  It uses
+the maximum attention logit to trigger post-update rescaling of query and key
+matrices \citep{kimiteam2025kimik2}, linking a module-level statistic to the
+matrices that produce it.  A learned rational response supplies a richer local
+state.  Its realized feature and derivative distinguish the output- and
+input-projection gradient roles, coefficient-gradient activity measures pressure
+on the response parameters, and relative gradient pressure and matrix scale
+describe the balance of the surrounding pair.  These quantities expose three
+coupled control problems in allocating groupwise gradients, shaping transient
+matrix updates, and balancing the pair scale.  Together, prior work on
+learnable responses, structured matrix
+optimization, and module-conditioned updates identifies the
+response-conditioned matrix pair as a distinct design interface.
 
 \section{Method}
 \label{sec:method}
 
-RLB and MatrixPolicy are designed as a single interface.  RLB defines the
-nonlinear sublayer and the detached summaries it exposes; MatrixPolicy consumes
-those summaries to update the two adjacent matrices.  Rational coefficients and
-ordinary Transformer parameters remain on the AdamW path in the evaluated
-configuration.
+RLB and MatrixPolicy instantiate this response-conditioned matrix-pair
+interface.  RLB defines the nonlinear sublayer and the detached summaries it
+exposes; MatrixPolicy consumes those summaries to update the two adjacent
+matrices.  Rational coefficients and ordinary Transformer parameters remain on
+the AdamW path in the evaluated configuration.
 
 Throughout the method we use
 \begin{align}
