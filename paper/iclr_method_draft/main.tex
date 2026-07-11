@@ -103,62 +103,44 @@ pretraining corpora.
 \section{Related Work}
 \label{sec:related}
 
-Transformer nonlinear sublayers couple a scalar response to the projections that
-present and recombine its inputs.  The original Transformer used ReLU, and GELU
-and Swish/SiLU supplied alternative fixed pointwise responses
-\citep{vaswani2017attention,hendrycks2016gelu,ramachandran2017swish}.  Gated
-linear units (GLUs) added a second projection and a multiplicative gate for
-language modeling \citep{dauphin2017language}.  The Swish-gated linear unit
-(SwiGLU) carried this topology into Transformer sublayers, improved
-compute-matched performance \citep{shazeer2020glu}, and was adopted by PaLM and
-LLaMA \citep{chowdhery2022palm,touvron2023llama}.  In each design, the response
-family is chosen before pretraining and the learned projections adapt around it.
+A Transformer nonlinear sublayer is defined by a scalar response and the
+projection topology through which that response acts.  The original Transformer
+used ReLU, while GELU and Swish/SiLU supplied alternative fixed pointwise
+responses \citep{vaswani2017attention,hendrycks2016gelu,ramachandran2017swish}.
+Gated linear units (GLUs) introduced a parallel projection and multiplicative
+gate for language modeling \citep{dauphin2017language}.  The Swish-gated linear
+unit (SwiGLU) adapted this topology to Transformer sublayers and improved
+compute-matched performance \citep{shazeer2020glu}; the same design is used by
+PaLM and LLaMA \citep{chowdhery2022palm,touvron2023llama}.  Across these
+variants, the response family is selected in advance.  Pretraining adapts the
+learned projections around it.
 
-Rational activations make that prescribed response trainable.
-Pad\'e Activation Units learn low-degree rational functions end to end
-\citep{molina2020pade}, and rational neural networks provide
-approximation-efficiency results for smooth-function classes
-\citep{boulle2020rational}.  Rational responses have also been evaluated in
-Transformer pretraining and fine-tuning \citep{fang2023transformers}, while
-recent approximation theory establishes expressivity advantages over a broad
-class of fixed responses, including gated Transformer nonlinearities
-\citep{tang2026rationalexpressivity}.  Placed between two projections, a
-trainable response enters the output-matrix gradient through its realized
-features and the input-matrix gradient through its local Jacobian.  Its evolution
-therefore changes the geometry of both adjacent matrix gradients, as detailed in
+Rational responses couple trainable coefficients to a function class with
+established approximation properties.  Rational-network theory establishes
+efficient approximation of smooth-function classes \citep{boulle2020rational}
+and expressivity advantages over broad classes of fixed responses, including
+gated Transformer nonlinearities \citep{tang2026rationalexpressivity}.  The
+coefficients can be optimized end to end in Pad\'e Activation Units
+\citep{molina2020pade} and in Transformer pretraining and fine-tuning
+\citep{fang2023transformers}.  Once learned between two projections, the response
+determines the realized feature in the output-projection gradient and the local
+Jacobian in the input-projection gradient.  It therefore changes the geometry of
+both adjacent matrix gradients, as derived in
 Appendix~\ref{app:matrixpolicy-proxies}.
 
-The optimizer literature offers several ways to transform those adjacent matrix
-gradients into updates.  Adam and AdamW provide the coordinatewise adaptive
-reference
-\citep{kingma2015iclr-adam,loshchilov2019decoupled}.  Memory-efficient methods
-factor or reorganize adaptive state \citep{shazeer2018adafactor,luo2023came},
-while Lion, Schedule-Free methods, and cautious optimizers modify update signs,
-iterate averaging, or gradient-aligned masking
-\citep{chen2023lion,defazio2024road,liang2026cautious}.  Sophia uses
-diagonal-Hessian preconditioning, GaLore projects gradient matrices into
-low-rank subspaces, and Adam-mini shares adaptive rates within parameter blocks
-\citep{liu2024sophia,zhao2024galore,zhang2025adammini}.  These methods structure
-updates through optimizer history, curvature estimates, and parameter geometry.
-Within this spectrum, non-diagonal preconditioning and orthogonalization act on
-the full matrix update.
-
-That full-matrix geometry is explicit in the tensor-axis preconditioners of
-Shampoo \citep{gupta2018shampoo}, the Adam updates of SOAP in an evolving
-Shampoo eigenbasis \citep{vyas2025soap}, and the orthogonalized matrix momentum
-of Muon \citep{liu2025muon}.  Optimizer rankings depend on protocol, so recent
-studies
-compare fixed token budgets, compute-time frontiers, and standardized pretraining
-scenarios
-\citep{shah2025practicalefficiency,schlotthauer2025budget,semenov2025benchmarking,
-wen2026fantastic} and emphasize fair tuning and model or data scale
-\citep{zhao2025deconstructing,wen2026fantastic,volkova2026optimizerlaws}.
-Rational-activation research and matrix optimization meet inside the nonlinear
-sublayer, where response learning changes the features and Jacobians that shape
-projection gradients.  Matrix optimizers transform those gradients using
-matrix geometry derived from gradient statistics or momentum, leaving open how
-response-derived summaries should govern updates to the paired projections whose
-gradients depend on that response.
+Optimizer methods differ in the scale at which they transform these adjacent
+gradients, from individual coordinates to blocks, subspaces, and full matrices.
+Adam and AdamW adapt individual coordinates through moment estimates
+\citep{kingma2015iclr-adam,loshchilov2019decoupled}.  Sophia adds diagonal
+curvature estimates, Adam-mini shares adaptive rates within parameter blocks,
+and GaLore projects matrix gradients into low-rank subspaces
+\citep{liu2024sophia,zhang2025adammini,zhao2024galore}.  At full-matrix scope,
+Shampoo uses tensor-axis preconditioners \citep{gupta2018shampoo}, SOAP applies
+Adam in an evolving Shampoo eigenbasis \citep{vyas2025soap}, and Muon
+orthogonalizes matrix momentum \citep{liu2025muon}.  Because the learned response
+determines the feature and Jacobian factors before these optimizer
+transformations, conditioning a full-matrix transformation on response-derived
+statistics is the unresolved interface between the two lines of work.
 
 \section{Method}
 \label{sec:method}
