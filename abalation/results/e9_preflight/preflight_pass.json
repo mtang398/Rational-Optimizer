@@ -1,0 +1,57 @@
+{
+  "freeze_sha256": "1e59a37e88f9a35a5d32f8c4399417e0981cddef28c112779584979fb0f86d82",
+  "preflight_manifest_sha256": "8642e1fb1a9f9768e0b7358d6bb77e067119da1eb6552e6ce43177e6421a0145",
+  "rows": [
+    {
+      "arm_id": "A0",
+      "jsonl_sha256": "f35fe10d512b54da3246e597752c2da8ca5b83739bcf5e863f1b93401ddc888f",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a0_silu_adamw"
+    },
+    {
+      "arm_id": "A5",
+      "jsonl_sha256": "6c90f275dc700983b8b794da686672e8c708d820606904be3e87cb8356b29939",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a5_rlb_matrixpolicy_no_role_depth"
+    },
+    {
+      "arm_id": "A1",
+      "jsonl_sha256": "68b6234e92ae4de883e95210ebe27200612770c5d158476b487a0140f2633255",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a1_rlb_adamw"
+    },
+    {
+      "arm_id": "A3",
+      "jsonl_sha256": "a6c5dc5df6a0a9e54274909e96771d669d0e2e20ff62e386d48ff20481f6df22",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a3_rlb_matrixpolicy_full"
+    },
+    {
+      "arm_id": "A4",
+      "jsonl_sha256": "ced3ee094db2cde80cb6712d3c8c8af4b0bf2f4ef22029ae7c65a28e605ab240",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a4_rlb_matrixpolicy_no_group_gate"
+    },
+    {
+      "arm_id": "A8",
+      "jsonl_sha256": "dbe5054ddb1ca133ac9973ad129307405d67169363855eba3f902073fe73205d",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a8_rlb_matrixpolicy_no_pair_rescale"
+    },
+    {
+      "arm_id": "A2",
+      "jsonl_sha256": "b20ded8a69ed3e0ed7faeecf8e6a6e2aaa1bf37d76055473196c38354663f0bb",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a2_rlb_matrixpolicy_static_shell"
+    },
+    {
+      "arm_id": "A6",
+      "jsonl_sha256": "532c75312c88e99cfbcf7cd7642302043de1d67111d37ce6cf2800a8e4cbab4e",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a6_rlb_matrixpolicy_muon_branch_suppressed"
+    },
+    {
+      "arm_id": "A7",
+      "jsonl_sha256": "1097aa044f58a06420ec8fe042a4525b78500cbcc63d35f296081d1340652b1b",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a7_rlb_matrixpolicy_no_role_depth_muon_branch_suppressed"
+    },
+    {
+      "arm_id": "A9",
+      "jsonl_sha256": "2f84d0a7ae8c251af73675e57a8be9702f5e685f3c83ba0cb9dd87e6761cb565",
+      "row_id": "E9_preflight_80step_dclm_m0_2621440_seed2479_a9_rlb_matrixpolicy_no_role_depth_muon_block"
+    }
+  ],
+  "runtime_sha256": "5d7defd4c382dae25e10ca5ea1d7a925ed66670513290d5550377551bad132ed"
+}

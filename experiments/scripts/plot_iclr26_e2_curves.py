@@ -286,7 +286,10 @@ def write_readme(out_dir: Path, curves, uses_global_rational_controls: bool) -> 
         "",
         f"Completed E2 M0/300M datasets: {completed}. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.",
         "",
-        "MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`."
+        "MatrixPolicy curves use the validated live-statistic-corrected "
+        "`rlb_fused_global_rational` rows passed with `--matrixpolicy-manifest`; "
+        "the corrected path synchronizes optimizer-consumed RLB statistics across ranks "
+        "and prevents validation forwards from refreshing the training cache."
         + (
             " Non-MatrixPolicy RLB optimizer controls use the global-rational RLB (`rlb_fused_global_rational`) replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows."
             if uses_global_rational_controls

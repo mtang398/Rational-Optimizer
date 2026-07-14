@@ -32,6 +32,9 @@ OUT_DIR = DRAFT_DIR / "figures"
 FIG_SRC_DIR = DRAFT_DIR / "figures_src"
 TABLE_DIR = DRAFT_DIR / "tables"
 TOKENS_PER_STEP = 32768
+CORRECTION_ROOT = ROOT / "experiments" / "corrections" / "matrixpolicy_live_stats_20260712"
+CORRECTED_MAIN_MANIFEST = CORRECTION_ROOT / "manifests" / "matrixpolicy_live_stats_20260712_main.csv"
+CORRECTED_MAIN_RUN_ROOT = CORRECTION_ROOT / "runs" / "main"
 
 sys.path.insert(0, str(ROOT / "experiments" / "scripts"))
 import plot_iclr26_e1_curves as e1_curves  # noqa: E402
@@ -461,8 +464,8 @@ def load_e1_curves():
     return e1_curves.parse_jsonl_runs(
         ROOT / "experiments" / "manifests" / "iclr26_main_manifest.csv",
         ROOT / "experiments" / "runs" / "iclr26_main" / "E1_m0_100m",
-        matrixpolicy_manifest=ROOT / "experiments" / "manifests" / "iclr26_global_rational_matrixpolicy_manifest.csv",
-        matrixpolicy_run_root=ROOT / "experiments" / "runs" / "iclr26_main" / "E1_rational_only_100m",
+        matrixpolicy_manifest=CORRECTED_MAIN_MANIFEST,
+        matrixpolicy_run_root=CORRECTED_MAIN_RUN_ROOT / "E1_rational_only_100m",
         matrixpolicy_phase="E1_rational_only_100m",
         replacement_manifest=ROOT / "experiments" / "manifests" / "iclr26_global_rational_optimizer_controls_manifest.csv",
         replacement_run_root=ROOT / "experiments" / "runs" / "iclr26_main" / "E1_global_rational_optimizers_100m",
@@ -474,8 +477,8 @@ def load_e2_curves():
     return e2_curves.parse_jsonl_runs(
         ROOT / "experiments" / "manifests" / "iclr26_main_manifest.csv",
         ROOT / "experiments" / "runs" / "iclr26_main" / "E2_m0_300m",
-        matrixpolicy_manifest=ROOT / "experiments" / "manifests" / "iclr26_global_rational_matrixpolicy_manifest.csv",
-        matrixpolicy_run_root=ROOT / "experiments" / "runs" / "iclr26_main" / "E2_rational_only_300m",
+        matrixpolicy_manifest=CORRECTED_MAIN_MANIFEST,
+        matrixpolicy_run_root=CORRECTED_MAIN_RUN_ROOT / "E2_rational_only_300m",
         matrixpolicy_phase="E2_rational_only_300m",
         replacement_manifest=ROOT / "experiments" / "manifests" / "iclr26_global_rational_optimizer_controls_manifest.csv",
         replacement_run_root=ROOT / "experiments" / "runs" / "iclr26_main" / "E2_global_rational_optimizers_300m",
@@ -1140,7 +1143,7 @@ def make_e1_e2_silu_summary_table(out_path: Path) -> None:
     lines = [
         r"\begin{table}[H]",
         r"\centering",
-        r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 Transformer. RLB denotes the same rational latent-basis activation without MatrixPolicy. At the hardest validation-loss target reached by every listed method in all three seeds, MatrixPolicy is always fastest; each token-saving column reports MatrixPolicy's savings relative to the method named below it.}",
+        r"\caption{Target-arrival efficiency for the fixed 12-layer, width-768 Transformer. RLB denotes the same rational latent-basis activation without MatrixPolicy. At the hardest validation-loss target reached by every listed method in all three seeds, each token-saving column reports MatrixPolicy's savings relative to the named method, followed by observed time to target for every method.}",
         r"\label{tab:e1e2-silu-comparison}",
         r"\begingroup",
         r"\footnotesize",

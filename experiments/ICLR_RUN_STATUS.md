@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-06-29 14:50:00 EDT
+Updated: 2026-07-14 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -29,59 +29,44 @@ Raw row outputs are JSONL files under `experiments/runs/iclr26_main/<phase>/<dat
 
 Rejected MatrixPolicy proposal artifacts were pruned from the active repo surface and raw run tree on 2026-06-23. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; this status file keeps the completed implementation-speed records plus the current RLB MatrixPolicy and non-MatrixPolicy RLB-control paper-facing summaries.
 
-## RLB MatrixPolicy Replacement Status
-Completed: 2026-06-25. Decision: adopt the corrected RLB MatrixPolicy rows as the paper-facing MatrixPolicy source for completed E1/E2 summaries.
+## MatrixPolicy Live-Statistic Correction Status
+Completed: 2026-07-14. Decision: use the validated correction campaign as the paper-facing MatrixPolicy source for completed E1/E2 summaries.
 
-Purpose: test whether MatrixPolicy can retain its result with the grouped P5/Q4 rational alone. This run keeps the RLB single-branch MLP wrapper, group RMS normalization, trainable grouped SiLU-fitted P5/Q4 rational, telemetry, gauge/stat hooks, and original `rational_matrix_policy_onpolicy` optimizer settings.
-
-Correction note: the 2026-06-24 15:36 queue used `rlb_fused_rational_only`, which set `centers=()` but still constructed `coeff_logits` as a zero-sized `Parameter`. That means a coefficient parameter group still existed structurally, and the MatrixPolicy activity path could consume empty coefficient statistics. Jobs `830651`-`830681` completed under that flawed definition, jobs `830683` and `830685` were cancelled while active, and jobs `830688`-`830717` were cancelled before starting. Those JSONLs are obsolete and must not be used for the ablation or paper-facing replacement.
+The correction preserves the grouped P5/Q4 `rlb_fused_global_rational` activation and original `rational_matrix_policy_onpolicy` recipe. It globally reduces the optimizer-consumed response/derivative sufficient statistics across ranks and prevents validation forwards from refreshing the training cache. The earlier global-rational MatrixPolicy rows are superseded; the non-MatrixPolicy global-rational controls remain valid because they do not consume these live gains.
 
 | Field | Value |
 | --- | --- |
-| Source manifest | `experiments/manifests/iclr26_rational_only_ablation_manifest.csv` |
-| Paper-facing overlay manifest | `experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv` |
+| Campaign | `experiments/corrections/matrixpolicy_live_stats_20260712/` |
+| Paper-facing manifest | `experiments/corrections/matrixpolicy_live_stats_20260712/manifests/matrixpolicy_live_stats_20260712_main.csv` |
+| Validation record | `experiments/corrections/matrixpolicy_live_stats_20260712/validation/main.json` |
 | Scope | E1 + E2, five datasets x three seeds per phase |
-| Completed rows | `30/30` corrected rows complete |
-| Correct activation alias | `rlb_fused_global_rational` |
-| Implementation | `RationalFusedGlobalA5_4` in `activation/rational_opt/rational.py` |
-| Definition | grouped rational P/Q only; trainable rational parameters are `numerator` and `denominator` |
-| Trainable rational parameters | `numerator`, `denominator` only |
-| Jobs | even chain `835104`, `835105`, `835106`, `835107`, `835108`, `835109`, `835110`, `835111`, `835112`, `835121`, `835122`, `835124`, `835125`, `835126`, `835127`; odd chain `835128`, `835129`, `835130`, `835131`, `835132`, `835133`, `835134`, `835135`, `835137`, `835138`, `835139`, `835140`, `835141`, `835142`, `835143` |
-| Slurm completion | all corrected jobs completed `0:0`; jobs `835106` and `835132` had `Restarts=1` but the final JSONL summaries are complete |
-| Constraint | `--constraint=nvlink`; launcher guards RLB timing rows for NVLink |
+| Completed rows | `30/30` passed validation |
+| Slurm restarts | `0/30` rows restarted |
+| Activation | `rlb_fused_global_rational`; trainable rational parameters are `numerator` and `denominator` |
+| Optimizer | original `rational_matrix_policy_onpolicy` |
+| E8/E9 | corrected campaigns pending their stage validators; current paper E8 is marked provisional |
 
-Verification:
-
-| Check | Result |
-| --- | --- |
-| Direct activation parameters | `['denominator', 'numerator']` |
-| `coeff_logits` attribute | absent |
-| Activation stats | `abs_moments`, `raw_moments`, `num_gram`, `den_gram`, `output_rms`, `derivative_rms`; no `coeff_logits` stats |
-| Training constructor | `RationalLocalBasisFFN(..., 'rlb_fused_global_rational', ...)` constructs `RationalFusedGlobalA5_4` |
-| MatrixPolicy group collector | returns `coeff_logits=None` |
-| Completed JSONL legacy basis telemetry | legacy basis fields are `null`/absent for corrected rows |
-
-E1 final validation-loss anchor with the RLB MatrixPolicy overlay:
+E1 final validation-loss anchor with the corrected MatrixPolicy overlay:
 
 | Dataset | MatrixPolicy final val loss | next best current method | gap |
 | --- | ---: | ---: | ---: |
-| DCLM | 4.253781 +/- 0.006306 | rlb_lion 4.294575 +/- 0.008320 | 0.040794 |
-| FineWeb-Edu | 4.087294 +/- 0.010192 | rlb_lion 4.136091 +/- 0.008299 | 0.048798 |
-| FineWeb | 4.316243 +/- 0.012550 | rlb_lion 4.362572 +/- 0.011154 | 0.046329 |
-| Dolma-sample | 4.325333 +/- 0.005305 | rlb_lion 4.362160 +/- 0.006582 | 0.036827 |
-| C4 | 4.283714 +/- 0.019682 | rlb_lion 4.327134 +/- 0.015977 | 0.043419 |
+| DCLM | 4.252404 +/- 0.005837 | rlb_lion 4.294575 +/- 0.008320 | 0.042171 |
+| FineWeb-Edu | 4.085588 +/- 0.009984 | rlb_lion 4.136091 +/- 0.008299 | 0.050503 |
+| FineWeb | 4.317483 +/- 0.013287 | rlb_lion 4.362572 +/- 0.011154 | 0.045089 |
+| Dolma-sample | 4.323237 +/- 0.003625 | rlb_lion 4.362160 +/- 0.006582 | 0.038923 |
+| C4 | 4.286474 +/- 0.020047 | rlb_lion 4.327134 +/- 0.015977 | 0.040660 |
 
-E2 final validation-loss anchor with the RLB MatrixPolicy overlay:
+E2 final validation-loss anchor with the corrected MatrixPolicy overlay:
 
 | Dataset | MatrixPolicy final val loss | next best aggregate method | gap |
 | --- | ---: | ---: | ---: |
-| DCLM | 3.951824 +/- 0.028163 | rlb_lion 3.988719 +/- 0.029477 | 0.036895 |
-| FineWeb-Edu | 3.701517 +/- 0.021218 | rlb_muon 3.737328 +/- 0.018698 | 0.035811 |
-| FineWeb | 3.962324 +/- 0.008082 | rlb_lion 3.996049 +/- 0.010524 | 0.033726 |
-| Dolma-sample | 3.806155 +/- 0.007278 | rlb_lion 3.841206 +/- 0.008478 | 0.035051 |
-| C4 | 3.877713 +/- 0.014444 | rlb_lion 3.913219 +/- 0.013928 | 0.035505 |
+| DCLM | 3.951745 +/- 0.029409 | rlb_lion 3.988719 +/- 0.029477 | 0.036973 |
+| FineWeb-Edu | 3.702151 +/- 0.020357 | rlb_muon 3.737328 +/- 0.018698 | 0.035177 |
+| FineWeb | 3.962942 +/- 0.008025 | rlb_lion 3.996049 +/- 0.010524 | 0.033107 |
+| Dolma-sample | 3.805292 +/- 0.007943 | rlb_lion 3.841206 +/- 0.008478 | 0.035914 |
+| C4 | 3.878322 +/- 0.015039 | rlb_lion 3.913219 +/- 0.013928 | 0.034897 |
 
-Interpretation: the corrected RLB rows are the intended RLB control, not plain SiLU and not removal of the RLB wrapper. They replace the MatrixPolicy row in E1/E2 generated summaries; the completed RLB optimizer-control sweep now replaces every non-MatrixPolicy RLB optimizer-control row as well.
+Interpretation: the 30 corrected rows replace MatrixPolicy in every E1/E2 generated summary, table, and curve. The completed non-MatrixPolicy RLB sweep remains the source for matched RLB controls.
 
 ## MatrixPolicy Timing Node Guard and Repair Queue
 Queued: 2026-06-25 15:54 EDT. Policy correction: MatrixPolicy timing repair is node-based, not a fixed seconds-per-step exclusion rule. The launcher denylist rejects `sablab-gpu-12` before archiving/writing timing JSONL for timing-critical rows. The training harness still supports an optional `--timing-guard-max-seconds-per-step`, but launcher default is now `0.0` and the active repair queue disables that cutoff.
@@ -297,14 +282,16 @@ Clean rows summarized: `450`.
 
 ## Runtime Accounting
 
-Generated: 2026-06-29.
+Generated: 2026-07-14.
 
 This package summarizes clean per optimizer/activation-combo runtime from JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, and pre-restart partial attempts. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Early-stop rows are retained and counted explicitly rather than excluded.
+
+The MatrixPolicy rows in this regeneration use the validated live-statistic-corrected `rlb_fused_global_rational` campaign. All 30 corrected main rows completed with `slurm_restart_count=0`. Node assignments were not matched across methods or corrected rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
 
 Included in tracked runtime aggregates:
 
 - E1 M0/100M clean rows: `225` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `8/8`. Row `89` is replaced by the completed MatrixPolicy replacement rerun when available.
-- Non-MatrixPolicy RLB optimizer controls overlaid from RLB runs: `210` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `30`.
+- Non-MatrixPolicy RLB optimizer controls overlaid from global-rational RLB (`rlb_fused_global_rational`) runs: `210` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `30`.
 - E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb completed cell: `45` rows, one dataset x three seeds x 15 methods.
@@ -313,7 +300,7 @@ Included in tracked runtime aggregates:
 
 Excluded from tracked runtime aggregates:
 
-- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `8` rows skipped from the main manifest runtime source. They are overlaid from the completed clean repair manifest `manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`.
+- Original E1 FineWeb-Edu seed `2027` rows `81-88`: `8` rows skipped from the main manifest runtime source. They are overlaid from the completed clean repair manifest `experiments/manifests/iclr26_e1_fineweb_edu_seed2027_runtime_repair_manifest.csv`.
 - Rows `465+` are outside E2.
 
 No raw Slurm-elapsed E1 aggregate is tracked in this package. Runtime aggregates use completed JSONL `summary.total_seconds` only for clean row attempts; original restart-contaminated rows `81-88` are not assigned inferred row times.
@@ -322,13 +309,13 @@ Clean rows summarized: `450`.
 
 ## Current E1 M0/100M Results
 
-E1 M0/100M is complete across DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 with three seeds per dataset, 15 matched methods per dataset/seed cell, dense validation every 50 steps, and final eval at step `3050`. MatrixPolicy rows use `manifests/iclr26_global_rational_matrixpolicy_manifest.csv` and raw JSONL from `runs/iclr26_main/E1_rational_only_100m/`; non-MatrixPolicy RLB optimizer controls use `manifests/iclr26_global_rational_optimizer_controls_manifest.csv` and raw JSONL from `runs/iclr26_main/E1_global_rational_optimizers_100m/`; SiLU controls use the clean main-manifest rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable.
+E1 is complete across DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 with three seeds, 15 matched methods per dataset/seed cell, validation every 50 steps, and final evaluation at step `3050`. MatrixPolicy rows use the validated live-statistic correction manifest `corrections/matrixpolicy_live_stats_20260712/manifests/matrixpolicy_live_stats_20260712_main.csv`; non-MatrixPolicy RLB controls use `manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the completed main-manifest rows. All 15 corrected MatrixPolicy rows completed without restart.
 
 ### E1 Runtime Table
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 15 | 0 | 24.5 min | 2.2 min | 22.4 min-27.8 min | 0.4563 | 72344.1 |
+| RLB+MatrixPolicy | 15 | 0 | 24.9 min | 2.4 min | 22.9 min-28.9 min | 0.4670 | 70774.8 |
 | SiLU+AdamW | 15 | 0 | 27.6 min | 5.3 min | 18.2 min-33.7 min | 0.5248 | 65212.8 |
 | RLB+AdamW | 15 | 0 | 23.7 min | 1.6 min | 21.1 min-25.7 min | 0.4395 | 74907.4 |
 | SiLU+Muon | 15 | 0 | 29.4 min | 5.4 min | 20.1 min-36.3 min | 0.5604 | 60754.1 |
@@ -350,7 +337,7 @@ Generated from completed E1 M0/100M JSONL eval records. All rows still trained t
 
 Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 steps, or `1.64M` tokens per readout interval.
 
-`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the RLB rows.
+MatrixPolicy values use the validated live-statistic-corrected `rlb_fused_global_rational` rows when `--matrixpolicy-manifest` is supplied. The corrected path synchronizes optimizer-consumed RLB statistics across ranks and prevents validation forwards from refreshing the training cache. `Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational RLB (`rlb_fused_global_rational`) rows.
 
 #### DCLM
 
@@ -359,7 +346,7 @@ Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 st
 | 4.90 | 30.0M | 30.0M -> 31.1M (3/3) | 1.1M | 3.5% | 30.0M -> 36.0M (3/3) | 6.0M | 16.7% |
 | 4.70 | 39.9M | 39.9M -> 41.0M (3/3) | 1.1M | 2.7% | 39.9M -> 48.6M (3/3) | 8.7M | 18.0% |
 | 4.55 | 50.2M | 50.2M -> 51.9M (3/3) | 1.6M | 3.2% | 50.2M -> 63.4M (3/3) | 13.1M | 20.7% |
-| 4.45 | 60.1M | 60.1M -> 62.8M (3/3) | 2.7M | 4.3% | 60.1M -> 82.5M (3/3) | 22.4M | 27.2% |
+| 4.45 | 59.5M | 59.5M -> 62.8M (3/3) | 3.3M | 5.2% | 59.5M -> 82.5M (3/3) | 22.9M | 27.8% |
 | 4.35 | 73.2M | 73.2M -> 79.7M (3/3) | 6.6M | 8.2% | not reached (0/3) | not reached | n/a |
 | 4.30 | 83.6M | 82.7M -> 95.0M (2/3) | 12.3M | 12.9% | not reached (0/3) | not reached | n/a |
 
@@ -370,20 +357,20 @@ Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 st
 | 4.80 | 30.0M | 30.0M -> 31.1M (3/3) | 1.1M | 3.5% | 30.0M -> 34.4M (3/3) | 4.4M | 12.7% |
 | 4.60 | 38.2M | 38.2M -> 39.3M (3/3) | 1.1M | 2.8% | 38.2M -> 45.3M (3/3) | 7.1M | 15.7% |
 | 4.40 | 49.7M | 49.7M -> 51.9M (3/3) | 2.2M | 4.2% | 49.7M -> 61.7M (3/3) | 12.0M | 19.5% |
-| 4.30 | 59.5M | 59.5M -> 62.3M (3/3) | 2.7M | 4.4% | 59.5M -> 78.1M (3/3) | 18.6M | 23.8% |
+| 4.30 | 58.4M | 58.4M -> 62.3M (3/3) | 3.8M | 6.1% | 58.4M -> 78.1M (3/3) | 19.7M | 25.2% |
 | 4.20 | 71.5M | 71.5M -> 78.1M (3/3) | 6.6M | 8.4% | not reached (0/3) | not reached | n/a |
-| 4.10 | 95.0M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+| 4.10 | 94.5M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
 
 #### FineWeb
 
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
 | 5.00 | 30.6M | 30.6M -> 31.7M (3/3) | 1.1M | 3.4% | 30.6M -> 35.0M (3/3) | 4.4M | 12.5% |
-| 4.80 | 38.8M | 38.8M -> 39.9M (3/3) | 1.1M | 2.7% | 38.8M -> 47.0M (3/3) | 8.2M | 17.4% |
-| 4.60 | 51.9M | 51.9M -> 54.1M (3/3) | 2.2M | 4.0% | 51.9M -> 67.2M (3/3) | 15.3M | 22.8% |
-| 4.50 | 62.3M | 62.3M -> 65.5M (3/3) | 3.3M | 5.0% | 62.3M -> 89.0M (3/3) | 26.8M | 30.1% |
+| 4.80 | 39.3M | 39.3M -> 39.9M (3/3) | 0.5M | 1.4% | 39.3M -> 47.0M (3/3) | 7.6M | 16.3% |
+| 4.60 | 52.4M | 52.4M -> 54.1M (3/3) | 1.6M | 3.0% | 52.4M -> 67.2M (3/3) | 14.7M | 22.0% |
+| 4.50 | 62.8M | 62.8M -> 65.5M (3/3) | 2.7M | 4.2% | 62.8M -> 89.0M (3/3) | 26.2M | 29.4% |
 | 4.40 | 76.5M | 76.5M -> 84.7M (3/3) | 8.2M | 9.7% | not reached (0/3) | not reached | n/a |
-| 4.35 | 87.4M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+| 4.35 | 87.9M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
 
 #### Dolma-sample
 
@@ -394,7 +381,7 @@ Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 st
 | 4.60 | 54.1M | 54.1M -> 54.6M (3/3) | 0.5M | 1.0% | 54.1M -> 69.4M (3/3) | 15.3M | 22.0% |
 | 4.50 | 63.9M | 63.9M -> 66.1M (3/3) | 2.2M | 3.3% | 63.9M -> 92.8M (3/3) | 28.9M | 31.2% |
 | 4.40 | 78.1M | 78.1M -> 85.2M (3/3) | 7.1M | 8.3% | not reached (0/3) | not reached | n/a |
-| 4.35 | 90.7M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+| 4.35 | 89.6M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
 
 #### C4
 
@@ -404,8 +391,8 @@ Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 st
 | 4.80 | 37.7M | 37.7M -> 38.8M (3/3) | 1.1M | 2.8% | 37.7M -> 45.3M (3/3) | 7.6M | 16.9% |
 | 4.60 | 50.2M | 50.2M -> 50.8M (3/3) | 0.5M | 1.1% | 50.2M -> 63.4M (3/3) | 13.1M | 20.7% |
 | 4.50 | 59.0M | 59.0M -> 60.6M (3/3) | 1.6M | 2.7% | 59.0M -> 80.3M (3/3) | 21.3M | 26.5% |
-| 4.40 | 71.0M | 71.0M -> 76.5M (3/3) | 5.5M | 7.1% | not reached (0/3) | not reached | n/a |
-| 4.30 | 94.5M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+| 4.40 | 71.5M | 71.5M -> 76.5M (3/3) | 4.9M | 6.4% | not reached (0/3) | not reached | n/a |
+| 4.30 | not reached | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
 
 #### Files
 
@@ -416,13 +403,13 @@ Each row uses `32768` global tokens/step and the native E1 eval cadence of 50 st
 
 Completed E1 M0/100M datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. Figures use every native JSONL log point from step 500 through 3050. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
-MatrixPolicy curves and tables use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the `rlb_fused_global_rational` replacement rows passed with `--replacement-manifest`; SiLU controls use the clean main E1 rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable.
+MatrixPolicy curves and tables use the validated live-statistic-corrected `rlb_fused_global_rational` rows passed with `--matrixpolicy-manifest`; the corrected path synchronizes optimizer-consumed RLB statistics across ranks and prevents validation forwards from refreshing the training cache. Non-MatrixPolicy RLB optimizer controls use the global-rational RLB (`rlb_fused_global_rational`) replacement rows passed with `--replacement-manifest`; SiLU controls use the clean main E1 rows plus the completed FineWeb-Edu seed-2027 runtime repair overlay where applicable.
 
 Final validation-loss overview across completed E1 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 
 | Method | DCLM final | FineWeb-Edu final | FineWeb final | Dolma-sample final | C4 final |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.2538 +/- 0.0063 | 4.0873 +/- 0.0102 | 4.3162 +/- 0.0125 | 4.3253 +/- 0.0053 | 4.2837 +/- 0.0197 |
+| MatrixPolicy | 4.2524 +/- 0.0058 | 4.0856 +/- 0.0100 | 4.3175 +/- 0.0133 | 4.3232 +/- 0.0036 | 4.2865 +/- 0.0200 |
 | RLB+AdamW | 4.4046 +/- 0.0081 | 4.2392 +/- 0.0077 | 4.4717 +/- 0.0138 | 4.4878 +/- 0.0027 | 4.4412 +/- 0.0162 |
 | SiLU+AdamW | 4.4056 +/- 0.0099 | 4.2375 +/- 0.0086 | 4.4758 +/- 0.0097 | 4.4862 +/- 0.0012 | 4.4469 +/- 0.0160 |
 | RLB+Lion | 4.2946 +/- 0.0083 | 4.1361 +/- 0.0083 | 4.3626 +/- 0.0112 | 4.3622 +/- 0.0066 | 4.3271 +/- 0.0160 |
@@ -460,7 +447,7 @@ DCLM validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 500 | 1000 | 1500 | 2000 | 2500 | 3050 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 5.2593 +/- 0.0085 | 4.8263 +/- 0.0130 | 4.5518 +/- 0.0036 | 4.3957 +/- 0.0038 | 4.3043 +/- 0.0048 | 4.2538 +/- 0.0063 |
+| MatrixPolicy | 5.2599 +/- 0.0098 | 4.8260 +/- 0.0135 | 4.5508 +/- 0.0045 | 4.3952 +/- 0.0040 | 4.3031 +/- 0.0041 | 4.2524 +/- 0.0058 |
 | RLB+AdamW | 5.3705 +/- 0.0106 | 4.9358 +/- 0.0053 | 4.6806 +/- 0.0058 | 4.5296 +/- 0.0064 | 4.4476 +/- 0.0064 | 4.4046 +/- 0.0081 |
 | SiLU+AdamW | 5.3838 +/- 0.0115 | 4.9398 +/- 0.0091 | 4.6788 +/- 0.0083 | 4.5306 +/- 0.0101 | 4.4489 +/- 0.0086 | 4.4056 +/- 0.0099 |
 | RLB+Lion | 5.3774 +/- 0.0061 | 4.8512 +/- 0.0015 | 4.5718 +/- 0.0051 | 4.4228 +/- 0.0080 | 4.3395 +/- 0.0082 | 4.2946 +/- 0.0083 |
@@ -498,7 +485,7 @@ FineWeb-Edu validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 500 | 1000 | 1500 | 2000 | 2500 | 3050 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 5.2469 +/- 0.0145 | 4.7145 +/- 0.0126 | 4.4004 +/- 0.0115 | 4.2370 +/- 0.0106 | 4.1395 +/- 0.0095 | 4.0873 +/- 0.0102 |
+| MatrixPolicy | 5.2459 +/- 0.0139 | 4.7094 +/- 0.0141 | 4.3974 +/- 0.0123 | 4.2349 +/- 0.0090 | 4.1376 +/- 0.0096 | 4.0856 +/- 0.0100 |
 | RLB+AdamW | 5.3867 +/- 0.0147 | 4.8258 +/- 0.0074 | 4.5241 +/- 0.0037 | 4.3686 +/- 0.0057 | 4.2815 +/- 0.0069 | 4.2392 +/- 0.0077 |
 | SiLU+AdamW | 5.4084 +/- 0.0172 | 4.8348 +/- 0.0049 | 4.5281 +/- 0.0072 | 4.3683 +/- 0.0072 | 4.2811 +/- 0.0074 | 4.2375 +/- 0.0086 |
 | RLB+Lion | 5.4312 +/- 0.0224 | 4.7354 +/- 0.0090 | 4.4223 +/- 0.0060 | 4.2676 +/- 0.0062 | 4.1801 +/- 0.0080 | 4.1361 +/- 0.0083 |
@@ -536,7 +523,7 @@ FineWeb validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 500 | 1000 | 1500 | 2000 | 2500 | 3050 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 5.4062 +/- 0.0177 | 4.9273 +/- 0.0180 | 4.6290 +/- 0.0158 | 4.4666 +/- 0.0130 | 4.3701 +/- 0.0121 | 4.3162 +/- 0.0125 |
+| MatrixPolicy | 5.4067 +/- 0.0182 | 4.9315 +/- 0.0170 | 4.6319 +/- 0.0163 | 4.4683 +/- 0.0134 | 4.3713 +/- 0.0134 | 4.3175 +/- 0.0133 |
 | RLB+AdamW | 5.5229 +/- 0.0194 | 5.0340 +/- 0.0192 | 4.7520 +/- 0.0154 | 4.5993 +/- 0.0136 | 4.5156 +/- 0.0135 | 4.4717 +/- 0.0138 |
 | SiLU+AdamW | 5.5394 +/- 0.0181 | 5.0366 +/- 0.0139 | 4.7579 +/- 0.0118 | 4.6047 +/- 0.0092 | 4.5202 +/- 0.0087 | 4.4758 +/- 0.0097 |
 | RLB+Lion | 5.5451 +/- 0.0112 | 4.9360 +/- 0.0230 | 4.6439 +/- 0.0131 | 4.4936 +/- 0.0116 | 4.4081 +/- 0.0106 | 4.3626 +/- 0.0112 |
@@ -574,7 +561,7 @@ Dolma-sample validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 500 | 1000 | 1500 | 2000 | 2500 | 3050 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 5.4614 +/- 0.0181 | 4.9674 +/- 0.0135 | 4.6475 +/- 0.0044 | 4.4780 +/- 0.0042 | 4.3787 +/- 0.0042 | 4.3253 +/- 0.0053 |
+| MatrixPolicy | 5.4612 +/- 0.0157 | 4.9639 +/- 0.0121 | 4.6462 +/- 0.0041 | 4.4774 +/- 0.0037 | 4.3770 +/- 0.0026 | 4.3232 +/- 0.0036 |
 | RLB+AdamW | 5.5801 +/- 0.0145 | 5.0818 +/- 0.0030 | 4.7848 +/- 0.0035 | 4.6214 +/- 0.0043 | 4.5332 +/- 0.0023 | 4.4878 +/- 0.0027 |
 | SiLU+AdamW | 5.5934 +/- 0.0195 | 5.0809 +/- 0.0222 | 4.7821 +/- 0.0118 | 4.6197 +/- 0.0050 | 4.5310 +/- 0.0031 | 4.4862 +/- 0.0012 |
 | RLB+Lion | 5.5839 +/- 0.0292 | 4.9760 +/- 0.0198 | 4.6559 +/- 0.0096 | 4.4967 +/- 0.0074 | 4.4075 +/- 0.0076 | 4.3622 +/- 0.0066 |
@@ -612,7 +599,7 @@ C4 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 500 | 1000 | 1500 | 2000 | 2500 | 3050 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 5.4179 +/- 0.0103 | 4.9010 +/- 0.0069 | 4.5966 +/- 0.0107 | 4.4344 +/- 0.0166 | 4.3361 +/- 0.0180 | 4.2837 +/- 0.0197 |
+| MatrixPolicy | 5.4172 +/- 0.0098 | 4.8996 +/- 0.0082 | 4.5964 +/- 0.0137 | 4.4357 +/- 0.0179 | 4.3381 +/- 0.0182 | 4.2865 +/- 0.0200 |
 | RLB+AdamW | 5.5384 +/- 0.0091 | 5.0165 +/- 0.0230 | 4.7234 +/- 0.0176 | 4.5694 +/- 0.0152 | 4.4843 +/- 0.0160 | 4.4412 +/- 0.0162 |
 | SiLU+AdamW | 5.5616 +/- 0.0107 | 5.0231 +/- 0.0277 | 4.7320 +/- 0.0184 | 4.5768 +/- 0.0160 | 4.4906 +/- 0.0152 | 4.4469 +/- 0.0160 |
 | RLB+Lion | 5.5576 +/- 0.0170 | 4.9231 +/- 0.0207 | 4.6120 +/- 0.0159 | 4.4597 +/- 0.0144 | 4.3722 +/- 0.0149 | 4.3271 +/- 0.0160 |
@@ -630,22 +617,22 @@ C4 validation-loss checkpoint table, mean +/- sample std:
 
 ## Current E2 M0/300M Results
 
-E2 M0/300M is complete for DCLM rows `240-284`, FineWeb-Edu rows `285-329`, FineWeb rows `330-374`, Dolma-sample rows `375-419`, and C4 rows `420-464`. Each dataset cell has three seeds and 15 fixed methods per seed; MatrixPolicy rows use `manifests/iclr26_global_rational_matrixpolicy_manifest.csv`, non-MatrixPolicy RLB optimizer controls use `manifests/iclr26_global_rational_optimizer_controls_manifest.csv`, and SiLU controls use the completed main E2 rows. RLB+ADeMaMix stopped early with non-finite loss in every E2 seed and is reported as diverged rather than excluded.
+E2 is complete across the same five datasets with three seeds and 15 fixed methods per seed. MatrixPolicy rows use the validated live-statistic correction manifest `corrections/matrixpolicy_live_stats_20260712/manifests/matrixpolicy_live_stats_20260712_main.csv`; non-MatrixPolicy RLB controls use `manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the completed main-manifest rows. All 15 corrected MatrixPolicy rows completed without restart. RLB+ADeMaMix stopped early with non-finite loss in every seed and remains reported rather than excluded.
 
 ### DCLM
 
-Tracked package: `results/iclr26_e2_dclm_2026_06_10/`.
+Tracked package: `results/iclr26_e2_dclm_2026_06_10`.
 
 Completed: 2026-06-10. Manifest rows `240-284` define the full DCLM E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 DCLM slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use `rlb_fused_global_rational` replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use validated live-statistic-corrected `rlb_fused_global_rational` JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
 | Method | Final val loss mean +/- sample std | Min | Max | Notes |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 3.951824 +/- 0.028163 | 3.921018 | 3.976248 |  |
+| rlb_matrixpolicy_original | 3.951745 +/- 0.029409 | 3.919839 | 3.977767 |  |
 | rlb_lion | 3.988719 +/- 0.029477 | 3.955908 | 4.012966 |  |
 | rlb_muon | 3.991273 +/- 0.026011 | 3.962160 | 4.012225 |  |
 | silu_lion | 3.993430 +/- 0.023038 | 3.968264 | 4.013479 |  |
@@ -661,31 +648,31 @@ MatrixPolicy entries use replacement JSONL rows for the same method and seed; no
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 | silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three DCLM E2 seeds. Mean final val loss is `3.951824 +/- 0.028163`; the next-best aggregate methods are `rlb_lion` at `3.988719 +/- 0.029477`, `rlb_muon` at `3.991273 +/- 0.026011`, `silu_lion` at `3.993430 +/- 0.023038`.
+MatrixPolicy is best on all three DCLM E2 seeds. Mean final val loss is `3.951745 +/- 0.029409`; the next-best aggregate methods are `rlb_lion` at `3.988719 +/- 0.029477`, `rlb_muon` at `3.991273 +/- 0.026011`, `silu_lion` at `3.993430 +/- 0.023038`.
 
 #### Per-Seed MatrixPolicy Gap
 
 | Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
 | ---: | ---: | --- | ---: | ---: |
-| 1337 | 3.958206 | rlb_lion | 3.997283 | 0.039077 |
-| 2027 | 3.976248 | rlb_muon | 4.012225 | 0.035977 |
-| 3407 | 3.921018 | rlb_lion | 3.955908 | 0.034890 |
+| 1337 | 3.957631 | rlb_lion | 3.997283 | 0.039652 |
+| 2027 | 3.977767 | rlb_muon | 4.012225 | 0.034458 |
+| 3407 | 3.919839 | rlb_lion | 3.955908 | 0.036069 |
 
 #### Runtime Summary
 
-`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion.
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Node assignments were not matched across methods or corrected MatrixPolicy rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
 
 | Method | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | rlb_ademamix | 3 | 3 | 5.4 min | 1.9 min | 3.9-7.6 min | 0.4645 | 71263.8 |
 | silu_lion | 3 | 0 | 67.6 min | 12.0 min | 60.5-81.5 min | 0.4265 | 78442.0 |
-| rlb_matrixpolicy_original | 3 | 0 | 67.7 min | 5.3 min | 62.7-73.2 min | 0.4207 | 78223.9 |
 | silu_schedulefree | 3 | 0 | 68.9 min | 11.9 min | 61.6-82.6 min | 0.4343 | 76941.0 |
 | silu_adamw | 3 | 0 | 70.9 min | 10.0 min | 61.1-81.2 min | 0.4478 | 74246.1 |
 | rlb_soap | 3 | 0 | 71.2 min | 6.6 min | 65.2-78.3 min | 0.4402 | 74873.3 |
 | silu_muon | 3 | 0 | 71.4 min | 14.8 min | 59.4-87.9 min | 0.4497 | 74940.2 |
 | rlb_adamw | 3 | 0 | 71.7 min | 7.1 min | 63.5-75.9 min | 0.4434 | 74441.1 |
 | rlb_lion | 3 | 0 | 71.8 min | 7.6 min | 63.0-76.3 min | 0.4437 | 74469.6 |
+| rlb_matrixpolicy_original | 3 | 0 | 72.0 min | 5.3 min | 68.8-78.2 min | 0.4509 | 72952.2 |
 | rlb_schedulefree | 3 | 0 | 72.5 min | 7.3 min | 64.1-77.7 min | 0.4486 | 73597.4 |
 | rlb_muon | 3 | 0 | 72.5 min | 7.3 min | 68.2-81.0 min | 0.4493 | 73427.9 |
 | rlb_came | 3 | 0 | 75.4 min | 7.0 min | 68.9-82.8 min | 0.4660 | 70690.7 |
@@ -724,7 +711,7 @@ This table asks how many training tokens were needed to first reach a validation
 | 4.20 | 131.1M | 131.1M -> 137.1M (3/3) | 6.0M | 4.4% | 131.1M -> 161.1M (3/3) | 30.0M | 18.6% |
 | 4.10 | 174.8M | 174.8M -> 185.7M (3/3) | 10.9M | 5.9% | 174.8M -> 227.7M (3/3) | 53.0M | 23.3% |
 | 4.05 | 201.0M | 201.0M -> 220.1M (3/3) | 19.1M | 8.7% | 181.9M -> 244.1M (1/3) | 62.3M | 25.5% |
-| 4.00 | 238.1M | 227.7M -> 262.1M (2/3) | 34.4M | 13.1% | not reached (0/3) | not reached | n/a |
+| 4.00 | 238.7M | 227.7M -> 262.1M (2/3) | 34.4M | 13.1% | not reached (0/3) | not reached | n/a |
 
 #### Files
 
@@ -736,18 +723,18 @@ This table asks how many training tokens were needed to first reach a validation
 
 ### FineWeb-Edu
 
-Tracked package: `results/iclr26_e2_fineweb_edu_2026_06_12/`.
+Tracked package: `results/iclr26_e2_fineweb_edu_2026_06_12`.
 
 Completed: 2026-06-12. Manifest rows `285-329` define the full FineWeb-Edu E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 FineWeb-Edu slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use `rlb_fused_global_rational` replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use validated live-statistic-corrected `rlb_fused_global_rational` JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
 | Method | Final val loss mean +/- sample std | Min | Max | Notes |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 3.701517 +/- 0.021218 | 3.682155 | 3.724200 |  |
+| rlb_matrixpolicy_original | 3.702151 +/- 0.020357 | 3.684000 | 3.724162 |  |
 | rlb_muon | 3.737328 +/- 0.018698 | 3.717964 | 3.755280 |  |
 | rlb_lion | 3.741625 +/- 0.021374 | 3.723632 | 3.765251 |  |
 | silu_lion | 3.744017 +/- 0.020802 | 3.727149 | 3.767261 |  |
@@ -763,24 +750,23 @@ MatrixPolicy entries use replacement JSONL rows for the same method and seed; no
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 | silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `3.701517 +/- 0.021218`; the next-best aggregate methods are `rlb_muon` at `3.737328 +/- 0.018698`, `rlb_lion` at `3.741625 +/- 0.021374`, `silu_lion` at `3.744017 +/- 0.020802`.
+MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `3.702151 +/- 0.020357`; the next-best aggregate methods are `rlb_muon` at `3.737328 +/- 0.018698`, `rlb_lion` at `3.741625 +/- 0.021374`, `silu_lion` at `3.744017 +/- 0.020802`.
 
 #### Per-Seed MatrixPolicy Gap
 
 | Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
 | ---: | ---: | --- | ---: | ---: |
-| 1337 | 3.682155 | rlb_muon | 3.717964 | 0.035810 |
-| 2027 | 3.724200 | rlb_muon | 3.755280 | 0.031080 |
-| 3407 | 3.698196 | rlb_lion | 3.735992 | 0.037795 |
+| 1337 | 3.684000 | rlb_muon | 3.717964 | 0.033964 |
+| 2027 | 3.724162 | rlb_muon | 3.755280 | 0.031118 |
+| 3407 | 3.698291 | rlb_lion | 3.735992 | 0.037700 |
 
 #### Runtime Summary
 
-`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion.
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Node assignments were not matched across methods or corrected MatrixPolicy rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
 
 | Method | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | rlb_ademamix | 3 | 3 | 4.7 min | 0.4 min | 4.3-5.1 min | 0.4286 | 76584.8 |
-| rlb_matrixpolicy_original | 3 | 0 | 65.6 min | 2.6 min | 62.6-67.1 min | 0.4070 | 80599.0 |
 | rlb_lion | 3 | 0 | 66.1 min | 1.5 min | 65.2-67.8 min | 0.4078 | 80381.3 |
 | rlb_adamw | 3 | 0 | 66.4 min | 1.7 min | 65.3-68.3 min | 0.4097 | 80014.3 |
 | rlb_schedulefree | 3 | 0 | 71.0 min | 3.9 min | 66.6-73.9 min | 0.4401 | 74619.9 |
@@ -791,6 +777,7 @@ MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `
 | rlb_came | 3 | 0 | 75.2 min | 3.6 min | 71.1-77.3 min | 0.4678 | 70158.2 |
 | silu_schedulefree | 3 | 0 | 75.5 min | 11.9 min | 61.8-82.4 min | 0.4781 | 69904.1 |
 | rlb_muon | 3 | 0 | 78.0 min | 2.5 min | 76.6-80.9 min | 0.4852 | 67576.3 |
+| rlb_matrixpolicy_original | 3 | 0 | 79.3 min | 9.2 min | 68.9-86.1 min | 0.4987 | 66388.7 |
 | silu_came | 3 | 0 | 80.2 min | 11.7 min | 66.7-87.0 min | 0.5079 | 65602.6 |
 | silu_soap | 3 | 0 | 86.8 min | 12.0 min | 72.9-93.8 min | 0.5475 | 60685.2 |
 | silu_ademamix | 3 | 0 | 88.5 min | 10.7 min | 76.5-97.0 min | 0.4762 | 70175.4 |
@@ -823,11 +810,11 @@ This table asks how many training tokens were needed to first reach a validation
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
 | 4.20 | 74.8M | 74.8M -> 79.7M (3/3) | 4.9M | 6.2% | 74.8M -> 93.4M (3/3) | 18.6M | 19.9% |
 | 4.10 | 98.9M | 98.9M -> 99.9M (3/3) | 1.1M | 1.1% | 98.9M -> 118.0M (3/3) | 19.1M | 16.2% |
-| 4.00 | 125.6M | 125.6M -> 128.3M (3/3) | 2.7M | 2.1% | 125.6M -> 151.8M (3/3) | 26.2M | 17.3% |
-| 3.90 | 161.7M | 161.7M -> 166.6M (3/3) | 4.9M | 3.0% | 161.7M -> 200.4M (3/3) | 38.8M | 19.3% |
-| 3.85 | 183.0M | 183.0M -> 191.1M (3/3) | 8.2M | 4.3% | 183.0M -> 237.0M (3/3) | 54.1M | 22.8% |
+| 4.00 | 126.7M | 126.7M -> 128.3M (3/3) | 1.6M | 1.3% | 126.7M -> 151.8M (3/3) | 25.1M | 16.5% |
+| 3.90 | 162.2M | 162.2M -> 166.6M (3/3) | 4.4M | 2.6% | 162.2M -> 200.4M (3/3) | 38.2M | 19.1% |
+| 3.85 | 183.5M | 183.5M -> 191.1M (3/3) | 7.6M | 4.0% | 183.5M -> 237.0M (3/3) | 53.5M | 22.6% |
 | 3.80 | 209.7M | 209.7M -> 223.4M (3/3) | 13.7M | 6.1% | 203.2M -> 287.5M (2/3) | 84.4M | 29.3% |
-| 3.75 | 243.6M | 233.5M -> 263.0M (2/3) | 29.5M | 11.2% | not reached (0/3) | not reached | n/a |
+| 3.75 | 244.1M | 234.3M -> 263.0M (2/3) | 28.7M | 10.9% | not reached (0/3) | not reached | n/a |
 
 #### Files
 
@@ -839,18 +826,18 @@ This table asks how many training tokens were needed to first reach a validation
 
 ### FineWeb
 
-Tracked package: `results/iclr26_e2_fineweb_2026_06_15/`.
+Tracked package: `results/iclr26_e2_fineweb_2026_06_15`.
 
 Completed: 2026-06-15. Manifest rows `330-374` define the full FineWeb E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 FineWeb slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use `rlb_fused_global_rational` replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use validated live-statistic-corrected `rlb_fused_global_rational` JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
 | Method | Final val loss mean +/- sample std | Min | Max | Notes |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 3.962324 +/- 0.008082 | 3.956068 | 3.971449 |  |
+| rlb_matrixpolicy_original | 3.962942 +/- 0.008025 | 3.957386 | 3.972143 |  |
 | rlb_lion | 3.996049 +/- 0.010524 | 3.987987 | 4.007955 |  |
 | rlb_muon | 3.999136 +/- 0.011036 | 3.989010 | 4.010900 |  |
 | silu_lion | 4.001499 +/- 0.008463 | 3.995715 | 4.011213 |  |
@@ -866,26 +853,25 @@ MatrixPolicy entries use replacement JSONL rows for the same method and seed; no
 | silu_ademamix | 1361.414062 +/- 0.000000 | 1361.414062 | 1361.414062 | 2 diverged/non-finite seeds |
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three FineWeb E2 seeds. Mean final val loss is `3.962324 +/- 0.008082`; the next-best aggregate methods are `rlb_lion` at `3.996049 +/- 0.010524`, `rlb_muon` at `3.999136 +/- 0.011036`, `silu_lion` at `4.001499 +/- 0.008463`.
+MatrixPolicy is best on all three FineWeb E2 seeds. Mean final val loss is `3.962942 +/- 0.008025`; the next-best aggregate methods are `rlb_lion` at `3.996049 +/- 0.010524`, `rlb_muon` at `3.999136 +/- 0.011036`, `silu_lion` at `4.001499 +/- 0.008463`.
 
 #### Per-Seed MatrixPolicy Gap
 
 | Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
 | ---: | ---: | --- | ---: | ---: |
-| 1337 | 3.971449 | rlb_lion | 4.007955 | 0.036506 |
-| 2027 | 3.956068 | rlb_muon | 3.989010 | 0.032943 |
-| 3407 | 3.959455 | rlb_lion | 3.987987 | 0.028532 |
+| 1337 | 3.972143 | rlb_lion | 4.007955 | 0.035812 |
+| 2027 | 3.957386 | rlb_muon | 3.989010 | 0.031625 |
+| 3407 | 3.959298 | rlb_lion | 3.987987 | 0.028689 |
 
 #### Runtime Summary
 
-`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion.
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Node assignments were not matched across methods or corrected MatrixPolicy rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
 
 | Method | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | rlb_ademamix | 3 | 3 | 4.6 min | 0.4 min | 4.1-4.9 min | 0.4335 | 75932.0 |
 | silu_schedulefree | 3 | 0 | 61.7 min | 0.4 min | 61.3-62.1 min | 0.3875 | 84557.5 |
 | silu_lion | 3 | 0 | 64.6 min | 6.3 min | 61.0-71.9 min | 0.4066 | 81108.9 |
-| rlb_matrixpolicy_original | 3 | 0 | 65.8 min | 2.9 min | 62.5-67.7 min | 0.4078 | 80467.9 |
 | rlb_lion | 3 | 0 | 68.2 min | 5.4 min | 61.9-71.3 min | 0.4219 | 78036.9 |
 | rlb_soap | 3 | 0 | 68.2 min | 5.0 min | 63.7-73.6 min | 0.4223 | 77878.7 |
 | rlb_schedulefree | 3 | 0 | 69.2 min | 5.5 min | 62.8-72.5 min | 0.4285 | 76829.9 |
@@ -894,6 +880,7 @@ MatrixPolicy is best on all three FineWeb E2 seeds. Mean final val loss is `3.96
 | rlb_muon | 3 | 0 | 71.4 min | 4.9 min | 67.0-76.6 min | 0.4430 | 74205.6 |
 | rlb_came | 3 | 0 | 72.0 min | 5.1 min | 67.3-77.5 min | 0.4473 | 73518.9 |
 | silu_soap | 3 | 0 | 72.3 min | 0.6 min | 71.7-72.9 min | 0.4571 | 71696.4 |
+| rlb_matrixpolicy_original | 3 | 0 | 74.5 min | 9.6 min | 69.0-85.7 min | 0.4670 | 70940.7 |
 | silu_adamw | 3 | 0 | 76.4 min | 18.9 min | 60.2-97.1 min | 0.4840 | 70588.2 |
 | silu_came | 3 | 0 | 147.2 min | 139.2 min | 66.6-307.9 min | 0.9476 | 57383.1 |
 | silu_ademamix | 3 | 0 | 150.6 min | 143.3 min | 62.6-316.0 min | 0.9251 | 60189.7 |
@@ -926,10 +913,10 @@ This table asks how many training tokens were needed to first reach a validation
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
 | 4.40 | 84.1M | 84.1M -> 87.4M (3/3) | 3.3M | 3.8% | 84.1M -> 102.1M (3/3) | 18.0M | 17.6% |
 | 4.30 | 110.9M | 110.9M -> 111.4M (3/3) | 0.5M | 0.5% | 110.9M -> 132.2M (3/3) | 21.3M | 16.1% |
-| 4.20 | 142.5M | 142.5M -> 145.8M (3/3) | 3.3M | 2.2% | 142.5M -> 173.1M (3/3) | 30.6M | 17.7% |
-| 4.10 | 185.7M | 185.7M -> 194.4M (3/3) | 8.7M | 4.5% | 185.7M -> 241.4M (3/3) | 55.7M | 23.1% |
-| 4.05 | 213.0M | 213.0M -> 228.8M (3/3) | 15.8M | 6.9% | not reached (0/3) | not reached | n/a |
-| 4.00 | 249.6M | 244.9M -> 276.1M (2/3) | 31.1M | 11.3% | not reached (0/3) | not reached | n/a |
+| 4.20 | 143.6M | 143.6M -> 145.8M (3/3) | 2.2M | 1.5% | 143.6M -> 173.1M (3/3) | 29.5M | 17.0% |
+| 4.10 | 186.2M | 186.2M -> 194.4M (3/3) | 8.2M | 4.2% | 186.2M -> 241.4M (3/3) | 55.2M | 22.9% |
+| 4.05 | 212.4M | 212.4M -> 228.8M (3/3) | 16.4M | 7.2% | not reached (0/3) | not reached | n/a |
+| 4.00 | 250.1M | 245.8M -> 276.1M (2/3) | 30.3M | 11.0% | not reached (0/3) | not reached | n/a |
 
 #### Files
 
@@ -941,18 +928,18 @@ This table asks how many training tokens were needed to first reach a validation
 
 ### Dolma-sample
 
-Tracked package: `results/iclr26_e2_dolma_sample_2026_06_17/`.
+Tracked package: `results/iclr26_e2_dolma_sample_2026_06_17`.
 
 Completed: 2026-06-17. Manifest rows `375-419` define the full Dolma-sample E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 Dolma-sample slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use `rlb_fused_global_rational` replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use validated live-statistic-corrected `rlb_fused_global_rational` JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
 | Method | Final val loss mean +/- sample std | Min | Max | Notes |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 3.806155 +/- 0.007278 | 3.797840 | 3.811364 |  |
+| rlb_matrixpolicy_original | 3.805292 +/- 0.007943 | 3.796139 | 3.810371 |  |
 | rlb_lion | 3.841206 +/- 0.008478 | 3.831467 | 3.846927 |  |
 | silu_lion | 3.847523 +/- 0.009363 | 3.836884 | 3.854513 |  |
 | rlb_muon | 3.847789 +/- 0.004708 | 3.843204 | 3.852611 |  |
@@ -968,19 +955,19 @@ MatrixPolicy entries use replacement JSONL rows for the same method and seed; no
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 | silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three Dolma-sample E2 seeds. Mean final val loss is `3.806155 +/- 0.007278`; the next-best aggregate methods are `rlb_lion` at `3.841206 +/- 0.008478`, `silu_lion` at `3.847523 +/- 0.009363`, `rlb_muon` at `3.847789 +/- 0.004708`.
+MatrixPolicy is best on all three Dolma-sample E2 seeds. Mean final val loss is `3.805292 +/- 0.007943`; the next-best aggregate methods are `rlb_lion` at `3.841206 +/- 0.008478`, `silu_lion` at `3.847523 +/- 0.009363`, `rlb_muon` at `3.847789 +/- 0.004708`.
 
 #### Per-Seed MatrixPolicy Gap
 
 | Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
 | ---: | ---: | --- | ---: | ---: |
-| 1337 | 3.811364 | rlb_lion | 3.846927 | 0.035563 |
-| 2027 | 3.809262 | rlb_lion | 3.845225 | 0.035963 |
-| 3407 | 3.797840 | rlb_lion | 3.831467 | 0.033627 |
+| 1337 | 3.810371 | rlb_lion | 3.846927 | 0.036556 |
+| 2027 | 3.809366 | rlb_lion | 3.845225 | 0.035859 |
+| 3407 | 3.796139 | rlb_lion | 3.831467 | 0.035327 |
 
 #### Runtime Summary
 
-`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion.
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Node assignments were not matched across methods or corrected MatrixPolicy rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
 
 | Method | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -994,8 +981,8 @@ MatrixPolicy is best on all three Dolma-sample E2 seeds. Mean final val loss is 
 | rlb_schedulefree | 3 | 0 | 66.1 min | 5.8 min | 62.7-72.7 min | 0.4085 | 80634.0 |
 | rlb_soap | 3 | 0 | 70.2 min | 5.8 min | 63.5-73.7 min | 0.4351 | 75686.6 |
 | rlb_muon | 3 | 0 | 73.5 min | 5.9 min | 66.7-77.1 min | 0.4562 | 72159.8 |
-| rlb_matrixpolicy_original | 3 | 0 | 73.8 min | 14.9 min | 62.5-90.7 min | 0.4600 | 73238.4 |
 | rlb_came | 3 | 0 | 74.1 min | 5.9 min | 67.3-77.6 min | 0.4608 | 71450.7 |
+| rlb_matrixpolicy_original | 3 | 0 | 76.4 min | 7.1 min | 69.2-83.3 min | 0.4785 | 68920.3 |
 | silu_muon | 3 | 0 | 78.0 min | 21.0 min | 64.2-102.2 min | 0.4937 | 69498.1 |
 | silu_soap | 3 | 0 | 79.6 min | 11.8 min | 71.5-93.2 min | 0.5025 | 66102.2 |
 | silu_ademamix | 3 | 0 | 79.7 min | 12.5 min | 70.9-94.0 min | 0.4279 | 78310.3 |
@@ -1027,12 +1014,12 @@ This table asks how many training tokens were needed to first reach a validation
 | Target loss | MP all-hit mean | Vs fastest non-MP: MP -> comparator (seeds) | Saved | Saved % | Vs SiLU+AdamW: MP -> AdamW (seeds) | Saved | Saved % |
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
 | 4.20 | 93.4M | 93.4M -> 94.5M (3/3) | 1.1M | 1.2% | 93.4M -> 110.9M (3/3) | 17.5M | 15.8% |
-| 4.10 | 122.3M | 122.3M -> 124.5M (3/3) | 2.2M | 1.8% | 122.3M -> 145.3M (3/3) | 22.9M | 15.8% |
-| 4.00 | 157.8M | 157.8M -> 162.7M (3/3) | 4.9M | 3.0% | 157.8M -> 195.0M (3/3) | 37.1M | 19.0% |
-| 3.95 | 180.8M | 180.8M -> 189.5M (3/3) | 8.7M | 4.6% | 180.8M -> 232.7M (3/3) | 51.9M | 22.3% |
-| 3.90 | 207.0M | 207.0M -> 222.8M (3/3) | 15.8M | 7.1% | 201.5M -> 283.4M (1/3) | 81.9M | 28.9% |
-| 3.85 | 242.5M | 242.5M -> 280.2M (3/3) | 37.7M | 13.5% | not reached (0/3) | not reached | n/a |
-| 3.82 | 274.7M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
+| 4.10 | 121.2M | 121.2M -> 124.5M (3/3) | 3.3M | 2.6% | 121.2M -> 145.3M (3/3) | 24.0M | 16.5% |
+| 4.00 | 156.7M | 156.7M -> 162.7M (3/3) | 6.0M | 3.7% | 156.7M -> 195.0M (3/3) | 38.2M | 19.6% |
+| 3.95 | 179.1M | 179.1M -> 189.5M (3/3) | 10.4M | 5.5% | 179.1M -> 232.7M (3/3) | 53.5M | 23.0% |
+| 3.90 | 205.3M | 205.3M -> 222.8M (3/3) | 17.5M | 7.8% | 199.9M -> 283.4M (1/3) | 83.6M | 29.5% |
+| 3.85 | 241.9M | 241.9M -> 280.2M (3/3) | 38.2M | 13.6% | not reached (0/3) | not reached | n/a |
+| 3.82 | 274.2M | not reached (0/3) | not reached | n/a | not reached (0/3) | not reached | n/a |
 
 #### Files
 
@@ -1044,18 +1031,18 @@ This table asks how many training tokens were needed to first reach a validation
 
 ### C4
 
-Tracked package: `results/iclr26_e2_c4_2026_06_19/`.
+Tracked package: `results/iclr26_e2_c4_2026_06_19`.
 
 Completed: 2026-06-19. Manifest rows `420-464` define the full C4 E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 C4 slice from the manifest: `val_skip_tokens=0`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use `rlb_fused_global_rational` replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use validated live-statistic-corrected `rlb_fused_global_rational` JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 #### Final Validation Loss
 
 | Method | Final val loss mean +/- sample std | Min | Max | Notes |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 3.877713 +/- 0.014444 | 3.866602 | 3.894042 |  |
+| rlb_matrixpolicy_original | 3.878322 +/- 0.015039 | 3.868123 | 3.895594 |  |
 | rlb_lion | 3.913219 +/- 0.013928 | 3.900077 | 3.927818 |  |
 | rlb_muon | 3.918867 +/- 0.014875 | 3.908324 | 3.935881 |  |
 | silu_lion | 3.921326 +/- 0.010538 | 3.913904 | 3.933388 |  |
@@ -1071,29 +1058,29 @@ MatrixPolicy entries use replacement JSONL rows for the same method and seed; no
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 | silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three C4 E2 seeds. Mean final val loss is `3.877713 +/- 0.014444`; the next-best aggregate methods are `rlb_lion` at `3.913219 +/- 0.013928`, `rlb_muon` at `3.918867 +/- 0.014875`, `silu_lion` at `3.921326 +/- 0.010538`.
+MatrixPolicy is best on all three C4 E2 seeds. Mean final val loss is `3.878322 +/- 0.015039`; the next-best aggregate methods are `rlb_lion` at `3.913219 +/- 0.013928`, `rlb_muon` at `3.918867 +/- 0.014875`, `silu_lion` at `3.921326 +/- 0.010538`.
 
 #### Per-Seed MatrixPolicy Gap
 
 | Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
 | ---: | ---: | --- | ---: | ---: |
-| 1337 | 3.872497 | rlb_lion | 3.911761 | 0.039264 |
-| 2027 | 3.894042 | rlb_lion | 3.927818 | 0.033777 |
-| 3407 | 3.866602 | rlb_lion | 3.900077 | 0.033475 |
+| 1337 | 3.871248 | rlb_lion | 3.911761 | 0.040512 |
+| 2027 | 3.895594 | rlb_lion | 3.927818 | 0.032225 |
+| 3407 | 3.868123 | rlb_lion | 3.900077 | 0.031954 |
 
 #### Runtime Summary
 
-`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion.
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Node assignments were not matched across methods or corrected MatrixPolicy rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
 
 | Method | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | rlb_ademamix | 3 | 3 | 4.8 min | 0.9 min | 3.9-5.7 min | 0.4339 | 75864.4 |
-| rlb_matrixpolicy_original | 3 | 0 | 64.2 min | 2.9 min | 62.5-67.6 min | 0.3976 | 82517.0 |
 | rlb_schedulefree | 3 | 0 | 66.0 min | 5.4 min | 62.8-72.3 min | 0.4083 | 80613.8 |
 | rlb_lion | 3 | 0 | 68.0 min | 5.4 min | 61.7-71.1 min | 0.4206 | 78275.3 |
 | rlb_adamw | 3 | 0 | 68.4 min | 5.5 min | 62.0-71.7 min | 0.4237 | 77714.4 |
 | silu_lion | 3 | 0 | 72.0 min | 15.9 min | 53.7-81.6 min | 0.4555 | 74962.8 |
 | silu_adamw | 3 | 0 | 73.1 min | 13.1 min | 58.0-81.0 min | 0.4623 | 72773.1 |
+| rlb_matrixpolicy_original | 3 | 0 | 74.1 min | 8.6 min | 68.9-84.0 min | 0.4639 | 71288.7 |
 | rlb_muon | 3 | 0 | 74.5 min | 6.6 min | 66.9-78.5 min | 0.4631 | 71183.7 |
 | silu_schedulefree | 3 | 0 | 76.3 min | 12.4 min | 62.0-84.0 min | 0.4827 | 69317.2 |
 | rlb_soap | 3 | 0 | 78.0 min | 17.2 min | 63.7-97.2 min | 0.4864 | 69648.4 |
@@ -1132,7 +1119,7 @@ This table asks how many training tokens were needed to first reach a validation
 | 4.40 | 68.3M | 68.3M -> 72.6M (3/3) | 4.4M | 6.0% | 68.3M -> 86.8M (3/3) | 18.6M | 21.4% |
 | 4.30 | 91.8M | 91.8M -> 91.8M (3/3) | 0.0M | 0.0% | 91.8M -> 108.1M (3/3) | 16.4M | 15.2% |
 | 4.20 | 117.4M | 117.4M -> 118.5M (3/3) | 1.1M | 0.9% | 117.4M -> 139.8M (3/3) | 22.4M | 16.0% |
-| 4.10 | 150.2M | 150.2M -> 153.5M (3/3) | 3.3M | 2.1% | 150.2M -> 185.1M (3/3) | 35.0M | 18.9% |
+| 4.10 | 149.6M | 149.6M -> 153.5M (3/3) | 3.8M | 2.5% | 149.6M -> 185.1M (3/3) | 35.5M | 19.2% |
 | 4.05 | 170.4M | 170.4M -> 176.9M (3/3) | 6.6M | 3.7% | 170.4M -> 216.3M (3/3) | 45.9M | 21.2% |
 | 4.00 | 195.0M | 195.0M -> 204.8M (3/3) | 9.8M | 4.8% | 195.0M -> 264.9M (3/3) | 69.9M | 26.4% |
 
@@ -1150,7 +1137,7 @@ This table asks how many training tokens were needed to first reach a validation
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 67.7 min | 5.3 min | 62.7 min-73.2 min | 0.4207 | 78223.9 |
+| RLB+MatrixPolicy | 3 | 0 | 72.0 min | 5.3 min | 68.8 min-78.2 min | 0.4509 | 72952.2 |
 | SiLU+AdamW | 3 | 0 | 70.9 min | 10.0 min | 61.1 min-81.2 min | 0.4478 | 74246.1 |
 | RLB+AdamW | 3 | 0 | 71.7 min | 7.1 min | 63.5 min-75.9 min | 0.4434 | 74441.1 |
 | SiLU+Muon | 3 | 0 | 71.4 min | 14.8 min | 59.4 min-87.9 min | 0.4497 | 74940.2 |
@@ -1170,7 +1157,7 @@ This table asks how many training tokens were needed to first reach a validation
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 65.6 min | 2.6 min | 62.6 min-67.1 min | 0.4070 | 80599.0 |
+| RLB+MatrixPolicy | 3 | 0 | 79.3 min | 9.2 min | 68.9 min-86.1 min | 0.4987 | 66388.7 |
 | SiLU+AdamW | 3 | 0 | 75.2 min | 14.0 min | 61.4 min-89.4 min | 0.4754 | 70683.2 |
 | RLB+AdamW | 3 | 0 | 66.4 min | 1.7 min | 65.3 min-68.3 min | 0.4097 | 80014.3 |
 | SiLU+Muon | 3 | 0 | 72.8 min | 12.9 min | 63.8 min-87.6 min | 0.4585 | 72920.4 |
@@ -1190,7 +1177,7 @@ This table asks how many training tokens were needed to first reach a validation
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 65.8 min | 2.9 min | 62.5 min-67.7 min | 0.4078 | 80467.9 |
+| RLB+MatrixPolicy | 3 | 0 | 74.5 min | 9.6 min | 69.0 min-85.7 min | 0.4670 | 70940.7 |
 | SiLU+AdamW | 3 | 0 | 76.4 min | 18.9 min | 60.2 min-97.1 min | 0.4840 | 70588.2 |
 | RLB+AdamW | 3 | 0 | 69.6 min | 3.4 min | 65.6 min-71.8 min | 0.4309 | 76194.5 |
 | SiLU+Muon | 3 | 0 | 69.7 min | 6.2 min | 65.6 min-76.8 min | 0.4385 | 75078.6 |
@@ -1210,7 +1197,7 @@ This table asks how many training tokens were needed to first reach a validation
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 73.8 min | 14.9 min | 62.5 min-90.7 min | 0.4600 | 73238.4 |
+| RLB+MatrixPolicy | 3 | 0 | 76.4 min | 7.1 min | 69.2 min-83.3 min | 0.4785 | 68920.3 |
 | SiLU+AdamW | 3 | 0 | 63.5 min | 6.1 min | 58.4 min-70.3 min | 0.3991 | 82647.8 |
 | RLB+AdamW | 3 | 0 | 65.1 min | 5.8 min | 61.8 min-71.8 min | 0.4025 | 81843.6 |
 | SiLU+Muon | 3 | 0 | 78.0 min | 21.0 min | 64.2 min-102.2 min | 0.4937 | 69498.1 |
@@ -1230,7 +1217,7 @@ This table asks how many training tokens were needed to first reach a validation
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 64.2 min | 2.9 min | 62.5 min-67.6 min | 0.3976 | 82517.0 |
+| RLB+MatrixPolicy | 3 | 0 | 74.1 min | 8.6 min | 68.9 min-84.0 min | 0.4639 | 71288.7 |
 | SiLU+AdamW | 3 | 0 | 73.1 min | 13.1 min | 58.0 min-81.0 min | 0.4623 | 72773.1 |
 | RLB+AdamW | 3 | 0 | 68.4 min | 5.5 min | 62.0 min-71.7 min | 0.4237 | 77714.4 |
 | SiLU+Muon | 3 | 0 | 78.1 min | 16.1 min | 59.6 min-88.2 min | 0.4937 | 68698.4 |
@@ -1250,13 +1237,13 @@ This table asks how many training tokens were needed to first reach a validation
 
 Completed E2 M0/300M datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
-MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the `rlb_fused_global_rational` replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
+MatrixPolicy curves use the validated live-statistic-corrected `rlb_fused_global_rational` rows passed with `--matrixpolicy-manifest`; the corrected path synchronizes optimizer-consumed RLB statistics across ranks and prevents validation forwards from refreshing the training cache. Non-MatrixPolicy RLB optimizer controls use the global-rational RLB (`rlb_fused_global_rational`) replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
 
 Final validation-loss overview across completed E2 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 
 | Method | DCLM final | FineWeb-Edu final | FineWeb final | Dolma-sample final | C4 final |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 3.9518 +/- 0.0282 | 3.7015 +/- 0.0212 | 3.9623 +/- 0.0081 | 3.8062 +/- 0.0073 | 3.8777 +/- 0.0144 |
+| MatrixPolicy | 3.9517 +/- 0.0294 | 3.7022 +/- 0.0204 | 3.9629 +/- 0.0080 | 3.8053 +/- 0.0079 | 3.8783 +/- 0.0150 |
 | RLB+AdamW | 4.0496 +/- 0.0298 | 3.8024 +/- 0.0206 | 4.0601 +/- 0.0110 | 3.9045 +/- 0.0082 | 3.9787 +/- 0.0098 |
 | SiLU+AdamW | 4.0493 +/- 0.0275 | 3.8035 +/- 0.0182 | 4.0612 +/- 0.0101 | 3.9037 +/- 0.0091 | 3.9811 +/- 0.0128 |
 | RLB+Lion | 3.9887 +/- 0.0295 | 3.7416 +/- 0.0214 | 3.9960 +/- 0.0105 | 3.8412 +/- 0.0085 | 3.9132 +/- 0.0139 |
@@ -1294,7 +1281,7 @@ DCLM E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.8531 +/- 0.0471 | 4.4417 +/- 0.0315 | 4.1981 +/- 0.0263 | 4.0556 +/- 0.0289 | 3.9734 +/- 0.0270 | 3.9518 +/- 0.0282 |
+| MatrixPolicy | 4.8552 +/- 0.0472 | 4.4414 +/- 0.0315 | 4.1972 +/- 0.0274 | 4.0550 +/- 0.0289 | 3.9727 +/- 0.0282 | 3.9517 +/- 0.0294 |
 | RLB+AdamW | 4.9860 +/- 0.0322 | 4.5477 +/- 0.0292 | 4.2697 +/- 0.0283 | 4.1394 +/- 0.0315 | 4.0676 +/- 0.0299 | 4.0496 +/- 0.0298 |
 | SiLU+AdamW | 4.9903 +/- 0.0383 | 4.5538 +/- 0.0272 | 4.2691 +/- 0.0242 | 4.1383 +/- 0.0272 | 4.0667 +/- 0.0268 | 4.0493 +/- 0.0275 |
 | RLB+Lion | 4.9103 +/- 0.0427 | 4.4743 +/- 0.0318 | 4.2123 +/- 0.0265 | 4.0805 +/- 0.0294 | 4.0068 +/- 0.0295 | 3.9887 +/- 0.0295 |
@@ -1332,7 +1319,7 @@ FineWeb-Edu E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.7042 +/- 0.0163 | 4.2474 +/- 0.0255 | 3.9828 +/- 0.0204 | 3.8213 +/- 0.0208 | 3.7279 +/- 0.0226 | 3.7015 +/- 0.0212 |
+| MatrixPolicy | 4.7019 +/- 0.0186 | 4.2484 +/- 0.0246 | 3.9826 +/- 0.0212 | 3.8221 +/- 0.0207 | 3.7289 +/- 0.0214 | 3.7022 +/- 0.0204 |
 | RLB+AdamW | 4.8515 +/- 0.0270 | 4.3616 +/- 0.0263 | 4.0497 +/- 0.0226 | 3.9023 +/- 0.0199 | 3.8238 +/- 0.0209 | 3.8024 +/- 0.0206 |
 | SiLU+AdamW | 4.8639 +/- 0.0168 | 4.3679 +/- 0.0200 | 4.0543 +/- 0.0197 | 3.9046 +/- 0.0184 | 3.8255 +/- 0.0186 | 3.8035 +/- 0.0182 |
 | RLB+Lion | 4.7597 +/- 0.0237 | 4.2879 +/- 0.0256 | 3.9920 +/- 0.0233 | 3.8432 +/- 0.0209 | 3.7636 +/- 0.0227 | 3.7416 +/- 0.0214 |
@@ -1370,7 +1357,7 @@ FineWeb E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.9177 +/- 0.0197 | 4.4861 +/- 0.0084 | 4.2306 +/- 0.0113 | 4.0759 +/- 0.0071 | 3.9864 +/- 0.0088 | 3.9623 +/- 0.0081 |
+| MatrixPolicy | 4.9153 +/- 0.0183 | 4.4852 +/- 0.0068 | 4.2313 +/- 0.0101 | 4.0770 +/- 0.0070 | 3.9867 +/- 0.0082 | 3.9629 +/- 0.0080 |
 | RLB+AdamW | 5.0480 +/- 0.0115 | 4.5930 +/- 0.0068 | 4.2973 +/- 0.0115 | 4.1554 +/- 0.0105 | 4.0795 +/- 0.0102 | 4.0601 +/- 0.0110 |
 | SiLU+AdamW | 5.0527 +/- 0.0192 | 4.6013 +/- 0.0095 | 4.2990 +/- 0.0101 | 4.1566 +/- 0.0097 | 4.0805 +/- 0.0098 | 4.0612 +/- 0.0101 |
 | RLB+Lion | 4.9539 +/- 0.0114 | 4.5179 +/- 0.0112 | 4.2366 +/- 0.0122 | 4.0943 +/- 0.0107 | 4.0161 +/- 0.0103 | 3.9960 +/- 0.0105 |
@@ -1408,7 +1395,7 @@ Dolma-sample E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.7148 +/- 0.0094 | 4.3132 +/- 0.0063 | 4.0684 +/- 0.0081 | 3.9171 +/- 0.0089 | 3.8292 +/- 0.0070 | 3.8062 +/- 0.0073 |
+| MatrixPolicy | 4.7148 +/- 0.0082 | 4.3113 +/- 0.0050 | 4.0673 +/- 0.0089 | 3.9147 +/- 0.0091 | 3.8281 +/- 0.0073 | 3.8053 +/- 0.0079 |
 | RLB+AdamW | 4.8475 +/- 0.0112 | 4.4228 +/- 0.0070 | 4.1366 +/- 0.0099 | 3.9964 +/- 0.0087 | 3.9231 +/- 0.0078 | 3.9045 +/- 0.0082 |
 | SiLU+AdamW | 4.8563 +/- 0.0014 | 4.4240 +/- 0.0099 | 4.1350 +/- 0.0106 | 3.9963 +/- 0.0097 | 3.9227 +/- 0.0091 | 3.9037 +/- 0.0091 |
 | RLB+Lion | 4.7624 +/- 0.0186 | 4.3478 +/- 0.0144 | 4.0769 +/- 0.0121 | 3.9361 +/- 0.0106 | 3.8607 +/- 0.0089 | 3.8412 +/- 0.0085 |
@@ -1446,7 +1433,7 @@ C4 E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.8588 +/- 0.0133 | 4.4135 +/- 0.0141 | 4.1521 +/- 0.0120 | 3.9952 +/- 0.0160 | 3.9027 +/- 0.0136 | 3.8777 +/- 0.0144 |
+| MatrixPolicy | 4.8573 +/- 0.0124 | 4.4116 +/- 0.0124 | 4.1525 +/- 0.0112 | 3.9945 +/- 0.0153 | 3.9033 +/- 0.0134 | 3.8783 +/- 0.0150 |
 | RLB+AdamW | 5.0046 +/- 0.0293 | 4.5251 +/- 0.0107 | 4.2188 +/- 0.0097 | 4.0755 +/- 0.0115 | 3.9980 +/- 0.0101 | 3.9787 +/- 0.0098 |
 | SiLU+AdamW | 5.0066 +/- 0.0246 | 4.5330 +/- 0.0144 | 4.2225 +/- 0.0137 | 4.0777 +/- 0.0133 | 4.0005 +/- 0.0114 | 3.9811 +/- 0.0128 |
 | RLB+Lion | 4.8989 +/- 0.0205 | 4.4407 +/- 0.0113 | 4.1554 +/- 0.0124 | 4.0137 +/- 0.0148 | 3.9327 +/- 0.0132 | 3.9132 +/- 0.0139 |

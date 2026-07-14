@@ -29,6 +29,7 @@ class RationalMatrixPolicyOptimizer:
         total_steps: int = 0,
         selector_groups=None,
         muon_strength: float = 0.75,
+        apply_muon_update: bool = True,
         muon_lr_scale: float = 1.00,
         adam_lr_scale: float = 3.0,
         adam_lr_scale_final: float | None = None,
@@ -42,6 +43,9 @@ class RationalMatrixPolicyOptimizer:
         adam_beta2_decay_end: float = 1.1,
         adam_beta2_decay_depth_shift: float = 0.0,
         adam_role_strength: float = 1.20,
+        adam_role_strength_final: float | None = None,
+        adam_role_decay_start: float = 1.1,
+        adam_role_decay_end: float = 1.1,
         adam_stat_strength: float = 0.0,
         adam_pressure_balance: float = 0.0,
         adam_stat_start: float = 0.0,
@@ -83,6 +87,7 @@ class RationalMatrixPolicyOptimizer:
         self.total_steps = int(total_steps)
         self.selector_groups = list(selector_groups) if selector_groups is not None else []
         self.muon_strength = float(muon_strength)
+        self.apply_muon_update = bool(apply_muon_update)
         self.muon_lr_scale = float(muon_lr_scale)
         self.adam_lr_scale = float(adam_lr_scale)
         self.adam_lr_scale_final = None if adam_lr_scale_final is None else float(adam_lr_scale_final)
@@ -98,6 +103,11 @@ class RationalMatrixPolicyOptimizer:
         self.adam_beta2_decay_end = float(adam_beta2_decay_end)
         self.adam_beta2_decay_depth_shift = float(adam_beta2_decay_depth_shift)
         self.adam_role_strength = float(adam_role_strength)
+        self.adam_role_strength_final = (
+            None if adam_role_strength_final is None else float(adam_role_strength_final)
+        )
+        self.adam_role_decay_start = float(adam_role_decay_start)
+        self.adam_role_decay_end = float(adam_role_decay_end)
         self.adam_stat_strength = float(adam_stat_strength)
         self.adam_pressure_balance = float(adam_pressure_balance)
         self.adam_stat_start = float(adam_stat_start)
@@ -226,6 +236,7 @@ class RationalMatrixPolicyOptimizer:
             "adam": self.adam.state_dict(),
             "step_index": self.step_index,
             "use_muon": self.use_muon,
+            "apply_muon_update": self.apply_muon_update,
         }
         if self.muon is not None:
             state["muon"] = self.muon.state_dict()
@@ -236,6 +247,7 @@ class RationalMatrixPolicyOptimizer:
         if self.muon is not None and "muon" in state_dict:
             self.muon.load_state_dict(state_dict["muon"])
         self.step_index = int(state_dict.get("step_index", 0))
+        self.apply_muon_update = bool(state_dict.get("apply_muon_update", self.apply_muon_update))
         self._muon_fraction_cache_step = -1
         self._muon_fraction_cache = {}
 
@@ -318,11 +330,18 @@ class RationalMatrixPolicyOptimizer:
         beta2 = self.adam_beta2 * (1.0 - phase) + beta2_final * phase
         return (self.adam_beta1, min(0.9999, max(0.0, beta2)))
 
+    def _current_adam_role_strength(self) -> float:
+        if self.adam_role_strength_final is None:
+            return self.adam_role_strength
+        phase = _smoothstep(self.adam_role_decay_start, self.adam_role_decay_end, self._progress())
+        return self.adam_role_strength * (1.0 - phase) + self.adam_role_strength_final * phase
+
     def _adam_role_factor(self, group: dict) -> float:
-        if self.adam_role_strength == 0.0:
+        strength = self._current_adam_role_strength()
+        if strength == 0.0:
             return 1.0
         role_factor = self._role_depth_factor(group)
-        return max(0.10, 1.0 + self.adam_role_strength * (role_factor - 1.0))
+        return max(0.10, 1.0 + strength * (role_factor - 1.0))
 
     def _adam_stat_phase(self) -> float:
         return _smoothstep(self.adam_stat_start, self.adam_stat_end, self._progress())
@@ -376,17 +395,43 @@ class RationalMatrixPolicyOptimizer:
         role = str(group.get("matrix_role", "matrix"))
         module = curve_group.get("module")
         stats = getattr(module, "_rlb_optimizer_stats", None) if module is not None else None
-        if group_phase > 0.0 and self.group_gain_strength != 0.0 and stats:
+        if group_phase > 0.0 and self.group_gain_strength != 0.0:
+            current_version = int(getattr(module, "_rlb_optimizer_stat_version", -1))
+            synced_version = int(
+                getattr(module, "_rlb_optimizer_stats_synced_version", -2)
+            )
+            expected_world_size = 1
+            if torch.distributed.is_available() and torch.distributed.is_initialized():
+                expected_world_size = torch.distributed.get_world_size()
+            valid_global_cache = bool(
+                isinstance(stats, dict)
+                and stats.get("optimizer_global") is True
+                and int(stats.get("optimizer_global_version", -3)) == current_version
+                and synced_version == current_version
+                and int(stats.get("sync_world_size", -1)) == expected_world_size
+            )
+            if not valid_global_cache:
+                raise RuntimeError(
+                    "MatrixPolicy requires the current globally synchronized live RLB gains"
+                )
             key = "derivative_rms" if role == "in" else "output_rms"
             gain = stats.get(key)
-            if torch.is_tensor(gain) and gain.numel() == groups:
-                scale.mul_(
-                    self._centered_inverse_scale(
-                        gain.to(device=device),
-                        self.group_gain_strength * group_phase,
-                        self.eps,
-                    ).to(device=device)
+            if (
+                not torch.is_tensor(gain)
+                or gain.numel() != groups
+                or not torch.isfinite(gain).all()
+                or torch.any(gain <= 0.0)
+            ):
+                raise RuntimeError(
+                    f"MatrixPolicy received an invalid synchronized RLB {key} vector"
                 )
+            scale.mul_(
+                self._centered_inverse_scale(
+                    gain.to(device=device),
+                    self.group_gain_strength * group_phase,
+                    self.eps,
+                ).to(device=device)
+            )
 
         state = curve_group.get("_onpolicy")
         if group_phase > 0.0 and state is not None and (self.group_pressure_strength != 0.0 or self.group_activity_damping != 0.0):
@@ -412,9 +457,12 @@ class RationalMatrixPolicyOptimizer:
         scale = scale.clamp(self.group_min_scale, self.group_max_scale)
         return scale.to(device=device, dtype=dtype)
 
-    def _apply_group_policy_to_gradients(self):
-        if not self._group_policy_enabled():
+    def _apply_group_policy_to_gradients(self, telemetry: dict | None = None):
+        if not self._group_policy_enabled() and telemetry is None:
             return
+        pre_by_role = {}
+        post_by_role = {}
+        ratio_by_role = {}
         for group in self.adam.param_groups:
             role = str(group.get("matrix_role", "matrix"))
             if role not in {"in", "out"}:
@@ -433,17 +481,38 @@ class RationalMatrixPolicyOptimizer:
                     continue
                 scale = self._group_policy_scale(group, param.grad.device, param.grad.dtype)
                 if scale is None:
-                    continue
+                    if telemetry is None:
+                        continue
+                    scale = torch.ones(groups, device=param.grad.device, dtype=param.grad.dtype)
                 if role == "in":
                     if param.grad.shape[0] != hidden_dim:
                         continue
-                    param.grad.view(groups, width, -1).mul_(scale.view(groups, 1, 1))
+                    grad_view = param.grad.view(groups, width, -1)
                 else:
                     if param.grad.shape[1] != hidden_dim:
                         continue
-                    param.grad.view(param.grad.shape[0], groups, width).permute(1, 2, 0).mul_(
-                        scale.view(groups, 1, 1)
-                    )
+                    grad_view = param.grad.view(param.grad.shape[0], groups, width).permute(1, 2, 0)
+                pre = None
+                if telemetry is not None:
+                    pre = torch.sqrt(grad_view.detach().float().square().mean(dim=(1, 2)))
+                grad_view.mul_(scale.view(groups, 1, 1))
+                if telemetry is not None:
+                    post = torch.sqrt(grad_view.detach().float().square().mean(dim=(1, 2)))
+                    ratio = post / pre.clamp_min(self.eps)
+                    for value in pre.cpu():
+                        self._append_role(pre_by_role, role, float(value.item()))
+                    for value in post.cpu():
+                        self._append_role(post_by_role, role, float(value.item()))
+                    for value in ratio.cpu():
+                        self._append_role(ratio_by_role, role, float(value.item()))
+        if telemetry is not None:
+            telemetry.update(
+                {
+                    "matrix_policy_group_grad_rms_pre_mean_by_role": self._role_means(pre_by_role),
+                    "matrix_policy_group_grad_rms_post_mean_by_role": self._role_means(post_by_role),
+                    "matrix_policy_group_grad_rms_ratio_mean_by_role": self._role_means(ratio_by_role),
+                }
+            )
 
     def _maybe_reset_adam_state(self, group: dict):
         if not self.adam_reset_on_switch or self.adam_lr_scale_final is None:
@@ -576,21 +645,44 @@ class RationalMatrixPolicyOptimizer:
 
     def _policy_telemetry_before_step(self):
         muon_by_role = {}
+        applied_muon_by_role = {}
         adam_lr_by_role = {}
+        realized_adam_lr_by_role = {}
+        scheduled_muon_by_layer_role = {}
+        applied_muon_by_layer_role = {}
+        adam_lr_by_layer_role = {}
+        realized_adam_lr_by_layer_role = {}
         group_scales = []
+        group_scale_clipped = 0
+        group_scale_total = 0
         pressures = []
         activities = []
         for group in self.adam.param_groups:
             role = str(group.get("matrix_role", "matrix"))
             fraction = self._muon_fraction(group) if self.muon is not None else 0.0
+            adam_scale = self._adam_lr_scale(group)
+            realized_adam_scale = adam_scale * (1.0 - fraction)
+            layer_role = f"layer{int(group.get('layer_index', -1))}:{role}"
             self._append_role(muon_by_role, role, fraction)
-            self._append_role(adam_lr_by_role, role, self._adam_lr_scale(group))
+            self._append_role(applied_muon_by_role, role, fraction if self.apply_muon_update else 0.0)
+            self._append_role(adam_lr_by_role, role, adam_scale)
+            self._append_role(realized_adam_lr_by_role, role, realized_adam_scale)
+            scheduled_muon_by_layer_role[layer_role] = fraction
+            applied_muon_by_layer_role[layer_role] = fraction if self.apply_muon_update else 0.0
+            adam_lr_by_layer_role[layer_role] = adam_scale
+            realized_adam_lr_by_layer_role[layer_role] = realized_adam_scale
 
             param = next((p for p in group.get("params", []) if p is not None), None)
             if param is not None:
                 scale = self._group_policy_scale(group, param.device, torch.float32)
                 if scale is not None:
-                    group_scales.extend(float(x) for x in scale.detach().float().reshape(-1).cpu())
+                    flat_scale = scale.detach().float().reshape(-1).cpu()
+                    group_scales.extend(float(x) for x in flat_scale)
+                    group_scale_total += int(flat_scale.numel())
+                    group_scale_clipped += int(
+                        ((flat_scale <= self.group_min_scale + 1.0e-7)
+                         | (flat_scale >= self.group_max_scale - 1.0e-7)).sum().item()
+                    )
             selector_index = int(group.get("selector_index", -1))
             if 0 <= selector_index < len(self.selector_groups):
                 state = self.selector_groups[selector_index].get("_onpolicy")
@@ -608,12 +700,23 @@ class RationalMatrixPolicyOptimizer:
         pressure_mean, pressure_std, _, _ = self._mean_std_min_max(pressures)
         activity_mean, activity_std, _, _ = self._mean_std_min_max(activities)
         return {
+            "matrix_policy_group_policy_enabled": self._group_policy_enabled(),
             "matrix_policy_muon_mix_mean_by_role": self._role_means(muon_by_role),
+            "matrix_policy_applied_muon_mix_mean_by_role": self._role_means(applied_muon_by_role),
+            "matrix_policy_muon_mix_by_layer_role": scheduled_muon_by_layer_role,
+            "matrix_policy_applied_muon_mix_by_layer_role": applied_muon_by_layer_role,
+            "matrix_policy_apply_muon_update": self.apply_muon_update,
             "matrix_policy_adam_lr_scale_mean_by_role": self._role_means(adam_lr_by_role),
+            "matrix_policy_adam_lr_scale_by_layer_role": adam_lr_by_layer_role,
+            "matrix_policy_realized_adam_lr_scale_mean_by_role": self._role_means(realized_adam_lr_by_role),
+            "matrix_policy_realized_adam_lr_scale_by_layer_role": realized_adam_lr_by_layer_role,
             "matrix_policy_group_scale_mean": group_mean,
             "matrix_policy_group_scale_std": group_std,
             "matrix_policy_group_scale_min": group_min,
             "matrix_policy_group_scale_max": group_max,
+            "matrix_policy_group_scale_clip_fraction": (
+                None if group_scale_total == 0 else float(group_scale_clipped) / float(group_scale_total)
+            ),
             "matrix_policy_pressure_mean": pressure_mean,
             "matrix_policy_pressure_std": pressure_std,
             "matrix_policy_activity_mean": activity_mean,
@@ -667,7 +770,7 @@ class RationalMatrixPolicyOptimizer:
         telemetry = self._policy_telemetry_before_step() if capture_telemetry else {}
         snapshots = self._capture_pre_step_weights() if capture_telemetry else {}
 
-        self._apply_group_policy_to_gradients()
+        self._apply_group_policy_to_gradients(telemetry if capture_telemetry else None)
 
         saved_adam_lrs = []
         saved_adam_betas = []
@@ -681,7 +784,11 @@ class RationalMatrixPolicyOptimizer:
             group["lr"] = lr * self._adam_lr_scale(group) * (1.0 - fraction)
             group["betas"] = self._adam_betas(group)
 
-        muon_should_step = self.muon is not None and not self._muon_permanently_inactive()
+        muon_should_step = (
+            self.muon is not None
+            and self.apply_muon_update
+            and not self._muon_permanently_inactive()
+        )
         saved_muon_lrs = []
         if muon_should_step:
             for group in self.muon.param_groups:

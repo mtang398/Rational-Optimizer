@@ -51,6 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-root", type=Path, default=RUN_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
+    parser.add_argument("--matrixpolicy-run-root", type=Path, default=None)
     parser.add_argument("--matrixpolicy-phase", type=str, default=None)
     parser.add_argument("--replacement-manifest", type=Path, default=None)
     parser.add_argument("--replacement-phase", type=str, default=None)
@@ -121,6 +122,7 @@ def load_rows(
     manifest: Path,
     run_root: Path,
     matrixpolicy_manifest: Path | None = None,
+    matrixpolicy_run_root: Path | None = None,
     matrixpolicy_phase: str | None = None,
     replacement_manifest: Path | None = None,
     replacement_phase: str | None = None,
@@ -128,7 +130,12 @@ def load_rows(
     rows = _load_phase_rows(manifest, run_root, PHASE)
     by_key = {(str(row["dataset"]), int(row["seed"]), str(row["method"])): row for row in rows}
     if matrixpolicy_manifest is not None and matrixpolicy_phase is not None:
-        overrides = _load_phase_rows(matrixpolicy_manifest, run_root, matrixpolicy_phase, {MATRIXPOLICY_METHOD})
+        overrides = _load_phase_rows(
+            matrixpolicy_manifest,
+            matrixpolicy_run_root or run_root,
+            matrixpolicy_phase,
+            {MATRIXPOLICY_METHOD},
+        )
         for row in overrides:
             by_key[(str(row["dataset"]), int(row["seed"]), str(row["method"]))] = row
     if replacement_manifest is not None and replacement_phase is not None:
@@ -315,7 +322,7 @@ Generated from completed E1 M0/100M JSONL eval records. All rows still trained t
 
 Each row uses `{tokens_per_step}` global tokens/step and the native E1 eval cadence of {eval_interval} steps, or `{tokens_per_step * eval_interval / 1_000_000:.2f}M` tokens per readout interval.
 
-`Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational RLB (`rlb_fused_global_rational`) rows.
+MatrixPolicy values use the validated live-statistic-corrected `rlb_fused_global_rational` rows when `--matrixpolicy-manifest` is supplied. The corrected path synchronizes optimizer-consumed RLB statistics across ranks and prevents validation forwards from refreshing the training cache. `Second-best` means the fastest non-MatrixPolicy method to reach the target within the same seed. `AdamW` means the standard `silu_adamw` row. Savings and proportions are computed only on seeds where both MatrixPolicy and the comparator reached the target. When `--replacement-manifest` is supplied, non-MatrixPolicy RLB optimizer controls are replaced by the global-rational RLB (`rlb_fused_global_rational`) rows.
 
 {"\n\n".join(sections)}
 
@@ -333,6 +340,7 @@ def main() -> None:
         args.manifest,
         args.run_root,
         args.matrixpolicy_manifest,
+        args.matrixpolicy_run_root,
         args.matrixpolicy_phase,
         args.replacement_manifest,
         args.replacement_phase,

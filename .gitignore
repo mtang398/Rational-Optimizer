@@ -41,3 +41,12 @@ experiments/runs/logs/*.out
 experiments/runs/logs/ract-wt103-opt-*.out
 experiments/runs/iclr26_main/
 experiments/runs/lm_optimizer_sweep/
+experiments/corrections/*/runtime/
+experiments/corrections/*/cache/
+experiments/corrections/*/runs/
+experiments/corrections/*/logs/
+experiments/corrections/*/.submit.lock
+experiments/corrections/*/submissions/failed_freeze_*/
+abalation/runs/
+abalation/logs/
+tmp/

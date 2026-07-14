@@ -103,6 +103,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--safe-e1-matrixpolicy-manifest", type=Path, default=SAFE_E1_MATRIXPOLICY_MANIFEST)
     parser.add_argument("--safe-e2-matrixpolicy-manifest", type=Path, default=SAFE_E2_MATRIXPOLICY_MANIFEST)
+    parser.add_argument("--matrixpolicy-run-root", type=Path, default=None)
     parser.add_argument("--e1-restart-repair-manifest", type=Path, default=E1_RESTART_REPAIR_MANIFEST)
     parser.add_argument("--global-rational-optimizer-manifest", type=Path, default=GLOBAL_RATIONAL_OPTIMIZER_MANIFEST)
     parser.add_argument("--timing-node-overrides", type=Path, default=TIMING_NODE_OVERRIDES)
@@ -345,6 +346,8 @@ Generated: {generated}.
 
 This package summarizes clean per optimizer/activation-combo runtime from JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, and pre-restart partial attempts. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Early-stop rows are retained and counted explicitly rather than excluded.
 
+The MatrixPolicy rows in this regeneration use the validated live-statistic-corrected `rlb_fused_global_rational` campaign. All 30 corrected main rows completed with `slurm_restart_count=0`. Node assignments were not matched across methods or corrected rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
+
 Included in tracked runtime aggregates:
 
 - E1 M0/100M clean rows: `{e1_total}` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. {repair_line} Row `89` is replaced by the completed MatrixPolicy replacement rerun when available.
@@ -534,8 +537,9 @@ def main() -> None:
             key = (scope, str(item["dataset"]), int(item["seed"]), str(item["method"]))
             per_row_by_key[key] = item
 
-    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e1_matrixpolicy_manifest, args.run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies)
-    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e2_matrixpolicy_manifest, args.run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies)
+    matrixpolicy_run_root = args.matrixpolicy_run_root or args.run_root
+    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e1_matrixpolicy_manifest, matrixpolicy_run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies)
+    overlay_completed_matrixpolicy_rows(per_row_by_key, args.safe_e2_matrixpolicy_manifest, matrixpolicy_run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies)
     repair_overlay_count = overlay_completed_repair_rows(per_row_by_key, args.e1_restart_repair_manifest, args.run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies)
     overlay_completed_replacement_rows(per_row_by_key, args.global_rational_optimizer_manifest, args.run_root, args.matrixpolicy_max_seconds_per_step, denylist_nodes, node_overrides, args.allow_timing_anomalies, REPLACEMENT_RLB_METHODS)
 

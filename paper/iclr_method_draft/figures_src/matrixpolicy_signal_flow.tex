@@ -136,7 +136,7 @@
     at (13.28,6.43) {};
   \node[prodTitle] at ($(balance.center)+(0,0.34)$) {pair state and probes};
   \node[prodVars, text=mpAmber] at ($(balance.center)+(0,-0.15)$)
-    {probe gains $\hat d^{\rm probe},\hat o^{\rm probe}$\\[-1pt]post-step log-ratio $\gamma$};
+    {probe gains $\hat d^{\rm probe},\hat o^{\rm probe}$\\[-1pt]post-descent log-ratio $\gamma$};
 
   \node[summaryLane, minimum width=11.85cm] (summarybus) at (8.08,5.18)
     {$\operatorname{sg}(\text{detached read-only summary bus})$};
@@ -170,25 +170,24 @@
     {\textbf{1. gate gradients}\\scale $\nabla A_{l,g}$\\scale $\nabla B_{l,g}$};
   \node[opPurple, minimum width=2.88cm, minimum height=1.02cm] (branch) at (7.80,3.20)
     {\textbf{2. matrix step}\\AdamW role/depth\\early Muon substep};
-  \node[opBlue, minimum width=1.42cm, minimum height=0.72cm] (delta) at (10.45,3.20)
-    {$\Delta A_{l,g}$\\$\Delta B_{l,g}$};
+  \node[opBlue, minimum width=1.62cm, minimum height=0.78cm] (desc) at (10.45,3.20)
+    {$A^{\rm desc}_{l,g}$\\$B^{\rm desc}_{l,g}$};
   \node[opAmber, minimum width=2.54cm, minimum height=1.48cm] (rescale) at (13.08,2.60)
-    {\textbf{3. apply and rescale}\\[-1pt]
-     add $\Delta A,\Delta B$ to pair\\[-1pt]
-     $A_{l,g}\!\leftarrow e^\ell A_{l,g}$\\[-1pt]
-     $B_{l,g}\!\leftarrow e^{-\ell}B_{l,g}$};
+    {\textbf{3. pair rescale}\\[-1pt]
+     $A^{t+1}_{l,g}\!\leftarrow e^\ell A^{\rm desc}_{l,g}$\\[-1pt]
+     $B^{t+1}_{l,g}\!\leftarrow e^{-\ell}B^{\rm desc}_{l,g}$};
   \node[opBlue, font=\scriptsize, minimum width=2.05cm, minimum height=0.92cm] (pair) at (1.66,2.16)
-    {current RLB pair\\$M_{\rm in}=A_l$\\$M_{\rm out}=B_l$};
+    {current RLB pair\\$M_{\rm in}=A_l^t$\\$M_{\rm out}=B_l^t$};
   \node[opBlue, minimum width=1.40cm, minimum height=0.90cm] (updated) at (15.38,2.60)
-    {updated\\$A_l,B_l$};
+    {updated\\$A_l^{t+1},B_l^{t+1}$};
 
   \draw[arrowShort] (grad.east) -- (gate.west);
   \draw[arrow] (gate.east) -- (branch.west);
-  \draw[arrowShort] (branch.east) -- (delta.west);
-  \coordinate (deltaIn) at ($(rescale.west)+(0,0.34)$);
-  \coordinate (stateIn) at ($(rescale.west)+(0,-0.44)$);
-  \draw[arrowShort] (delta.east) -- (deltaIn);
-  \draw[stateArrow] (pair.east) -- (stateIn);
+  \draw[arrowShort] (branch.east) -- (desc.west);
+  \coordinate (descIn) at ($(rescale.west)+(0,0.34)$);
+  \coordinate (branchStateIn) at (branch.south);
+  \draw[arrowShort] (desc.east) -- (descIn);
+  \draw[stateArrow] (pair.east) -- ++(4.85,0) -- (branchStateIn);
   \draw[arrowShort] (rescale.east) -- (updated.west);
 
   \draw[readArrow] (rgate.south) -- (gate.north);

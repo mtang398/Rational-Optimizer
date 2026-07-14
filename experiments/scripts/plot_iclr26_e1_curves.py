@@ -319,8 +319,10 @@ def write_readme(out_dir: Path, curves, uses_safe_matrixpolicy: bool, uses_globa
     else:
         completed = ", ".join(label for _, label in DATASETS[:-1]) + f", and {DATASETS[-1][1]}"
     matrixpolicy_note = (
-        "MatrixPolicy curves and tables use the replacement JSONL rows passed with "
-        "`--matrixpolicy-manifest`."
+        "MatrixPolicy curves and tables use the validated live-statistic-corrected "
+        "`rlb_fused_global_rational` rows passed with `--matrixpolicy-manifest`; "
+        "the corrected path synchronizes optimizer-consumed RLB statistics across ranks "
+        "and prevents validation forwards from refreshing the training cache."
         if uses_safe_matrixpolicy
         else "MatrixPolicy curves and tables use the manifest rows passed to this generator."
     )

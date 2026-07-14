@@ -1,0 +1,12 @@
+{
+  "campaign": "matrixpolicy_live_stats_20260712",
+  "chain_count": 4,
+  "gpus_per_job": 4,
+  "max_concurrent_gpu_jobs": 4,
+  "max_concurrent_gpus": 16,
+  "rewire_ledger": "experiments/corrections/matrixpolicy_live_stats_20260712/submissions/concurrency_rewire_16gpu_20260712_162430.csv",
+  "rewired_unix_time": 1783887870.0120614,
+  "source_ledger": "experiments/corrections/matrixpolicy_live_stats_20260712/submissions/submission_20260712_162254.csv",
+  "updated_jobs": 266,
+  "verified_jobs": 274
+}

@@ -10,7 +10,7 @@ The main claim must be tested before any ablation or sensitivity map:
 At equal model, data, token budget, seed, batch, validation slice, and evaluation cadence, the original MatrixPolicy optimizer recipe improves loss-vs-compute relative to strong fixed optimizer baselines.
 ```
 
-The main suite is not a tuning stage. It is a fixed comparison copied from the experimental style of accepted optimizer papers: loss vs tokens, loss vs wall-clock/GPU-hours, model scale, long horizon, batch/throughput cost, transfer, and only then sensitivity and ablation appendices.
+The main suite is not a tuning stage. It is a fixed comparison copied from the experimental style of accepted optimizer papers: loss vs tokens, loss vs wall-clock/GPU-hours, model scale, paired sensitivity, and only then mechanism ablation appendices.
 
 ## Non-Negotiable Gates
 
@@ -104,7 +104,7 @@ The main manifest uses fixed method recipes. These are not LR/WD landscapes.
 
 The MatrixPolicy row is a fixed method row with the same outer LR/min-LR/WD as the AdamW fixed rows. It is not allowed to be compared against an AdamW grid unless the MatrixPolicy rows contain the same outer grid in the same cells and the section is explicitly a later paired sensitivity appendix.
 
-Current result-package note: the table above records the original main-manifest method recipes. The paper-facing generated MatrixPolicy summaries overlay the completed `rlb_fused_global_rational` no-local-atom replacement rows from `experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv`; non-MatrixPolicy RLB optimizer controls overlay the matched RLB source rows from `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`. SiLU controls remain the completed main-manifest rows, and RLB+ADeMaMix is retained as a divergent/early-stop negative row.
+Current result-package note: the table above records the original main-manifest recipes. Paper-facing MatrixPolicy summaries overlay the 30 validated live-statistic-corrected `rlb_fused_global_rational` rows under `experiments/corrections/matrixpolicy_live_stats_20260712/`; non-MatrixPolicy RLB controls overlay `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`. SiLU controls remain the completed main-manifest rows, and RLB+ADeMaMix is retained as a divergent/early-stop negative row.
 
 ## Main Experiment Units
 
@@ -175,78 +175,99 @@ model: M1
 eval interval: 50
 ```
 
-### E4: Long-Horizon Frontier
+The old checkpoint-dependent transfer diagnostics are removed from the local plan. They do not directly test the optimizer/activation claim, and the completed E1/E2 suite already tests the fixed method across five datasets and three seeds.
+
+### E8: Paired LR/WD Sensitivity Maps, After Main Evidence Only
+
+This is not used to choose the main result. The fixed E1/E2 setting stays frozen; E8 answers the reviewer-facing hyperparameter question: does MatrixPolicy remain competitive when every compared method receives the same outer learning-rate and weight-decay grid?
+
+Use the current RLB source activation, `rlb_fused_global_rational`, for all RLB rows. SiLU rows use `silu`.
+
+Primary compact map:
 
 ```text
-datasets: dclm, fineweb_edu, fineweb
-methods: silu_adamw, rlb_adamw, rlb_soap, rlb_ademamix, rlb_matrixpolicy_original
-seeds: 1337, 2027, 3407
-train tokens: 600M
-validation tokens: 8M
 model: M0
+train tokens: 100M
+validation tokens: 4M
 eval interval: 50
+datasets: dclm, fineweb_edu, c4_en
+seed: 1337
+methods:
+  silu_adamw
+  silu_muon
+  rlb_matrixpolicy_original
+LR grid: 1e-4, 2e-4, 3e-4, 5e-4
+min LR: 0.1 * LR in each cell
+WD grid: 0.00, 0.05, 0.10, 0.20
+rows: 3 datasets * 1 seed * 3 methods * 16 grid cells = 144 runs
 ```
 
-### E5: Equal-GPU-Hour And Throughput Accounting
+The initial grid prioritizes SiLU+AdamW, SiLU+Muon, and RLB+MatrixPolicy because they give the fixed AdamW baseline, the strongest familiar non-AdamW optimizer baseline, and the proposed method under the same outer LR/WD cells. RLB+AdamW is not part of the primary queue. SOAP, Lion, and CAME can be added later as narrow appendix extensions if the primary map leaves a clear reviewer-facing gap; AdEMAMix is not grid-expanded because the fixed-suite rows are already unstable/divergent.
+
+Report:
+
+```text
+final validation loss heatmaps by dataset and method
+target-arrival token heatmaps at shared target losses
+wall-clock minutes to shared target losses
+failure/non-finite cells
+paired rank over the LR/WD grid
+best-cell and fixed-cell comparison, with the fixed E1/E2 cell highlighted
+```
+
+Stopping rule:
+
+```text
+do not launch extra seeds unless a primary conclusion depends on one isolated grid cell
+do not promote a new LR/WD cell into the main result
+do not compare a tuned MatrixPolicy cell against an untuned AdamW/Muon/SOAP cell
+```
+
+Optional 300M confirmation, only after the 100M map is complete:
 
 ```text
 datasets: dclm, fineweb_edu
+seed: 1337
 methods: silu_adamw, rlb_adamw, rlb_soap, rlb_matrixpolicy_original
-model: M0 and M1
-steps: 1000 profiling segment
-batch regimes: 16k, 32k, 65k global tokens/step
-```
-
-Report optimizer-step time, forward/backward time, tokens/sec, CUDA peak allocated/reserved, optimizer-state memory estimate, loss improvement per extra GPU-hour, and equal-GPU-hour frontiers.
-
-### E6: Cross-Corpus Evaluation
-
-Use E2 checkpoints.
-
-```text
-train corpora: dclm, fineweb_edu, dolma_sample
-eval corpora: all other suite corpora
-methods: silu_adamw, rlb_adamw, rlb_soap, rlb_matrixpolicy_original
-seeds: 1337, 2027, 3407
-```
-
-Report in-domain vs out-of-domain loss, transfer degradation, and whether MatrixPolicy retains advantage outside the training corpus.
-
-### E7: Corpus-Shift Continued Training
-
-```text
-paths: dclm 300M -> fineweb_edu 300M; fineweb_edu 300M -> dolma_sample 300M
-methods: silu_adamw, rlb_adamw, rlb_soap, rlb_matrixpolicy_original
-seeds: 1337, 2027, 3407
-```
-
-Report new-domain learning, old-domain forgetting, and loss-vs-GPU-hour after shift.
-
-### E8: Sensitivity Maps, After Main Evidence Only
-
-This is not used to choose the main result. Every LR/WD point is paired across AdamW and MatrixPolicy before it is launched.
-
-```text
-datasets: dclm, fineweb_edu, c4_en
-methods: AdamW, Muon, Lion, SOAP, AdEMAMix, CAME, MatrixPolicy
-seed: 1337 for full compact map; additional seeds only for suspicious instability
-LR/WD maps: appendix only
-AdamW LR/WD grid == MatrixPolicy outer LR/WD grid in every matched cell
+grid cells:
+  fixed cell: LR 3e-4, WD 0.10
+  low LR: LR 1e-4, WD 0.10
+  high LR: LR 5e-4, WD 0.10
+  no WD: LR 3e-4, WD 0.00
+  high WD: LR 3e-4, WD 0.20
+rows: 2 datasets * 1 seed * 4 methods * 5 grid cells = 40 runs
 ```
 
 ### E9: Method Ablations, Last
 
-Run only after E1-E5 are summarized. These rows must not be used to select the main setting.
+Run only after the main evidence and E8 diagnostics are summarized. E9 uses the
+frozen paper-facing method and cannot select a new setting. The complete
+pre-registered design, intervention flags, estimands, timing contract, and
+compute envelope are in `experiments/E9_100M_ABLATION_PLAN.md`.
 
 ```text
-datasets: dclm, fineweb_edu
-budget: 100M first, 300M only for promoted rows
-seeds: 1337, 2027, 3407
-base: rlb_matrixpolicy_original
-component removals: no group-stat scaling, no role-depth policy, no matrix branch, no rebalance if applicable
+model: M0, 123.55M parameters
+budget: 3,050 steps, exactly 99,942,400 training tokens
+datasets: dclm, fineweb_edu, fineweb, dolma_sample, c4_en
+fresh paired seeds: 2479, 5052, 8913
+arms:
+  A0 SiLU + AdamW
+  A1 RLB + AdamW
+  A2 RLB + static MatrixPolicy optimizer-recipe shell
+  A3 full RLB + MatrixPolicy
+  A4 without group-stat gradient gating
+  A5 without role/depth factors
+  A6 with the transient Muon branch suppressed at a fixed schedule
+  A7 without role/depth factors and with the Muon branch suppressed at a fixed schedule
+  A8 without reciprocal pair rescaling
+  A9 without the role/depth-Muon action block
+rows: 10 arms * 5 datasets * 3 seeds = 150 fresh runs
 ```
 
-These are explanatory appendices. They are not allowed to define the headline setting.
+The full five-dataset matrix is fixed before launch. Historical `no_role_depth`,
+`bypass_muon`, and V2-V6 rows remain exploratory and are not substituted into
+E9. E9 is a 100M-token ablation study; no outcome-dependent 300M promotion is
+part of this design.
 
 ## Experiment Code Map
 

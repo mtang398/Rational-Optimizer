@@ -3,13 +3,13 @@
 Completed: 2026-06-12. Manifest rows `285-329` define the full FineWeb-Edu E2 M0/300M cell: 3 seeds x 15 fixed methods. The cell contains 45 paper-facing rows; `3` stopped early and are reported as diverged/non-finite rather than excluded.
 
 Each row uses `32768` global tokens/step for about `299.8M` train tokens. Validation uses the E2 FineWeb-Edu slice from the manifest: `val_skip_tokens=610000000`, `val_tokens=8000000`, `eval_interval=50`.
-MatrixPolicy entries use replacement JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use `rlb_fused_global_rational` replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
+MatrixPolicy entries use validated live-statistic-corrected `rlb_fused_global_rational` JSONL rows for the same method and seed; non-MatrixPolicy RLB optimizer controls use global-rational RLB (`rlb_fused_global_rational`) replacement rows; the `row` column remains the matched main-manifest E2 row, while `source_phase`/`source_row_id` record the actual timed run.
 
 ## Final Validation Loss
 
 | Method | Final val loss mean +/- sample std | Min | Max | Notes |
 | --- | ---: | ---: | ---: | --- |
-| rlb_matrixpolicy_original | 3.701517 +/- 0.021218 | 3.682155 | 3.724200 |  |
+| rlb_matrixpolicy_original | 3.702151 +/- 0.020357 | 3.684000 | 3.724162 |  |
 | rlb_muon | 3.737328 +/- 0.018698 | 3.717964 | 3.755280 |  |
 | rlb_lion | 3.741625 +/- 0.021374 | 3.723632 | 3.765251 |  |
 | silu_lion | 3.744017 +/- 0.020802 | 3.727149 | 3.767261 |  |
@@ -25,24 +25,23 @@ MatrixPolicy entries use replacement JSONL rows for the same method and seed; no
 | rlb_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 | silu_ademamix | nan/diverged | nan | nan | 3 diverged/non-finite seeds |
 
-MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `3.701517 +/- 0.021218`; the next-best aggregate methods are `rlb_muon` at `3.737328 +/- 0.018698`, `rlb_lion` at `3.741625 +/- 0.021374`, `silu_lion` at `3.744017 +/- 0.020802`.
+MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `3.702151 +/- 0.020357`; the next-best aggregate methods are `rlb_muon` at `3.737328 +/- 0.018698`, `rlb_lion` at `3.741625 +/- 0.021374`, `silu_lion` at `3.744017 +/- 0.020802`.
 
 ## Per-Seed MatrixPolicy Gap
 
 | Seed | MatrixPolicy final loss | Best non-MP method | Best non-MP final loss | Gap |
 | ---: | ---: | --- | ---: | ---: |
-| 1337 | 3.682155 | rlb_muon | 3.717964 | 0.035810 |
-| 2027 | 3.724200 | rlb_muon | 3.755280 | 0.031080 |
-| 3407 | 3.698196 | rlb_lion | 3.735992 | 0.037795 |
+| 1337 | 3.684000 | rlb_muon | 3.717964 | 0.033964 |
+| 2027 | 3.724162 | rlb_muon | 3.755280 | 0.031118 |
+| 3407 | 3.698291 | rlb_lion | 3.735992 | 0.037700 |
 
 ## Runtime Summary
 
-`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion.
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Node assignments were not matched across methods or corrected MatrixPolicy rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
 
 | Method | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | rlb_ademamix | 3 | 3 | 4.7 min | 0.4 min | 4.3-5.1 min | 0.4286 | 76584.8 |
-| rlb_matrixpolicy_original | 3 | 0 | 65.6 min | 2.6 min | 62.6-67.1 min | 0.4070 | 80599.0 |
 | rlb_lion | 3 | 0 | 66.1 min | 1.5 min | 65.2-67.8 min | 0.4078 | 80381.3 |
 | rlb_adamw | 3 | 0 | 66.4 min | 1.7 min | 65.3-68.3 min | 0.4097 | 80014.3 |
 | rlb_schedulefree | 3 | 0 | 71.0 min | 3.9 min | 66.6-73.9 min | 0.4401 | 74619.9 |
@@ -53,6 +52,7 @@ MatrixPolicy is best on all three FineWeb-Edu E2 seeds. Mean final val loss is `
 | rlb_came | 3 | 0 | 75.2 min | 3.6 min | 71.1-77.3 min | 0.4678 | 70158.2 |
 | silu_schedulefree | 3 | 0 | 75.5 min | 11.9 min | 61.8-82.4 min | 0.4781 | 69904.1 |
 | rlb_muon | 3 | 0 | 78.0 min | 2.5 min | 76.6-80.9 min | 0.4852 | 67576.3 |
+| rlb_matrixpolicy_original | 3 | 0 | 79.3 min | 9.2 min | 68.9-86.1 min | 0.4987 | 66388.7 |
 | silu_came | 3 | 0 | 80.2 min | 11.7 min | 66.7-87.0 min | 0.5079 | 65602.6 |
 | silu_soap | 3 | 0 | 86.8 min | 12.0 min | 72.9-93.8 min | 0.5475 | 60685.2 |
 | silu_ademamix | 3 | 0 | 88.5 min | 10.7 min | 76.5-97.0 min | 0.4762 | 70175.4 |
@@ -85,11 +85,11 @@ This table asks how many training tokens were needed to first reach a validation
 | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: |
 | 4.20 | 74.8M | 74.8M -> 79.7M (3/3) | 4.9M | 6.2% | 74.8M -> 93.4M (3/3) | 18.6M | 19.9% |
 | 4.10 | 98.9M | 98.9M -> 99.9M (3/3) | 1.1M | 1.1% | 98.9M -> 118.0M (3/3) | 19.1M | 16.2% |
-| 4.00 | 125.6M | 125.6M -> 128.3M (3/3) | 2.7M | 2.1% | 125.6M -> 151.8M (3/3) | 26.2M | 17.3% |
-| 3.90 | 161.7M | 161.7M -> 166.6M (3/3) | 4.9M | 3.0% | 161.7M -> 200.4M (3/3) | 38.8M | 19.3% |
-| 3.85 | 183.0M | 183.0M -> 191.1M (3/3) | 8.2M | 4.3% | 183.0M -> 237.0M (3/3) | 54.1M | 22.8% |
+| 4.00 | 126.7M | 126.7M -> 128.3M (3/3) | 1.6M | 1.3% | 126.7M -> 151.8M (3/3) | 25.1M | 16.5% |
+| 3.90 | 162.2M | 162.2M -> 166.6M (3/3) | 4.4M | 2.6% | 162.2M -> 200.4M (3/3) | 38.2M | 19.1% |
+| 3.85 | 183.5M | 183.5M -> 191.1M (3/3) | 7.6M | 4.0% | 183.5M -> 237.0M (3/3) | 53.5M | 22.6% |
 | 3.80 | 209.7M | 209.7M -> 223.4M (3/3) | 13.7M | 6.1% | 203.2M -> 287.5M (2/3) | 84.4M | 29.3% |
-| 3.75 | 243.6M | 233.5M -> 263.0M (2/3) | 29.5M | 11.2% | not reached (0/3) | not reached | n/a |
+| 3.75 | 244.1M | 234.3M -> 263.0M (2/3) | 28.7M | 10.9% | not reached (0/3) | not reached | n/a |
 
 ## Files
 

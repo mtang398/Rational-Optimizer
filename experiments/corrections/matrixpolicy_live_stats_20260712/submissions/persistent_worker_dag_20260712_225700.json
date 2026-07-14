@@ -1,0 +1,52 @@
+{
+  "campaign": "matrixpolicy_live_stats_20260712",
+  "final_validator": "853073",
+  "freeze_sha256": "925e3615588e61a26cf1de8f95d14375058c4e2c4c3d36196b4ad2285fab52a1",
+  "gpus_per_worker": 4,
+  "max_concurrent_gpu_workers": 4,
+  "submitted_jobs": 22,
+  "submitted_unix_time": 1783911426.522897,
+  "supersedes_failed_validators": [
+    "848507",
+    "848538",
+    "848619",
+    "848770"
+  ],
+  "validators": {
+    "e8": "853067",
+    "e9": "853072",
+    "e9_preflight": "853057",
+    "main": "853062"
+  },
+  "watchdogs": {
+    "e8": "853076",
+    "e9": "853077",
+    "e9_preflight": "853074",
+    "main": "853075"
+  },
+  "worker_ledger": "experiments/corrections/matrixpolicy_live_stats_20260712/submissions/persistent_worker_dag_20260712_225700.csv",
+  "worker_launcher_sha256": "7195369d4b362e4b09c9c0a7904c84e5d00d8a3de2d34002bb53e5c9f60b4fbd",
+  "workers_by_stage": {
+    "e8": [
+      "853063",
+      "853064",
+      "853065",
+      "853066"
+    ],
+    "e9": [
+      "853068",
+      "853069",
+      "853070",
+      "853071"
+    ],
+    "e9_preflight": [
+      "853056"
+    ],
+    "main": [
+      "853058",
+      "853059",
+      "853060",
+      "853061"
+    ]
+  }
+}

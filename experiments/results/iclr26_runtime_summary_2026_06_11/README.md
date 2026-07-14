@@ -1,13 +1,15 @@
 # ICLR26 Runtime Summary
 
-Generated: 2026-06-29.
+Generated: 2026-07-14.
 
 This package summarizes clean per optimizer/activation-combo runtime from JSONL `summary` records. The runtime field is `summary.total_seconds`, i.e. training-harness wall time for a manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, launcher overhead, and pre-restart partial attempts. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Early-stop rows are retained and counted explicitly rather than excluded.
+
+The MatrixPolicy rows in this regeneration use the validated live-statistic-corrected `rlb_fused_global_rational` campaign. All 30 corrected main rows completed with `slurm_restart_count=0`. Node assignments were not matched across methods or corrected rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
 
 Included in tracked runtime aggregates:
 
 - E1 M0/100M clean rows: `225` rows. E1 FineWeb-Edu seed `2027` job `158117` had `Restarts=6`; rows `75-80` are retained because their completed JSONL timings match adjacent seeds. Original rows `81-88` are skipped because the existing artifacts cannot reconstruct trusted per-row runtime after multiple preempted allocations and partial JSONLs. Completed clean repair overlay rows for E1 FineWeb-Edu seed `2027` rows `81-88`: `8/8`. Row `89` is replaced by the completed MatrixPolicy replacement rerun when available.
-- Non-MatrixPolicy RLB optimizer controls overlaid from corrected `rlb_fused_global_rational` runs: `210` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `30`.
+- Non-MatrixPolicy RLB optimizer controls overlaid from global-rational RLB (`rlb_fused_global_rational`) runs: `210` aggregate row-count contributions. Early-stop rows retained in runtime aggregates: `30`.
 - E2 M0/300M DCLM completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb-Edu completed cell: `45` rows, one dataset x three seeds x 15 methods.
 - E2 M0/300M FineWeb completed cell: `45` rows, one dataset x three seeds x 15 methods.
@@ -27,7 +29,7 @@ Clean rows summarized: `450`.
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 15 | 0 | 24.5 min | 2.2 min | 22.4 min-27.8 min | 0.4563 | 72344.1 |
+| RLB+MatrixPolicy | 15 | 0 | 24.9 min | 2.4 min | 22.9 min-28.9 min | 0.4670 | 70774.8 |
 | SiLU+AdamW | 15 | 0 | 27.6 min | 5.3 min | 18.2 min-33.7 min | 0.5248 | 65212.8 |
 | RLB+AdamW | 15 | 0 | 23.7 min | 1.6 min | 21.1 min-25.7 min | 0.4395 | 74907.4 |
 | SiLU+Muon | 15 | 0 | 29.4 min | 5.4 min | 20.1 min-36.3 min | 0.5604 | 60754.1 |
@@ -47,7 +49,7 @@ Clean rows summarized: `450`.
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 67.7 min | 5.3 min | 62.7 min-73.2 min | 0.4207 | 78223.9 |
+| RLB+MatrixPolicy | 3 | 0 | 72.0 min | 5.3 min | 68.8 min-78.2 min | 0.4509 | 72952.2 |
 | SiLU+AdamW | 3 | 0 | 70.9 min | 10.0 min | 61.1 min-81.2 min | 0.4478 | 74246.1 |
 | RLB+AdamW | 3 | 0 | 71.7 min | 7.1 min | 63.5 min-75.9 min | 0.4434 | 74441.1 |
 | SiLU+Muon | 3 | 0 | 71.4 min | 14.8 min | 59.4 min-87.9 min | 0.4497 | 74940.2 |
@@ -67,7 +69,7 @@ Clean rows summarized: `450`.
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 65.6 min | 2.6 min | 62.6 min-67.1 min | 0.4070 | 80599.0 |
+| RLB+MatrixPolicy | 3 | 0 | 79.3 min | 9.2 min | 68.9 min-86.1 min | 0.4987 | 66388.7 |
 | SiLU+AdamW | 3 | 0 | 75.2 min | 14.0 min | 61.4 min-89.4 min | 0.4754 | 70683.2 |
 | RLB+AdamW | 3 | 0 | 66.4 min | 1.7 min | 65.3 min-68.3 min | 0.4097 | 80014.3 |
 | SiLU+Muon | 3 | 0 | 72.8 min | 12.9 min | 63.8 min-87.6 min | 0.4585 | 72920.4 |
@@ -87,7 +89,7 @@ Clean rows summarized: `450`.
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 65.8 min | 2.9 min | 62.5 min-67.7 min | 0.4078 | 80467.9 |
+| RLB+MatrixPolicy | 3 | 0 | 74.5 min | 9.6 min | 69.0 min-85.7 min | 0.4670 | 70940.7 |
 | SiLU+AdamW | 3 | 0 | 76.4 min | 18.9 min | 60.2 min-97.1 min | 0.4840 | 70588.2 |
 | RLB+AdamW | 3 | 0 | 69.6 min | 3.4 min | 65.6 min-71.8 min | 0.4309 | 76194.5 |
 | SiLU+Muon | 3 | 0 | 69.7 min | 6.2 min | 65.6 min-76.8 min | 0.4385 | 75078.6 |
@@ -107,7 +109,7 @@ Clean rows summarized: `450`.
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 73.8 min | 14.9 min | 62.5 min-90.7 min | 0.4600 | 73238.4 |
+| RLB+MatrixPolicy | 3 | 0 | 76.4 min | 7.1 min | 69.2 min-83.3 min | 0.4785 | 68920.3 |
 | SiLU+AdamW | 3 | 0 | 63.5 min | 6.1 min | 58.4 min-70.3 min | 0.3991 | 82647.8 |
 | RLB+AdamW | 3 | 0 | 65.1 min | 5.8 min | 61.8 min-71.8 min | 0.4025 | 81843.6 |
 | SiLU+Muon | 3 | 0 | 78.0 min | 21.0 min | 64.2 min-102.2 min | 0.4937 | 69498.1 |
@@ -127,7 +129,7 @@ Clean rows summarized: `450`.
 
 | Combo | Runs | Early stops | Mean runtime | Std | Range | Mean s/step | Mean tokens/s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| RLB+MatrixPolicy | 3 | 0 | 64.2 min | 2.9 min | 62.5 min-67.6 min | 0.3976 | 82517.0 |
+| RLB+MatrixPolicy | 3 | 0 | 74.1 min | 8.6 min | 68.9 min-84.0 min | 0.4639 | 71288.7 |
 | SiLU+AdamW | 3 | 0 | 73.1 min | 13.1 min | 58.0 min-81.0 min | 0.4623 | 72773.1 |
 | RLB+AdamW | 3 | 0 | 68.4 min | 5.5 min | 62.0 min-71.7 min | 0.4237 | 77714.4 |
 | SiLU+Muon | 3 | 0 | 78.1 min | 16.1 min | 59.6 min-88.2 min | 0.4937 | 68698.4 |

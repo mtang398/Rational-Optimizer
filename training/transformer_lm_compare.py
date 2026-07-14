@@ -1,8 +1,10 @@
 import argparse
+import hashlib
 import json
 import math
 import os
 import re
+import subprocess
 import time
 from array import array
 from pathlib import Path
@@ -4444,6 +4446,84 @@ def sample_batch(tokens, batch_size, seq_len, offsets, generator, device):
     return x, y
 
 
+def tensor_sample_sha256(tensor, sample_count=4096):
+    values = tensor.detach().reshape(-1).cpu()
+    count = min(int(sample_count), int(values.numel()))
+    digest = hashlib.sha256()
+    digest.update(str(tuple(values.shape)).encode("ascii"))
+    digest.update(str(values.dtype).encode("ascii"))
+    digest.update(str(int(values.numel())).encode("ascii"))
+    if count > 0:
+        digest.update(values[:count].contiguous().numpy().tobytes())
+        digest.update(values[-count:].contiguous().numpy().tobytes())
+    return digest.hexdigest()
+
+
+def model_state_sha256(model):
+    digest = hashlib.sha256()
+    for name, value in model.state_dict().items():
+        tensor = value.detach().cpu().contiguous()
+        digest.update(name.encode("utf-8"))
+        digest.update(str(tuple(tensor.shape)).encode("ascii"))
+        digest.update(str(tensor.dtype).encode("ascii"))
+        digest.update(tensor.numpy().tobytes())
+    return digest.hexdigest()
+
+
+def sampled_start_fingerprint(token_count, seq_len, batch_size, draws, seed):
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(int(seed))
+    starts = torch.randint(
+        int(token_count) - int(seq_len) - 1,
+        (int(draws), int(batch_size)),
+        generator=generator,
+    )
+    return tensor_sample_sha256(starts, sample_count=starts.numel())
+
+
+def nvidia_smi_metadata(strict=False):
+    fields = [
+        "index",
+        "uuid",
+        "name",
+        "pci.bus_id",
+        "clocks.max.sm",
+        "power.limit",
+        "pstate",
+        "utilization.gpu",
+        "memory.used",
+    ]
+    try:
+        command = ["nvidia-smi"]
+        visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+        if visible_devices:
+            command.extend(["-i", visible_devices])
+        command.extend([f"--query-gpu={','.join(fields)}", "--format=csv,noheader,nounits"])
+        result = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        rows = []
+        for line in result.stdout.splitlines():
+            if not line.strip():
+                continue
+            values = [value.strip() for value in line.split(",")]
+            if len(values) != len(fields):
+                raise RuntimeError(f"unexpected nvidia-smi row: {line!r}")
+            rows.append(dict(zip(fields, values)))
+        if strict and len(rows) != 4:
+            raise RuntimeError(f"expected four visible GPUs, found {len(rows)}")
+        if strict and any("A6000" not in row["name"] for row in rows):
+            raise RuntimeError(f"expected only A6000 GPUs, found {[row['name'] for row in rows]}")
+        return rows
+    except (FileNotFoundError, subprocess.CalledProcessError, RuntimeError):
+        if strict:
+            raise
+        return None
+
+
 def reduce_mean(value, device, is_distributed):
     tensor = torch.tensor(float(value), device=device)
     if is_distributed:
@@ -4510,6 +4590,41 @@ def clip_or_measure_gradients(model, grad_clip, capture_norm):
     return None, False
 
 
+@torch.no_grad()
+def assert_rlb_matrix_parameters_synced(model, args, device, is_distributed):
+    if not is_distributed:
+        return 0.0
+    fingerprints = []
+    for group in collect_rlb_optimizer_groups(unwrap_model(model), args):
+        for parameter in (group["in_weight"], group["out_weight"]):
+            flat = parameter.detach().float().reshape(-1)
+            sample_count = min(257, flat.numel())
+            index = torch.linspace(
+                0,
+                flat.numel() - 1,
+                sample_count,
+                device=flat.device,
+            ).long()
+            fingerprints.append(flat.index_select(0, index))
+            fingerprints.append(flat.sum().reshape(1))
+            fingerprints.append(flat.square().sum().reshape(1))
+    if not fingerprints:
+        raise RuntimeError("DDP parameter synchronization check found no RLB matrix pair")
+    local = torch.cat(fingerprints).to(device=device)
+    gathered = [torch.empty_like(local) for _ in range(dist.get_world_size())]
+    dist.all_gather(gathered, local)
+    reference = gathered[0]
+    max_abs = max(
+        float((peer - reference).abs().max().item())
+        for peer in gathered[1:]
+    )
+    if max_abs != 0.0:
+        raise RuntimeError(
+            f"DDP RLB matrix replicas diverged after optimizer step; max fingerprint difference={max_abs}"
+        )
+    return max_abs
+
+
 def iter_optimizer_tree(optimizer):
     yield optimizer
     for child in getattr(optimizer, "optimizers", []):
@@ -4548,6 +4663,23 @@ def enable_rlb_training_telemetry(model, args):
         setattr(module, "_rlb_optimizer_track_stats", True)
         setattr(module, "_rlb_optimizer_stat_every", max(1, int(args.telemetry_rlb_stat_every)))
         setattr(module, "_rlb_optimizer_stat_samples", max(1, int(args.telemetry_rlb_stat_samples)))
+
+
+def rlb_live_stats_scope(model):
+    tracked = False
+    optimizer_consumed = False
+    for module in unwrap_model(model).modules():
+        if not bool(getattr(module, "_rlb_optimizer_track_stats", False)):
+            continue
+        tracked = True
+        optimizer_consumed = optimizer_consumed or bool(
+            getattr(module, "_rlb_optimizer_sync_stats", False)
+        )
+    if optimizer_consumed:
+        return "optimizer_gains_global_weighted_train_only"
+    if tracked:
+        return "telemetry_only"
+    return "disabled"
 
 
 def _rlb_denominator_probe(group, points=129, probe_range=5.0):
@@ -5304,6 +5436,7 @@ def configure_optimizer(model, args):
                 total_steps=args.steps,
                 selector_groups=curve_groups,
                 muon_strength=matrix_policy_muon_strength,
+                apply_muon_update=args.rational_matrix_policy_apply_muon_update,
                 muon_lr_scale=matrix_policy_muon_lr_scale,
                 adam_lr_scale=matrix_policy_adam_lr_scale,
                 adam_lr_scale_final=args.rational_matrix_policy_adam_lr_scale_final,
@@ -5317,6 +5450,9 @@ def configure_optimizer(model, args):
                 adam_beta2_decay_end=args.rational_matrix_policy_adam_beta2_decay_end,
                 adam_beta2_decay_depth_shift=args.rational_matrix_policy_adam_beta2_decay_depth_shift,
                 adam_role_strength=matrix_policy_adam_role_strength,
+                adam_role_strength_final=args.rational_matrix_policy_adam_role_strength_final,
+                adam_role_decay_start=args.rational_matrix_policy_adam_role_decay_start,
+                adam_role_decay_end=args.rational_matrix_policy_adam_role_decay_end,
                 adam_stat_strength=args.rational_matrix_policy_adam_stat_strength,
                 adam_pressure_balance=args.rational_matrix_policy_adam_pressure_balance,
                 adam_stat_start=args.rational_matrix_policy_adam_stat_start,
@@ -5844,6 +5980,11 @@ def parse_args():
     parser.add_argument("--rational-matrix-policy-backbone-beta2", type=float, default=0.999)
     parser.add_argument("--rational-matrix-policy-beta2", type=float, default=0.999)
     parser.add_argument("--rational-matrix-policy-muon-strength", type=float, default=0.75)
+    parser.add_argument(
+        "--rational-matrix-policy-apply-muon-update",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument("--rational-matrix-policy-muon-lr-scale", type=float, default=1.0)
     parser.add_argument("--rational-matrix-policy-adam-lr-scale", type=float, default=3.0)
     parser.add_argument("--rational-matrix-policy-adam-lr-scale-final", type=float, default=None)
@@ -5857,6 +5998,9 @@ def parse_args():
     parser.add_argument("--rational-matrix-policy-adam-beta2-decay-end", type=float, default=1.1)
     parser.add_argument("--rational-matrix-policy-adam-beta2-decay-depth-shift", type=float, default=0.0)
     parser.add_argument("--rational-matrix-policy-adam-role-strength", type=float, default=1.20)
+    parser.add_argument("--rational-matrix-policy-adam-role-strength-final", type=float, default=None)
+    parser.add_argument("--rational-matrix-policy-adam-role-decay-start", type=float, default=1.1)
+    parser.add_argument("--rational-matrix-policy-adam-role-decay-end", type=float, default=1.1)
     parser.add_argument("--rational-matrix-policy-adam-stat-strength", type=float, default=0.0)
     parser.add_argument("--rational-matrix-policy-adam-pressure-balance", type=float, default=0.0)
     parser.add_argument("--rational-matrix-policy-adam-stat-start", type=float, default=0.0)
@@ -6002,10 +6146,9 @@ def main():
     global_tokens = args.batch_size * args.grad_accum * world_size * args.seq_len
     if args.steps <= 0:
         args.steps = max(1, train_tokens.numel() // global_tokens)
-    if args.warmup_steps >= args.steps:
-        args.warmup_steps = max(1, args.steps // 10)
-
-    model = CausalTransformer(args, vocab_size).to(device)
+    model = CausalTransformer(args, vocab_size)
+    initial_state_sha256 = model_state_sha256(model) if rank == 0 else None
+    model = model.to(device)
     rlb_init_gauge_groups = apply_rlb_positive_gauge(
         model, args.rlb_init_gauge_log_scale, args.rlb_init_gauge_seed
     )
@@ -6130,6 +6273,36 @@ def main():
     slurm_restart_count = int(os.environ.get("SLURM_RESTART_COUNT", "0") or 0)
     slurm_node = os.environ.get("SLURMD_NODENAME") or os.environ.get("SLURM_NODELIST")
     timing_attempt_id = f"{slurm_job_id or 'manual'}:{slurm_restart_count}:{int(time.time())}"
+    strict_gpu_metadata = os.environ.get("E9_STRICT_GPU_METADATA", "0") == "1"
+    ddp_sync_check_interval = max(
+        0,
+        int(os.environ.get("MATRIXPOLICY_DDP_SYNC_CHECK_INTERVAL", "0") or 0),
+    )
+    gpu_metadata = nvidia_smi_metadata(strict=strict_gpu_metadata) if rank == 0 else None
+    train_token_sample_sha256 = tensor_sample_sha256(train_tokens) if rank == 0 else None
+    val_token_sample_sha256 = tensor_sample_sha256(val_tokens) if rank == 0 else None
+    first_batch_index_sha256 = (
+        sampled_start_fingerprint(
+            train_tokens.numel(),
+            args.seq_len,
+            args.batch_size,
+            args.grad_accum,
+            args.seed,
+        )
+        if rank == 0
+        else None
+    )
+    validation_index_sha256 = (
+        sampled_start_fingerprint(
+            val_tokens.numel(),
+            args.seq_len,
+            args.batch_size,
+            args.eval_batches,
+            args.seed + 1_000_003,
+        )
+        if rank == 0
+        else None
+    )
 
     config_record = {
         "event": "config",
@@ -6138,6 +6311,20 @@ def main():
         "slurm_restart_count": slurm_restart_count,
         "slurm_node": slurm_node,
         "timing_attempt_id": timing_attempt_id,
+        "e9_row_id": os.environ.get("E9_ROW_ID"),
+        "e9_arm_id": os.environ.get("E9_ARM_ID"),
+        "e9_design_version": os.environ.get("E9_DESIGN_VERSION"),
+        "e9_manifest_sha256": os.environ.get("E9_MANIFEST_SHA256"),
+        "e9_freeze_sha256": os.environ.get("E9_FREEZE_SHA256"),
+        "e9_runtime_freeze_sha256": os.environ.get("E9_RUNTIME_FREEZE_SHA256"),
+        "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+        "slurm_job_gpus": os.environ.get("SLURM_JOB_GPUS"),
+        "gpu_metadata": gpu_metadata,
+        "initial_state_sha256": initial_state_sha256,
+        "train_token_sample_sha256": train_token_sample_sha256,
+        "val_token_sample_sha256": val_token_sample_sha256,
+        "first_batch_index_sha256": first_batch_index_sha256,
+        "validation_index_sha256": validation_index_sha256,
         "timing_guard_max_seconds_per_step": args.timing_guard_max_seconds_per_step,
         "timing_guard_min_step": args.timing_guard_min_step,
         "batch_size_per_gpu": args.batch_size,
@@ -6158,12 +6345,19 @@ def main():
         "ffn_dim": args.ffn_dim,
         "global_tokens_per_step": global_tokens,
         "grad_accum": args.grad_accum,
+        "grad_clip": args.grad_clip,
+        "warmup_steps": args.warmup_steps,
+        "beta1": args.beta1,
+        "beta2": args.beta2,
+        "eps": args.eps,
         "log_interval": args.log_interval,
         "eval_interval": args.eval_interval,
         "eval_batches": args.eval_batches,
         "probe_batch_size": args.probe_batch_size,
         "telemetry_rlb_stat_every": args.telemetry_rlb_stat_every,
         "telemetry_rlb_stat_samples": args.telemetry_rlb_stat_samples,
+        "rlb_live_stats_scope": rlb_live_stats_scope(model),
+        "matrixpolicy_ddp_sync_check_interval": ddp_sync_check_interval,
         "telemetry_denominator_probe_points": args.telemetry_denominator_probe_points,
         "matrix_spectrum_interval": args.matrix_spectrum_interval,
         "matrix_spectrum_max_dim": args.matrix_spectrum_max_dim,
@@ -6229,6 +6423,7 @@ def main():
         "rational_matrix_policy_backbone_beta2": args.rational_matrix_policy_backbone_beta2 if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_beta2": args.rational_matrix_policy_beta2 if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_muon_strength": args.rational_matrix_policy_muon_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
+        "rational_matrix_policy_apply_muon_update": args.rational_matrix_policy_apply_muon_update if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_muon_lr_scale": args.rational_matrix_policy_muon_lr_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_adam_lr_scale": args.rational_matrix_policy_adam_lr_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_adam_lr_scale_final": args.rational_matrix_policy_adam_lr_scale_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
@@ -6242,6 +6437,9 @@ def main():
         "rational_matrix_policy_adam_beta2_decay_end": args.rational_matrix_policy_adam_beta2_decay_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_adam_beta2_decay_depth_shift": args.rational_matrix_policy_adam_beta2_decay_depth_shift if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_adam_role_strength": args.rational_matrix_policy_adam_role_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
+        "rational_matrix_policy_adam_role_strength_final": args.rational_matrix_policy_adam_role_strength_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
+        "rational_matrix_policy_adam_role_decay_start": args.rational_matrix_policy_adam_role_decay_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
+        "rational_matrix_policy_adam_role_decay_end": args.rational_matrix_policy_adam_role_decay_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_adam_stat_strength": args.rational_matrix_policy_adam_stat_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_adam_pressure_balance": args.rational_matrix_policy_adam_pressure_balance if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
         "rational_matrix_policy_adam_stat_start": args.rational_matrix_policy_adam_stat_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
@@ -6474,6 +6672,13 @@ def main():
     best_val_loss = math.inf
     stop_reason = None
     stop_step = None
+    grad_clip_observed_steps = 0
+    grad_clip_triggered_steps = 0
+    run_cuda_max_memory_allocated = 0
+    run_cuda_max_memory_reserved = 0
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
+        torch.cuda.synchronize(device)
     start_time = time.perf_counter()
     for step in range(args.steps):
         model.train()
@@ -6484,6 +6689,14 @@ def main():
         )
         capture_step_telemetry = will_log and rank == 0
         if capture_step_telemetry and device.type == "cuda":
+            run_cuda_max_memory_allocated = max(
+                run_cuda_max_memory_allocated,
+                int(torch.cuda.max_memory_allocated(device)),
+            )
+            run_cuda_max_memory_reserved = max(
+                run_cuda_max_memory_reserved,
+                int(torch.cuda.max_memory_reserved(device)),
+            )
             torch.cuda.reset_peak_memory_stats(device)
             torch.cuda.synchronize(device)
         set_optimizer_telemetry_capture(optimizer, capture_step_telemetry)
@@ -6560,14 +6773,42 @@ def main():
         if capture_step_telemetry and device.type == "cuda":
             torch.cuda.synchronize(device)
         optimizer_step_seconds = time.perf_counter() - optimizer_step_start
+        ddp_parameter_sync_max_abs = None
+        if (
+            args.optimizer in MATRIX_POLICY_OPTIMIZERS
+            and ddp_sync_check_interval > 0
+            and (
+                step == 0
+                or (step + 1) % ddp_sync_check_interval == 0
+                or will_eval
+                or step + 1 == args.steps
+            )
+        ):
+            ddp_parameter_sync_max_abs = assert_rlb_matrix_parameters_synced(
+                model,
+                args,
+                device,
+                is_distributed,
+            )
         if device.type == "cuda":
             torch.cuda.synchronize(device)
+            run_cuda_max_memory_allocated = max(
+                run_cuda_max_memory_allocated,
+                int(torch.cuda.max_memory_allocated(device)),
+            )
+            run_cuda_max_memory_reserved = max(
+                run_cuda_max_memory_reserved,
+                int(torch.cuda.max_memory_reserved(device)),
+            )
 
         step_time = time.perf_counter() - step_start
         step_times.append(step_time)
         mean_loss = reduce_mean(local_loss / args.grad_accum, device, is_distributed)
         loss_since_log += mean_loss
         steps_since_log += 1
+        grad_clip_observed_steps += 1
+        if grad_clip_triggered or sam_first_grad_clip_triggered:
+            grad_clip_triggered_steps += 1
         if not math.isfinite(mean_loss):
             stop_reason = "nonfinite_train_loss"
             stop_step = step + 1
@@ -6577,6 +6818,8 @@ def main():
                 "step": stop_step,
                 "reason": stop_reason,
                 "loss": mean_loss,
+                "timing_attempt_id": timing_attempt_id,
+                "active_seconds_after_event": time.perf_counter() - start_time,
             }
             rank0_print(rank, json.dumps(stop_record, sort_keys=True))
             if rank == 0:
@@ -6601,6 +6844,9 @@ def main():
                 "grad_clip_threshold": args.grad_clip,
                 "forward_backward_seconds": _finite_float(forward_backward_seconds),
                 "optimizer_step_seconds": _finite_float(optimizer_step_seconds),
+                "ddp_parameter_sync_max_abs": _finite_float(ddp_parameter_sync_max_abs),
+                "timing_attempt_id": timing_attempt_id,
+                "active_seconds_after_event": time.perf_counter() - start_time,
             }
             if sam_first_grad_global_norm_before_clip is not None:
                 record["sam_first_grad_global_norm_before_clip"] = _finite_float(sam_first_grad_global_norm_before_clip)
@@ -6611,6 +6857,7 @@ def main():
             if rank == 0:
                 record.update(collect_optimizer_telemetry(optimizer))
                 record.update(collect_rlb_telemetry(model, args))
+            record["active_seconds_after_event"] = time.perf_counter() - start_time
             loss_since_log = 0.0
             steps_since_log = 0
             rank0_print(rank, json.dumps(record, sort_keys=True))
@@ -6633,6 +6880,7 @@ def main():
                         "slurm_restart_count": slurm_restart_count,
                         "slurm_node": slurm_node,
                         "timing_attempt_id": timing_attempt_id,
+                        "active_seconds_after_event": time.perf_counter() - start_time,
                     }
                     rank0_print(rank, json.dumps(guard_record, sort_keys=True))
                     if rank == 0:
@@ -6643,19 +6891,39 @@ def main():
                     raise SystemExit(88)
 
         if will_eval:
+            eval_start = time.perf_counter()
             val_loss = evaluate(model, val_tokens, args, offsets, rank, world_size, device, is_distributed)
+            if device.type == "cuda":
+                torch.cuda.synchronize(device)
+            active_seconds_at_val_loss = time.perf_counter() - start_time
             record = {
                 "event": "eval",
                 "activation": args.activation,
                 "step": step + 1,
                 "val_loss": val_loss,
                 "val_ppl": math.exp(min(20.0, val_loss)),
+                "timing_attempt_id": timing_attempt_id,
+                "active_seconds_at_val_loss": active_seconds_at_val_loss,
             }
             record.update(evaluate_probe(model, probe_state, device, is_distributed))
             if rank == 0 and args.matrix_spectrum_interval > 0 and (
                 step == 0 or (step + 1) % args.matrix_spectrum_interval == 0 or step + 1 == args.steps
             ):
                 record.update(collect_matrix_spectrum_telemetry(model, args))
+            if device.type == "cuda":
+                torch.cuda.synchronize(device)
+                run_cuda_max_memory_allocated = max(
+                    run_cuda_max_memory_allocated,
+                    int(torch.cuda.max_memory_allocated(device)),
+                )
+                run_cuda_max_memory_reserved = max(
+                    run_cuda_max_memory_reserved,
+                    int(torch.cuda.max_memory_reserved(device)),
+                )
+            record["active_seconds_after_event"] = time.perf_counter() - start_time
+            record["eval_seconds"] = record["active_seconds_after_event"] - (
+                eval_start - start_time
+            )
             rank0_print(rank, json.dumps(record, sort_keys=True))
             if rank == 0:
                 write_jsonl(out_path, record)
@@ -6690,6 +6958,8 @@ def main():
                     "best_val_loss": None if not math.isfinite(best_val_loss) else best_val_loss,
                     "early_stop_max_val_loss": max_loss,
                     "early_stop_loss_increase": loss_increase,
+                    "timing_attempt_id": timing_attempt_id,
+                    "active_seconds_after_event": time.perf_counter() - start_time,
                 }
                 rank0_print(rank, json.dumps(stop_record, sort_keys=True))
                 if rank == 0:
@@ -6701,6 +6971,16 @@ def main():
     timed_steps = step_times[warmup_drop:]
     mean_step = sum(timed_steps) / max(1, len(timed_steps))
     completed_steps = stop_step if stop_step is not None else args.steps
+    completed_tokens = int(completed_steps) * int(global_tokens)
+    if device.type == "cuda":
+        run_cuda_max_memory_allocated = max(
+            run_cuda_max_memory_allocated,
+            int(torch.cuda.max_memory_allocated(device)),
+        )
+        run_cuda_max_memory_reserved = max(
+            run_cuda_max_memory_reserved,
+            int(torch.cuda.max_memory_reserved(device)),
+        )
     summary = {
         "event": "summary",
         "activation": args.activation,
@@ -6712,9 +6992,24 @@ def main():
         "timing_guard_min_step": args.timing_guard_min_step,
         "mean_seconds_per_step": mean_step,
         "tokens_per_second": global_tokens / mean_step,
+        "training_loop_tokens_per_second": completed_tokens / max(total_time, 1.0e-12),
         "total_seconds": total_time,
         "steps": args.steps,
         "completed_steps": completed_steps,
+        "completed_tokens": completed_tokens,
+        "grad_clip_observed_steps": grad_clip_observed_steps,
+        "grad_clip_triggered_steps": grad_clip_triggered_steps,
+        "grad_clip_trigger_fraction": (
+            0.0
+            if grad_clip_observed_steps == 0
+            else float(grad_clip_triggered_steps) / float(grad_clip_observed_steps)
+        ),
+        "cuda_run_max_memory_allocated": (
+            run_cuda_max_memory_allocated if device.type == "cuda" else None
+        ),
+        "cuda_run_max_memory_reserved": (
+            run_cuda_max_memory_reserved if device.type == "cuda" else None
+        ),
         "stopped_early": stop_reason is not None,
         "stop_reason": stop_reason,
     }

@@ -520,6 +520,8 @@ class RationalFusedLocalBasisA5_4(nn.Module):
     def _update_optimizer_stats(self, x):
         if not bool(getattr(self, "_rlb_optimizer_track_stats", False)):
             return
+        if bool(getattr(self, "_rlb_optimizer_stats_training_only", False)) and not self.training:
+            return
         stat_every = int(getattr(self, "_rlb_optimizer_stat_every", 1))
         counter = int(getattr(self, "_rlb_optimizer_stat_counter", 0)) + 1
         self._rlb_optimizer_stat_counter = counter
@@ -620,6 +622,14 @@ class RationalFusedLocalBasisA5_4(nn.Module):
             atom_rms = torch.empty((self.groups, 0, 2), device=t.device, dtype=torch.float32)
         output_rms = torch.sqrt(output.square().mean(dim=(0, 2)) + self.eps)
         derivative_rms = torch.sqrt(derivative.square().mean(dim=(0, 2)) + self.eps)
+        sample_count = torch.full(
+            (self.groups,),
+            float(output.size(0) * output.size(2)),
+            device=output.device,
+            dtype=torch.float32,
+        )
+        stat_version = int(getattr(self, "_rlb_optimizer_stat_version", 0)) + 1
+        self._rlb_optimizer_stat_version = stat_version
 
         self._rlb_optimizer_stats = {
             "abs_moments": abs_moments.detach(),
@@ -630,6 +640,10 @@ class RationalFusedLocalBasisA5_4(nn.Module):
             "atom_rms": atom_rms.detach(),
             "output_rms": output_rms.detach(),
             "derivative_rms": derivative_rms.detach(),
+            "output_sq_sum": output.square().sum(dim=(0, 2)).detach(),
+            "derivative_sq_sum": derivative.square().sum(dim=(0, 2)).detach(),
+            "sample_count": sample_count.detach(),
+            "stat_version": stat_version,
         }
 
     def forward(self, x):
@@ -735,6 +749,8 @@ class RationalFusedGlobalA5_4(nn.Module):
     def _update_optimizer_stats(self, x):
         if not bool(getattr(self, "_rlb_optimizer_track_stats", False)):
             return
+        if bool(getattr(self, "_rlb_optimizer_stats_training_only", False)) and not self.training:
+            return
         stat_every = int(getattr(self, "_rlb_optimizer_stat_every", 1))
         counter = int(getattr(self, "_rlb_optimizer_stat_counter", 0)) + 1
         self._rlb_optimizer_stat_counter = counter
@@ -806,6 +822,14 @@ class RationalFusedGlobalA5_4(nn.Module):
         den_gram = torch.einsum("gni,gnj->gij", den_flat, den_flat) / max(1, den_flat.size(1))
         output_rms = torch.sqrt(output.square().mean(dim=(0, 2)) + self.eps)
         derivative_rms = torch.sqrt(derivative.square().mean(dim=(0, 2)) + self.eps)
+        sample_count = torch.full(
+            (self.groups,),
+            float(output.size(0) * output.size(2)),
+            device=output.device,
+            dtype=torch.float32,
+        )
+        stat_version = int(getattr(self, "_rlb_optimizer_stat_version", 0)) + 1
+        self._rlb_optimizer_stat_version = stat_version
 
         self._rlb_optimizer_stats = {
             "abs_moments": abs_moments.detach(),
@@ -814,6 +838,10 @@ class RationalFusedGlobalA5_4(nn.Module):
             "den_gram": den_gram.detach(),
             "output_rms": output_rms.detach(),
             "derivative_rms": derivative_rms.detach(),
+            "output_sq_sum": output.square().sum(dim=(0, 2)).detach(),
+            "derivative_sq_sum": derivative.square().sum(dim=(0, 2)).detach(),
+            "sample_count": sample_count.detach(),
+            "stat_version": stat_version,
         }
 
     def forward(self, x):

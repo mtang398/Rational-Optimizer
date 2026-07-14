@@ -845,40 +845,81 @@ bash training/run_lm_optimizer_sweep.sbatch
 
 ## Result Regeneration Commands
 
+The paper-facing MatrixPolicy source is the validated live-statistic correction
+campaign:
+
+```bash
+CORRECTED_MP_MANIFEST=experiments/corrections/matrixpolicy_live_stats_20260712/manifests/matrixpolicy_live_stats_20260712_main.csv
+CORRECTED_MP_ROOT=experiments/corrections/matrixpolicy_live_stats_20260712/runs/main
+RLB_CONTROL_MANIFEST=experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv
+```
+
 E1 figures and checkpoint tables:
 
 ```bash
-python3 experiments/scripts/plot_iclr26_e1_curves.py   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-run-root experiments/runs/iclr26_main/E1_rational_only_100m   --matrixpolicy-phase E1_rational_only_100m   --status-md experiments/ICLR_RUN_STATUS.md
+python3 experiments/scripts/plot_iclr26_e1_curves.py \
+  --matrixpolicy-manifest "$CORRECTED_MP_MANIFEST" \
+  --matrixpolicy-run-root "$CORRECTED_MP_ROOT/E1_rational_only_100m" \
+  --matrixpolicy-phase E1_rational_only_100m \
+  --replacement-manifest "$RLB_CONTROL_MANIFEST" \
+  --replacement-run-root experiments/runs/iclr26_main/E1_global_rational_optimizers_100m \
+  --replacement-phase E1_global_rational_optimizers_100m \
+  --status-md experiments/ICLR_RUN_STATUS.md
 ```
 
 E1 token-to-target savings:
 
 ```bash
-python3 experiments/scripts/summarize_iclr26_e1_token_savings.py   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E1_rational_only_100m
+python3 experiments/scripts/summarize_iclr26_e1_token_savings.py \
+  --matrixpolicy-manifest "$CORRECTED_MP_MANIFEST" \
+  --matrixpolicy-run-root "$CORRECTED_MP_ROOT" \
+  --matrixpolicy-phase E1_rational_only_100m \
+  --replacement-manifest "$RLB_CONTROL_MANIFEST" \
+  --replacement-phase E1_global_rational_optimizers_100m
 ```
 
 E2 completed-cell summaries:
 
 ```bash
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset dclm   --output-dir experiments/results/iclr26_e2_dclm_2026_06_10   --completed-date 2026-06-10   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
-
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset fineweb_edu   --output-dir experiments/results/iclr26_e2_fineweb_edu_2026_06_12   --completed-date 2026-06-12   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
-
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset fineweb   --output-dir experiments/results/iclr26_e2_fineweb_2026_06_15   --completed-date 2026-06-15   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
-
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset dolma_sample   --output-dir experiments/results/iclr26_e2_dolma_sample_2026_06_17   --completed-date 2026-06-17   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
-
-python3 experiments/scripts/summarize_iclr26_e2_dataset.py   --dataset c4_en   --output-dir experiments/results/iclr26_e2_c4_2026_06_19   --completed-date 2026-06-19   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-phase E2_rational_only_300m
+python3 experiments/scripts/summarize_iclr26_e2_dataset.py \
+  --dataset DATASET \
+  --output-dir OUTPUT_DIRECTORY \
+  --completed-date ORIGINAL_COMPLETION_DATE \
+  --matrixpolicy-manifest "$CORRECTED_MP_MANIFEST" \
+  --matrixpolicy-run-root "$CORRECTED_MP_ROOT" \
+  --matrixpolicy-phase E2_rational_only_300m \
+  --replacement-manifest "$RLB_CONTROL_MANIFEST" \
+  --replacement-phase E2_global_rational_optimizers_300m
 ```
+
+Run the command for `dclm`, `fineweb_edu`, `fineweb`, `dolma_sample`, and
+`c4_en`, retaining their tracked output directories and original completion
+dates.
 
 E2 dense curve figures and checkpoint tables:
 
 ```bash
-python3 experiments/scripts/plot_iclr26_e2_curves.py   --matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --matrixpolicy-run-root experiments/runs/iclr26_main/E2_rational_only_300m   --matrixpolicy-phase E2_rational_only_300m
+python3 experiments/scripts/plot_iclr26_e2_curves.py \
+  --matrixpolicy-manifest "$CORRECTED_MP_MANIFEST" \
+  --matrixpolicy-run-root "$CORRECTED_MP_ROOT/E2_rational_only_300m" \
+  --matrixpolicy-phase E2_rational_only_300m \
+  --replacement-manifest "$RLB_CONTROL_MANIFEST" \
+  --replacement-run-root experiments/runs/iclr26_main/E2_global_rational_optimizers_300m \
+  --replacement-phase E2_global_rational_optimizers_300m
 ```
 
 Clean runtime tables for completed paper cells:
 
 ```bash
-python3 experiments/scripts/summarize_iclr26_runtimes.py   --safe-e1-matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv   --safe-e2-matrixpolicy-manifest experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv
+python3 experiments/scripts/summarize_iclr26_runtimes.py \
+  --safe-e1-matrixpolicy-manifest "$CORRECTED_MP_MANIFEST" \
+  --safe-e2-matrixpolicy-manifest "$CORRECTED_MP_MANIFEST" \
+  --matrixpolicy-run-root "$CORRECTED_MP_ROOT" \
+  --global-rational-optimizer-manifest "$RLB_CONTROL_MANIFEST"
+```
+
+Synchronize the generated packages into the active Markdown mirrors:
+
+```bash
+python3 experiments/scripts/sync_iclr26_result_readmes.py
 ```

@@ -19,7 +19,6 @@ DATASETS = {
         "val_split": "train",
         "val_skip_100m": 210_000_000,
         "val_skip_300m": 610_000_000,
-        "val_skip_600m": 910_000_000,
     },
     "fineweb_edu": {
         "dataset_name": "HuggingFaceFW/fineweb-edu",
@@ -29,7 +28,6 @@ DATASETS = {
         "val_split": "train",
         "val_skip_100m": 210_000_000,
         "val_skip_300m": 610_000_000,
-        "val_skip_600m": 910_000_000,
     },
     "fineweb": {
         "dataset_name": "HuggingFaceFW/fineweb",
@@ -39,7 +37,6 @@ DATASETS = {
         "val_split": "train",
         "val_skip_100m": 210_000_000,
         "val_skip_300m": 610_000_000,
-        "val_skip_600m": 910_000_000,
     },
     "dolma_sample": {
         "dataset_name": "allenai/dolma",
@@ -49,7 +46,6 @@ DATASETS = {
         "val_split": "train",
         "val_skip_100m": 210_000_000,
         "val_skip_300m": 610_000_000,
-        "val_skip_600m": 910_000_000,
     },
     "c4_en": {
         "dataset_name": "allenai/c4",
@@ -59,7 +55,6 @@ DATASETS = {
         "val_split": "validation",
         "val_skip_100m": 0,
         "val_skip_300m": 0,
-        "val_skip_600m": 0,
     },
 }
 
@@ -138,8 +133,6 @@ def budget_spec(tokens: int) -> tuple[int, int, int, str]:
         return 3_050, 4_000_000, 50, "100m"
     if tokens == 300_000_000:
         return 9_150, 8_000_000, 50, "300m"
-    if tokens == 600_000_000:
-        return 18_300, 8_000_000, 50, "600m"
     raise ValueError(tokens)
 
 
@@ -147,7 +140,7 @@ def add_row(rows: list[dict[str, str]], *, phase: str, dataset: str, model_name:
     steps, val_tokens, eval_interval, budget_tag = budget_spec(train_tokens)
     ds = DATASETS[dataset]
     model = MODELS[model_name]
-    skip_key = "val_skip_600m" if train_tokens == 600_000_000 else ("val_skip_300m" if train_tokens == 300_000_000 else "val_skip_100m")
+    skip_key = "val_skip_300m" if train_tokens == 300_000_000 else "val_skip_100m"
     global_tokens = 256 * 4 * model["batch_size"] * model["grad_accum"]
     row_id = f"{phase}_{dataset}_{model_name.lower()}_{budget_tag}_seed{seed}_{method['method']}"
     row = {
@@ -207,12 +200,6 @@ def build_rows() -> list[dict[str, str]]:
             for method in m1_methods:
                 add_row(rows, phase="E3_m1_300m", dataset=dataset, model_name="M1", train_tokens=300_000_000, seed=seed, method=method)
 
-    long_methods = [m for m in METHODS if m["method"] in {"silu_adamw", "rlb_adamw", "rlb_soap", "rlb_ademamix", "rlb_matrixpolicy_original"}]
-    for dataset in ["dclm", "fineweb_edu", "fineweb"]:
-        for seed in SEEDS:
-            for method in long_methods:
-                add_row(rows, phase="E4_m0_600m", dataset=dataset, model_name="M0", train_tokens=600_000_000, seed=seed, method=method)
-
     for idx, row in enumerate(rows):
         row["row_index"] = str(idx)
     return rows
@@ -228,7 +215,7 @@ def verify(rows: list[dict[str, str]]) -> None:
             raise SystemExit(f"bad MatrixPolicy optimizer in {row['row_id']}")
 
     required = {m["method"] for m in METHODS}
-    parity_phases = {"E0_preflight", "E1_m0_100m", "E2_m0_300m", "E3_m1_300m", "E4_m0_600m"}
+    parity_phases = {"E0_preflight", "E1_m0_100m", "E2_m0_300m", "E3_m1_300m"}
     main_phases = {"E1_m0_100m", "E2_m0_300m"}
 
     methods_by_phase = {
@@ -236,7 +223,6 @@ def verify(rows: list[dict[str, str]]) -> None:
         "E1_m0_100m": required,
         "E2_m0_300m": required,
         "E3_m1_300m": {"silu_adamw", "rlb_adamw", "silu_soap", "rlb_soap", "rlb_matrixpolicy_original"},
-        "E4_m0_600m": {"silu_adamw", "rlb_adamw", "rlb_soap", "rlb_ademamix", "rlb_matrixpolicy_original"},
     }
 
     cells: dict[tuple[str, str, str, str, str], list[dict[str, str]]] = defaultdict(list)

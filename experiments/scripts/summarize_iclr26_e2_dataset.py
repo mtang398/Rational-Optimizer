@@ -54,6 +54,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--completed-date", default="2026-06-12")
     parser.add_argument("--targets", type=float, nargs="*", default=None)
     parser.add_argument("--matrixpolicy-manifest", type=Path, default=None)
+    parser.add_argument("--matrixpolicy-run-root", type=Path, default=None)
     parser.add_argument("--matrixpolicy-phase", type=str, default=None)
     parser.add_argument("--replacement-manifest", type=Path, default=None)
     parser.add_argument("--replacement-phase", type=str, default=None)
@@ -274,6 +275,7 @@ def load_rows(
     run_root: Path,
     dataset: str,
     matrixpolicy_manifest: Path | None = None,
+    matrixpolicy_run_root: Path | None = None,
     matrixpolicy_phase: str | None = None,
     replacement_manifest: Path | None = None,
     replacement_phase: str | None = None,
@@ -295,7 +297,7 @@ def load_rows(
             by_key[key] = row
 
     if matrixpolicy_manifest is not None and matrixpolicy_phase is not None:
-        overlay(_load_phase_rows(matrixpolicy_manifest, run_root, dataset, matrixpolicy_phase, {MATRIXPOLICY_METHOD}, max_matrixpolicy_sps=max_matrixpolicy_sps, denylist_nodes=denylist_nodes, node_overrides=node_overrides, allow_timing_anomalies=allow_timing_anomalies))
+        overlay(_load_phase_rows(matrixpolicy_manifest, matrixpolicy_run_root or run_root, dataset, matrixpolicy_phase, {MATRIXPOLICY_METHOD}, max_matrixpolicy_sps=max_matrixpolicy_sps, denylist_nodes=denylist_nodes, node_overrides=node_overrides, allow_timing_anomalies=allow_timing_anomalies))
     if replacement_manifest is not None and replacement_phase is not None:
         overlay(_load_phase_rows(replacement_manifest, run_root, dataset, replacement_phase, REPLACEMENT_RLB_METHODS, max_matrixpolicy_sps=max_matrixpolicy_sps, denylist_nodes=denylist_nodes, node_overrides=node_overrides, allow_timing_anomalies=allow_timing_anomalies))
     return sorted(by_key.values(), key=lambda row: int(row["row"]))
@@ -658,7 +660,10 @@ def write_readme(
     stopped_early_count = sum(1 for row in rows if bool(row.get("stopped_early", False)))
     replacement_bits = []
     if matrixpolicy_replaced:
-        replacement_bits.append("MatrixPolicy entries use replacement JSONL rows for the same method and seed")
+        replacement_bits.append(
+            "MatrixPolicy entries use validated live-statistic-corrected "
+            "`rlb_fused_global_rational` JSONL rows for the same method and seed"
+        )
     if rlb_controls_replaced:
         replacement_bits.append("non-MatrixPolicy RLB optimizer controls use global-rational RLB (`rlb_fused_global_rational`) replacement rows")
     replacement_note = (
@@ -689,7 +694,7 @@ Each row uses `{tokens_per_step}` global tokens/step for about `{total_tokens / 
 
 ## Runtime Summary
 
-`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion.
+`summary.total_seconds` is training-harness wall time for the manifest row. It excludes Slurm queue wait, dependency wait, token-cache construction, extension compilation, and launcher overhead. MatrixPolicy replacement rows must pass JSONL integrity checks and the denylisted-node guard; an optional per-step timing ceiling can be enabled manually, but is off by default. Failures abort generation and require rerun/repair rather than exclusion. Node assignments were not matched across methods or corrected MatrixPolicy rows, so wall-clock values are observed allocation-specific measurements rather than hardware-normalized optimizer timings.
 
 {runtime_summary_markdown(runtime_rows)}
 
@@ -726,6 +731,7 @@ def main() -> None:
         args.run_root,
         args.dataset,
         args.matrixpolicy_manifest,
+        args.matrixpolicy_run_root,
         args.matrixpolicy_phase,
         args.replacement_manifest,
         args.replacement_phase,

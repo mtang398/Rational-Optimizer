@@ -1,0 +1,54 @@
+{
+  "campaign": "matrixpolicy_live_stats_20260712",
+  "final_validator": "858367",
+  "freeze_sha256": "925e3615588e61a26cf1de8f95d14375058c4e2c4c3d36196b4ad2285fab52a1",
+  "gpus_per_worker": 4,
+  "max_concurrent_gpu_workers": 4,
+  "resume_after_preflight": true,
+  "submitted_jobs": 19,
+  "submitted_unix_time": 1783952892.0771027,
+  "supersedes_failed_validators": [
+    "848507",
+    "848538",
+    "848619",
+    "848770",
+    "853057",
+    "853062",
+    "853067",
+    "853072"
+  ],
+  "validator_builder_sha256": "3bf57ab9b529baf0794e9604f6cf72151a95ccd244b1805b6515548ac4882f83",
+  "validator_sha256": "2d409379468a7012564d4964bf1ab4887d81740d9f77b6b94177831bdca7f056",
+  "validators": {
+    "e8": "858361",
+    "e9": "858366",
+    "main": "858356"
+  },
+  "watchdogs": {
+    "e8": "858369",
+    "e9": "858370",
+    "main": "858368"
+  },
+  "worker_launcher_sha256": "7195369d4b362e4b09c9c0a7904c84e5d00d8a3de2d34002bb53e5c9f60b4fbd",
+  "worker_ledger": "experiments/corrections/matrixpolicy_live_stats_20260712/submissions/persistent_worker_dag_20260713_102809.csv",
+  "workers_by_stage": {
+    "e8": [
+      "858357",
+      "858358",
+      "858359",
+      "858360"
+    ],
+    "e9": [
+      "858362",
+      "858363",
+      "858364",
+      "858365"
+    ],
+    "main": [
+      "858352",
+      "858353",
+      "858354",
+      "858355"
+    ]
+  }
+}

@@ -89,6 +89,16 @@ class _RLBGaugeBalanceBase:
         self.param_groups = []
         for optimizer in self.optimizers:
             self.param_groups.extend(optimizer.param_groups)
+        self._capture_telemetry_next_step = False
+        self._last_telemetry = {}
+        for group in self.balance_groups:
+            self._pair_probe_input(group)
+
+    def set_telemetry_capture(self, enabled: bool = True):
+        self._capture_telemetry_next_step = bool(enabled)
+
+    def telemetry(self):
+        return dict(self._last_telemetry)
 
     def zero_grad(self, set_to_none=True):
         for optimizer in self.optimizers:
@@ -311,16 +321,65 @@ class _RLBGaugeBalanceBase:
                     continue
 
     @torch.no_grad()
-    def _balance(self):
-        if self.strength <= 0.0 or not self.balance_groups:
-            return
+    def _pair_probe_input(self, group: dict):
+        in_weight = group["in_weight"]
+        input_dim = int(in_weight.shape[1])
+        cache_key = (input_dim, in_weight.device, in_weight.dtype)
+        cache = group.get("_pair_probe_cache")
+        if cache is None or cache.get("key") != cache_key:
+            index = torch.arange(2 * input_dim, device=in_weight.device, dtype=torch.float32).view(2, input_dim)
+            probe = torch.sin(index * 0.017) + 0.5 * torch.cos(index * 0.031)
+            probe = probe / torch.sqrt(probe.square().mean(dim=-1, keepdim=True) + self.eps)
+            cache = {"key": cache_key, "input": probe.to(dtype=in_weight.dtype)}
+            group["_pair_probe_cache"] = cache
+        return cache["input"]
+
+    @torch.no_grad()
+    def _pair_probe_output(self, group: dict):
+        module = group.get("module")
+        if module is None:
+            return None
+        in_weight = group["in_weight"]
+        out_weight = group["out_weight"]
+        probe_input = self._pair_probe_input(group)
+
+        had_track = hasattr(module, "_rlb_optimizer_track_stats")
+        old_track = getattr(module, "_rlb_optimizer_track_stats", None)
+        had_stats = hasattr(module, "_rlb_optimizer_stats")
+        old_stats = getattr(module, "_rlb_optimizer_stats", None)
+        try:
+            if had_track:
+                setattr(module, "_rlb_optimizer_track_stats", False)
+            hidden = torch.nn.functional.linear(probe_input, in_weight)
+            activated = module(hidden)
+            return torch.nn.functional.linear(activated, out_weight).detach().float()
+        finally:
+            if had_track:
+                setattr(module, "_rlb_optimizer_track_stats", old_track)
+            if had_stats:
+                setattr(module, "_rlb_optimizer_stats", old_stats)
+
+    @torch.no_grad()
+    def _balance(self, capture_telemetry: bool = False):
+        telemetry = {
+            "matrix_policy_pair_rescale_enabled": self.strength > 0.0,
+            "matrix_policy_pair_rescale_applied": False,
+        }
+        if not self.balance_groups:
+            return telemetry
         if self.step_index % self.every != 0:
-            return
+            return telemetry
         schedule = self.strength * _smoothstep(self.start, self.end, self._progress())
-        if schedule <= 0.0:
-            return
+        if schedule <= 0.0 and not capture_telemetry:
+            return telemetry
         log_activity_min = math.log(max(self.activity_gain_min, self.eps))
         log_activity_max = math.log(max(self.activity_gain_max, self.eps))
+        log_moves = []
+        target_mismatches = []
+        clipped = 0
+        move_count = 0
+        probe_relative_deltas = []
+        pair_rescale_scheduled = schedule > 0.0
         for group in self.balance_groups:
             views = self._group_weight_views(group)
             if views is None:
@@ -332,11 +391,13 @@ class _RLBGaugeBalanceBase:
             metric_step = int(group.get("_functional_metric_step", -1))
             if metric_step < 0 or (self.step_index - metric_step) >= self.metric_every:
                 out_gain, deriv_gain = self._curve_gain(group)
-                group["_functional_out_gain"] = out_gain
-                group["_functional_deriv_gain"] = deriv_gain
-                group["_functional_metric_step"] = self.step_index
-            out_gain = group.get("_functional_out_gain")
-            deriv_gain = group.get("_functional_deriv_gain")
+                if pair_rescale_scheduled:
+                    group["_functional_out_gain"] = out_gain
+                    group["_functional_deriv_gain"] = deriv_gain
+                    group["_functional_metric_step"] = self.step_index
+            else:
+                out_gain = group.get("_functional_out_gain")
+                deriv_gain = group.get("_functional_deriv_gain")
             target_log_ratio = torch.zeros_like(in_norm)
             if out_gain is not None and deriv_gain is not None and self.target_weight != 0.0:
                 out_gain = out_gain.to(device=in_norm.device, dtype=in_norm.dtype).clamp_min(self.eps)
@@ -362,22 +423,64 @@ class _RLBGaugeBalanceBase:
                 activity_gain = torch.exp(log_activity_gain)
 
             current_log_ratio = torch.log(in_norm) - torch.log(out_norm)
-            log_scale = 0.5 * (target_log_ratio - current_log_ratio)
-            log_scale = log_scale * (schedule * self._layer_scale(group)) * activity_gain
-            log_scale = log_scale.clamp(min=-self.max_log_step, max=self.max_log_step)
-            scale = torch.exp(log_scale)
-            in_view.mul_(scale.view(scale.numel(), 1, 1))
-            out_inv_scale = scale.reciprocal()
-            out_view.mul_(out_inv_scale.view(scale.numel(), 1, 1))
-            self._scale_optimizer_state(group["in_weight"], scale, in_like=True)
-            self._scale_optimizer_state(group["out_weight"], out_inv_scale, in_like=False)
+            target_mismatch = target_log_ratio - current_log_ratio
+            raw_log_scale = 0.5 * target_mismatch
+            raw_log_scale = raw_log_scale * (schedule * self._layer_scale(group)) * activity_gain
+            log_scale = raw_log_scale.clamp(min=-self.max_log_step, max=self.max_log_step)
+            probe_before = self._pair_probe_output(group) if capture_telemetry else None
+            if pair_rescale_scheduled:
+                scale = torch.exp(log_scale)
+                in_view.mul_(scale.view(scale.numel(), 1, 1))
+                out_inv_scale = scale.reciprocal()
+                out_view.mul_(out_inv_scale.view(scale.numel(), 1, 1))
+            if capture_telemetry:
+                probe_after = self._pair_probe_output(group)
+                if probe_before is not None and probe_after is not None:
+                    delta = torch.sqrt((probe_after - probe_before).square().mean())
+                    baseline = torch.sqrt(probe_before.square().mean() + self.eps)
+                    probe_relative_deltas.append(float((delta / baseline.clamp_min(self.eps)).item()))
+                log_moves.extend(float(x) for x in log_scale.detach().float().reshape(-1).cpu())
+                target_mismatches.extend(
+                    float(x) for x in target_mismatch.detach().float().abs().reshape(-1).cpu()
+                )
+                clipped += int((raw_log_scale.detach().abs() > self.max_log_step).sum().item())
+                move_count += int(raw_log_scale.numel())
+            if pair_rescale_scheduled:
+                self._scale_optimizer_state(group["in_weight"], scale, in_like=True)
+                self._scale_optimizer_state(group["out_weight"], out_inv_scale, in_like=False)
+        if capture_telemetry:
+            def mean_or_none(values):
+                return None if not values else float(sum(values) / len(values))
+
+            telemetry.update(
+                {
+                    "matrix_policy_pair_rescale_scheduled": pair_rescale_scheduled,
+                    "matrix_policy_pair_rescale_diagnosed_group_count": move_count,
+                    "matrix_policy_pair_rescale_attempted_count": move_count if pair_rescale_scheduled else 0,
+                    "matrix_policy_pair_rescale_applied": any(abs(value) > 0.0 for value in log_moves),
+                    "matrix_policy_pair_log_move_mean": mean_or_none(log_moves),
+                    "matrix_policy_pair_log_move_abs_mean": mean_or_none([abs(x) for x in log_moves]),
+                    "matrix_policy_pair_log_move_abs_max": None if not log_moves else max(abs(x) for x in log_moves),
+                    "matrix_policy_pair_target_mismatch_abs_mean": mean_or_none(target_mismatches),
+                    "matrix_policy_pair_clip_fraction": None if move_count == 0 else float(clipped) / float(move_count),
+                    "matrix_policy_pair_local_probe_relative_delta_mean": mean_or_none(probe_relative_deltas),
+                    "matrix_policy_pair_local_probe_relative_delta_max": (
+                        None if not probe_relative_deltas else max(probe_relative_deltas)
+                    ),
+                }
+            )
+        return telemetry
 
     def step(self):
         self.step_index += 1
+        capture_telemetry = self._capture_telemetry_next_step
+        self._capture_telemetry_next_step = False
         self._update_onpolicy_stats()
         for optimizer in self.optimizers:
             optimizer.step()
-        self._balance()
+        pair_telemetry = self._balance(capture_telemetry=capture_telemetry)
+        if capture_telemetry:
+            self._last_telemetry = pair_telemetry
 
 
 class _RLBMatrixMetricBase(_RLBGaugeBalanceBase):
@@ -502,6 +605,15 @@ class _RLBAdaptiveMetricBase(_RLBMatrixMetricBase):
         if self.coeff_metric_damping < 0.0:
             raise ValueError("coeff_metric_damping must be non-negative")
 
+        child_uses_live_gains = any(
+            float(getattr(optimizer, "group_gain_strength", 0.0)) != 0.0
+            for optimizer in self.optimizers
+        )
+        self._live_optimizer_stats_consumed = bool(
+            child_uses_live_gains
+            or self.coeff_strength > 0.0
+            or self.matrix_strength > 0.0
+        )
         for group in self.balance_groups:
             module = group.get("module")
             if module is None:
@@ -509,6 +621,205 @@ class _RLBAdaptiveMetricBase(_RLBMatrixMetricBase):
             setattr(module, "_rlb_optimizer_track_stats", True)
             setattr(module, "_rlb_optimizer_stat_every", self.stat_every)
             setattr(module, "_rlb_optimizer_stat_samples", self.stat_samples)
+            setattr(
+                module,
+                "_rlb_optimizer_stats_training_only",
+                self._live_optimizer_stats_consumed,
+            )
+            setattr(
+                module,
+                "_rlb_optimizer_sync_stats",
+                self._live_optimizer_stats_consumed,
+            )
+            setattr(module, "_rlb_optimizer_stats_synced_version", -1)
+
+    def _enable_live_optimizer_stats(self):
+        if self._live_optimizer_stats_consumed:
+            return
+        self._live_optimizer_stats_consumed = True
+        for group in self.balance_groups:
+            module = group.get("module")
+            if module is None:
+                continue
+            setattr(module, "_rlb_optimizer_stats_training_only", True)
+            setattr(module, "_rlb_optimizer_sync_stats", True)
+            setattr(module, "_rlb_optimizer_stats_synced_version", -1)
+
+    @torch.no_grad()
+    def _synchronize_live_optimizer_stats(self):
+        if (
+            self.coeff_strength > 0.0
+            and torch.distributed.is_available()
+            and torch.distributed.is_initialized()
+            and torch.distributed.get_world_size() > 1
+        ):
+            raise RuntimeError(
+                "distributed empirical coefficient Gram preconditioning requires "
+                "globally synchronized Gram statistics"
+            )
+        if not self._live_optimizer_stats_consumed or not self.balance_groups:
+            return
+
+        distributed = (
+            torch.distributed.is_available()
+            and torch.distributed.is_initialized()
+            and torch.distributed.get_world_size() > 1
+        )
+        world_size = torch.distributed.get_world_size() if distributed else 1
+        entries = []
+        for group in self.balance_groups:
+            module = group.get("module")
+            groups = int(group.get("groups", 0))
+            if module is None or groups <= 0:
+                raise RuntimeError("RLB live-stat synchronization found an invalid balance group")
+            sync_enabled = bool(getattr(module, "_rlb_optimizer_sync_stats", False))
+            stats = getattr(module, "_rlb_optimizer_stats", None)
+            version = int(getattr(module, "_rlb_optimizer_stat_version", 0))
+            synced_version = int(getattr(module, "_rlb_optimizer_stats_synced_version", -1))
+            pending = bool(sync_enabled and version != synced_version)
+            required = ("output_sq_sum", "derivative_sq_sum", "sample_count")
+            valid = bool(
+                pending
+                and isinstance(stats, dict)
+                and all(torch.is_tensor(stats.get(key)) for key in required)
+                and int(stats.get("stat_version", -1)) == version
+            )
+            tensors = []
+            if valid:
+                tensors = [stats[key].detach().reshape(-1) for key in required]
+                valid = all(tensor.numel() == groups for tensor in tensors)
+            entries.append(
+                {
+                    "module": module,
+                    "stats": stats,
+                    "version": version,
+                    "synced_version": synced_version,
+                    "sync_enabled": sync_enabled,
+                    "pending": pending,
+                    "valid": valid,
+                    "groups": groups,
+                    "layer_token": int(group.get("layer_index", -1)) + 1,
+                    "tensors": tensors,
+                }
+            )
+
+        tensor_devices = {
+            tensor.device
+            for entry in entries
+            for tensor in entry["tensors"]
+        }
+        if len(tensor_devices) > 1:
+            raise RuntimeError("RLB live-stat caches must share one device")
+        if tensor_devices:
+            device = next(iter(tensor_devices))
+        else:
+            device = self.balance_groups[0]["in_weight"].device
+
+        chunks = []
+        for entry in entries:
+            groups = int(entry["groups"])
+            pending = bool(entry["pending"])
+            valid = bool(entry["valid"])
+            version = int(entry["version"])
+            layer_token = int(entry["layer_token"])
+            header = torch.tensor(
+                [
+                    float(entry["sync_enabled"]),
+                    float(groups),
+                    float(groups * groups),
+                    float(layer_token),
+                    float(layer_token * layer_token),
+                    float(pending),
+                    float(version if pending else 0),
+                    float(version * version if pending else 0),
+                    float(valid),
+                ],
+                device=device,
+                dtype=torch.float64,
+            )
+            chunks.append(header)
+            if valid:
+                chunks.extend(
+                    tensor.to(device=device, dtype=torch.float64)
+                    for tensor in entry["tensors"]
+                )
+            else:
+                chunks.extend(
+                    torch.zeros(groups, device=device, dtype=torch.float64)
+                    for _ in range(3)
+                )
+        payload = torch.cat(chunks)
+        if distributed:
+            torch.distributed.all_reduce(payload, op=torch.distributed.ReduceOp.SUM)
+
+        offset = 0
+        for entry in entries:
+            groups = int(entry["groups"])
+            header = payload[offset : offset + 9]
+            offset += 9
+            output_sum = payload[offset : offset + groups]
+            offset += groups
+            derivative_sum = payload[offset : offset + groups]
+            offset += groups
+            sample_count = payload[offset : offset + groups]
+            offset += groups
+
+            (
+                sync_sum,
+                group_sum,
+                group_sq_sum,
+                layer_sum,
+                layer_sq_sum,
+                pending_sum,
+                version_sum,
+                version_sq_sum,
+                valid_sum,
+            ) = (
+                float(value.item()) for value in header
+            )
+            if sync_sum not in (0.0, float(world_size)):
+                raise RuntimeError("RLB live-stat synchronization flags differ across ranks")
+            if world_size * group_sq_sum != group_sum * group_sum:
+                raise RuntimeError("RLB live-stat group descriptors differ across ranks")
+            if int(round(group_sum / world_size)) != groups:
+                raise RuntimeError("RLB live-stat group order differs across ranks")
+            if world_size * layer_sq_sum != layer_sum * layer_sum:
+                raise RuntimeError("RLB live-stat layer order differs across ranks")
+            if int(round(layer_sum / world_size)) != int(entry["layer_token"]):
+                raise RuntimeError("RLB live-stat layer descriptor differs across ranks")
+            if sync_sum == 0.0:
+                continue
+            if pending_sum not in (0.0, float(world_size)):
+                raise RuntimeError("RLB live-stat cache versions differ across ranks")
+            if pending_sum == 0.0:
+                continue
+            if world_size * version_sq_sum != version_sum * version_sum:
+                raise RuntimeError("RLB live-stat refresh versions differ across ranks")
+            if valid_sum != float(world_size):
+                raise RuntimeError("RLB live-stat cache is incomplete on at least one rank")
+            if torch.any(sample_count <= 0.0):
+                raise RuntimeError("RLB live-stat synchronization found a non-positive sample count")
+
+            stats = entry["stats"]
+            module = entry["module"]
+            if not isinstance(stats, dict):
+                raise RuntimeError("RLB live-stat cache disappeared during synchronization")
+            module_eps = float(getattr(module, "eps", self.eps))
+            stats["output_sq_sum"] = output_sum.float().detach()
+            stats["derivative_sq_sum"] = derivative_sum.float().detach()
+            stats["sample_count"] = sample_count.float().detach()
+            stats["output_rms"] = torch.sqrt(output_sum / sample_count + module_eps).float().detach()
+            stats["derivative_rms"] = torch.sqrt(
+                derivative_sum / sample_count + module_eps
+            ).float().detach()
+            stats["sync_world_size"] = world_size
+            stats["optimizer_global"] = True
+            stats["optimizer_global_version"] = int(entry["version"])
+            setattr(
+                module,
+                "_rlb_optimizer_stats_synced_version",
+                int(entry["version"]),
+            )
 
     def _coefficient_phase(self) -> float:
         progress = self._progress()
@@ -669,6 +980,7 @@ class _RLBAdaptiveMetricBase(_RLBMatrixMetricBase):
     def step(self):
         self.step_index += 1
         self._update_onpolicy_stats()
+        self._synchronize_live_optimizer_stats()
         self._project_gauge_gradients()
         self._precondition_coefficient_gradients()
         self._precondition_matrix_gradients()
@@ -744,6 +1056,10 @@ class RationalTransportOnPolicyOptimizer(_RLBAdaptiveMetricBase):
             raise ValueError("pressure_precond_min_scale must be positive")
         if self.pressure_precond_max_scale < self.pressure_precond_min_scale:
             raise ValueError("pressure_precond_max_scale must be >= pressure_precond_min_scale")
+        if self.transport_strength > 0.0 or (
+            self.matrix_strength > 0.0 and self.matrix_live_stats
+        ):
+            self._enable_live_optimizer_stats()
 
     def _transport_phase(self) -> float:
         progress = self._progress()
@@ -953,11 +1269,16 @@ class RationalTransportOnPolicyOptimizer(_RLBAdaptiveMetricBase):
 
     def step(self):
         self.step_index += 1
+        capture_telemetry = self._capture_telemetry_next_step
+        self._capture_telemetry_next_step = False
         self._update_onpolicy_stats()
+        self._synchronize_live_optimizer_stats()
         self._project_gauge_gradients()
         self._precondition_coefficient_gradients()
         self._precondition_matrix_gradients()
         for optimizer in self.optimizers:
             optimizer.step()
-        self._balance()
+        pair_telemetry = self._balance(capture_telemetry=capture_telemetry)
         self._transport_curve_amplitude()
+        if capture_telemetry:
+            self._last_telemetry = pair_telemetry

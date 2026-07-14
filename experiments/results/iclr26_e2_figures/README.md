@@ -2,13 +2,13 @@
 
 Completed E2 M0/300M datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. Figures use every native JSONL log point from step 500 through 9150. Validation curves use every 50-step eval; training-loss curves use every 10-step train log. Shaded bands are mean +/- 1 sample std over three seeds.
 
-MatrixPolicy curves use the replacement JSONL rows passed with `--matrixpolicy-manifest`. Non-MatrixPolicy RLB optimizer controls use the `rlb_fused_global_rational` replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
+MatrixPolicy curves use the validated live-statistic-corrected `rlb_fused_global_rational` rows passed with `--matrixpolicy-manifest`; the corrected path synchronizes optimizer-consumed RLB statistics across ranks and prevents validation forwards from refreshing the training cache. Non-MatrixPolicy RLB optimizer controls use the global-rational RLB (`rlb_fused_global_rational`) replacement rows passed with `--replacement-manifest`; SiLU controls use the main E2 rows.
 
 Final validation-loss overview across completed E2 datasets. Lower is better; cells are mean +/- sample std over three seeds.
 
 | Method | DCLM final | FineWeb-Edu final | FineWeb final | Dolma-sample final | C4 final |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 3.9518 +/- 0.0282 | 3.7015 +/- 0.0212 | 3.9623 +/- 0.0081 | 3.8062 +/- 0.0073 | 3.8777 +/- 0.0144 |
+| MatrixPolicy | 3.9517 +/- 0.0294 | 3.7022 +/- 0.0204 | 3.9629 +/- 0.0080 | 3.8053 +/- 0.0079 | 3.8783 +/- 0.0150 |
 | RLB+AdamW | 4.0496 +/- 0.0298 | 3.8024 +/- 0.0206 | 4.0601 +/- 0.0110 | 3.9045 +/- 0.0082 | 3.9787 +/- 0.0098 |
 | SiLU+AdamW | 4.0493 +/- 0.0275 | 3.8035 +/- 0.0182 | 4.0612 +/- 0.0101 | 3.9037 +/- 0.0091 | 3.9811 +/- 0.0128 |
 | RLB+Lion | 3.9887 +/- 0.0295 | 3.7416 +/- 0.0214 | 3.9960 +/- 0.0105 | 3.8412 +/- 0.0085 | 3.9132 +/- 0.0139 |
@@ -46,7 +46,7 @@ DCLM E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.8531 +/- 0.0471 | 4.4417 +/- 0.0315 | 4.1981 +/- 0.0263 | 4.0556 +/- 0.0289 | 3.9734 +/- 0.0270 | 3.9518 +/- 0.0282 |
+| MatrixPolicy | 4.8552 +/- 0.0472 | 4.4414 +/- 0.0315 | 4.1972 +/- 0.0274 | 4.0550 +/- 0.0289 | 3.9727 +/- 0.0282 | 3.9517 +/- 0.0294 |
 | RLB+AdamW | 4.9860 +/- 0.0322 | 4.5477 +/- 0.0292 | 4.2697 +/- 0.0283 | 4.1394 +/- 0.0315 | 4.0676 +/- 0.0299 | 4.0496 +/- 0.0298 |
 | SiLU+AdamW | 4.9903 +/- 0.0383 | 4.5538 +/- 0.0272 | 4.2691 +/- 0.0242 | 4.1383 +/- 0.0272 | 4.0667 +/- 0.0268 | 4.0493 +/- 0.0275 |
 | RLB+Lion | 4.9103 +/- 0.0427 | 4.4743 +/- 0.0318 | 4.2123 +/- 0.0265 | 4.0805 +/- 0.0294 | 4.0068 +/- 0.0295 | 3.9887 +/- 0.0295 |
@@ -84,7 +84,7 @@ FineWeb-Edu E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.7042 +/- 0.0163 | 4.2474 +/- 0.0255 | 3.9828 +/- 0.0204 | 3.8213 +/- 0.0208 | 3.7279 +/- 0.0226 | 3.7015 +/- 0.0212 |
+| MatrixPolicy | 4.7019 +/- 0.0186 | 4.2484 +/- 0.0246 | 3.9826 +/- 0.0212 | 3.8221 +/- 0.0207 | 3.7289 +/- 0.0214 | 3.7022 +/- 0.0204 |
 | RLB+AdamW | 4.8515 +/- 0.0270 | 4.3616 +/- 0.0263 | 4.0497 +/- 0.0226 | 3.9023 +/- 0.0199 | 3.8238 +/- 0.0209 | 3.8024 +/- 0.0206 |
 | SiLU+AdamW | 4.8639 +/- 0.0168 | 4.3679 +/- 0.0200 | 4.0543 +/- 0.0197 | 3.9046 +/- 0.0184 | 3.8255 +/- 0.0186 | 3.8035 +/- 0.0182 |
 | RLB+Lion | 4.7597 +/- 0.0237 | 4.2879 +/- 0.0256 | 3.9920 +/- 0.0233 | 3.8432 +/- 0.0209 | 3.7636 +/- 0.0227 | 3.7416 +/- 0.0214 |
@@ -122,7 +122,7 @@ FineWeb E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.9177 +/- 0.0197 | 4.4861 +/- 0.0084 | 4.2306 +/- 0.0113 | 4.0759 +/- 0.0071 | 3.9864 +/- 0.0088 | 3.9623 +/- 0.0081 |
+| MatrixPolicy | 4.9153 +/- 0.0183 | 4.4852 +/- 0.0068 | 4.2313 +/- 0.0101 | 4.0770 +/- 0.0070 | 3.9867 +/- 0.0082 | 3.9629 +/- 0.0080 |
 | RLB+AdamW | 5.0480 +/- 0.0115 | 4.5930 +/- 0.0068 | 4.2973 +/- 0.0115 | 4.1554 +/- 0.0105 | 4.0795 +/- 0.0102 | 4.0601 +/- 0.0110 |
 | SiLU+AdamW | 5.0527 +/- 0.0192 | 4.6013 +/- 0.0095 | 4.2990 +/- 0.0101 | 4.1566 +/- 0.0097 | 4.0805 +/- 0.0098 | 4.0612 +/- 0.0101 |
 | RLB+Lion | 4.9539 +/- 0.0114 | 4.5179 +/- 0.0112 | 4.2366 +/- 0.0122 | 4.0943 +/- 0.0107 | 4.0161 +/- 0.0103 | 3.9960 +/- 0.0105 |
@@ -160,7 +160,7 @@ Dolma-sample E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.7148 +/- 0.0094 | 4.3132 +/- 0.0063 | 4.0684 +/- 0.0081 | 3.9171 +/- 0.0089 | 3.8292 +/- 0.0070 | 3.8062 +/- 0.0073 |
+| MatrixPolicy | 4.7148 +/- 0.0082 | 4.3113 +/- 0.0050 | 4.0673 +/- 0.0089 | 3.9147 +/- 0.0091 | 3.8281 +/- 0.0073 | 3.8053 +/- 0.0079 |
 | RLB+AdamW | 4.8475 +/- 0.0112 | 4.4228 +/- 0.0070 | 4.1366 +/- 0.0099 | 3.9964 +/- 0.0087 | 3.9231 +/- 0.0078 | 3.9045 +/- 0.0082 |
 | SiLU+AdamW | 4.8563 +/- 0.0014 | 4.4240 +/- 0.0099 | 4.1350 +/- 0.0106 | 3.9963 +/- 0.0097 | 3.9227 +/- 0.0091 | 3.9037 +/- 0.0091 |
 | RLB+Lion | 4.7624 +/- 0.0186 | 4.3478 +/- 0.0144 | 4.0769 +/- 0.0121 | 3.9361 +/- 0.0106 | 3.8607 +/- 0.0089 | 3.8412 +/- 0.0085 |
@@ -198,7 +198,7 @@ C4 E2 validation-loss checkpoint table, mean +/- sample std:
 
 | Method | 1000 | 2000 | 4000 | 6000 | 8000 | 9150 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| MatrixPolicy | 4.8588 +/- 0.0133 | 4.4135 +/- 0.0141 | 4.1521 +/- 0.0120 | 3.9952 +/- 0.0160 | 3.9027 +/- 0.0136 | 3.8777 +/- 0.0144 |
+| MatrixPolicy | 4.8573 +/- 0.0124 | 4.4116 +/- 0.0124 | 4.1525 +/- 0.0112 | 3.9945 +/- 0.0153 | 3.9033 +/- 0.0134 | 3.8783 +/- 0.0150 |
 | RLB+AdamW | 5.0046 +/- 0.0293 | 4.5251 +/- 0.0107 | 4.2188 +/- 0.0097 | 4.0755 +/- 0.0115 | 3.9980 +/- 0.0101 | 3.9787 +/- 0.0098 |
 | SiLU+AdamW | 5.0066 +/- 0.0246 | 4.5330 +/- 0.0144 | 4.2225 +/- 0.0137 | 4.0777 +/- 0.0133 | 4.0005 +/- 0.0114 | 3.9811 +/- 0.0128 |
 | RLB+Lion | 4.8989 +/- 0.0205 | 4.4407 +/- 0.0113 | 4.1554 +/- 0.0124 | 4.0137 +/- 0.0148 | 3.9327 +/- 0.0132 | 3.9132 +/- 0.0139 |

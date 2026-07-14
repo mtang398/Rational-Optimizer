@@ -144,7 +144,7 @@ archive_incomplete_jsonl() {
 
 require_nvlink_for_timing_row() {
   case "${ROW_PHASE}" in
-    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_fineweb_edu_seed2027_runtime_repair_100m|E1_rational_only_100m|E2_rational_only_300m|E1_global_rational_optimizers_100m|E2_global_rational_optimizers_300m)
+    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_fineweb_edu_seed2027_runtime_repair_100m|E1_rational_only_100m|E2_rational_only_300m|E1_global_rational_optimizers_100m|E2_global_rational_optimizers_300m|E8_primary_100m)
       ;;
     *)
       return 0
@@ -177,7 +177,7 @@ require_nvlink_for_timing_row() {
   if [[ "${node_info}" != *"nvlink"* ]]; then
     echo "Refusing timing row ${ROW_ROW_ID}: node ${node} lacks nvlink feature; not writing timing JSONL." >&2
     echo "${node_info}" | sed -n '1,6p' >&2
-    exit 87
+    request_timing_requeue "timing row ${ROW_ROW_ID} landed on non-NVLink node ${node}"
   fi
   echo "=== NVLink timing guard passed for ${ROW_ROW_ID} on ${node} ==="
 }
@@ -220,7 +220,7 @@ run_manifest_row() {
 
   local timing_guard_extra=""
   case "${ROW_PHASE}" in
-    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_rational_only_100m|E2_rational_only_300m)
+    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_rational_only_100m|E2_rational_only_300m|E8_primary_100m)
       if [[ "${ROW_OPTIMIZER}" == "rational_matrix_policy_onpolicy" ]]; then
         timing_guard_extra="--timing-guard-min-step ${TIMING_GUARD_MIN_STEP} --timing-guard-max-seconds-per-step ${TIMING_GUARD_MAX_SECONDS_PER_STEP}"
       fi

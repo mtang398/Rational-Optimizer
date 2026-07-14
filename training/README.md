@@ -44,7 +44,7 @@ RLB + Muon
 RLB + rational_matrix_policy_onpolicy
 ```
 
-The original main manifest uses `silu` and `rlb_fused_fixed_strong_ffn` as the fixed activation rows. Current paper-facing MatrixPolicy and non-MatrixPolicy RLB optimizer-control overlays use `rlb_fused_global_rational` with no local atom path, sourced from `../experiments/manifests/iclr26_global_rational_matrixpolicy_manifest.csv` and `../experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the completed main-manifest rows.
+The original main manifest uses `silu` and `rlb_fused_fixed_strong_ffn` as the fixed activation rows. Current paper-facing MatrixPolicy rows use `rlb_fused_global_rational` with no local atom path and come from the validated correction campaign under `../experiments/corrections/matrixpolicy_live_stats_20260712/`. Non-MatrixPolicy RLB controls use `../experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the completed main-manifest rows.
 
 The harness now exposes these additional broad baselines for matched paper runs:
 
@@ -66,7 +66,7 @@ B_l = W_out,l -> matrix_role = out
 R_l           -> rational coefficient parameters
 ```
 
-Current MatrixPolicy manifest flags:
+Current MatrixPolicy manifest flags, shared by the corrected campaign:
 
 ```text
 --rational-matrix-policy-backbone-optimizer adamw

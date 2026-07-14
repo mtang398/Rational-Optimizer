@@ -1,0 +1,11 @@
+{
+  "campaign_id": "matrixpolicy_live_stats_20260712",
+  "dry_run": false,
+  "final_validator_job": "844983",
+  "freeze_sha256": "016d60f78ffeb3ecffce53420be14551462eb83554dca2c7e5a4dd39ff7b8e3b",
+  "gate_job": "844708",
+  "ledger": "experiments/corrections/matrixpolicy_live_stats_20260712/submissions/submission_20260712_030831.csv",
+  "row_jobs": 270,
+  "submitted_jobs": 281,
+  "submitted_unix_time": 1783840152.2534673
+}
