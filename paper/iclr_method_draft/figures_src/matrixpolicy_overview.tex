@@ -37,7 +37,7 @@
 
 \tikzset{
   every node/.style={font=\footnotesize, text=mpInk},
-  small/.style={font=\scriptsize, text=mpMuted, align=center, inner sep=1pt},
+  small/.style={font=\footnotesize, text=mpMuted, align=center, inner sep=1pt},
   matrixFrame/.style={rectangle, rounded corners=5pt, draw=mpBlue,
     fill=mpBlueFill, line width=1.05pt, minimum width=1.72cm,
     minimum height=1.18cm, align=center},
@@ -47,10 +47,10 @@
   summaryPanel/.style={rectangle, rounded corners=5pt, draw=mpLine!72,
     fill=mpSlateFill, line width=0.78pt},
   summaryTab/.style={rectangle, rounded corners=2pt, fill=mpSlateFill,
-    align=center, font=\scriptsize, text=mpMuted!88,
+    align=center, font=\footnotesize, text=mpMuted!88,
     inner xsep=3.6pt, inner ysep=0.9pt},
   chip/.style={rectangle, rounded corners=3pt, fill=white, line width=0.76pt,
-    minimum width=2.12cm, minimum height=0.68cm, align=center, inner sep=2.2pt},
+    minimum width=2.12cm, minimum height=0.76cm, align=center, inner sep=2.2pt},
   policy/.style={rectangle, rounded corners=5pt, draw=mpPurple,
     fill=mpPurpleFill, line width=1.12pt, minimum width=2.56cm,
     minimum height=0.76cm, align=center, inner sep=5pt,
@@ -61,9 +61,9 @@
   writePort/.style={circle, fill=mpPurple, draw=white, line width=0.48pt,
     minimum size=4.2pt, inner sep=0pt},
   forward/.style={-{Stealth[length=5pt 1.45, width'=0pt 0.58, sep=0pt 0.5]},
-    line width=1.03pt, color=mpInk, shorten >=2pt, shorten <=1pt},
+    line width=1.03pt, color=mpInk, shorten >=0.5pt, shorten <=0.5pt},
   read/.style={-{Stealth[length=3.2pt 1.0, width'=0pt 0.48]},
-    densely dashed, line width=0.46pt, color=mpLine!56, shorten >=2pt,
+    densely dashed, line width=0.60pt, color=mpLine!68, shorten >=2pt,
     shorten <=1pt},
   write/.style={-{Stealth[length=5pt 1.45, width'=0pt 0.56, sep=0pt 0.5]},
     line width=0.84pt, color=mpPurple!90, rounded corners=8pt, shorten >=0pt,
@@ -109,10 +109,10 @@
     line width=0.62pt, inner sep=3pt] at (8.02,5.52)
     {$R_{l,g}(u)$: group-shared P5/Q4};
   \draw[mpAmber!85!black, line width=0.43pt] (6.98,4.98) -- (9.02,4.98);
-  \draw[mpAmber!85!black, line width=0.43pt] (7.08,4.76) -- (7.08,5.22);
+  \draw[mpAmber!85!black, line width=0.43pt] (7.08,4.88) -- (7.08,5.20);
   \draw[mpAmber!85!black, line width=1.25pt]
-    (7.14,4.86) .. controls (7.44,5.22) and (7.72,4.77) .. (8.04,5.05)
-    .. controls (8.30,5.30) and (8.63,5.22) .. (8.94,5.30);
+    (7.14,4.91) .. controls (7.44,5.20) and (7.72,4.82) .. (8.04,5.03)
+    .. controls (8.30,5.22) and (8.62,5.16) .. (8.92,5.19);
   \node[small, text=mpAmber] at (8.02,4.56)
     {normalized grouped\\rational response};
   \matrixglyph{(13.16,4.62)}{(1.12,0.15) rectangle (1.44,1.03)}{29}
@@ -122,64 +122,67 @@
     (targetB) at (14.28,4.27) {update $B_l$};
   \node[inner sep=0pt, minimum size=0pt] (writeBport) at (14.44,4.78) {};
 
-  \draw[forward] (2.92,5.20) -- (5.72,5.20);
-  \node[small, fill=white] at (4.35,5.39) {$u_{l,g}$};
-  \draw[forward] (10.31,5.20) -- (13.14,5.20);
-  \node[small, fill=white] at (11.75,5.39) {$h_l$};
+  \draw[forward] (2.88,5.20) -- (rlb.west);
+  \node[small, fill=white] at (4.35,5.43) {$u_{l,g}$};
+  \draw[forward] (rlb.east) -- (13.16,5.20);
+  \node[small, fill=white] at (11.75,5.43) {$h_l$};
 
   % Detachment summary bus.
-  \node[summaryPanel, minimum width=10.60cm, minimum height=1.18cm]
+  \node[summaryPanel, minimum width=10.60cm, minimum height=1.30cm]
     (summary) at (8.02,2.98) {};
 
-  \node[summaryTab, anchor=west]
-    at ([xshift=0.25cm,yshift=-0.22cm]summary.north west)
+  \node[summaryTab]
+    at ([yshift=-0.19cm]summary.north)
     {detached summaries};
 
   \summarychip{pressure}{4.16}{2.84}{pressure}{mpBlue}
-  \node[font=\scriptsize, text=mpBlue] at (4.16,2.66) {$p^{\rm in},p^{\rm out}$};
+  \node[font=\footnotesize, text=mpBlue] at (4.16,2.66) {$p^{\rm in},p^{\rm out}$};
   \summarychip{gain}{6.74}{2.84}{response}{mpGreen}
-  \node[font=\scriptsize, text=mpGreen] at (6.74,2.66)
+  \node[font=\footnotesize, text=mpGreen] at (6.74,2.66)
     {$\hat d^{\rm live},\hat o^{\rm live}$};
   \summarychip{state}{9.30}{2.84}{rational state}{mpAmber}
-  \node[font=\scriptsize, text=mpAmber] at (9.30,2.66)
+  \node[font=\footnotesize, text=mpAmber] at (9.30,2.66)
     {$p^R\!\to q^R,\alpha$};
   \summarychip{balance}{11.88}{2.84}{balance}{mpPurple}
-  \node[font=\scriptsize, text=mpPurple] at (11.88,2.66)
+  \node[font=\footnotesize, text=mpPurple] at (11.88,2.66)
     {probe gains, $\gamma$};
 
-  \draw[read] (2.56,4.62)
-    .. controls (2.48,4.00) and (2.88,2.84) .. (pressure.west);
-  \draw[read] (6.94,4.42) -- ++(0,-0.46) -| (gain.north);
-  \draw[read] (9.10,4.42) -- ++(0,-0.46) -| (state.north);
-  \draw[read] (13.48,4.62)
-    .. controls (13.56,4.00) and (13.16,2.84) .. (balance.east);
+  \draw[read] (2.88,4.92)
+    .. controls (3.08,4.48) and (3.55,3.34) .. (pressure.north);
+  \draw[read] ([xshift=-1.08cm]rlb.south)
+    -- ([xshift=-0.68cm]gain.north);
+  \draw[read] ([xshift=1.08cm]rlb.south)
+    -- ([xshift=0.68cm]state.north);
+  \draw[read] (13.16,4.92)
+    .. controls (12.96,4.48) and (12.49,3.34) .. (balance.north);
 
   % Foreground membrane: the white underlay makes the stop-gradient boundary
   % remain legible where detached read arrows cross it.
-  \draw[line width=1.12pt, dash pattern=on 5.0pt off 2.4pt,
+  \draw[line width=0.90pt, dash pattern=on 5.0pt off 2.4pt,
     color=mpLine!96, line cap=round,
-    preaction={draw=white, line width=3.2pt, line cap=round}]
+    preaction={draw=white, line width=2.8pt, line cap=round}]
     (3.34,4.04) -- (6.62,4.04);
-  \draw[line width=1.12pt, dash pattern=on 5.0pt off 2.4pt,
+  \draw[line width=0.90pt, dash pattern=on 5.0pt off 2.4pt,
     color=mpLine!96, line cap=round,
-    preaction={draw=white, line width=3.2pt, line cap=round}]
+    preaction={draw=white, line width=2.8pt, line cap=round}]
     (9.42,4.04) -- (12.70,4.04);
   \node[small, fill=white, text=mpMuted, inner sep=2.0pt]
     at (8.02,4.04) {stop-gradient boundary};
 
   % MatrixPolicy reads the detached bus and writes only to the two matrices.
-  \node[policy] (policy) at (7.28,1.28) {MatrixPolicy};
-  \node[updateBox] (updates) at (10.32,1.28)
+  \node[policy] (policy) at (6.20,1.28) {MatrixPolicy};
+  \node[updateBox] (updates) at (9.50,1.28)
     {gate $\to$ step $\to$ rescale};
-  \draw[read] ([xshift=-0.74cm]summary.south)
+  \draw[read] (summary.south -| policy.north)
     -- node[small, right=3pt, fill=white] {detached}
     (policy.north);
   \draw[forward, color=mpPurple, line width=0.88pt] (policy.east) -- (updates.west);
 
-  \coordinate (writeHub) at (10.32,0.58);
-  \draw[line width=0.84pt, color=mpPurple!90] (updates.south) -- (writeHub);
-  \draw[write] (writeHub) -- (1.48,0.58) -- (writeAport);
-  \draw[write] (writeHub) -- (14.44,0.58) -- (writeBport);
+  \coordinate (writeHub) at (8.02,0.58);
+  \draw[line width=0.84pt, color=mpPurple!90, rounded corners=4pt]
+    (updates.south) -- (9.50,0.76) -- (8.02,0.76) -- (writeHub);
+  \draw[write, shorten <=0pt] (writeHub) -- (1.48,0.58) -- (writeAport);
+  \draw[write, shorten <=0pt] (writeHub) -- (14.44,0.58) -- (writeBport);
   \node[writePort] at (writeAport) {};
   \node[writePort] at (writeBport) {};
 \end{tikzpicture}

@@ -50,7 +50,7 @@
   prodVars/.style={font=\scriptsize, align=center},
   readCard/.style={rectangle, rounded corners=4pt, fill=white,
     draw=mpLine!62, line width=0.68pt, minimum height=0.78cm,
-    align=center, inner sep=3pt},
+    align=center, inner xsep=3pt, inner ysep=2.1pt},
   op/.style={rectangle, rounded corners=5pt, line width=0.88pt,
     minimum height=1.05cm, align=center, inner sep=4pt},
   opGreen/.style={op, draw=mpGreen, fill=mpGreenFill},
@@ -89,7 +89,7 @@
     densely dashed, line width=0.64pt, shorten >=2pt, shorten <=1pt,
     color=mpLine!92},
   tapArrow/.style={-{Stealth[length=2.8pt 1.0, width'=0pt 0.44]},
-    densely dashed, line width=0.60pt, shorten >=1pt, shorten <=0pt,
+    densely dashed, line width=0.66pt, shorten >=0pt, shorten <=0pt,
     color=mpLine!92},
   bus/.style={densely dashed, line width=0.82pt, color=mpLine},
   bypassArrow/.style={-{Stealth[length=3.7pt 1.0, width'=0pt 0.48]},
@@ -98,47 +98,47 @@
 
 \begin{document}
 \begin{tikzpicture}[x=1cm,y=1cm]
-  \useasboundingbox (0.35,0.10) rectangle (16.38,7.70);
+  \useasboundingbox (0.35,-0.14) rectangle (16.38,7.70);
 
   \begin{pgfonlayer}{background}
     \node[sourceBand, minimum width=15.35cm, minimum height=1.86cm]
       at (8.34,6.62) {};
-    \node[policyBand, minimum width=15.85cm, minimum height=4.20cm]
-      at (8.34,3.45) {};
+    \node[policyBand, minimum width=15.85cm, minimum height=4.36cm]
+      at (8.34,3.37) {};
     \node[bypassBand, minimum width=12.70cm, minimum height=1.12cm]
-      at (8.08,0.66) {};
+      at (8.34,0.48) {};
   \end{pgfonlayer}
 
   \node[mutedTitle] at (0.96,7.22) {detached summary producers};
   \node[title, anchor=west] at (0.92,4.80) {MatrixPolicy};
-  \node[footerTitle, anchor=west] at (2.02,1.04) {AdamW-only bypass};
+  \node[footerTitle, anchor=west] at (2.28,0.86) {AdamW-only bypass};
 
   \node[cardBlue, minimum width=2.75cm, minimum height=1.20cm] (live)
-    at (2.85,6.43) {};
+    at (3.04,6.43) {};
   \node[prodTitle] at ($(live.center)+(0,0.34)$) {RLB forward hook};
   \node[prodVars, text=mpBlue] at ($(live.center)+(0,-0.15)$)
     {derivative gain $\hat d^{\rm live}$\\[-1pt]response gain $\hat o^{\rm live}$};
 
   \node[cardPurple, minimum width=3.20cm, minimum height=1.20cm] (pressure)
-    at (6.20,6.43) {};
+    at (6.37,6.43) {};
   \node[prodTitle] at ($(pressure.center)+(0,0.34)$)
     {matrix pressure EMAs};
   \node[prodVars, text=mpPurple] at ($(pressure.center)+(0,-0.15)$)
     {$p^{\rm in},p^{\rm out}\!\to q^{\rm in},q^{\rm out}$\\[-1pt]pressure contrast $\pi$};
 
   \node[cardGreen, minimum width=3.28cm, minimum height=1.20cm] (activity)
-    at (9.72,6.43) {};
+    at (9.97,6.43) {};
   \node[prodTitle] at ($(activity.center)+(0,0.34)$) {coefficient gradients};
   \node[prodVars, text=mpGreen] at ($(activity.center)+(0,-0.15)$)
     {$p^R\!\to q^R$ activity EMA\\[-1pt]activity contrast $\alpha$};
 
   \node[cardAmber, minimum width=3.05cm, minimum height=1.20cm] (balance)
-    at (13.28,6.43) {};
+    at (13.49,6.43) {};
   \node[prodTitle] at ($(balance.center)+(0,0.34)$) {pair state and probes};
   \node[prodVars, text=mpAmber] at ($(balance.center)+(0,-0.15)$)
     {probe gains $\hat d^{\rm probe},\hat o^{\rm probe}$\\[-1pt]post-descent log-ratio $\gamma$};
 
-  \node[summaryLane, minimum width=11.85cm] (summarybus) at (8.08,5.18)
+  \node[summaryLane, minimum width=12.60cm] (summarybus) at (8.34,5.18)
     {$\operatorname{sg}(\text{detached read-only summary bus})$};
 
   \draw[summaryArrow, color=mpBlue!72] (live.south) -- (summarybus.north -| live.south);
@@ -146,15 +146,15 @@
   \draw[summaryArrow, color=mpGreen!72] (activity.south) -- (summarybus.north -| activity.south);
   \draw[summaryArrow, color=mpAmber!82] (balance.south) -- (summarybus.north -| balance.south);
 
-  \node[readCard, minimum width=2.78cm] (rgate) at (4.25,4.34)
+  \node[readCard, minimum width=2.78cm] (rgate) at (4.35,4.30)
     {\textbf{gate controls}\\[-1pt]
      live gains; \textcolor{mpPurple}{$\pi$};
      \textcolor{mpGreen}{$\alpha$}};
-  \node[readCard, minimum width=3.18cm] (rbranch) at (7.78,4.34)
+  \node[readCard, minimum width=3.18cm] (rbranch) at (7.80,4.30)
     {\textbf{matrix-step controls}\\[-1pt]
      role/depth; Muon reads \textcolor{mpPurple}{$\pi$},
      \textcolor{mpGreen}{$\alpha$}};
-  \node[readCard, minimum width=3.32cm] (rrescale) at (13.08,4.34)
+  \node[readCard, minimum width=3.32cm] (rrescale) at (12.90,4.22)
     {\textbf{pair-rescale controls}\\[-1pt]
      probe gains, \textcolor{mpAmber}{$\gamma$}\\[-1pt]
      \textcolor{mpPurple}{$\pi$}, \textcolor{mpGreen}{$\alpha$}
@@ -164,21 +164,21 @@
   \draw[tapArrow] (summarybus.south -| rbranch.north) -- (rbranch.north);
   \draw[tapArrow] (summarybus.south -| rrescale.north) -- (rrescale.north);
 
-  \node[opBlue, font=\scriptsize, minimum width=1.86cm, minimum height=0.84cm] (grad) at (1.66,3.20)
+  \node[opBlue, font=\scriptsize, minimum width=1.86cm, minimum height=0.84cm] (grad) at (1.66,3.08)
     {matrix gradients\\$\nabla A_{l,g},\nabla B_{l,g}$};
-  \node[opGreen, minimum width=2.38cm, minimum height=1.02cm] (gate) at (4.35,3.20)
+  \node[opGreen, minimum width=2.38cm, minimum height=1.02cm] (gate) at (4.35,3.08)
     {\textbf{1. gate gradients}\\scale $\nabla A_{l,g}$\\scale $\nabla B_{l,g}$};
-  \node[opPurple, minimum width=2.88cm, minimum height=1.02cm] (branch) at (7.80,3.20)
+  \node[opPurple, minimum width=2.88cm, minimum height=1.02cm] (branch) at (7.80,3.08)
     {\textbf{2. matrix step}\\AdamW role/depth\\early Muon substep};
-  \node[opBlue, minimum width=1.62cm, minimum height=0.78cm] (desc) at (10.45,3.20)
+  \node[opBlue, minimum width=1.62cm, minimum height=0.78cm] (desc) at (10.45,3.08)
     {$A^{\rm desc}_{l,g}$\\$B^{\rm desc}_{l,g}$};
-  \node[opAmber, minimum width=2.54cm, minimum height=1.48cm] (rescale) at (13.08,2.60)
-    {\textbf{3. pair rescale}\\[-1pt]
-     $A^{t+1}_{l,g}\!\leftarrow e^\ell A^{\rm desc}_{l,g}$\\[-1pt]
+  \node[opAmber, minimum width=2.62cm, minimum height=1.66cm] (rescale) at (12.90,2.43)
+    {\textbf{3. pair rescale}\\[2pt]
+     $A^{t+1}_{l,g}\!\leftarrow e^\ell A^{\rm desc}_{l,g}$\\[0pt]
      $B^{t+1}_{l,g}\!\leftarrow e^{-\ell}B^{\rm desc}_{l,g}$};
-  \node[opBlue, font=\scriptsize, minimum width=2.05cm, minimum height=0.92cm] (pair) at (1.66,2.16)
+  \node[opBlue, font=\scriptsize, minimum width=2.05cm, minimum height=0.92cm] (pair) at (1.66,1.91)
     {current RLB pair\\$M_{\rm in}=A_l^t$\\$M_{\rm out}=B_l^t$};
-  \node[opBlue, minimum width=1.40cm, minimum height=0.90cm] (updated) at (15.38,2.60)
+  \node[opBlue, minimum width=1.40cm, minimum height=0.90cm] (updated) at (15.18,2.43)
     {updated\\$A_l^{t+1},B_l^{t+1}$};
 
   \draw[arrowShort] (grad.east) -- (gate.west);
@@ -187,19 +187,19 @@
   \coordinate (descIn) at ($(rescale.west)+(0,0.34)$);
   \coordinate (branchStateIn) at (branch.south);
   \draw[arrowShort] (desc.east) -- (descIn);
-  \draw[stateArrow] (pair.east) -- ++(4.85,0) -- (branchStateIn);
+  \draw[stateArrow] (pair.east) -- (branchStateIn |- pair.east) -- (branchStateIn);
   \draw[arrowShort] (rescale.east) -- (updated.west);
 
   \draw[readArrow] (rgate.south) -- (gate.north);
   \draw[readArrow] (rbranch.south) -- (branch.north);
   \draw[readArrow] (rrescale.south) -- (rescale.north);
 
-  \node[bypass, minimum width=3.82cm, text width=3.56cm] (other) at (3.80,0.50)
+  \node[bypass, minimum width=3.82cm, text width=3.56cm] (other) at (4.40,0.34)
     {rational coefficients\\and non-RLB tensors};
   \node[bypass, minimum width=1.46cm, fill=mpGreyFill,
-    font=\scriptsize\bfseries] (adam) at (7.80,0.50)
+    font=\scriptsize\bfseries] (adam) at (8.40,0.34)
     {AdamW};
-  \node[bypass, minimum width=3.66cm, text width=3.38cm] (outside) at (11.75,0.50)
+  \node[bypass, minimum width=3.66cm, text width=3.38cm] (outside) at (12.35,0.34)
     {AdamW update only\\no gates, Muon, or rescale};
   \draw[bypassArrow] (other.east) -- (adam.west);
   \draw[bypassArrow] (adam.east) -- (outside.west);
