@@ -89,9 +89,20 @@ complete E1/E2 coverage, finite metrics, frozen provenance, and zero Slurm
 restarts. They are now the paper-facing MatrixPolicy source for all fixed-scale
 tables, curves, target-arrival readouts, and observed runtime summaries.
 
-Corrected E8 and E9 remain behind their stage validators. The paper marks the
-current E8 sensitivity subsection as provisional and requires replacement after
-the corrected E8 sweep completes.
+The 80 corrected E8 rows passed `validation/e8.json` on 2026-07-15 with
+complete five-dataset, four-learning-rate, four-weight-decay coverage and no row
+errors. Workers `858357`-`858360` completed the sweep and validator
+`858361` closed the stage. Forty final JSONLs report restart count zero and
+forty report restart count one; all recorded runtimes are final-attempt harness
+times. The paper sensitivity analysis uses these 80 MatrixPolicy trajectories
+and only the 160 unaffected SiLU controls from the original E8 manifest.
+
+The E9 stage remains incomplete. The cluster outage left 93 of 150 rows valid;
+the exact 57-row recovery is recorded in
+`submissions/e9_resume_20260717_221003.csv` and its JSON companion. Recovery
+workers `9193`-`9196`, validator `9197`, final validator `9198`, and
+watchdog `9199` are queued. No E9 result enters the paper before both
+validators pass.
 
 Gate job `848496` passed on `seo-compute-02` with four identical ranks,
 training-only evaluation-cache behavior, and the expected frozen hashes. Three

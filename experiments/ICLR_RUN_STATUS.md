@@ -1,6 +1,6 @@
 # ICLR Run Status
 
-Updated: 2026-07-14 EDT
+Updated: 2026-07-17 EDT
 Manifest: `experiments/manifests/iclr26_main_manifest.csv`
 
 ## Experiment Code Map
@@ -30,21 +30,21 @@ Raw row outputs are JSONL files under `experiments/runs/iclr26_main/<phase>/<dat
 Rejected MatrixPolicy proposal artifacts were pruned from the active repo surface and raw run tree on 2026-06-23. The single retained negative-result state is `optimizer_design/proposals/matrixpolicy_variant_failures.md`; this status file keeps the completed implementation-speed records plus the current RLB MatrixPolicy and non-MatrixPolicy RLB-control paper-facing summaries.
 
 ## MatrixPolicy Live-Statistic Correction Status
-Completed: 2026-07-14. Decision: use the validated correction campaign as the paper-facing MatrixPolicy source for completed E1/E2 summaries.
+Main completed: 2026-07-14. E8 completed: 2026-07-15. Decision: use the validated correction campaign as the paper-facing MatrixPolicy source for completed E1/E2 summaries and E8 sensitivity analysis.
 
 The correction preserves the grouped P5/Q4 `rlb_fused_global_rational` activation and original `rational_matrix_policy_onpolicy` recipe. It globally reduces the optimizer-consumed response/derivative sufficient statistics across ranks and prevents validation forwards from refreshing the training cache. The earlier global-rational MatrixPolicy rows are superseded; the non-MatrixPolicy global-rational controls remain valid because they do not consume these live gains.
 
 | Field | Value |
 | --- | --- |
 | Campaign | `experiments/corrections/matrixpolicy_live_stats_20260712/` |
-| Paper-facing manifest | `experiments/corrections/matrixpolicy_live_stats_20260712/manifests/matrixpolicy_live_stats_20260712_main.csv` |
-| Validation record | `experiments/corrections/matrixpolicy_live_stats_20260712/validation/main.json` |
-| Scope | E1 + E2, five datasets x three seeds per phase |
-| Completed rows | `30/30` passed validation |
-| Slurm restarts | `0/30` rows restarted |
+| Paper-facing manifests | `matrixpolicy_live_stats_20260712_main.csv`; `matrixpolicy_live_stats_20260712_e8.csv` |
+| Validation records | `validation/main.json`; `validation/e8.json` |
+| Scope | E1 + E2: five datasets x three seeds per phase; E8: five datasets x 16 LR/WD cells |
+| Completed rows | main `30/30`; E8 `80/80` passed validation |
+| Slurm restarts | main: `0/30`; E8: 40 rows at zero and 40 rows at one |
 | Activation | `rlb_fused_global_rational`; trainable rational parameters are `numerator` and `denominator` |
 | Optimizer | original `rational_matrix_policy_onpolicy` |
-| E8/E9 | corrected campaigns pending their stage validators; current paper E8 is marked provisional |
+| E8/E9 | E8 complete and paper-facing; E9 recovery queued and excluded pending validation |
 
 E1 final validation-loss anchor with the corrected MatrixPolicy overlay:
 
@@ -67,6 +67,15 @@ E2 final validation-loss anchor with the corrected MatrixPolicy overlay:
 | C4 | 3.878322 +/- 0.015039 | rlb_lion 3.913219 +/- 0.013928 | 0.034897 |
 
 Interpretation: the 30 corrected rows replace MatrixPolicy in every E1/E2 generated summary, table, and curve. The completed non-MatrixPolicy RLB sweep remains the source for matched RLB controls.
+
+E8 pairs the 80 validated corrected MatrixPolicy rows with the 160 unaffected
+SiLU controls from `experiments/manifests/iclr26_e8_primary_manifest.csv`.
+Across all 80 cells per comparator, MatrixPolicy has lower validation loss at
+all 61 observed checkpoints. The minimum complete-trajectory margins are
+`0.037904` against SiLU+AdamW and `0.042953` against SiLU+Muon. At the
+main targets, pooled median first-hit token savings are `15.7%` and `19.9%`,
+respectively. Validator job `858361` records `80/80` passes and no row
+errors.
 
 ## MatrixPolicy Timing Node Guard and Repair Queue
 Queued: 2026-06-25 15:54 EDT. Policy correction: MatrixPolicy timing repair is node-based, not a fixed seconds-per-step exclusion rule. The launcher denylist rejects `sablab-gpu-12` before archiving/writing timing JSONL for timing-critical rows. The training harness still supports an optional `--timing-guard-max-seconds-per-step`, but launcher default is now `0.0` and the active repair queue disables that cutoff.

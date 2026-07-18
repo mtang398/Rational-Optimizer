@@ -2,7 +2,7 @@
 
 RationalOPT studies Rational Latent Basis (RLB) variants inside causal Transformer language models and the `rational_matrix_policy_onpolicy` optimizer for pretraining.
 
-Paper-facing results in this README include the completed E1 matched main suite and the completed E2 DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 M0/300M cells. WikiText is kept as a small demo anchor. MatrixPolicy values use the 30 validated live-statistic-corrected `rlb_fused_global_rational` rows under `experiments/corrections/matrixpolicy_live_stats_20260712/`; non-MatrixPolicy RLB controls use the completed global-rational control sweep, and SiLU controls remain the fixed main-manifest controls.
+Paper-facing results in this README include the completed E1 matched main suite, the completed E2 DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 M0/300M cells, and the completed E8 learning-rate/weight-decay sensitivity grid. WikiText is kept as a small demo anchor. MatrixPolicy values use the 30 validated live-statistic-corrected main rows and 80 validated corrected E8 rows under `experiments/corrections/matrixpolicy_live_stats_20260712/`; non-MatrixPolicy RLB controls use the completed global-rational control sweep, and SiLU controls remain the fixed main-manifest controls.
 
 ## Optimizer Variant Status
 
@@ -21,9 +21,16 @@ experiments/results/iclr26_e2_fineweb_2026_06_15/
 experiments/results/iclr26_e2_dolma_sample_2026_06_17/
 experiments/results/iclr26_e2_c4_2026_06_19/
 experiments/results/iclr26_e2_figures/
+experiments/corrections/matrixpolicy_live_stats_20260712/  # corrected main/E8 source
 experiments/runs/iclr26_main/        # local raw JSONL, ignored
 experiments/results/rlb_matrix_policy_muon_switch_2026_05_28/  # WikiText demo anchor
 ```
+
+## E8 Learning-Rate and Weight-Decay Sensitivity
+
+Completed and validated on 2026-07-15. The paper-facing sensitivity study pairs 80 corrected MatrixPolicy runs (five datasets x four learning rates x four weight decays) with the 160 unaffected SiLU+AdamW and SiLU+Muon controls from the fixed E8 manifest. Validator job `858361` reports `80/80` corrected rows passing with no row errors.
+
+Across all 80 matched cells per comparator, MatrixPolicy has lower validation loss at every one of the 61 observed checkpoints from steps 50 through 3050. The smallest cellwise minimum margin is `0.037904` against SiLU+AdamW and `0.042953` against SiLU+Muon. At the five main-study targets, MatrixPolicy arrives earlier in all 40 mutual-arrival cells per comparator, is the only method to arrive in 20 additional cells, and has pooled median token savings of `15.7%` against SiLU+AdamW and `19.9%` against SiLU+Muon. The generated paper figure and exhaustive target-arrival table are under `paper/iclr_method_draft/`.
 
 ## Runtime Accounting
 

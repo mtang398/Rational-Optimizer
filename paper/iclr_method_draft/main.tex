@@ -871,10 +871,6 @@ while replacing the nonlinear-sublayer optimizer according to the table entry.
 \subsubsection{Learning-Rate and Weight-Decay Sensitivity}
 \label{app:lr-wd-sensitivity}
 
-\noindent\textbf{TODO: Change needed later. Replace the E8 figure, table, and
-all numerical claims after the corrected E8 runs complete; the current
-sensitivity results are provisional.}
-
 We ran a 100M-token, single-seed sensitivity grid for MatrixPolicy and the two
 standard SiLU controls.  The grid crosses learning rates
 $\{1,2,3,5\}\times10^{-4}$ with weight decays $0$, $0.05$, $0.10$, and $0.20$
@@ -925,7 +921,7 @@ is finite.
 Figure~\ref{fig:e8-trajectory-dominance} gives strict observed-checkpoint
 dominance in all 80 dataset--grid cells against each control.  Every one of the
 4,880 paired checkpoint comparisons per control is positive; the smallest
-observed margin is $0.041$ against SiLU with AdamW and $0.045$ against SiLU with
+observed margin is $0.038$ against SiLU with AdamW and $0.043$ against SiLU with
 Muon.
 
 Table~\ref{tab:e8-sensitivity-target-arrival} makes this target-arrival
@@ -940,7 +936,7 @@ At the main targets, MatrixPolicy arrives earlier in all 40 mutual-arrival
 comparisons per control and is the only method to arrive in 20 additional
 cells; no cell favors a control.  The same ordering holds at both harder target
 levels.  Pooled over mutual arrivals, median token savings at the main,
-$-0.10$, and $-0.20$ target levels are $15.7\%$, $19.3\%$, and $14.3\%$ against
+$-0.10$, and $-0.20$ target levels are $15.7\%$, $19.3\%$, and $14.0\%$ against
 SiLU with AdamW and $19.9\%$, $13.5\%$, and $10.3\%$ against SiLU with Muon.
 Node assignments were not matched across the sensitivity sweep, so this
 analysis reports token arrivals only.  The primary-study wall-clock comparison

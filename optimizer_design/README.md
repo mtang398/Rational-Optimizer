@@ -6,7 +6,7 @@ Rejected proposal branches have been removed from the live optimizer surface and
 
 ## Current Result Anchor
 
-The current paper-facing optimizer evidence is the completed E1 matched main suite plus completed E2 M0/300M cells on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy values use the 30 validated live-statistic-corrected `rlb_fused_global_rational` rows under `../experiments/corrections/matrixpolicy_live_stats_20260712/`; non-MatrixPolicy RLB controls use `../experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the fixed main-manifest rows.
+The current paper-facing optimizer evidence is the completed E1 matched main suite, completed E2 M0/300M cells, and completed E8 learning-rate/weight-decay sensitivity grid on DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. MatrixPolicy values use the 30 validated live-statistic-corrected main rows and 80 validated corrected E8 `rlb_fused_global_rational` rows under `../experiments/corrections/matrixpolicy_live_stats_20260712/`; non-MatrixPolicy RLB controls use `../experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`; SiLU controls remain the fixed main-manifest rows.
 
 E1 M0/100M final validation-loss anchor:
 
@@ -29,6 +29,8 @@ E2 M0/300M final validation-loss anchor:
 | C4 | 3.878322 +/- 0.015039 | rlb_lion 3.913219 +/- 0.013928 | 0.034897 |
 
 Full E1 token-savings and curve/checkpoint tables are in `../experiments/results/iclr26_e1_token_savings_2026_06_12/` and `../experiments/results/iclr26_e1_figures/`. Full E2 final, runtime, token-savings, and curve/checkpoint tables are in `../experiments/results/iclr26_e2_*` and `../experiments/results/iclr26_e2_figures/`.
+
+The corrected E8 validator passes `80/80` MatrixPolicy rows. Against each fixed SiLU control, MatrixPolicy has lower validation loss at all 61 observed checkpoints in every one of the 80 matched learning-rate/weight-decay cells. The smallest complete-trajectory margin is `0.037904` against SiLU+AdamW and `0.042953` against SiLU+Muon.
 
 ## Problem Setup
 

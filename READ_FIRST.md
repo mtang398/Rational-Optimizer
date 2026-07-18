@@ -10,9 +10,9 @@ Every comparison must keep the base protocol matched: model size, token budget, 
 
 ## Current Result Boundary
 
-The paper-facing result boundary is complete for E1 M0/100M and E2 M0/300M across all five matched datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. E1 has three seeds per dataset with matched outer configs, dense validation every 50 steps, and full mean +/- sample std curves in `experiments/results/iclr26_e1_figures/`. E2 has three seeds per dataset, final eval at step `9150`, and full result packages under `experiments/results/iclr26_e2_*` plus curves in `experiments/results/iclr26_e2_figures/`.
+The paper-facing result boundary is complete for E1 M0/100M, E2 M0/300M, and the E8 M0/100M learning-rate/weight-decay sensitivity grid across all five matched datasets: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. E1 has three seeds per dataset with matched outer configs, dense validation every 50 steps, and full mean +/- sample std curves in `experiments/results/iclr26_e1_figures/`. E2 has three seeds per dataset, final eval at step `9150`, and full result packages under `experiments/results/iclr26_e2_*` plus curves in `experiments/results/iclr26_e2_figures/`. E8 contains 80 validated corrected MatrixPolicy runs and 160 fixed SiLU controls over the full 4 x 4 hyperparameter grid.
 
-MatrixPolicy values below use the 30 validated live-statistic-corrected `rlb_fused_global_rational` rows in `experiments/corrections/matrixpolicy_live_stats_20260712/`; non-MatrixPolicy RLB controls use `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`. Token-to-target savings are tracked in the E1 package and in each E2 dataset package; RLB+ADeMaMix is retained as a divergent/early-stop negative row.
+MatrixPolicy values below use the 30 validated live-statistic-corrected main rows and 80 validated corrected E8 `rlb_fused_global_rational` rows in `experiments/corrections/matrixpolicy_live_stats_20260712/`; non-MatrixPolicy RLB controls use `experiments/manifests/iclr26_global_rational_optimizer_controls_manifest.csv`. Token-to-target savings are tracked in the E1 package, each E2 dataset package, and the E8 appendix table; RLB+ADeMaMix is retained as a divergent/early-stop negative row.
 
 E1 M0/100M final validation-loss anchor:
 

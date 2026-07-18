@@ -34,6 +34,14 @@ E2 M0/300M is complete across DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4. 
 | Dolma-sample | 3.805292 +/- 0.007943 | rlb_lion 3.841206 +/- 0.008478 | 0.035914 |
 | C4 | 3.878322 +/- 0.015039 | rlb_lion 3.913219 +/- 0.013928 | 0.034897 |
 
+### E8 M0/100M Sensitivity
+
+The corrected five-dataset, 16-cell learning-rate/weight-decay grid completed
+on 2026-07-15. All `80/80` MatrixPolicy rows pass
+`experiments/corrections/matrixpolicy_live_stats_20260712/validation/e8.json`.
+The paper figure and target-arrival table now use these rows with the 160 fixed
+SiLU controls.
+
 ### WikiText Demo Anchor
 
 ```text
@@ -75,8 +83,8 @@ If AdamW appears with an outer config in a matched cell, MatrixPolicy must appea
 2. Use the completed RLB MatrixPolicy and non-MatrixPolicy RLB-control E1/E2 packages as the paper-facing result source for final validation loss, token-to-target, runtime, and curve/checkpoint figures.
 3. Finish derived analyses from the completed E1/E2 JSONL: validation AUC, early/mid/late AUC, paired seed gaps, ranks, timing, throughput, GPU-hour accounting, and divergence/failure-adjusted summaries.
 4. Run E3 M1 scale. Treat larger real-LLM training as a separate cluster plan, not as local manifest work.
-5. Replace the provisional E8 appendix figure, table, and claims after the corrected E8 campaign passes validation.
-6. Run method ablations last.
+5. Complete and validate the corrected E9 component-ablation recovery before using any E9 result.
+6. Run remaining method ablations last.
 
 ## Mechanism Diagnostics Needed
 

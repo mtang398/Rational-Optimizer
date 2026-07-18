@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 import os
@@ -1224,33 +1225,93 @@ def make_broad_final_validation_table(out_path: Path) -> None:
     out_path.write_text("\n".join(lines) + "\n")
 
 def _load_e8_sensitivity_records() -> dict[tuple[str, str, str, str], dict[str, object]]:
-    manifest = ROOT / "experiments" / "manifests" / "iclr26_e8_primary_manifest.csv"
-    run_root = ROOT / "experiments" / "runs" / "iclr26_main" / "E8_primary_100m"
+    original_manifest = ROOT / "experiments" / "manifests" / "iclr26_e8_primary_manifest.csv"
+    original_run_root = ROOT / "experiments" / "runs" / "iclr26_main" / "E8_primary_100m"
+    correction_root = CORRECTION_ROOT
+    corrected_manifest = correction_root / "manifests" / "matrixpolicy_live_stats_20260712_e8.csv"
+    corrected_run_root = correction_root / "runs" / "e8" / "E8_primary_100m"
+    validation_path = correction_root / "validation" / "e8.json"
+
+    validation = json.loads(validation_path.read_text())
+    validation_rows = validation.get("rows", [])
+    corrected_manifest_sha256 = hashlib.sha256(corrected_manifest.read_bytes()).hexdigest()
+    if (
+        validation.get("expected_rows") != 80
+        or validation.get("passed_rows") != 80
+        or validation.get("errors")
+        or len(validation_rows) != 80
+        or any(row.get("status") != "pass" for row in validation_rows)
+        or validation.get("manifest_sha256") != corrected_manifest_sha256
+    ):
+        raise RuntimeError(f"corrected E8 validation has not passed cleanly: {validation_path}")
+    validated_jsonls = {
+        row["jsonl"]: row["jsonl_sha256"]
+        for row in validation_rows
+    }
+
     records: dict[tuple[str, str, str, str], dict[str, object]] = {}
-    for row in _read_rows(manifest):
-        if row.get("phase") != "E8_primary_100m":
-            continue
-        jsonl_path = run_root / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
-        if not jsonl_path.exists():
-            raise FileNotFoundError(jsonl_path)
-        evals: list[dict[str, object]] = []
-        summary: dict[str, object] | None = None
-        with jsonl_path.open("r", errors="replace") as handle:
-            for raw in handle:
-                if not raw.startswith("{"):
-                    continue
-                try:
-                    record = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                if record.get("event") == "eval":
-                    evals.append(record)
-                elif record.get("event") == "summary":
-                    summary = record
-        if summary is None or int(summary.get("completed_steps", -1)) < int(row["steps"]):
-            raise RuntimeError(f"incomplete E8 sensitivity JSONL: {jsonl_path}")
-        key = (row["dataset"], row["lr"], row["weight_decay"], row["method"])
-        records[key] = {"row": row, "evals": evals, "summary": summary}
+
+    sources = [
+        (original_manifest, original_run_root, {"silu_adamw", "silu_muon"}, "fixed control"),
+        (
+            corrected_manifest,
+            corrected_run_root,
+            {"rlb_matrixpolicy_original"},
+            "live-statistic-corrected MatrixPolicy",
+        ),
+    ]
+    source_counts: dict[str, int] = {}
+    for manifest, run_root, included_methods, source_label in sources:
+        source_count = 0
+        for row in _read_rows(manifest):
+            if row.get("phase") != "E8_primary_100m" or row.get("method") not in included_methods:
+                continue
+            jsonl_path = run_root / row["dataset"] / row["row_id"] / f"{row['activation']}.jsonl"
+            if not jsonl_path.exists():
+                raise FileNotFoundError(jsonl_path)
+            if source_label == "live-statistic-corrected MatrixPolicy":
+                relative_jsonl = jsonl_path.relative_to(ROOT).as_posix()
+                expected_sha256 = validated_jsonls.get(relative_jsonl)
+                actual_sha256 = hashlib.sha256(jsonl_path.read_bytes()).hexdigest()
+                if expected_sha256 is None or actual_sha256 != expected_sha256:
+                    raise RuntimeError(f"corrected E8 JSONL failed hash validation: {jsonl_path}")
+            evals: list[dict[str, object]] = []
+            summary: dict[str, object] | None = None
+            with jsonl_path.open("r", errors="replace") as handle:
+                for raw in handle:
+                    if not raw.startswith("{"):
+                        continue
+                    try:
+                        record = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if record.get("event") == "eval":
+                        evals.append(record)
+                    elif record.get("event") == "summary":
+                        summary = record
+            if summary is None or int(summary.get("completed_steps", -1)) < int(row["steps"]):
+                raise RuntimeError(f"incomplete E8 sensitivity JSONL: {jsonl_path}")
+            key = (row["dataset"], row["lr"], row["weight_decay"], row["method"])
+            if key in records:
+                raise RuntimeError(f"duplicate E8 sensitivity identity: {key}")
+            records[key] = {
+                "row": row,
+                "evals": evals,
+                "summary": summary,
+                "source": source_label,
+                "jsonl_path": jsonl_path,
+            }
+            source_count += 1
+        source_counts[source_label] = source_count
+
+    expected_counts = {
+        "fixed control": 160,
+        "live-statistic-corrected MatrixPolicy": 80,
+    }
+    if source_counts != expected_counts or len(records) != 240:
+        raise RuntimeError(
+            f"unexpected E8 source coverage: {source_counts}; total records={len(records)}"
+        )
     return records
 
 
