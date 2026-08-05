@@ -1,654 +1,535 @@
-# Exact RLB optimizer specification: R06 K1 and two runner-up methods
+# Exact specification of the current top three completed RLB optimizer runs
 
-## What this document describes
+## Status
 
-This document explains three optimizer methods that were tested on the same
-Global-RLB transformer:
+This document records the three best completed exact-M1 discovery runs by
+endpoint validation loss:
 
-1. **R06 K1**, the best method in the requested three-method snapshot;
-2. **R05 K1**, the first runner-up and the parent from which R06 K1 was built;
-3. **the group-resolved product-sphere method**, the second runner-up and an
-   earlier R06 generation.
+1. **current R05 K1**;
+2. **current R08 K5**;
+3. **current R06 K1**.
 
-All three are hybrid optimizers. They keep AdamW for scalar, bias,
-normalization, embedding, output-head, and rational-coefficient parameters.
-They keep the ordinary Muon update for matrix parameters outside their stated
-scope. Their new behavior is confined to selected matrices whose update can be
-informed by the current trainable Global-RLB response.
+The ranking is not a declaration that these are final methods. All three
+completed 4,000 updates and improved endpoint loss, endpoint perplexity, and
+late validation partial AUC over the primary SwiGLU+Muon control. None reached
+the required \(0.20\) endpoint-loss lead, none has valid recursive ablation
+closure for its current frozen implementation, and none meets the final
+runtime requirement.
 
-The activation function, model architecture, data, learning-rate schedule,
-weight decay, gradient clipping, Adam moments, Muon momentum, and number of
-Newton--Schulz iterations are identical between the three candidate runs. The
-activation is never replaced or modified by an optimizer method.
+R05, R08, and R06 are short display names whose slots have been reused during
+discovery. The content-addressed report, trajectory, and source-freeze hashes
+at the end of this document identify the completed runs authoritatively.
 
-The names R05 and R06 are opaque experiment identifiers. The algorithms are
-defined by the equations below, not by the names.
+## Completed results
 
-## Method overview
+Lower is better for every reported metric. “Lead” means
+\(\text{loss}_{U-S}-\text{loss}_{\text{method}}\).
 
-For each Global-RLB block, the methods use the current rational response to
-choose update directions for `W_in`, `W_out`, or both; R06 K1 also routes the
-attention-matrix update. The scheduled learning rate, weight decay, and update
-norm budget remain fixed.
+| Rank | Run | Endpoint validation loss | Lead over SwiGLU+Muon | Endpoint PPL | Train pAUC, steps 1,000–4,000 | Validation pAUC, steps 1,000–4,000 | Runtime / U-S | Runtime / U-R |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| — | SwiGLU+Muon (U-S) | 4.228466988 | 0 | 68.61196851 | 4.199301681 | 4.422074735 | 1.000x | 0.896x |
+| — | Global-RLB+Muon (U-R) | 4.241679192 | −0.013212204 | 69.52449883 | 4.205564916 | 4.432158089 | 1.116x | 1.000x |
+| **1** | **current R05 K1** | **4.183662415** | **0.044804573** | **65.60568899** | 4.169669949 | **4.395769207** | 2.251x | 2.017x |
+| **2** | **current R08 K5** | 4.199784756 | 0.028682232 | 66.67197873 | 4.162024616 | 4.395831645 | 1.922x | 1.722x |
+| **3** | **current R06 K1** | 4.199958801 | 0.028508186 | 66.68358371 | **4.161953121** | 4.395792866 | 1.967x | 1.762x |
 
-| Method | RLB information used | Matrices changed relative to stock Muon | Central decision |
-|---|---|---|---|
-| **R06 K1** | Current-versus-initial response alignment, current Jacobian participation, and current response participation | Both matrices around every RLB activation and all QKV/attention-output matrices | Route continuously between an RLB-coordinate polar direction and an equal-budget adaptive direction; use RLB participation to route attention too |
-| **R05 K1** | Current-versus-initial response alignment | Only the two matrices around every RLB activation | Route continuously between the same two equal-budget RLB-coordinate directions |
-| **Group-resolved product sphere** | The R05 alignment separately for each RLB group | Only the two matrices around every RLB activation | Start from the R05 direction, then choose the best first-order point on a fixed-norm arc toward each group's own target |
+The pAUC values are normalized trapezoidal averages over logged points from
+updates 1,000 through 4,000. They are not dominated by the initial training
+transient.
 
-The three methods are related as follows:
+Current R05 also improves endpoint loss over the activation-matched
+Global-RLB+Muon control by \(0.058016777\). R08 improves it by
+\(0.041894436\), and R06 by \(0.041720390\). This activation-matched comparison
+isolates the optimizer contribution while holding Global-RLB fixed. The
+primary performance target remains SwiGLU+Muon because that is the conventional
+system the combined RLB method must beat.
 
-```text
-shared B+C RLB coordinate geometry
-              |
-              v
-      R05 K1 layerwise router
-          /                 \
-         v                   v
-group-resolved          R06 K1 intrinsic
-product sphere          participation router
-                            +
-                   RLB-routed attention
-```
+## Models and activation boundary
 
-In the requested snapshot, R06 K1 had validation loss `4.199958801`, a
-`0.028508186` improvement over the stronger SwiGLU+Muon control at
-`4.228466988`. This is a real but incomplete result: it is far short of the
-required `0.20` improvement, its full recursive ablation is not released, and
-its discovery implementation is slower than the final runtime requirement.
+### Primary control: SwiGLU+Muon
 
-## Fixed model boundary
-
-All three methods use the existing Global-RLB model without changing its
-activation, forward map, initialization, parameterization, or coefficient
-gradients. Only the optimizer applied after backward differs. Global-RLB's
-rational coefficients use the same AdamW configuration in every candidate.
-
-## Optimizer definition
-
-### Parameter routing
-
-One training update starts with the same forward pass, cross-entropy loss,
-backward pass, all-rank gradient synchronization, and global gradient clipping
-for every comparison. Parameters are then assigned as follows:
-
-| Parameter class | R05 K1 | Group-resolved product sphere | R06 K1 |
-|---|---|---|---|
-| RLB `W_in` and `W_out` matrices | R05 RLB-specific update | Group-resolved RLB-specific update | R06 RLB-specific update |
-| QKV and attention-output matrices | Stock Muon | Stock Muon | R06 RLB-conditioned attention update |
-| Other eligible 2-D matrices | Stock Muon | Stock Muon | Stock Muon |
-| RLB coefficients | Matched AdamW | Matched AdamW | Matched AdamW |
-| Biases, normalization weights, embeddings, output head, and other non-Muon parameters | Matched AdamW | Matched AdamW | Matched AdamW |
-
-R06 K1 therefore controls 169,869,312 elements in RLB-adjacent matrices and
-75,497,472 elements in attention matrices, for 245,366,784 structurally routed
-matrix elements.
-
-### The unchanged Muon source
-
-For an eligible matrix with clipped gradient `G_t`, the momentum buffer and
-Nesterov source are the exact recurrence used by the control Muon
-implementation:
+The U-S control uses the ordinary gated feed-forward map
 
 \[
-B_t = 0.95B_{t-1}+0.05G_t,
-\qquad
-M_t = 0.05G_t+0.95B_t.
+\operatorname{SwiGLU}(x)
+=W_{\mathrm{down}}\!
+\left[\operatorname{SiLU}(W_{\mathrm{gate}}x)
+\odot(W_{\mathrm{value}}x)\right].
 \]
 
-Muon applies five Newton--Schulz iterations, written `NS5`, to approximate the
-matrix polar or zero-power direction. It then applies the same
-`match_rms_adamw` shape calibration used by the control.
+Its trajectory uses the label `silu`, but the implemented block is SwiGLU:
+SiLU is the gate activation and is multiplied by a separate value branch.
 
-The new methods do not change `G_t`, the `0.95` momentum, the Nesterov
-recurrence, the five Newton--Schulz iterations, or the final scheduled learning
-rate. They change the coordinate system or the equal-norm direction supplied
-to the polar map.
+### Global-RLB model used by all three candidate optimizers
 
-## Geometry shared by all three methods
-
-The three methods inherit the same B+C coordinate parent for the two matrices
-around each RLB activation. The letters B and C are historical component
-labels:
-
-- **B: residual-input covariance.** For `W_in`, sample current residual inputs
-  and form `C_x = E[xx^T]`. This supplies the right-hand coordinate of the
-  incoming matrix.
-- **C: rational-feature covariance.** For each rational group, sample current
-  activation outputs and form `K_g = E[h_g h_g^T]`. This supplies the grouped
-  hidden coordinate of the outgoing matrix.
-
-Each positive covariance is converted to a Cholesky coordinate and normalized
-to unit determinant. Unit-determinant normalization removes a global scale, so
-the coordinate changes geometry without becoming an internal learning-rate
-multiplier.
-
-Concretely, the incoming map applies B on the right of `W_in`; the outgoing
-map applies the groupwise C coordinate to the hidden dimension of `W_out`
-(implemented after transposition). The previously tested incoming
-rational-response metric A is absent and its coordinate is the identity.
-
-For one matrix role `r`, let:
-
-- `M_r` be its unchanged Nesterov source;
-- `C_r(.)` be the complete B+C coordinate map;
-- `C_r*(.)` be the exact adjoint that maps a coordinate direction back to
-  parameter space.
-
-The ordinary RLB-coordinate polar direction is
+Global-RLB uses a matched-matrix-budget, single-branch feed-forward map. For
+one layer,
 
 \[
-U_r = C_r^*\!\left(\operatorname{NS5}(C_r(M_r))\right).
+z=W_{\mathrm{in}}x,\qquad
+y=W_{\mathrm{out}}h.
 \]
 
-Thus NS5 is evaluated after pushing the Nesterov tensor into the current RLB
-coordinate, and the resulting polar direction is returned through the exact
-adjoint.
-
-All three methods also construct an adaptive alternative. From the literal
-clipped gradient in the same coordinate system, maintain the bias-corrected
-second moment
+The 4,608 hidden coordinates are partitioned into 18 groups of 256. For group
+\(g\),
 
 \[
-V_{r,t}=0.95V_{r,t-1}+0.05\,C_r(G_t)\odot C_r(G_t),
-\qquad
-D_{r,t}=\left(
-\sqrt{\frac{V_{r,t}}{1-0.95^t}}+10^{-8}
-\right)^{-1},
+\rho_g=\sqrt{\operatorname{mean}(z_g^2)+\epsilon},\qquad
+u_g=z_g/\rho_g,
 \]
 
-The adaptive direction is
-
 \[
-A_r
-=C_r^*\!\left[
-  D_{r,t}\,
-  \operatorname{NS5}\!\left(D_{r,t}C_r(M_r)\right)
-\right].
+h_g=\rho_g f_{\theta_{g,t}}(u_g).
 \]
 
-The outer `D_r` is part of the exact adjoint construction. Before routing,
-`A_r` is rescaled to the Frobenius norm of `U_r`:
+Here \(f_{\theta_{g,t}}\) is that group's current trainable rational response,
+with a degree-five numerator and degree-four denominator. Each of the 18
+groups in every layer has its own coefficients. The rational responses are
+initialized to approximate SiLU and then learned normally. The three methods
+do not change the activation parameterization, forward map, initialization, or
+coefficient update rule: the coefficients evolve under the same matched AdamW
+path in every RLB run. Forward hooks capture current residual inputs,
+preactivations, and rational features during training; after backward, the
+matrix optimizer consumes those records and evaluates the current response and
+exact normalized-response Jacobian.
+
+The Global-RLB model has 296,871,080 trainable parameters. The matched SwiGLU
+control has 296,867,840; the 3,240-parameter difference is exactly the learned
+rational-coefficient inventory.
+
+## Why Global-RLB exposes useful optimizer structure
+
+Stock Muon sees a matrix and its momentum, then applies the same spectral
+update rule regardless of which learned nonlinear function lies between two
+matrices. Global-RLB exposes additional functional state:
+
+- 18 independently learned rational functions per layer;
+- a fixed pairing between each rational group, 256 rows of
+  \(W_{\mathrm{in}}\), and 256 columns of \(W_{\mathrm{out}}\);
+- the current rational response \(f_{\theta_{g,t}}\);
+- its exact normalized-response Jacobian \(J_{g,t}\);
+- current residual-input and rational-feature distributions.
+
+The three methods use this state to select among equal-budget update
+geometries. This is the direct reason the designs are RLB-specific. A fixed
+SwiGLU block has neither trainable P5/Q4 response state nor the same
+single-function pairing of incoming and outgoing matrix blocks.
+
+## Shared optimizer foundation
+
+### Unchanged gradients, momentum, polar map, LR, and WD
+
+All comparisons use the same training protocol, loss, backward pass, DDP
+gradient synchronization, and global clipping. U-R and the three candidates
+share the identical Global-RLB forward map; U-S uses the stated SwiGLU forward
+map. For a clipped matrix gradient \(G_t\), the Muon momentum recurrence is
+unchanged:
 
 \[
-\bar A_r=A_r\frac{\|U_r\|_F}{\|A_r\|_F}.
+B_t=0.95B_{t-1}+0.05G_t,\qquad
+M_t=0.05G_t+0.95B_t.
 \]
 
-Consequently, choosing more of the adaptive branch does not grant a larger
-step. `U_r` and `A_bar_r` have exactly the same update budget; only their
-directions differ.
+The ordinary matrix direction uses five Newton–Schulz iterations
+\(\operatorname{NS5}\) and the control's `match_rms_adamw` shape
+calibration. Scheduled LR and decoupled WD are applied exactly once.
 
-Power-of-two scale stabilization and finite-precision adjoint compensation in
-the implementation preserve these equations. They are numerical safeguards,
-not scientific components, schedules, or hidden update multipliers.
+### Shared Global-RLB pair branch construction
 
-## Method 1: R06 K1
+All three methods inherit the same branch-building ingredients for
+\(W_{\mathrm{in}}\) and \(W_{\mathrm{out}}\):
 
-### Core idea
+- **B, residual-input geometry:** \(C_x=\mathbb{E}[xx^\top]\), used as the
+  incoming matrix's external-coordinate factor;
+- **C, rational-feature geometry:** \(K_g=\mathbb{E}[h_gh_g^\top]\), used as
+  the outgoing matrix's hidden-coordinate factor;
+- an ordinary coordinate-polar branch;
+- a bias-corrected, matched-\(\beta_2\) coordinate-adaptive branch;
+- current-versus-initial response congruence for the incoming and outgoing
+  roles.
 
-R06 K1 combines two complementary properties of each learned RLB response:
-current-versus-initial response alignment and current intrinsic participation.
-Their product gives a bounded route for `W_in` and `W_out`; the intrinsic
-participation also routes attention. The routes therefore change with the
-learned RLB response while LR and WD remain fixed.
+The covariance factors use unit-volume Cholesky coordinates. Removing their
+global determinant scale prevents a coordinate transform from becoming an
+internal learning-rate multiplier.
 
-### Step 1: current-versus-initial response alignment
-
-For the same normalized samples `u`, evaluate both the current learned curve
-`f_t` and the frozen initialization curve `f_0`.
-
-For the incoming matrix, compare their exact normalized-response Jacobian
-kernels, where `J_t` and `J_0` denote the current and initialized RLB
-Jacobians:
+For role \(r\), write the ordinary coordinate-polar direction as \(U_r\) and
+the adaptive coordinate direction, rescaled to the same Frobenius budget, as
+\(\bar A_r\):
 
 \[
-a_{\mathrm{in}}
+\|\bar A_r\|_F=\|U_r\|_F.
+\]
+
+Let \(a_{\mathrm{in}}\) compare the current and initialized
+normalized-Jacobian kernels, and let \(a_{\mathrm{out}}\) compare the current
+and initialized response kernels. Both are scale-free values in \([0,1]\).
+The generation-one direction routes the equal-budget branches through these
+congruences. Current R05 retains that literal generation-one direction before
+its sign-family completion. R06 instead executes routes that multiply each
+congruence by current intrinsic participation, and R08 retains the resulting
+R06 direction before its groupwise completion.
+
+### Whole-layer polar operations
+
+The grouped Cholesky factors are applied to 256-channel blocks, but the blocks
+are then reassembled before every base polar operation. NS5 acts once on each
+full \(4608\times1024\) layer matrix for each RLB role. It does not perform 18
+independent \(256\times1024\) polars.
+
+Current R05's groupwise sign route and current R08's groupwise sphere
+completion occur after these whole-layer ordinary/adaptive polar directions
+have been formed. Attention NS5 operations are likewise whole-matrix
+operations.
+
+## RLB morphology statistics
+
+For one current normalized group of width \(m=256\), let \(s_i\) be the
+singular values of its exact Jacobian \(J_{g,t}\). Define incoming
+participation
+
+\[
+c_{\mathrm{in},g}
 =
-\frac{
-\langle J_tJ_t^\top,J_0J_0^\top\rangle_F
-}{
-\|J_tJ_t^\top\|_F\,\|J_0J_0^\top\|_F
-}.
+\frac{(\sum_i s_i^2)^2}
+     {m\sum_i s_i^4}.
 \]
 
-For the outgoing matrix, compare their activation-output kernels, with
-`h_t=rho f_t(u)` and `h_0=rho f_0(u)`:
+For current response coordinates \(f_i=f_{\theta_{g,t}}(u_i)\), define
+outgoing participation
 
 \[
-a_{\mathrm{out}}
+c_{\mathrm{out},g}
 =
-\frac{
-\langle h_th_t^\top,h_0h_0^\top\rangle_F
-}{
-\|h_th_t^\top\|_F\,\|h_0h_0^\top\|_F
-}.
+\frac{(\sum_i f_i^2)^2}
+     {m\sum_i f_i^4}.
 \]
 
-Both values are in `[0,1]`. A value of one means the current and initialized
-response kernels point in the same direction; a lower value means the learned
-rational morphology has changed. Statistics are summed across sampled tokens,
-rational groups, and all four data-parallel ranks before the alignment is
-formed. Exact coefficient equality returns one exactly.
+These values lie in \([0,1]\), are invariant to a common response scaling, and
+measure whether current sensitivity or response energy is broadly distributed
+or concentrated. Their sufficient statistics are reduced across all four DDP
+ranks.
 
-### Step 2: current intrinsic participation
+## Method 1: current R05 K1
 
-Alignment alone only measures change relative to initialization. R06 K1 also
-measures the shape of the current curve itself.
+### RLB pair update
 
-Let `s_i` be the singular values of the exact group Jacobian `J_t`. The
-incoming participation is
+Current R05 starts from the complete generation-one direction
+\(P^{(0)}_r\). After that whole-layer direction has been formed, it partitions
+\(P^{(0)}_r\) and the unchanged momentum \(M_r\) into the actual 18
+rational-group blocks.
+
+For group \(g\) and role \(r\), construct an equal-budget coordinate-sign
+direction
 
 \[
-c_{\mathrm{in}}
+Q_{g,r}
 =
-\frac{(\sum_i s_i^2)^2}{256\sum_i s_i^4}.
+\operatorname{sign}(M_{g,r})
+\frac{\|P^{(0)}_{g,r}\|_F}
+     {\|\operatorname{sign}(M_{g,r})\|_F}.
 \]
 
-Let `f_i` be the 256 current rational responses in the group. The outgoing
-participation is
+Here \(\operatorname{sign}\) is the elementwise sign in the matrix's native
+parameter coordinates, applied after the whole-layer B+C parent has been
+formed; it is not a sign operation inside the B+C coordinate transform.
 
-\[
-c_{\mathrm{out}}
-=
-\frac{(\sum_i f_i^2)^2}{256\sum_i f_i^4}.
-\]
-
-These are normalized participation ratios in `[0,1]`:
-
-- a value near one means sensitivity or response energy is broadly spread
-  across channels;
-- a smaller value means it is concentrated in fewer directions;
-- multiplying the entire rational response by a positive scalar leaves the
-  ratios unchanged.
-
-The implementation computes the exact Jacobian expression without storing a
-dense `256 × 256` Jacobian. It averages participation across sampled tokens,
-groups, and ranks to produce one incoming and one outgoing intrinsic value per
-layer.
-
-### Step 3: route the two RLB-adjacent matrices
-
-R06 K1 forms role-specific routes
-
-\[
-r_{\mathrm{in}}=a_{\mathrm{in}}c_{\mathrm{in}},
-\qquad
-r_{\mathrm{out}}=a_{\mathrm{out}}c_{\mathrm{out}}.
-\]
-
-For either role, with `r` equal to its corresponding route, it blends the
-equal-budget ordinary and adaptive directions:
-
-\[
-Z_r=\sqrt r\,U_r+\sqrt{1-r}\,\bar A_r,
-\qquad
-P_r=Z_r\frac{\|U_r\|_F}{\|Z_r\|_F}.
-\]
-
-As `r` moves from zero to one, the direction moves from `A_bar_r` toward
-`U_r`; the final normalization restores the exact `U_r` Frobenius budget.
-
-The square-root amplitudes are the canonical amplitudes for a squared kernel
-alignment. At the exact route-one limit, the implementation returns `U_r`
-bitwise.
-
-### Step 4: route attention from RLB morphology
-
-R06 K1 uses the geometric mean of the two intrinsic participation values:
-
-\[
-r_{\mathrm{attn}}=\sqrt{c_{\mathrm{in}}c_{\mathrm{out}}}.
-\]
-
-For each QKV or attention-output matrix, `M` is the unchanged Nesterov source.
-A row/column-factorized, bias-corrected second moment of the literal gradient
-forms an adaptive source `A_attn`, which is normalized to `||M||_F`. Then
-
-\[
-S
-=\sqrt{r_{\mathrm{attn}}}\,M
-+\sqrt{1-r_{\mathrm{attn}}}\,\bar A_{\mathrm{attn}},
-\]
-
-\[
-P_{\mathrm{attn}}
-=\operatorname{match\_rms\_adamw}(\operatorname{NS5}(S)).
-\]
-
-Thus the current trainable RLB curve influences the geometry used for
-attention matrices in the same transformer layer. It does not change their
-LR, WD, momentum, or update norm calibration.
-
-At the fixed model initialization, a preregistered Gaussian probe measured
-approximately
-
-```text
-c_in                  = 0.504
-c_out                 = 0.146
-sqrt(c_in * c_out)    = 0.270
-```
-
-The intrinsic router is therefore active at initialization without a tuned
-gain, threshold, exponent, schedule, cadence, or loss-feedback signal.
-
-### Complete R06 K1 update in pseudocode
-
-```text
-1. Run the unchanged Global-RLB forward and backward passes.
-2. Synchronize and clip gradients exactly as in the controls.
-3. Update the unchanged Muon Nesterov buffers.
-4. From current RLB samples, form B+C coordinate maps for W_in and W_out.
-5. Form U_in, U_out: coordinate NS5 directions.
-6. Update matched-beta2 coordinate second moments from literal gradients.
-7. Form equal-budget A_in, A_out: adaptive coordinate NS5 directions.
-8. Compare current and initial RLB responses: a_in, a_out.
-9. Measure current RLB participation: c_in, c_out.
-10. Route W_in with a_in*c_in and W_out with a_out*c_out.
-11. Route QKV and attention-output matrices with sqrt(c_in*c_out).
-12. Use stock Muon for remaining eligible matrices.
-13. Use matched AdamW for rational coefficients and remaining parameters.
-14. Apply the common scheduled LR once and common decoupled WD once.
-```
-
-## Method 2: R05 K1
-
-### Core idea
-
-R05 K1 is the direct parent of R06 K1. It asks only how far the current
-rational response has moved from its initialization. It uses the same B+C
-coordinate maps and the same equal-budget `U_r` and `A_bar_r` directions, but
-it does not multiply the alignment by current intrinsic participation.
-
-For the incoming and outgoing matrices, respectively:
-
-\[
-Z_{\mathrm{in}}
-=\sqrt{a_{\mathrm{in}}}\,U_{\mathrm{in}}
-+\sqrt{1-a_{\mathrm{in}}}\,\bar A_{\mathrm{in}},
-\]
-
-\[
-Z_{\mathrm{out}}
-=\sqrt{a_{\mathrm{out}}}\,U_{\mathrm{out}}
-+\sqrt{1-a_{\mathrm{out}}}\,\bar A_{\mathrm{out}}.
-\]
-
-Each result is normalized back to the Frobenius norm of its corresponding
-`U` direction. At exact initialization, both alignments are one and R05 K1
-returns the literal B+C parent direction while still updating the adaptive
-second-moment state.
-
-R05 K1 specializes only `W_in` and `W_out`. Attention and all other eligible
-matrices use stock Muon. Rational coefficients and non-Muon parameters use
-matched AdamW.
-
-### Complete R05 K1 update in pseudocode
-
-```text
-1. Run the unchanged Global-RLB forward and backward passes.
-2. Synchronize and clip gradients exactly as in the controls.
-3. Update the unchanged Muon Nesterov buffers.
-4. From current RLB samples, form B+C coordinate maps for W_in and W_out.
-5. Form U_in, U_out: coordinate NS5 directions.
-6. Update matched-beta2 coordinate second moments from literal gradients.
-7. Form equal-budget A_in, A_out: adaptive coordinate NS5 directions.
-8. Compare current and initial RLB responses: a_in, a_out.
-9. Route W_in with a_in and W_out with a_out.
-10. Use stock Muon for attention and remaining eligible matrices.
-11. Use matched AdamW for rational coefficients and remaining parameters.
-12. Apply the common scheduled LR once and common decoupled WD once.
-```
-
-## Method 3: group-resolved product sphere
-
-### Core idea
-
-R05 K1 reduces the response statistics of all 18 rational groups to one
-incoming alignment and one outgoing alignment per layer. The group-resolved
-method retains those individual group alignments and lets each group refine
-the R05 direction while preserving that group's update norm.
-
-This method begins by computing the complete R05 K1 direction. It does not
-replace the R05 parent. It then asks whether a group-specific route supplies a
-better first-order direction for the same Nesterov source.
-
-### Group-specific target
-
-For group `g` and matrix role `r`, define:
-
-- `P_g,r`: the corresponding block of the complete layerwise R05 K1 direction;
-- `U_g,r`: the ordinary B+C coordinate-polar block;
-- `A_bar_g,r`: its equal-budget adaptive block;
-- `a_g,r`: the current-versus-initial response alignment for this group;
-- `M_g,r`: the group's unchanged Nesterov source.
-
-The group's own canonical target is
-
-\[
-T_{g,r}
-=
-\operatorname{normalize}_{\|P_{g,r}\|_F}
-\left(
-\sqrt{a_{g,r}}\,U_{g,r}
-+\sqrt{1-a_{g,r}}\,\bar A_{g,r}
-\right).
-\]
-
-Both `P_g,r` and `T_g,r` have the same Frobenius norm. They therefore lie on
-the same fixed-radius sphere.
-
-### Exact arc decision
-
-Consider the shortest spherical arc from the R05 parent block `P_g,r` to the
-group-specific target `T_g,r`. The method selects the point on that arc with
-the greatest inner product with the Nesterov source:
+Use \(c_{g,r}=c_{\mathrm{in},g}\) for the incoming role and
+\(c_{g,r}=c_{\mathrm{out},g}\) for the outgoing role. The executed block is
 
 \[
 D_{g,r}
 =
-\arg\max_{D\in\operatorname{arc}(P_{g,r},T_{g,r})}
+\operatorname{normalize}_{\|P^{(0)}_{g,r}\|_F}
+\left(
+\sqrt{c_{g,r}}\,P^{(0)}_{g,r}
++
+\sqrt{1-c_{g,r}}\,Q_{g,r}
+\right).
+\]
+
+Thus broad current participation keeps more of the spectral/coordinate
+parent, while concentrated participation moves toward coordinate sign. Every
+finite branch preserves the parent block's exact Frobenius budget and has
+positive inner product with the unchanged momentum. A zero parent/sign norm or
+an invalid provisional blend falls back to a finite parent; any nonfinite
+executed direction fails closed.
+
+### Attention update
+
+For each layer, R05 forms
+
+\[
+c_{\mathrm{attn}}
+=
+\sqrt{
+\operatorname{mean}_g(c_{\mathrm{in},g})
+\operatorname{mean}_g(c_{\mathrm{out},g})
+}.
+\]
+
+For both QKV and attention-output matrices, \(P\) is the whole-matrix stock
+Muon polar direction and \(Q\) is the equal-\(\|P\|_F\) sign direction of the
+same momentum. R05 applies the same square-root chord and norm closure using
+\(c_{\mathrm{attn}}\).
+
+Current R05 therefore structurally routes all RLB input/output matrices and
+all QKV/attention-output matrices: 245,366,784 parameters. It is not the
+archived R05 generation-one method, and its attention matrices are not left on
+stock Muon.
+
+### Executed update summary
+
+```text
+1. Form the generation-one whole-layer RLB pair direction.
+2. Measure current groupwise Jacobian and response participation.
+3. Route each post-polar RLB block between parent and equal-budget sign.
+4. Transport the layer's two-role participation to QKV and attention output.
+5. Route each whole attention matrix between stock polar and equal-budget sign.
+6. Apply the shared scheduled LR and WD once.
+```
+
+## Method 2: current R06 K1
+
+### Layerwise RLB pair route
+
+R06 averages the groupwise participation statistics separately for the two
+roles, producing \(c_{\mathrm{in}}\) and \(c_{\mathrm{out}}\) per layer. It
+combines them with the shared current-versus-initial congruences:
+
+\[
+\gamma_{\mathrm{in}}=a_{\mathrm{in}}c_{\mathrm{in}},\qquad
+\gamma_{\mathrm{out}}=a_{\mathrm{out}}c_{\mathrm{out}}.
+\]
+
+For either role, let \(\gamma_r\) denote its corresponding incoming or
+outgoing route. Then
+
+\[
+P^{(06)}_r
+=
+\operatorname{normalize}_{\|U_r\|_F}
+\left(
+\sqrt{\gamma_r}\,U_r
++
+\sqrt{1-\gamma_r}\,\bar A_r
+\right).
+\]
+
+This is a layerwise equal-budget route. R06 uses neither the sign family of
+current R05 nor the group-sphere completion of current R08.
+
+### RLB-conditioned attention
+
+R06 transports the two current role statistics through
+
+\[
+\gamma_{\mathrm{attn}}=\sqrt{c_{\mathrm{in}}c_{\mathrm{out}}}.
+\]
+
+For each QKV and attention-output matrix, the unchanged Nesterov momentum and
+a row/column-factorized, bias-corrected-\(\beta_2\) adaptive source are first
+matched to the same Frobenius budget. R06 then blends these equal-budget
+endpoints:
+
+\[
+S_{\mathrm{attn}}
+=
+\sqrt{\gamma_{\mathrm{attn}}}\,M
++
+\sqrt{1-\gamma_{\mathrm{attn}}}\,\bar A_{\mathrm{attn}}.
+\]
+
+The chord itself is not Frobenius-renormalized before NS5; NS5's input
+normalization removes its common scale. The whole source matrix is then passed
+through unchanged NS5 and the stock
+`match_rms_adamw` calibration. The rational statistic changes update
+geometry, not LR, WD, momentum, NS count, or calibration.
+
+## Method 3: current R08 K5
+
+Current R08 is a direct extension of current R06. It retains the literal
+complete R06 RLB-pair direction \(P^{(06)}_r\) and the literal R06 attention
+path.
+
+For role \(r\), R06 has the layerwise route
+
+\[
+\gamma_{\mathrm{layer},r}
+=a_{\mathrm{layer},r}c_{\mathrm{layer},r}.
+\]
+
+R08 resolves only the participation term by rational group:
+
+\[
+\gamma_{g,r}
+=a_{\mathrm{layer},r}c_{g,r}.
+\]
+
+There is no group-specific current-versus-initial alignment. The same
+layerwise \(a_{\mathrm{layer},r}\) is used for all 18 groups.
+
+Let:
+
+- \(P^{(06)}_{g,r}\) be the corresponding block of the literal complete R06
+  direction;
+- \(U_{g,r}\) and \(\bar A_{g,r}\) be blocks of the same whole-layer ordinary
+  and equal-budget adaptive branches used to form that direction;
+- \(M_{g,r}\) be the unchanged momentum block.
+
+The group target is
+
+\[
+T_{g,r}
+=
+\operatorname{normalize}_{\|P^{(06)}_{g,r}\|_F}
+\left(
+\sqrt{\gamma_{g,r}}\,U_{g,r}
++
+\sqrt{1-\gamma_{g,r}}\,\bar A_{g,r}
+\right).
+\]
+
+R08 then solves the exact linear maximization problem on the shortest
+fixed-radius spherical arc from \(P^{(06)}_{g,r}\) to \(T_{g,r}\):
+
+\[
+D_{g,r}
+=
+\arg\max_{D\in\operatorname{arc}(P^{(06)}_{g,r},T_{g,r})}
 \langle M_{g,r},D\rangle_F.
 \]
 
-The exact solver checks at most three possibilities:
+The analytic solver considers the parent endpoint, target endpoint, and the
+unique interior stationary point when it lies on the arc. The parent is
+always feasible and wins exact ties. Consequently, each selected group block
+preserves its R06 parent budget and has first-order momentum descent no worse
+than that parent.
 
-1. the R05 parent endpoint;
-2. the group-specific target endpoint;
-3. the unique interior stationary point, when it lies on the arc.
+R08 adds no groupwise polar operation. It only completes the already formed
+whole-layer R06 directions on their per-group fixed-radius arcs. Its
+attention update is exactly the R06 attention update.
 
-The R05 parent is always feasible and wins exact ties. Therefore every chosen
-group block:
+## Exact differences
 
-- has exactly the same Frobenius norm as its R05 parent block; and
-- has first-order Nesterov descent no worse than that parent block.
-
-If a group's alignment equals the aggregate layer alignment, its target
-collapses to the literal parent block and the method returns that block
-exactly.
-
-The product-sphere method specializes only the RLB `W_in` and `W_out`
-matrices. It has no R06 K1 intrinsic participation statistic and no
-RLB-conditioned attention route.
-
-### Complete group-resolved update in pseudocode
-
-```text
-1. Perform steps 1-8 of R05 K1, retaining both layer and group alignments.
-2. Form the complete layerwise R05 parent direction P.
-3. For every layer, role, and rational group, form its equal-norm target T.
-4. Solve the exact three-candidate fixed-radius arc problem from P to T.
-5. Concatenate the selected group blocks into W_in and W_out updates.
-6. Use stock Muon for attention and remaining eligible matrices.
-7. Use matched AdamW for rational coefficients and remaining parameters.
-8. Apply the common scheduled LR once and common decoupled WD once.
-```
-
-## Exact differences among the three methods
-
-| Design decision | R05 K1 | Group-resolved product sphere | R06 K1 |
+| Decision | Current R05 K1 | Current R08 K5 | Current R06 K1 |
 |---|---|---|---|
-| B residual-input coordinate | Yes | Yes | Yes |
-| C rational-feature coordinate | Yes | Yes | Yes |
-| Equal-budget coordinate second-moment branch | Yes | Yes | Yes |
-| Current-versus-initial Jacobian/output alignment | Layer and role | Layer, role, and group | Layer and role |
-| Current intrinsic Jacobian participation | No | No | Yes |
-| Current intrinsic output participation | No | No | Yes |
-| RLB pair decision | Alignment-weighted chord | Exact per-group arc maximizer around the R05 parent | Alignment × participation chord |
-| Attention decision | Stock Muon | Stock Muon | RLB-participation-routed factorized adaptive Muon |
-| Rational-coefficient optimizer | Matched AdamW | Matched AdamW | Matched AdamW |
-| Tuned internal LR/WD multiplier | None; all equal 1 | None; all equal 1 | None; all equal 1 |
+| Shared B+C whole-layer branch construction | Yes | Through literal R06 | Yes |
+| Current-vs-initial response congruence | In retained pair parent | Layerwise, through R06 | Layerwise |
+| Intrinsic rational statistic | Per group and role | Per group and role, plus retained layer statistic | Per layer and role |
+| RLB-pair completion | Equal-budget parent/sign chord | Exact per-group arc LMO around R06 parent | Equal-budget ordinary/adaptive chord |
+| Attention update | RLB-routed polar/sign chord | Literal R06 attention | RLB-routed factorized-adaptive source before NS5 |
+| Custom structural parameters | 245,366,784 | 245,366,784 | 245,366,784 |
+| Rational coefficients | Matched AdamW | Matched AdamW | Matched AdamW |
+| Internal LR or WD multiplier | Every value is 1.0 | Every value is 1.0 | Every value is 1.0 |
 
-## Exact experiment cell
+Current R05 and R06 are sibling extensions of the shared generation-one pair
+parent. Current R05 is not R06's parent. Current R08 is the direct
+group-resolved completion of R06.
 
-All reported candidates used:
+## Exact experiment and fairness cell
 
 | Item | Fixed value |
 |---|---|
-| Model | 18 layers, width 1,024, 16 attention heads |
+| Model scale | Exact historical M1 |
+| Layers / width / heads | 18 / 1,024 / 16 |
 | Nominal FFN setting | 3,072 |
-| Global-RLB hidden width | 4,608 = 18 groups × 256 channels |
-| Global-RLB parameters | 296,871,080 |
-| SwiGLU control parameters | 296,867,840 |
-| Training data | Same cached 300,000,000-token DCLM stream |
-| Validation data | Same disjoint 8,000,000-token cache |
+| Global-RLB hidden width | 4,608 = 18 groups × 256 |
+| Global-RLB trainable parameters | 296,871,080 |
+| SwiGLU trainable parameters | 296,867,840 |
+| Dataset | Same frozen DCLM token cache and order |
+| Cached training source | 300,000,000 tokens |
+| Tokens actually consumed | 131,072,000 = 4,000 × 32,768 |
+| Validation cache | Same disjoint 8,000,000 tokens |
 | Seed | 1337 |
 | Updates | 4,000 |
-| Hardware | Four A6000 GPUs per job |
+| Hardware | Four generic A6000 GPUs per job; no node or NVLink pin |
 | Sequence length | 256 |
-| Per-rank batch | 8 |
-| Gradient accumulation | 4 |
-| Peak LR | `3e-4` |
-| Minimum LR | `3e-5` |
-| Warmup | 200 updates |
-| LR schedule | Cosine with a 4,000-update horizon |
-| Weight decay | `0.10` on the same decayed parameter classes |
-| AdamW betas and epsilon | `(0.9, 0.95)`, `1e-8` |
-| Gradient clipping | `1.0` |
-| Muon momentum | `0.95` |
-| Muon polar map | Five Newton--Schulz iterations |
-| Muon output calibration | `match_rms_adamw` |
-| Every internal LR multiplier | `1.0` |
-| Every internal WD multiplier | `1.0` |
+| Per-rank batch / accumulation / ranks | 8 / 4 / 4 |
+| Global tokens per update | 32,768 |
+| Peak / minimum LR | \(3\times10^{-4}\) / \(3\times10^{-5}\) |
+| LR schedule | 200-update warmup, cosine horizon 4,000 |
+| Decayed-class WD | 0.10 |
+| AdamW betas / epsilon | (0.9, 0.95) / \(10^{-8}\) |
+| Global gradient clipping | 1.0 |
+| Muon momentum / polar map | 0.95 / NS5 |
+| Muon calibration | `match_rms_adamw` |
+| Every internal LR scale | 1.0 |
+| Every internal WD scale | 1.0 |
 
-The stronger control is exact SwiGLU+Muon, called U-S. Exact Global-RLB+Muon,
-called U-R, is included to separate the activation effect from the optimizer
-effect.
+All three candidate reports cover the same 296,871,080 parameters with the
+same three routed inventories:
 
-## Results for the requested three-method snapshot
+- 169,869,312 RLB input/output matrix parameters, WD 0.10;
+- 75,497,472 attention matrix parameters, WD 0.10;
+- 51,504,296 matched AdamW/no-decay parameters, including the rational
+  coefficients, WD 0.
 
-Lower is better in every metric.
+Every group uses the same scheduled base LR. There is no coefficient-specific,
+matrix-role-specific, group-specific, or hidden learning-rate multiplier.
+Data fingerprints and the realized LR-trace hash are identical across the
+controls and candidates. Within the RLB runs, the initial-state fingerprint is
+also identical.
 
-| Run | Endpoint validation loss | Loss lead over U-S | Endpoint PPL | Train pAUC, steps 1,000--4,000 | Validation pAUC, steps 1,000--4,000 | Runtime / U-S |
-|---|---:|---:|---:|---:|---:|---:|
-| SwiGLU+Muon (U-S) | 4.228466988 | 0 | 68.61196851 | 4.199301681 | 4.422074735 | 1.000x |
-| Global-RLB+Muon (U-R) | 4.241679192 | -0.013212204 | 69.52449883 | 4.205564916 | 4.432158089 | 1.116x |
-| **R06 K1** | **4.199958801** | **0.028508186** | **66.68358371** | **4.161953121** | **4.395792866** | 1.967x |
-| **R05 K1** | 4.207155704 | 0.021311283 | 67.16523011 | 4.172808398 | 4.404217637 | 1.790x |
-| **Group-resolved product sphere** | 4.208533764 | 0.019933224 | 67.25785159 | 4.172926977 | 4.404469943 | 1.807x |
+## Ablation status
 
-These are single-seed discovery results. All three candidates beat U-S in
-endpoint loss, endpoint PPL, train late pAUC, and validation late pAUC under
-the exact shared LR/WD cell.
+No current top-three method has passed recursive leave-one-component-out
+ablation. The current reports all have `promoted: false` because their
+endpoint-loss leads are below 0.20, so the preregistered rule correctly
+withheld expensive full-4,000-step ablations.
 
-They remain near-misses rather than final methods:
+The preregistered provisional direct LOO units are:
 
-- none reaches the required `0.20` endpoint-loss lead;
-- none has a released full recursive leave-one-component-out ablation;
-- none meets the eventual `1.02x` runtime gate in its discovery
-  implementation.
+- **current R05:** retained generation-one pair parent; incoming
+  participation; outgoing participation; pair spectral/sign routing; transport
+  to both attention roles;
+- **current R08:** equal-budget coordinate geometry; current-versus-initial
+  response geometry; role-specific current participation; RLB-to-attention
+  transport; group-resolved product-sphere completion;
+- **current R06:** inherited B coordinate geometry; inherited C response
+  geometry; paired incoming/outgoing participation route; factorized attention
+  geometry selected by the two-role geometric mean.
 
-After this three-method snapshot was requested, R08 K5 completed at loss
-`4.199784756`, only `0.000174046` below R06 K1. R08 K5 is outside the requested
-three methods and is mentioned only so this document does not imply that R06
-K1 remains the live loss leader.
+These lists define initial direct removals; they are neither proven exhaustive
+decompositions nor claims that the components have survived ablation. In
+particular, R05's retained generation-one parent contains inherited
+subcomponents that recursive closure may need to unpack. If a method is
+promoted, every component must be removed directly from the same full method
+at 4,000 updates. Any useless component is deleted, the pruned full method is
+rerun, and LOO repeats until every retained component is demonstrably useful.
 
-## Ablation evidence and its exact interpretation
+Older `R08-LOO-*` artifacts belong to a different archived R08 parent. They
+may describe ancestor behavior but cannot establish ablation closure for
+current R08 K5.
 
-The inherited B+C parent has direct 4,000-step leave-one-out evidence:
+## Runtime status
 
-- removing B worsened endpoint loss, endpoint PPL, train late pAUC, and
-  validation late pAUC;
-- removing C also worsened all four metrics;
-- C's stable conditional endpoint-loss contribution was `0.009883404`.
+The reported runtimes are discovery implementations. Against the
+activation-matched U-R control, R05 is 2.017x, R08 is 1.722x, and R06 is
+1.762x; their U-S ratios are 2.251x, 1.922x, and 1.967x. These values fail the
+eventual 1.02x median/p95 runtime requirement against U-R. The scientific
+equations must remain fixed if a promoted implementation is optimized for
+speed.
 
-Both B and C pass the current ablation definition. There is no fixed `0.01`
-minimum contribution gate. A component passes when its direct deletion from
-the same full method produces a stable conditional deterioration in endpoint
-loss and PPL, with the late validation trajectory supporting the same
-direction.
+## Frozen run identities
 
-This evidence establishes the retained B and C components only. It does not
-establish every later R05 or R06 component. Under the active campaign rule,
-full 4,000-step recursive ablation begins only after a complete candidate
-achieves the required `0.20` lead together with PPL and late-validation-pAUC
-improvements. None of these three methods crossed that promotion gate, so no
-claim is made that the complete methods have passed ablation.
+| Run | Component / job | Report SHA-256 | Trajectory SHA-256 | Candidate-freeze-file SHA-256 |
+|---|---|---|---|---|
+| Current R05 | `R05:K1` / 797516 | `2c387d5e4436e8bd96fa67d6869614b2ca271959d6a3d6b3e8c3c399cde8e6c3` | `683b9d6ef4e8e9dc0e0eeafbd487f0357550d31081280c4bcb02cefe447c19c9` | `98cb0921e9a4148aba441d5631e56214b7dddfdff215733e65c7c741a1b59e7d` |
+| Current R08 | `R08:K5` / 797175 | `800bc0219fa0028a89be3340ea4955d50239ccdadb6377c046cdd02dddf355f5` | `de74b32078f650d5ffd06ccbf99444208ee817d788afa7c86f207c27f87580bd` | `2466aa6334542e9745b3416a95cc3cffadc017cb7b602923ad91b7dd9b68126c` |
+| Current R06 | `R06:K1` / 792491 | `10dd8004fe997ded5939d2c13cf806f8f475cee69f1a3249bcefdedd96690305` | `c8331ae8e0b92af2c798d4246fa959809fab80bbec5e14cb8c3ca78fefbd636c` | `c5f345888cfcea2b9086a88bfeb9f51f612e202eef82843cdce98920b188e496` |
 
-## Fairness boundary
-
-The optimizer methods are allowed to use RLB structure to choose a direction.
-They are not allowed to obtain a larger effective step through a hidden scale.
-For every reported candidate:
-
-- the model activation and forward pass are identical Global-RLB;
-- peak LR, minimum LR, warmup, cosine horizon, and per-step schedule are
-  identical to the controls;
-- decoupled WD and parameter-class assignment are identical;
-- all external and internal LR and WD scales equal one;
-- Muon momentum, NS5 count, clipping, and shape calibration are identical;
-- adaptive alternatives are normalized to the parent Frobenius budget;
-- coordinate covariances are unit-volume normalized;
-- scheduled LR and WD are applied exactly once.
-
-The improvement is therefore attributed to optimizer direction geometry, not
-to the earlier rationalOPT mistake of assigning a larger internal LR to RLB
-matrices.
-
-## Frozen implementation identities
-
-The file currently named `optimizer_design/rlb_r06.py` is the R06 K1 wrapper
-and imports `rlb_r06_revision_core.py`. The older file
-`optimizer_design/rlb_r06_core.py` implements the historical group-resolved
-product-sphere method. They must not be confused.
-
-### R06 K1
-
-```text
-component                     R06:K1
-revision core SHA-256         79dafe29a88d778a880115b50e0eab6471f463e29b190fbc2b4f388725dcbe07
-wrapper SHA-256               9bc23f30c16debe9d5d2a403baa671f3884471606cf076214bc5012f200210a7
-source-freeze SHA-256         c5f345888cfcea2b9086a88bfeb9f51f612e202eef82843cdce98920b188e496
-candidate-report SHA-256      10dd8004fe997ded5939d2c13cf806f8f475cee69f1a3249bcefdedd96690305
-trajectory SHA-256            c8331ae8e0b92af2c798d4246fa959809fab80bbec5e14cb8c3ca78fefbd636c
-```
-
-### R05 K1 generation one
-
-The currently reused R05 slot contains a later revision. The R05 K1 result in
-this document refers specifically to the frozen generation-one source below.
-
-```text
-component                     R05:K1
-generation-one core SHA-256   57e79a23be0bb786039481446ccbab917b9b1c43ec9b16ddfefa11b7dcaccdd8
-source-freeze SHA-256         40037759752e53bee2e33a392d5e91a2e2b490771f841e5a4c981ee273100a29
-candidate-report SHA-256      0abf6e99220ed8bf925a7dd21181cbffddf97595e67e282fa878bf5acf661edd
-trajectory SHA-256            2817ce9688e83ed64a3a59eb1a343b81f8183785d36f55fcf2766d9843da7919
-```
-
-### Historical group-resolved product sphere
-
-```text
-generation                    group_resolved_product_sphere
-source-freeze SHA-256         c824cd699ed22677524e83e20826c2924efcee902af787fd321c34de57f36200
-candidate-report SHA-256      03afd1cce7042996a6a145fac50e9f9b241a715108cf4c49497c765e01d9b9bd
-trajectory SHA-256            ea9d0109a8e7ca0750599f297c48d0bc2261bc0fa324938eca4d86b427706cb2
-```
+For R08 K5, `rlb_r08_current.py` and `rlb_r08_current_core.py` identify the
+K5-specific wrapper and completion. `rlb_r08.py` is an older wrapper, while
+`rlb_r08_core.py` remains an inherited B+C dependency and does not by itself
+define K5. The content-addressed freeze hashes, rather than a live filename or
+reused opaque label, define each completed run.
 
 ## Claim boundary
 
-This document specifies reproducible discovery methods and their exact
-single-seed evidence. It establishes that all three completed, checksum-valid,
-LR/WD-matched trajectories modestly improved over SwiGLU+Muon in the exact
-M1 experiment. It does not claim the requested `0.20` lead, multiseed
-robustness, complete component closure, or deployment-speed parity.
+The strongest completed evidence is current R05's single-seed endpoint-loss
+lead of 0.044804573 over SwiGLU+Muon, with lower PPL and lower late validation
+pAUC under the exact shared LR/WD cell. This is a meaningful positive
+direction, not the requested final result. The required 0.20 lead, recursive
+ablation closure, and final runtime closure remain open. Generalization across
+additional seeds, datasets, and model scales is also untested for these frozen
+methods.
