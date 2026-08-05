@@ -239,11 +239,11 @@ schedule, momentum, NS5 count, B/C volume, and update budget are unchanged.
 
 Direct 4,000-step deletion of either B or C from the inherited B+C parent
 worsened endpoint loss, endpoint PPL, train late pAUC, and validation late
-pAUC. C's loss contribution was `0.009883404`; it was positive under literal
-leave-one-out interpretation but missed a separately frozen `0.01`
-loss-magnitude field by `0.000116596`. The later R05 K1 response-router
-additions were not recursively ablated because the full method did not cross
-the campaign's `0.20` promotion gate.
+pAUC. C's stable loss contribution was `0.009883404`, so both B and C pass the
+current leave-one-out ablation definition. There is no fixed `0.01` ablation
+gate; any such field in an older frozen report is historical metadata only.
+The later R05 K1 response-router additions were not recursively ablated
+because the full method did not cross the campaign's `0.20` promotion gate.
 
 The frozen R05 K1 identity is:
 
