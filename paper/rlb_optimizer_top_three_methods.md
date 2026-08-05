@@ -26,22 +26,10 @@ defined by the equations below, not by the names.
 
 ## Method overview
 
-The Global-RLB MLP contains a trainable rational activation between two
-matrices:
-
-```text
-residual input x
-    -> W_in
-    -> grouped trainable rational activation
-    -> W_out
-    -> residual output
-```
-
-Ordinary Muon sees only a matrix gradient and its momentum. These three
-methods additionally observe the current inputs and outputs of the rational
-activation. They use that information to choose the geometry of the matrix
-update while preserving the same scheduled learning rate, weight decay, and
-update norm budget.
+For each Global-RLB block, the methods use the current rational response to
+choose update directions for `W_in`, `W_out`, or both; R06 K1 also routes the
+attention-matrix update. The scheduled learning rate, weight decay, and update
+norm budget remain fixed.
 
 | Method | RLB information used | Matrices changed relative to stock Muon | Central decision |
 |---|---|---|---|
@@ -70,48 +58,12 @@ In the requested snapshot, R06 K1 had validation loss `4.199958801`, a
 required `0.20` improvement, its full recursive ablation is not released, and
 its discovery implementation is slower than the final runtime requirement.
 
-## Fixed Global-RLB model and activation
+## Fixed model boundary
 
-All three methods optimize the same Global-RLB model. In each transformer
-layer, the feed-forward map is
-
-\[
-z=W_{\mathrm{in}}x,\qquad
-h_g=\rho_g f_g(u_g),\qquad
-y=W_{\mathrm{out}}h,
-\]
-
-where the 4,608 coordinates of `z` are partitioned into 18 groups of width
-`m=256`, and
-
-\[
-\rho_g=\sqrt{m^{-1}\|z_g\|_2^2+10^{-6}},
-\qquad u_g=z_g/\rho_g,
-\]
-
-\[
-f_g(u)=
-\frac{\sum_{k=0}^{5}a_{g,k}u^k}
-{1+\sum_{k=1}^{4}|b_{g,k}|\,|u|^k}.
-\]
-
-Each group owns its own trainable P5/Q4 coefficients `a_g` and `b_g`. All
-groups start from the same fit to SiLU on `[-5,5]`; the coefficients remain
-trainable throughout the run and use matched AdamW in every candidate. The
-optimizer reads detached statistics of the current `u_g`, `f_g(u_g)`, and
-exact normalized-response Jacobian
-
-\[
-J_g=
-\operatorname{diag}(f'_g(u_g))
-+\frac{1}{m}
-\left(f_g(u_g)-u_g\odot f'_g(u_g)\right)u_g^\top.
-\]
-
-No candidate changes this forward map, its initialization, its coefficient
-gradients, or its parameterization. Only the optimizer applied after backward
-differs. The exact model has 296,871,080 parameters; the matched SwiGLU
-control has 296,867,840.
+All three methods use the existing Global-RLB model without changing its
+activation, forward map, initialization, parameterization, or coefficient
+gradients. Only the optimizer applied after backward differs. Global-RLB's
+rational coefficients use the same AdamW configuration in every candidate.
 
 ## Optimizer definition
 
@@ -246,7 +198,9 @@ learned P5/Q4 morphology while LR and WD remain fixed.
 For the same normalized samples `u`, evaluate both the current learned curve
 `f_t` and the frozen initialization curve `f_0`.
 
-For the incoming matrix, compare their exact Jacobian kernels:
+For the incoming matrix, compare their exact normalized-response Jacobian
+kernels, where `J_t` and `J_0` denote the current and initialized RLB
+Jacobians:
 
 \[
 a_{\mathrm{in}}
