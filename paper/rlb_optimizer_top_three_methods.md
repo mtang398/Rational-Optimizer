@@ -35,7 +35,7 @@ norm budget remain fixed.
 |---|---|---|---|
 | **R06 K1** | Current-versus-initial response alignment, current Jacobian participation, and current response participation | Both matrices around every RLB activation and all QKV/attention-output matrices | Route continuously between an RLB-coordinate polar direction and an equal-budget adaptive direction; use RLB participation to route attention too |
 | **R05 K1** | Current-versus-initial response alignment | Only the two matrices around every RLB activation | Route continuously between the same two equal-budget RLB-coordinate directions |
-| **Group-resolved product sphere** | The R05 alignment separately for each of the 18 rational groups | Only the two matrices around every RLB activation | Start from the R05 direction, then choose the best first-order point on a fixed-norm arc toward each group's own target |
+| **Group-resolved product sphere** | The R05 alignment separately for each RLB group | Only the two matrices around every RLB activation | Start from the R05 direction, then choose the best first-order point on a fixed-norm arc toward each group's own target |
 
 The three methods are related as follows:
 
@@ -78,7 +78,7 @@ for every comparison. Parameters are then assigned as follows:
 | RLB `W_in` and `W_out` matrices | R05 RLB-specific update | Group-resolved RLB-specific update | R06 RLB-specific update |
 | QKV and attention-output matrices | Stock Muon | Stock Muon | R06 RLB-conditioned attention update |
 | Other eligible 2-D matrices | Stock Muon | Stock Muon | Stock Muon |
-| Rational P5/Q4 coefficients | Matched AdamW | Matched AdamW | Matched AdamW |
+| RLB coefficients | Matched AdamW | Matched AdamW | Matched AdamW |
 | Biases, normalization weights, embeddings, output head, and other non-Muon parameters | Matched AdamW | Matched AdamW | Matched AdamW |
 
 R06 K1 therefore controls 169,869,312 elements in RLB-adjacent matrices and
@@ -187,11 +187,11 @@ not scientific components, schedules, or hidden update multipliers.
 
 ### Core idea
 
-R06 K1 combines two complementary properties of each learned rational curve:
+R06 K1 combines two complementary properties of each learned RLB response:
 current-versus-initial response alignment and current intrinsic participation.
 Their product gives a bounded route for `W_in` and `W_out`; the intrinsic
 participation also routes attention. The routes therefore change with the
-learned P5/Q4 morphology while LR and WD remain fixed.
+learned RLB response while LR and WD remain fixed.
 
 ### Step 1: current-versus-initial response alignment
 
@@ -320,8 +320,8 @@ Thus the current trainable RLB curve influences the geometry used for
 attention matrices in the same transformer layer. It does not change their
 LR, WD, momentum, or update norm calibration.
 
-At the installed SiLU-fitted rational initialization, a preregistered Gaussian
-probe measured approximately
+At the fixed model initialization, a preregistered Gaussian probe measured
+approximately
 
 ```text
 c_in                  = 0.504
