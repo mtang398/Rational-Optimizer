@@ -187,8 +187,9 @@ ordered mathematical steps are:
 1. For every hidden coordinate, form radial gradients for its incoming row
    norm and paired outgoing column norm, then apply matched Adam moments with
    betas `(0.9,0.95)`.
-2. For the two radial variables, measure the exact current RLB response
-   signals
+2. For the two radial variables, measure the exact **self-coordinate**
+   response signals used by the implementation (this is the diagonal
+   response for coordinate `i`, not the full group-Jacobian image)
 
    \[
    r_A=z_i\left[f'_i(u)+
@@ -196,6 +197,8 @@ ordered mathematical steps are:
    \qquad r_B=\rho f_i(u).
    \]
 
+   Here `r_A=z_i J_{ii}` and `r_B=h_i`; the displayed formula for `r_A`
+   follows directly from the diagonal of the full Jacobian defined above.
    Form their empirical `2 x 2` Gram matrix and apply its Moore--Penrose
    inverse square root to the two-role radial Adam direction. There is no
    damping or learned threshold.
