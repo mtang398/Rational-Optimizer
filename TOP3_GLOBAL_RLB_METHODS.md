@@ -184,11 +184,24 @@ are the exact scientific methods, not the final runtime target.
 NS5 remains unchanged. A cadence, stale-factor, or numerical approximation
 is reported only after a fresh complete 4,000-step quality run.
 
-The verified fast Method 1 refreshes its expensive outer-frame transaction
-every four steps while keeping current gradients, momentum, budgets,
-learning rate, weight decay, and exact inherited attention active every
-step. It ends at loss `4.1568298340`, retains a `+0.07144737` lead, and has
-median step time `1.7172 s`, or `1.157x` SwiGLU+Muon. Approximations retaining
-about `+0.07` with a material speed gain remain eligible bases for further
-optimization; timing-only variants are not promoted without the full quality
-run.
+The qualified fast paths refresh each method's expensive outer structural
+transaction every four steps while keeping current gradients, momentum,
+budgets, learning rate, weight decay, and the inherited attention update
+active every step. Method 2 additionally uses a state-equivalent lean
+attention implementation; Method 3 uses the same lean attention transaction
+without changing its row-product coordinates. The lean changes passed exact
+state-equivalence gates before timing. Each cadence change below was then
+validated by a fresh complete quality run.
+
+| Method | Validation loss | PPL | Lead over SwiGLU+Muon | Median step | Median ratio | P95 step | P95 ratio |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Method 1 fast | 4.15682983 | 63.8687 | +0.07144737 | 1.4756 s | 1.193x | 1.9462 s | 1.571x |
+| Method 2 fast | 4.15950394 | 64.0398 | +0.06877327 | 1.4439 s | 1.168x | 1.9103 s | 1.542x |
+| Method 3 fast | 4.17716551 | 65.1808 | +0.05111170 | 1.4838 s | 1.198x | 1.7596 s | 1.412x |
+
+These are final consolidated same-node measurements against an interleaved
+SwiGLU+Muon control, rather than the best number selected from separate
+timing brackets. The P95 includes the deliberately periodic outer-refresh
+steps, so it measures the expected cadence spike as well as ordinary steps.
+All three median ratios are below `1.20x`. Timing-only variants and
+approximations that have not completed the quality gate are not promoted.
