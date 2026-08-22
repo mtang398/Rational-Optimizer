@@ -2,6 +2,10 @@
 
 RationalOPT studies Rational Latent Basis (RLB) variants inside causal Transformer language models and the `rational_matrix_policy_onpolicy` optimizer for pretraining.
 
+The exact mathematics, matched quality, and timing of the current three
+leading Global-RLB optimizer methods are documented in
+[`TOP3_GLOBAL_RLB_METHODS.md`](TOP3_GLOBAL_RLB_METHODS.md).
+
 Paper-facing results in this README include the completed E1 matched main suite, the completed E2 DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4 M0/300M cells, and the completed E8 learning-rate/weight-decay sensitivity grid. WikiText is kept as a small demo anchor. MatrixPolicy values use the 30 validated live-statistic-corrected main rows and 80 validated corrected E8 rows under `experiments/corrections/matrixpolicy_live_stats_20260712/`; non-MatrixPolicy RLB controls use the completed global-rational control sweep, and SiLU controls remain the fixed main-manifest controls.
 
 ## Optimizer Variant Status
