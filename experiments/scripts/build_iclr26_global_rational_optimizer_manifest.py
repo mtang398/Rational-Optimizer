@@ -13,14 +13,11 @@ PHASES = [
     ("E1_global_rational_optimizers_100m", 100_000_000),
     ("E2_global_rational_optimizers_300m", 300_000_000),
 ]
-EXCLUDED_METHODS = {"rlb_matrixpolicy_original"}
-
-
 def global_rational_methods() -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for method in METHODS:
         name = method["method"]
-        if not name.startswith("rlb_") or name in EXCLUDED_METHODS:
+        if not name.startswith("rlb_"):
             continue
         item = dict(method)
         item["activation"] = GLOBAL_RATIONAL_ACTIVATION
@@ -63,8 +60,6 @@ def verify(rows: list[dict[str, str]]) -> None:
             raise SystemExit(f"unexpected method in {row['row_id']}: {row['method']}")
         if row["activation"] != GLOBAL_RATIONAL_ACTIVATION:
             raise SystemExit(f"wrong activation in {row['row_id']}: {row['activation']}")
-        if row["optimizer"] == "rational_matrix_policy_onpolicy":
-            raise SystemExit(f"MatrixPolicy belongs to the completed replacement manifest, not this optimizer-control manifest: {row['row_id']}")
 
 
 def print_summary(rows: list[dict[str, str]]) -> None:

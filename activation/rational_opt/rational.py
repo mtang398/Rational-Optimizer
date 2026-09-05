@@ -820,6 +820,7 @@ class RationalFusedGlobalA5_4(nn.Module):
         den_flat = den_features.permute(1, 0, 2, 3).reshape(self.groups, -1, 4)
         num_gram = torch.einsum("gni,gnj->gij", num_flat, num_flat) / max(1, num_flat.size(1))
         den_gram = torch.einsum("gni,gnj->gij", den_flat, den_flat) / max(1, den_flat.size(1))
+
         output_rms = torch.sqrt(output.square().mean(dim=(0, 2)) + self.eps)
         derivative_rms = torch.sqrt(derivative.square().mean(dim=(0, 2)) + self.eps)
         sample_count = torch.full(

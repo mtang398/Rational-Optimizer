@@ -1,4 +1,0 @@
-stage,job_ids,old_timelimit,new_timelimit,basis
-main,"858352,858353,858354,858355",24:00:00,08:00:00,"Historical complete rows imply roughly 4.8-6.1 hours per worker; eight hours preserves bounded headroom without a 24-hour backfill request."
-e8,"858357,858358,858359,858360",24:00:00,12:00:00,"Each worker owns 20 complete sensitivity rows; twelve hours covers observed 100M-row runtimes with bounded headroom."
-e9,"858362,858363,858364,858365",24:00:00,20:00:00,"Each worker owns 37 or 38 complete ablation rows; twenty hours covers observed 100M-row runtimes with bounded headroom."

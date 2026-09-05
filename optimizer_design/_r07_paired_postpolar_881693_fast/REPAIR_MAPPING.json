@@ -1,0 +1,30 @@
+{
+  "schema": "r07_paired_postpolar_881693_independent_systems_repairs_v1",
+  "repair_id": "r07_paired_postpolar_881693_independent_router_attention_v1",
+  "scientific_archive_mapping_sha256": "341e78e1871d256ee5498366d8f32635265aed73861258120043ff78be3b5ea2",
+  "files": {
+    "__init__.py": {
+      "bytes": 308,
+      "lines": 8,
+      "sha256": "187229778a1a09ea124d3cae702b3152644a8f32c61151c523e9b35ddea4e926"
+    },
+    "router_cache.py": {
+      "bytes": 5787,
+      "lines": 154,
+      "sha256": "9e7e5ec9f338d14d3961025d47b8d23bdd4a3aeed7329694c582709c14186179"
+    },
+    "attention_batch.py": {
+      "bytes": 423,
+      "lines": 14,
+      "sha256": "9dbbfddd14fa0934925509c8735aec30510e6bba660b9f012414cba6f2a9a6c5"
+    }
+  },
+  "shared_references": {
+    "optimizer_design/rlb_r07_frame_878462_fast.py": "181cf3694997ad0b2761cf3636ada7c1fdecb1cc5b931644bad948c5cd349d2f",
+    "optimizer_design/rlb_r01_9150_fast.py": "2716033ece3802f171ea64c80208e79ec34e57d077d66ec4cb99c21b3de25f44"
+  },
+  "toggles": {
+    "router_cache": "step-local reuse of duplicate JVP factors, Nesterov stacks, outgoing FP32 stacks, and row indices",
+    "attention_batch": "batch the two independent exact R02 NS5 calls without changing their inputs, outputs, or update equations"
+  }
+}

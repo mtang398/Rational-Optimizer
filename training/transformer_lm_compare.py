@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import hashlib
 import json
 import math
@@ -16,7 +17,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from datasets import load_dataset
 from huggingface_hub import hf_hub_download
-from transformers import AutoTokenizer
+import transformers
 
 
 class RMSNorm(nn.Module):
@@ -94,10 +95,13 @@ CLASSIC_OPTIMIZERS = {
     "adafactor_came",
     "soap_adamw",
 }
-MATRIX_POLICY_OPTIMIZERS = {
-    "rational_matrix_policy_onpolicy",
-}
-RATIONAL_SPECIFIC_OPTIMIZERS = set(MATRIX_POLICY_OPTIMIZERS)
+# Isolated candidate entrypoints register exact optimizer identities here.
+RLB_MATRIX_SYNC_OPTIMIZERS = set()
+# Optimizers that directly update rational coefficients must also certify that
+# those coefficient replicas remain bitwise synchronized under DDP. Isolated
+# candidate entrypoints register their exact optimizer identities here.
+RLB_COEFFICIENT_SYNC_OPTIMIZERS = set()
+RATIONAL_SPECIFIC_OPTIMIZERS = set()
 ACTIVE_OPTIMIZERS = sorted(CLASSIC_OPTIMIZERS | RATIONAL_SPECIFIC_OPTIMIZERS)
 
 
@@ -2639,11 +2643,12 @@ class RationalLocalBasisFFN(nn.Module):
 
 
 def apply_rlb_positive_gauge(model: nn.Module, log_scale: float, seed: int) -> int:
-    """Apply a function-preserving positive gauge to RLB Transformer MLP matrices.
+    """Apply a positive A/B rescaling for legacy conditioning stress tests.
 
     Scaling one group of W_in by a > 0 and the matching W_out columns by 1/a
-    leaves the represented RLB block function unchanged at initialization, but it
-    changes matrix conditioning. This is useful for optimizer stress tests.
+    is only approximately function preserving: grouped RMS uses a nonzero
+    epsilon, so this is not an exact RLB gauge.  Exact-gauge optimizer designs
+    must not use this transform.  The default zero log scale is an identity.
     """
 
     if log_scale <= 0.0:
@@ -4353,7 +4358,10 @@ def load_or_tokenize(args, split, max_tokens):
         payload = torch.load(cache_file, map_location="cpu")
         return payload["tokens"] if isinstance(payload, dict) else payload
 
-    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer, cache_dir=args.hf_cache)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        args.tokenizer,
+        cache_dir=args.hf_cache,
+    )
     eos_id = tokenizer.eos_token_id
     if eos_id is None:
         eos_id = tokenizer.pad_token_id
@@ -4492,6 +4500,7 @@ def nvidia_smi_metadata(strict=False):
         "pstate",
         "utilization.gpu",
         "memory.used",
+        "driver_version",
     ]
     try:
         command = ["nvidia-smi"]
@@ -4592,35 +4601,60 @@ def clip_or_measure_gradients(model, grad_clip, capture_norm):
 
 @torch.no_grad()
 def assert_rlb_matrix_parameters_synced(model, args, device, is_distributed):
+    """Require exact equality of every RLB A/B element across DDP ranks."""
+
+    parameters = []
+    for group in collect_rlb_optimizer_groups(unwrap_model(model), args):
+        parameters.extend((group["in_weight"], group["out_weight"]))
+    if not parameters:
+        raise RuntimeError("DDP parameter synchronization check found no RLB matrix pair")
     if not is_distributed:
         return 0.0
-    fingerprints = []
+    world_size = dist.get_world_size()
+    maximum = 0.0
+    chunk_elements = 1_048_576
+    for parameter in parameters:
+        flat = parameter.detach().float().reshape(-1)
+        for start in range(0, flat.numel(), chunk_elements):
+            local = flat[start : start + chunk_elements].to(device=device)
+            gathered = [torch.empty_like(local) for _ in range(world_size)]
+            dist.all_gather(gathered, local)
+            reference = gathered[0]
+            for peer in gathered[1:]:
+                difference = float((peer - reference).abs().max().item())
+                maximum = max(maximum, difference)
+                if difference != 0.0:
+                    raise RuntimeError(
+                        "DDP RLB matrix replicas diverged after optimizer step; "
+                        f"max absolute difference={difference}"
+                    )
+    return maximum
+
+
+@torch.no_grad()
+def assert_rlb_coefficient_parameters_synced(model, args, device, is_distributed):
+    """Require exact DDP equality of every RLB numerator/denominator value."""
+
+    coefficient_values = []
     for group in collect_rlb_optimizer_groups(unwrap_model(model), args):
-        for parameter in (group["in_weight"], group["out_weight"]):
-            flat = parameter.detach().float().reshape(-1)
-            sample_count = min(257, flat.numel())
-            index = torch.linspace(
-                0,
-                flat.numel() - 1,
-                sample_count,
-                device=flat.device,
-            ).long()
-            fingerprints.append(flat.index_select(0, index))
-            fingerprints.append(flat.sum().reshape(1))
-            fingerprints.append(flat.square().sum().reshape(1))
-    if not fingerprints:
-        raise RuntimeError("DDP parameter synchronization check found no RLB matrix pair")
-    local = torch.cat(fingerprints).to(device=device)
+        coefficient_values.extend(
+            (
+                group["numerator"].detach().float().reshape(-1),
+                group["denominator"].detach().float().reshape(-1),
+            )
+        )
+    if not coefficient_values:
+        raise RuntimeError("DDP coefficient synchronization check found no RLB coefficients")
+    if not is_distributed:
+        return 0.0
+    local = torch.cat(coefficient_values).to(device=device)
     gathered = [torch.empty_like(local) for _ in range(dist.get_world_size())]
     dist.all_gather(gathered, local)
     reference = gathered[0]
-    max_abs = max(
-        float((peer - reference).abs().max().item())
-        for peer in gathered[1:]
-    )
+    max_abs = max(float((peer - reference).abs().max().item()) for peer in gathered[1:])
     if max_abs != 0.0:
         raise RuntimeError(
-            f"DDP RLB matrix replicas diverged after optimizer step; max fingerprint difference={max_abs}"
+            f"DDP RLB coefficient replicas diverged after optimizer step; max absolute difference={max_abs}"
         )
     return max_abs
 
@@ -4652,6 +4686,19 @@ def collect_optimizer_telemetry(optimizer):
         if telemetry:
             record.update(telemetry)
     return record
+
+
+def parse_optimizer_telemetry_steps(value, total_steps):
+    """Optional audit-only optimizer telemetry schedule; default is unchanged."""
+
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str) or re.fullmatch(r"[1-9][0-9]*(?:,[1-9][0-9]*)*", value) is None:
+        raise RuntimeError("E9_OPTIMIZER_TELEMETRY_STEPS must be ascending comma-separated positive steps")
+    steps = tuple(int(item) for item in value.split(","))
+    if tuple(sorted(set(steps))) != steps or steps[-1] > int(total_steps):
+        raise RuntimeError("E9_OPTIMIZER_TELEMETRY_STEPS is duplicated, unordered, or beyond the run")
+    return steps
 
 
 def enable_rlb_training_telemetry(model, args):
@@ -4943,6 +4990,226 @@ class CompositeOptimizer:
             optimizer.load_state_dict(optimizer_state)
 
 
+UNIT_LR_WD_FAIRNESS_CONTRACT = "rlb-m1-300mtok-4000-unit-lr-wd-v2"
+
+
+def audit_m1_300m_campaign_identity(
+    args,
+    *,
+    world_size,
+    global_tokens,
+    train_token_count,
+    val_token_count,
+    parameter_count,
+):
+    """Fail closed if the contracted campaign is not the historical M1 cell.
+
+    The repository uses ``M1`` for its established approximately 300M-parameter
+    architecture and separately uses a 300,000,000-token training cache.  Both
+    identities are mandatory.  This guard deliberately lives in the trainer so
+    a malformed manifest cannot certify and launch an M0 model under the M1
+    experiment horizon.
+    """
+    if args.fairness_contract != UNIT_LR_WD_FAIRNESS_CONTRACT:
+        return None
+
+    exact = {
+        "layers": (int(args.layers), 18),
+        "d_model": (int(args.d_model), 1024),
+        "heads": (int(args.heads), 16),
+        "ffn_dim": (int(args.ffn_dim), 3072),
+        "seq_len": (int(args.seq_len), 256),
+        "batch_size_per_gpu": (int(args.batch_size), 8),
+        "grad_accum": (int(args.grad_accum), 4),
+        "world_size": (int(world_size), 4),
+        "global_tokens_per_step": (int(global_tokens), 32_768),
+        "steps": (int(args.steps), 4_000),
+        "train_tokens": (int(train_token_count), 300_000_000),
+        "val_tokens": (int(val_token_count), 8_000_000),
+        "max_train_tokens": (int(args.max_train_tokens), 300_000_000),
+        "max_val_tokens": (int(args.max_val_tokens), 8_000_000),
+        "validation_skip_tokens": (int(args.validation_skip_tokens), 610_000_000),
+        "eval_interval": (int(args.eval_interval), 50),
+        "eval_batches": (int(args.eval_batches), 10),
+        "seed": (int(args.seed), 1337),
+    }
+    mismatches = {
+        key: {"observed": observed, "required": required}
+        for key, (observed, required) in exact.items()
+        if observed != required
+    }
+    if mismatches:
+        raise RuntimeError(
+            "contracted M1/300M-token/4,000-step experiment identity mismatch: "
+            f"{mismatches}"
+        )
+
+    permitted_parameters = {
+        "silu": 296_867_840,
+        "rlb_fused_global_rational": 296_871_080,
+    }
+    required_parameters = permitted_parameters.get(args.activation)
+    if required_parameters is None:
+        raise RuntimeError(
+            "contracted M1 campaign permits only SwiGLU or Global-RLB, got "
+            f"{args.activation!r}"
+        )
+    if int(parameter_count) != required_parameters:
+        raise RuntimeError(
+            "contracted M1 parameter inventory mismatch: "
+            f"activation={args.activation!r}, observed={int(parameter_count)}, "
+            f"required={required_parameters}"
+        )
+    return {
+        "passed": True,
+        "model_scale": "M1",
+        "historical_manifest_row": 465,
+        "parameter_count": int(parameter_count),
+        "train_token_count": int(train_token_count),
+        "val_token_count": int(val_token_count),
+    }
+
+
+def _optimizer_tree(optimizer):
+    """Yield each optimizer object once, including composite children."""
+    pending = [optimizer]
+    seen = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        yield current
+        pending.extend(getattr(current, "optimizers", ()))
+
+
+def _unit_scalar(value, *, label):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise RuntimeError(f"{label} must be the literal scalar 1.0, got {value!r}")
+    if float(value) != 1.0:
+        raise RuntimeError(f"{label} must be 1.0, got {value!r}")
+
+
+def audit_optimizer_lr_wd_fairness(model, optimizer, args):
+    """Fail closed on LR/WD group multipliers for the design campaign.
+
+    A nonstandard optimizer must additionally expose ``lr_wd_fairness_audit``.
+    That method must enumerate every internal LR/WD multiplier and report a
+    numeric value of exactly one. This prevents an optimizer from hiding a
+    role-, factor-, layer-, phase-, or mechanism-specific learning rate inside
+    its step implementation while presenting ordinary outer parameter groups.
+    """
+    if args.fairness_contract != UNIT_LR_WD_FAIRNESS_CONTRACT:
+        return None
+    raw_model = model.module if isinstance(model, nn.parallel.DistributedDataParallel) else model
+    named_parameters = {
+        id(param): (name, param)
+        for name, param in raw_model.named_parameters()
+        if param.requires_grad
+    }
+    observed = {}
+    group_records = []
+    for group_index, group in enumerate(optimizer.param_groups):
+        _unit_scalar(group.get("lr_scale", 1.0), label=f"param_groups[{group_index}].lr_scale")
+        if float(group.get("lr", args.lr)) != float(args.lr):
+            raise RuntimeError(
+                f"param_groups[{group_index}].lr must equal base LR {args.lr}, "
+                f"got {group.get('lr')!r}"
+            )
+        weight_decay = float(group.get("weight_decay", 0.0))
+        names = []
+        element_count = 0
+        for param in group["params"]:
+            if id(param) not in named_parameters:
+                raise RuntimeError("optimizer contains an unknown or frozen parameter")
+            name, original = named_parameters[id(param)]
+            if id(param) in observed:
+                raise RuntimeError(
+                    f"parameter {name} occurs in optimizer groups {observed[id(param)]} and {group_index}"
+                )
+            observed[id(param)] = group_index
+            tied_embedding = is_tied_embedding_parameter_name(name)
+            required_wd = (
+                0.0
+                if is_no_decay_parameter(name, original) or tied_embedding
+                else float(args.weight_decay)
+            )
+            if weight_decay != required_wd:
+                raise RuntimeError(
+                    f"weight decay mismatch for {name}: {weight_decay} != {required_wd}"
+                )
+            names.append(name)
+            element_count += int(param.numel())
+        group_records.append(
+            {
+                "group_index": group_index,
+                "lr_scale": 1.0,
+                "weight_decay": weight_decay,
+                "parameter_tensor_count": len(names),
+                "parameter_element_count": element_count,
+                "parameter_name_sha256": hashlib.sha256(
+                    "\n".join(sorted(names)).encode("utf-8")
+                ).hexdigest(),
+            }
+        )
+    missing = sorted(name for param_id, (name, _) in named_parameters.items() if param_id not in observed)
+    if missing:
+        raise RuntimeError(f"trainable parameters missing from optimizer: {missing[:8]}")
+
+    internal_scalars = {}
+    standard_types = (torch.optim.AdamW, torch.optim.Muon, CompositeOptimizer)
+    for object_index, current in enumerate(_optimizer_tree(optimizer)):
+        for attribute, value in vars(current).items():
+            if attribute.endswith(("_lr_scale", "_lr_scale_final", "_weight_decay_scale")):
+                _unit_scalar(value, label=f"{type(current).__name__}.{attribute}")
+                internal_scalars[f"{object_index}:{type(current).__name__}.{attribute}"] = 1.0
+        if isinstance(current, standard_types):
+            continue
+        provider = getattr(current, "lr_wd_fairness_audit", None)
+        if provider is None:
+            raise RuntimeError(
+                f"nonstandard optimizer {type(current).__name__} does not expose "
+                "lr_wd_fairness_audit(); campaign execution is refused"
+            )
+        declared = provider()
+        if not isinstance(declared, dict) or not declared:
+            raise RuntimeError(
+                f"{type(current).__name__}.lr_wd_fairness_audit() must return a nonempty dict"
+            )
+        for label, value in declared.items():
+            _unit_scalar(value, label=f"{type(current).__name__}.{label}")
+            internal_scalars[f"{object_index}:{type(current).__name__}.{label}"] = 1.0
+    return {
+        "contract": UNIT_LR_WD_FAIRNESS_CONTRACT,
+        "passed": True,
+        "base_lr": float(args.lr),
+        "minimum_lr": float(args.min_lr),
+        "base_weight_decay": float(args.weight_decay),
+        "group_count": len(group_records),
+        "trainable_parameter_elements": sum(
+            int(param.numel()) for _, param in named_parameters.values()
+        ),
+        "covered_parameter_elements": sum(
+            record["parameter_element_count"] for record in group_records
+        ),
+        "groups": group_records,
+        "internal_lr_wd_scalars": internal_scalars,
+    }
+
+
+def assert_optimizer_realized_lr(optimizer, scheduled_lr, args):
+    if args.fairness_contract != UNIT_LR_WD_FAIRNESS_CONTRACT:
+        return
+    for group_index, group in enumerate(optimizer.param_groups):
+        _unit_scalar(group.get("lr_scale", 1.0), label=f"param_groups[{group_index}].lr_scale")
+        observed = float(group["lr"])
+        if observed != float(scheduled_lr):
+            raise RuntimeError(
+                f"realized LR mismatch in param group {group_index}: "
+                f"{observed} != {scheduled_lr}"
+            )
+
+
 def is_no_decay_parameter(name, param):
     return (
         param.dim() < 2
@@ -4975,6 +5242,12 @@ def is_no_decay_parameter(name, param):
         or ".rkdm_centers" in name
         or ".rkdm_gamma_sqrt" in name
     )
+
+
+def is_tied_embedding_parameter_name(name):
+    """Recognize tied embeddings before and after DDP adds ``module.``."""
+    bare_name = name.removeprefix("module.")
+    return bare_name in {"token_embedding.weight", "lm_head.weight"}
 
 
 def split_decay_parameters(model):
@@ -5112,6 +5385,7 @@ def collect_rlb_optimizer_groups(model, args):
             continue
         groups.append(
             {
+                "mlp": module,
                 "module": activation,
                 "in_weight": in_proj.weight,
                 "out_weight": out_proj.weight,
@@ -5123,6 +5397,7 @@ def collect_rlb_optimizer_groups(model, args):
                 "coeff_limit": float(getattr(activation, "coeff_limit", 0.0)),
                 "groups": groups_count,
                 "hidden_dim": hidden_dim,
+                "eps": float(getattr(activation, "eps", 0.0)),
                 "layer_index": rational_optimizer_layer_index(module_name + "."),
                 "num_layers": args.layers,
             }
@@ -5228,7 +5503,7 @@ def configure_optimizer(model, args):
             if not param.requires_grad:
                 continue
             no_decay_param = is_no_decay_parameter(name, param)
-            tied_embedding = name in {"token_embedding.weight", "lm_head.weight"}
+            tied_embedding = is_tied_embedding_parameter_name(name)
             if param.dim() == 2 and not no_decay_param and not tied_embedding:
                 muon_named.append((name, param))
             elif no_decay_param or tied_embedding:
@@ -5263,309 +5538,6 @@ def configure_optimizer(model, args):
                 )
             )
         return CompositeOptimizer(optimizers)
-    if args.optimizer in MATRIX_POLICY_OPTIMIZERS:
-        from optimizer_design import FunctionSpaceRationalOptimizer, RationalMatrixPolicyOptimizer, RationalTransportOnPolicyOptimizer
-
-        curve_groups = collect_rlb_optimizer_groups(model, args)
-        if not curve_groups:
-            raise ValueError(f"Accepted activations for {args.optimizer} are RLB activations")
-
-        curve_group_indices = {int(group.get("layer_index", -1)): index for index, group in enumerate(curve_groups)}
-        matrix_param_ids = set()
-        rational_param_ids = set()
-        rational_groups = []
-        matrix_groups = []
-        for group in curve_groups:
-            layer_index = int(group.get("layer_index", -1))
-            selector_index = curve_group_indices.get(layer_index, -1)
-            matrix_param_ids.add(id(group["in_weight"]))
-            matrix_param_ids.add(id(group["out_weight"]))
-            matrix_weight_decay = args.weight_decay * args.rational_matrix_policy_weight_decay_scale
-            matrix_groups.append(
-                {
-                    "params": [group["in_weight"]],
-                    "weight_decay": matrix_weight_decay,
-                    "layer_index": layer_index,
-                    "num_layers": args.layers,
-                    "selector_index": selector_index,
-                    "matrix_role": "in",
-                }
-            )
-            matrix_groups.append(
-                {
-                    "params": [group["out_weight"]],
-                    "weight_decay": matrix_weight_decay,
-                    "layer_index": layer_index,
-                    "num_layers": args.layers,
-                    "selector_index": selector_index,
-                    "matrix_role": "out",
-                }
-            )
-
-        if args.rational_matrix_policy_function_coeff:
-            for name, param in model.named_parameters():
-                if not param.requires_grad or id(param) in matrix_param_ids:
-                    continue
-                if not is_rational_optimizer_parameter_name(name):
-                    continue
-                layer_index = rational_optimizer_layer_index(name)
-                rational_param_ids.add(id(param))
-                rational_groups.append(
-                    {
-                        "params": [param],
-                        "role": rational_optimizer_role(name),
-                        "layer_index": layer_index,
-                        "num_layers": args.layers,
-                        "selector_index": curve_group_indices.get(layer_index, -1),
-                    }
-                )
-
-        backbone_optimizer = args.rational_matrix_policy_backbone_optimizer
-        backbone_muon_named = []
-        adam_decay = []
-        adam_no_decay = []
-        for name, param in model.named_parameters():
-            if not param.requires_grad or id(param) in matrix_param_ids or id(param) in rational_param_ids:
-                continue
-            no_decay_param = is_no_decay_parameter(name, param)
-            tied_embedding = name in {"token_embedding.weight", "lm_head.weight"}
-            if (
-                backbone_optimizer == "muon"
-                and param.dim() == 2
-                and not no_decay_param
-                and not tied_embedding
-            ):
-                backbone_muon_named.append((name, param))
-            elif no_decay_param or tied_embedding:
-                adam_no_decay.append(param)
-            else:
-                adam_decay.append(param)
-
-        optimizers = []
-        if backbone_muon_named:
-            optimizers.append(
-                torch.optim.Muon(
-                    backbone_muon_named,
-                    lr=args.lr,
-                    weight_decay=args.weight_decay,
-                    momentum=args.muon_momentum,
-                    ns_steps=args.muon_ns_steps,
-                    adjust_lr_fn=args.muon_adjust_lr_fn,
-                )
-            )
-        adam_groups = []
-        if adam_decay:
-            adam_groups.append({"params": adam_decay, "weight_decay": args.weight_decay})
-        if adam_no_decay:
-            adam_groups.append({"params": adam_no_decay, "weight_decay": 0.0})
-        if adam_groups:
-            optimizers.append(
-                torch.optim.AdamW(
-                    adam_groups,
-                    lr=args.lr,
-                    betas=(
-                        args.beta1,
-                        args.beta2
-                        if args.rational_matrix_policy_backbone_beta2 is None
-                        else args.rational_matrix_policy_backbone_beta2,
-                    ),
-                    eps=args.eps,
-                )
-            )
-        if rational_groups:
-            optimizers.append(
-                FunctionSpaceRationalOptimizer(
-                    rational_groups,
-                    lr=args.lr,
-                    numerator_lr_scale=args.rational_coeff_num_lr_scale,
-                    denominator_lr_scale=args.rational_transport_coeff_den_lr_scale,
-                    denominator_lr_scale_final=args.rational_transport_coeff_den_lr_scale_final,
-                    atom_lr_scale=args.rational_transport_coeff_atom_lr_scale,
-                    atom_lr_scale_final=args.rational_transport_coeff_atom_lr_scale_final,
-                    center_lr_scale=args.rational_coeff_center_lr_scale,
-                    other_lr_scale=args.rational_coeff_other_lr_scale,
-                    trust=args.rational_transport_coeff_trust,
-                    trust_final=args.rational_transport_coeff_trust_final,
-                    probe_range=args.rational_coeff_probe_range,
-                    probe_points=args.rational_coeff_probe_points,
-                    curve_decay=args.rational_coeff_curve_decay,
-                    update_gain=args.rational_transport_coeff_update_gain,
-                    update_gain_final=args.rational_transport_coeff_update_gain_final,
-                    update_gain_decay_start=args.rational_transport_coeff_decay_start,
-                    update_gain_decay_end=args.rational_transport_coeff_decay_end,
-                    update_depth_gain=args.rational_transport_coeff_depth_gain,
-                    update_switch_depth_shift=args.rational_transport_coeff_switch_depth_shift,
-                    reset_on_switch=args.rational_transport_coeff_reset_on_switch,
-                    selector_groups=curve_groups,
-                    select_strength=args.rational_transport_coeff_select_strength,
-                    select_start=args.rational_transport_coeff_select_start,
-                    select_end=args.rational_transport_coeff_select_end,
-                    select_activity_threshold=args.rational_transport_coeff_select_activity_threshold,
-                    select_activity_width=args.rational_transport_coeff_select_activity_width,
-                    select_pressure_weight=args.rational_transport_coeff_select_pressure_weight,
-                    denominator_decay=args.rational_transport_coeff_den_decay,
-                    atom_decay=args.rational_transport_coeff_atom_decay,
-                    total_steps=args.steps,
-                    metric=args.rational_coeff_metric,
-                    metric_damping=args.rational_coeff_metric_damping,
-                    eps=args.rational_coeff_eps,
-                )
-            )
-        matrix_policy_beta2 = args.rational_matrix_policy_beta2
-        matrix_policy_adam_lr_scale = args.rational_matrix_policy_adam_lr_scale
-        matrix_policy_adam_role_strength = args.rational_matrix_policy_adam_role_strength
-        matrix_policy_muon_strength = args.rational_matrix_policy_muon_strength
-        matrix_policy_muon_lr_scale = args.rational_matrix_policy_muon_lr_scale
-        matrix_policy_final_muon = args.rational_matrix_policy_final_muon
-        matrix_policy_min_muon = args.rational_matrix_policy_min_muon
-        matrix_policy_max_muon = args.rational_matrix_policy_max_muon
-        matrix_policy_group_gain_strength = args.rational_matrix_policy_group_gain_strength
-        matrix_policy_group_pressure_strength = args.rational_matrix_policy_group_pressure_strength
-        matrix_policy_group_activity_damping = args.rational_matrix_policy_group_activity_damping
-
-        optimizers.append(
-            RationalMatrixPolicyOptimizer(
-                matrix_groups,
-                lr=args.lr,
-                betas=(
-                    args.beta1,
-                    args.beta2 if matrix_policy_beta2 is None else matrix_policy_beta2,
-                ),
-                eps=args.eps,
-                weight_decay=args.weight_decay,
-                total_steps=args.steps,
-                selector_groups=curve_groups,
-                muon_strength=matrix_policy_muon_strength,
-                apply_muon_update=args.rational_matrix_policy_apply_muon_update,
-                muon_lr_scale=matrix_policy_muon_lr_scale,
-                adam_lr_scale=matrix_policy_adam_lr_scale,
-                adam_lr_scale_final=args.rational_matrix_policy_adam_lr_scale_final,
-                adam_decay_start=args.rational_matrix_policy_adam_decay_start,
-                adam_decay_end=args.rational_matrix_policy_adam_decay_end,
-                adam_decay_depth_shift=args.rational_matrix_policy_adam_decay_depth_shift,
-                adam_beta2_final=args.rational_matrix_policy_adam_beta2_final,
-                adam_beta2_input_final=args.rational_matrix_policy_adam_beta2_input_final,
-                adam_beta2_output_final=args.rational_matrix_policy_adam_beta2_output_final,
-                adam_beta2_decay_start=args.rational_matrix_policy_adam_beta2_decay_start,
-                adam_beta2_decay_end=args.rational_matrix_policy_adam_beta2_decay_end,
-                adam_beta2_decay_depth_shift=args.rational_matrix_policy_adam_beta2_decay_depth_shift,
-                adam_role_strength=matrix_policy_adam_role_strength,
-                adam_role_strength_final=args.rational_matrix_policy_adam_role_strength_final,
-                adam_role_decay_start=args.rational_matrix_policy_adam_role_decay_start,
-                adam_role_decay_end=args.rational_matrix_policy_adam_role_decay_end,
-                adam_stat_strength=args.rational_matrix_policy_adam_stat_strength,
-                adam_pressure_balance=args.rational_matrix_policy_adam_pressure_balance,
-                adam_stat_start=args.rational_matrix_policy_adam_stat_start,
-                adam_stat_end=args.rational_matrix_policy_adam_stat_end,
-                adam_min_lr_scale=args.rational_matrix_policy_adam_min_lr_scale,
-                adam_max_lr_scale=args.rational_matrix_policy_adam_max_lr_scale,
-                adam_reset_on_switch=args.rational_matrix_policy_adam_reset_on_switch,
-                start=args.rational_matrix_policy_start,
-                end=args.rational_matrix_policy_end,
-                decay_start=args.rational_matrix_policy_decay_start,
-                decay_end=args.rational_matrix_policy_decay_end,
-                muon_decay_depth_shift=args.rational_matrix_policy_muon_decay_depth_shift,
-                muon_input_decay_shift=args.rational_matrix_policy_muon_input_decay_shift,
-                muon_output_decay_shift=args.rational_matrix_policy_muon_output_decay_shift,
-                muon_reset_adam_state=args.rational_matrix_policy_muon_reset_adam_state,
-                final_muon=matrix_policy_final_muon,
-                min_muon=matrix_policy_min_muon,
-                max_muon=matrix_policy_max_muon,
-                input_depth_gain=args.rational_matrix_policy_input_depth_gain,
-                output_depth_gain=args.rational_matrix_policy_output_depth_gain,
-                pressure_weight=args.rational_matrix_policy_pressure_weight,
-                activity_weight=args.rational_matrix_policy_activity_weight,
-                activity_target=args.rational_matrix_policy_activity_target,
-                activity_width=args.rational_matrix_policy_activity_width,
-                pressure_clip=args.rational_matrix_policy_pressure_clip,
-                group_gain_strength=matrix_policy_group_gain_strength,
-                group_pressure_strength=matrix_policy_group_pressure_strength,
-                group_activity_damping=matrix_policy_group_activity_damping,
-                group_activity_target=args.rational_matrix_policy_group_activity_target,
-                group_activity_width=args.rational_matrix_policy_group_activity_width,
-                group_start=args.rational_matrix_policy_group_start,
-                group_end=args.rational_matrix_policy_group_end,
-                group_min_scale=args.rational_matrix_policy_group_min_scale,
-                group_max_scale=args.rational_matrix_policy_group_max_scale,
-                muon_momentum=args.muon_momentum,
-                muon_ns_steps=args.muon_ns_steps,
-                muon_adjust_lr_fn=args.muon_adjust_lr_fn,
-            )
-        )
-        transport_quotient_strength = args.rational_transport_quotient_strength
-        transport_matrix_strength = args.rational_transport_matrix_strength
-        transport_matrix_min_scale = args.rational_adaptive_min_scale
-        transport_matrix_max_scale = args.rational_adaptive_max_scale
-        transport_matrix_every = args.rational_adaptive_every
-        transport_matrix_depth_gain = args.rational_transport_matrix_depth_gain
-        transport_matrix_time_gain = args.rational_transport_matrix_time_gain
-        transport_pressure_strength = args.rational_transport_pressure_strength
-        transport_pressure_min_scale = args.rational_transport_pressure_min_scale
-        transport_pressure_max_scale = args.rational_transport_pressure_max_scale
-        transport_live_matrix_stats = args.rational_transport_live_matrix_stats
-
-        return RationalTransportOnPolicyOptimizer(
-            optimizers,
-            curve_groups,
-            total_steps=args.steps,
-            target_weight=args.rlb_gauge_target_weight,
-            metric_every=args.rlb_gauge_metric_every,
-            probe_range=args.rlb_gauge_probe_range,
-            probe_points=args.rlb_gauge_probe_points,
-            strength=args.rlb_gauge_strength,
-            max_log_step=args.rlb_gauge_max_log_step,
-            start=args.rlb_gauge_start,
-            end=args.rlb_gauge_end,
-            depth_gain=args.rlb_gauge_depth_gain,
-            every=args.rlb_gauge_every,
-            stat_decay=args.rational_onpolicy_stat_decay,
-            pressure_weight=args.rational_onpolicy_pressure_weight,
-            pressure_clip=args.rational_onpolicy_pressure_clip,
-            rational_activity_weight=args.rational_onpolicy_rational_activity_weight,
-            activity_gain_min=args.rational_onpolicy_activity_gain_min,
-            activity_gain_max=args.rational_onpolicy_activity_gain_max,
-            covariant_state=True,
-            matrix_strength=transport_matrix_strength,
-            matrix_min_scale=transport_matrix_min_scale,
-            matrix_max_scale=transport_matrix_max_scale,
-            matrix_every=transport_matrix_every,
-            stat_every=args.rational_transport_stat_every,
-            stat_samples=args.rational_adaptive_stat_samples,
-            coeff_strength=args.rational_adaptive_coeff_strength,
-            coeff_start=args.rational_adaptive_coeff_start,
-            coeff_end=args.rational_adaptive_coeff_end,
-            coeff_late_decay=args.rational_adaptive_coeff_late_decay,
-            coeff_metric_damping=args.rational_adaptive_coeff_metric_damping,
-            coeff_norm_clip=args.rational_adaptive_coeff_norm_clip,
-            coeff_max_blend=args.rational_adaptive_coeff_max_blend,
-            coeff_depth_gain=args.rational_adaptive_coeff_depth_gain,
-            matrix_time_gain=transport_matrix_time_gain,
-            matrix_depth_gain=transport_matrix_depth_gain,
-            quotient_strength=transport_quotient_strength,
-            transport_strength=args.rational_transport_strength,
-            transport_final_strength=args.rational_transport_final_strength,
-            transport_start=args.rational_transport_start,
-            transport_end=args.rational_transport_end,
-            transport_decay_start=args.rational_transport_decay_start,
-            transport_decay_end=args.rational_transport_decay_end,
-            transport_every=args.rational_transport_every,
-            transport_max_log_step=args.rational_transport_max_log_step,
-            transport_derivative_weight=args.rational_transport_derivative_weight,
-            transport_headroom=args.rational_transport_headroom,
-            transport_depth_gain=args.rational_transport_depth_gain,
-            transport_derivative_depth_gain=args.rational_transport_derivative_depth_gain,
-            matrix_input_depth_gain=args.rational_transport_matrix_input_depth_gain,
-            matrix_output_depth_gain=args.rational_transport_matrix_output_depth_gain,
-            matrix_live_stats=transport_live_matrix_stats,
-            pressure_precond_strength=transport_pressure_strength,
-            pressure_precond_depth_gain=args.rational_transport_pressure_depth_gain,
-            pressure_precond_min_scale=transport_pressure_min_scale,
-            pressure_precond_max_scale=transport_pressure_max_scale,
-            eps=args.rlb_gauge_eps,
-        )
-
-
-
     allowed = ", ".join(ACTIVE_OPTIMIZERS)
     raise ValueError(f"Accepted optimizer choices: {allowed}")
 
@@ -5860,6 +5832,12 @@ def parse_args():
     parser.add_argument("--min-lr", type=float, default=3e-5)
     parser.add_argument("--warmup-steps", type=int, default=200)
     parser.add_argument("--weight-decay", type=float, default=0.1)
+    parser.add_argument(
+        "--fairness-contract",
+        choices=["none", UNIT_LR_WD_FAIRNESS_CONTRACT],
+        default="none",
+        help="Fail-closed LR/WD equality contract for the RLB optimizer campaign.",
+    )
     parser.add_argument("--beta1", type=float, default=0.9)
     parser.add_argument("--beta2", type=float, default=0.95)
     parser.add_argument("--eps", type=float, default=1e-8)
@@ -5976,112 +5954,6 @@ def parse_args():
     parser.add_argument("--rational-trust-atom-risk", type=float, default=1.00)
     parser.add_argument("--rational-trust-numerator-risk", type=float, default=1.00)
     parser.add_argument("--rational-trust-depth-gain", type=float, default=0.10)
-    parser.add_argument("--rational-matrix-policy-backbone-optimizer", choices=["adamw", "muon"], default="adamw")
-    parser.add_argument("--rational-matrix-policy-backbone-beta2", type=float, default=0.999)
-    parser.add_argument("--rational-matrix-policy-beta2", type=float, default=0.999)
-    parser.add_argument("--rational-matrix-policy-muon-strength", type=float, default=0.75)
-    parser.add_argument(
-        "--rational-matrix-policy-apply-muon-update",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-    )
-    parser.add_argument("--rational-matrix-policy-muon-lr-scale", type=float, default=1.0)
-    parser.add_argument("--rational-matrix-policy-adam-lr-scale", type=float, default=3.0)
-    parser.add_argument("--rational-matrix-policy-adam-lr-scale-final", type=float, default=None)
-    parser.add_argument("--rational-matrix-policy-adam-decay-start", type=float, default=1.1)
-    parser.add_argument("--rational-matrix-policy-adam-decay-end", type=float, default=1.1)
-    parser.add_argument("--rational-matrix-policy-adam-decay-depth-shift", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-adam-beta2-final", type=float, default=None)
-    parser.add_argument("--rational-matrix-policy-adam-beta2-input-final", type=float, default=None)
-    parser.add_argument("--rational-matrix-policy-adam-beta2-output-final", type=float, default=None)
-    parser.add_argument("--rational-matrix-policy-adam-beta2-decay-start", type=float, default=1.1)
-    parser.add_argument("--rational-matrix-policy-adam-beta2-decay-end", type=float, default=1.1)
-    parser.add_argument("--rational-matrix-policy-adam-beta2-decay-depth-shift", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-adam-role-strength", type=float, default=1.20)
-    parser.add_argument("--rational-matrix-policy-adam-role-strength-final", type=float, default=None)
-    parser.add_argument("--rational-matrix-policy-adam-role-decay-start", type=float, default=1.1)
-    parser.add_argument("--rational-matrix-policy-adam-role-decay-end", type=float, default=1.1)
-    parser.add_argument("--rational-matrix-policy-adam-stat-strength", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-adam-pressure-balance", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-adam-stat-start", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-adam-stat-end", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-adam-min-lr-scale", type=float, default=0.40)
-    parser.add_argument("--rational-matrix-policy-adam-max-lr-scale", type=float, default=4.0)
-    parser.add_argument("--rational-matrix-policy-adam-reset-on-switch", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--rational-matrix-policy-weight-decay-scale", type=float, default=1.0)
-    parser.add_argument("--rational-matrix-policy-function-coeff", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--rational-matrix-policy-start", type=float, default=0.02)
-    parser.add_argument("--rational-matrix-policy-end", type=float, default=0.12)
-    parser.add_argument("--rational-matrix-policy-decay-start", type=float, default=0.20)
-    parser.add_argument("--rational-matrix-policy-decay-end", type=float, default=0.36)
-    parser.add_argument("--rational-matrix-policy-muon-decay-depth-shift", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-muon-input-decay-shift", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-muon-output-decay-shift", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-muon-reset-adam-state", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--rational-matrix-policy-final-muon", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-min-muon", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-max-muon", type=float, default=0.75)
-    parser.add_argument("--rational-matrix-policy-input-depth-gain", type=float, default=-0.50)
-    parser.add_argument("--rational-matrix-policy-output-depth-gain", type=float, default=1.00)
-    parser.add_argument("--rational-matrix-policy-pressure-weight", type=float, default=0.30)
-    parser.add_argument("--rational-matrix-policy-activity-weight", type=float, default=0.65)
-    parser.add_argument("--rational-matrix-policy-activity-target", type=float, default=0.05)
-    parser.add_argument("--rational-matrix-policy-activity-width", type=float, default=0.45)
-    parser.add_argument("--rational-matrix-policy-pressure-clip", type=float, default=1.50)
-    parser.add_argument("--rational-matrix-policy-group-gain-strength", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-group-pressure-strength", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-group-activity-damping", type=float, default=0.0)
-    parser.add_argument("--rational-matrix-policy-group-activity-target", type=float, default=0.05)
-    parser.add_argument("--rational-matrix-policy-group-activity-width", type=float, default=0.45)
-    parser.add_argument("--rational-matrix-policy-group-start", type=float, default=0.02)
-    parser.add_argument("--rational-matrix-policy-group-end", type=float, default=0.35)
-    parser.add_argument("--rational-matrix-policy-group-min-scale", type=float, default=0.65)
-    parser.add_argument("--rational-matrix-policy-group-max-scale", type=float, default=1.55)
-    parser.add_argument("--rational-transport-quotient-strength", type=float, default=0.0)
-    parser.add_argument("--rational-transport-strength", type=float, default=0.0)
-    parser.add_argument("--rational-transport-final-strength", type=float, default=None)
-    parser.add_argument("--rational-transport-start", type=float, default=0.04)
-    parser.add_argument("--rational-transport-end", type=float, default=0.70)
-    parser.add_argument("--rational-transport-decay-start", type=float, default=1.1)
-    parser.add_argument("--rational-transport-decay-end", type=float, default=1.1)
-    parser.add_argument("--rational-transport-every", type=int, default=5)
-    parser.add_argument("--rational-transport-max-log-step", type=float, default=0.025)
-    parser.add_argument("--rational-transport-derivative-weight", type=float, default=0.50)
-    parser.add_argument("--rational-transport-headroom", type=float, default=0.92)
-    parser.add_argument("--rational-transport-depth-gain", type=float, default=0.30)
-    parser.add_argument("--rational-transport-derivative-depth-gain", type=float, default=0.35)
-    parser.add_argument("--rational-transport-matrix-strength", type=float, default=0.0)
-    parser.add_argument("--rational-transport-matrix-depth-gain", type=float, default=0.0)
-    parser.add_argument("--rational-transport-matrix-time-gain", type=float, default=0.0)
-    parser.add_argument("--rational-transport-stat-every", type=int, default=8)
-    parser.add_argument("--rational-transport-matrix-input-depth-gain", type=float, default=0.0)
-    parser.add_argument("--rational-transport-matrix-output-depth-gain", type=float, default=0.0)
-    parser.add_argument("--rational-transport-live-matrix-stats", action="store_true")
-    parser.add_argument("--rational-transport-coeff-update-gain", type=float, default=4.5)
-    parser.add_argument("--rational-transport-coeff-update-gain-final", type=float, default=4.5)
-    parser.add_argument("--rational-transport-coeff-decay-start", type=float, default=1.1)
-    parser.add_argument("--rational-transport-coeff-decay-end", type=float, default=1.1)
-    parser.add_argument("--rational-transport-coeff-depth-gain", type=float, default=0.0)
-    parser.add_argument("--rational-transport-coeff-switch-depth-shift", type=float, default=0.0)
-    parser.add_argument("--rational-transport-coeff-reset-on-switch", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--rational-transport-coeff-select-strength", type=float, default=0.0)
-    parser.add_argument("--rational-transport-coeff-select-start", type=float, default=0.25)
-    parser.add_argument("--rational-transport-coeff-select-end", type=float, default=0.55)
-    parser.add_argument("--rational-transport-coeff-select-activity-threshold", type=float, default=0.10)
-    parser.add_argument("--rational-transport-coeff-select-activity-width", type=float, default=0.40)
-    parser.add_argument("--rational-transport-coeff-select-pressure-weight", type=float, default=0.25)
-    parser.add_argument("--rational-transport-coeff-atom-decay", type=float, default=0.0)
-    parser.add_argument("--rational-transport-coeff-den-decay", type=float, default=0.0)
-    parser.add_argument("--rational-transport-coeff-atom-lr-scale", type=float, default=2.25)
-    parser.add_argument("--rational-transport-coeff-atom-lr-scale-final", type=float, default=2.25)
-    parser.add_argument("--rational-transport-coeff-den-lr-scale", type=float, default=1.125)
-    parser.add_argument("--rational-transport-coeff-den-lr-scale-final", type=float, default=1.125)
-    parser.add_argument("--rational-transport-coeff-trust", type=float, default=0.01)
-    parser.add_argument("--rational-transport-coeff-trust-final", type=float, default=0.01)
-    parser.add_argument("--rational-transport-pressure-strength", type=float, default=0.0)
-    parser.add_argument("--rational-transport-pressure-depth-gain", type=float, default=0.25)
-    parser.add_argument("--rational-transport-pressure-min-scale", type=float, default=0.70)
-    parser.add_argument("--rational-transport-pressure-max-scale", type=float, default=1.40)
     parser.add_argument("--grad-clip", type=float, default=1.0)
     parser.add_argument("--log-interval", type=int, default=10)
     parser.add_argument("--eval-interval", type=int, default=250)
@@ -6090,6 +5962,11 @@ def parse_args():
     parser.add_argument("--early-stop-max-val-loss", type=float, default=0.0)
     parser.add_argument("--early-stop-loss-increase", type=float, default=0.0)
     parser.add_argument("--timing-guard-max-seconds-per-step", type=float, default=0.0)
+    parser.add_argument(
+        "--timing-guard-max-optimizer-step-seconds",
+        type=float,
+        default=0.0,
+    )
     parser.add_argument("--timing-guard-min-step", type=int, default=0)
     parser.add_argument("--probe-batch-size", type=int, default=2)
     parser.add_argument("--telemetry-rlb-stat-every", type=int, default=4)
@@ -6102,6 +5979,8 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--save-checkpoint", action="store_true")
     parser.add_argument("--checkpoint-dir", default=None)
+    parser.add_argument("--resume-checkpoint", default=None)
+    parser.add_argument("--resume-checkpoint-interval", type=int, default=0)
     return parser.parse_args()
 
 
@@ -6112,6 +5991,204 @@ def validate_optimizer_protocol(args):
     if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS and args.activation not in RLB_ACTIVATIONS:
         allowed = ", ".join(sorted(RLB_ACTIVATIONS))
         raise ValueError(f"Accepted RLB activations for {args.optimizer}: {allowed}")
+    if args.fairness_contract == UNIT_LR_WD_FAIRNESS_CONTRACT:
+        required = {
+            "lr": 0.0003,
+            "min_lr": 0.00003,
+            "weight_decay": 0.10,
+        }
+        mismatches = {
+            name: (getattr(args, name), value)
+            for name, value in required.items()
+            if float(getattr(args, name)) != value
+        }
+        if mismatches:
+            raise ValueError(f"LR/WD fairness-contract mismatch: {mismatches}")
+        if args.resume_checkpoint is not None:
+            raise ValueError("fairness-contracted runs may not resume from an external checkpoint")
+
+
+def _resume_rank_path(path: Path, rank: int) -> Path:
+    return Path(f"{path}.rank{rank}.pt")
+
+
+def _resume_contract(args, world_size: int) -> dict:
+    return {
+        "schema": "transformer_lm_exact_resume_v1",
+        "activation": args.activation,
+        "optimizer": args.optimizer,
+        "seed": int(args.seed),
+        "steps": int(args.steps),
+        "world_size": int(world_size),
+        "batch_size": int(args.batch_size),
+        "grad_accum": int(args.grad_accum),
+        "seq_len": int(args.seq_len),
+        "lr": float(args.lr),
+        "min_lr": float(args.min_lr),
+        "warmup_steps": int(args.warmup_steps),
+        "weight_decay": float(args.weight_decay),
+        "beta1": float(args.beta1),
+        "beta2": float(args.beta2),
+        "eps": float(args.eps),
+        "grad_clip": float(args.grad_clip),
+    }
+
+
+def _cpu_probe_resume_state(probe_state):
+    if probe_state is None:
+        return None
+    return {
+        key: (
+            None
+            if probe_state.get(key) is None
+            else probe_state[key].detach().cpu()
+        )
+        for key in ("first_logits", "prev_logits")
+    }
+
+
+def _save_exact_resume_checkpoint(
+    path: Path,
+    *,
+    args,
+    rank: int,
+    world_size: int,
+    is_distributed: bool,
+    device: torch.device,
+    model,
+    optimizer,
+    train_generator: torch.Generator,
+    probe_state,
+    completed_step: int,
+    best_val_loss: float,
+    step_times: list[float],
+    optimizer_step_times: list[float],
+    grad_clip_observed_steps: int,
+    grad_clip_triggered_steps: int,
+    run_cuda_max_memory_allocated: int,
+    run_cuda_max_memory_reserved: int,
+    active_seconds: float,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rank_path = _resume_rank_path(path, rank)
+    rank_tmp = Path(f"{rank_path}.tmp")
+    if rank_tmp.exists():
+        rank_tmp.unlink()
+    torch.save(
+        {
+            "schema": "transformer_lm_exact_resume_rank_v1",
+            "rank": int(rank),
+            "completed_step": int(completed_step),
+            "train_generator_state": train_generator.get_state(),
+            "torch_rng_state": torch.get_rng_state(),
+            "cuda_rng_state": torch.cuda.get_rng_state(device),
+            "probe_state": _cpu_probe_resume_state(probe_state),
+        },
+        rank_tmp,
+    )
+
+    main_tmp = Path(f"{path}.tmp")
+    if rank == 0:
+        if main_tmp.exists():
+            main_tmp.unlink()
+        raw_model = (
+            model.module
+            if isinstance(model, nn.parallel.DistributedDataParallel)
+            else model
+        )
+        torch.save(
+            {
+                "schema": "transformer_lm_exact_resume_v1",
+                "contract": _resume_contract(args, world_size),
+                "completed_step": int(completed_step),
+                "model": raw_model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "best_val_loss": float(best_val_loss),
+                "step_times": list(step_times),
+                "optimizer_step_times": list(optimizer_step_times),
+                "grad_clip_observed_steps": int(
+                    grad_clip_observed_steps
+                ),
+                "grad_clip_triggered_steps": int(
+                    grad_clip_triggered_steps
+                ),
+                "run_cuda_max_memory_allocated": int(
+                    run_cuda_max_memory_allocated
+                ),
+                "run_cuda_max_memory_reserved": int(
+                    run_cuda_max_memory_reserved
+                ),
+                "active_seconds": float(active_seconds),
+            },
+            main_tmp,
+        )
+
+    if is_distributed:
+        dist.barrier()
+    rank_tmp.replace(rank_path)
+    if is_distributed:
+        dist.barrier()
+    if rank == 0:
+        main_tmp.replace(path)
+    if is_distributed:
+        dist.barrier()
+
+
+def _load_exact_resume_checkpoint(
+    path: Path,
+    *,
+    args,
+    rank: int,
+    world_size: int,
+    is_distributed: bool,
+    device: torch.device,
+    model,
+    optimizer,
+    train_generator: torch.Generator,
+    probe_state,
+) -> dict | None:
+    if not path.is_file():
+        return None
+    rank_path = _resume_rank_path(path, rank)
+    if not rank_path.is_file():
+        raise RuntimeError(
+            f"missing exact-resume rank state: {rank_path}"
+        )
+    payload = torch.load(path, map_location="cpu", weights_only=False)
+    rank_payload = torch.load(
+        rank_path, map_location="cpu", weights_only=False
+    )
+    if (
+        payload.get("schema") != "transformer_lm_exact_resume_v1"
+        or payload.get("contract") != _resume_contract(args, world_size)
+        or rank_payload.get("schema")
+        != "transformer_lm_exact_resume_rank_v1"
+        or rank_payload.get("rank") != rank
+        or rank_payload.get("completed_step")
+        != payload.get("completed_step")
+    ):
+        raise RuntimeError("exact-resume checkpoint contract differs")
+
+    raw_model = (
+        model.module
+        if isinstance(model, nn.parallel.DistributedDataParallel)
+        else model
+    )
+    raw_model.load_state_dict(payload["model"])
+    optimizer.load_state_dict(payload["optimizer"])
+    train_generator.set_state(rank_payload["train_generator_state"])
+    torch.set_rng_state(rank_payload["torch_rng_state"])
+    torch.cuda.set_rng_state(rank_payload["cuda_rng_state"], device)
+    stored_probe = rank_payload.get("probe_state")
+    if probe_state is not None and stored_probe is not None:
+        for key in ("first_logits", "prev_logits"):
+            value = stored_probe.get(key)
+            probe_state[key] = (
+                None if value is None else value.to(device=device)
+            )
+    if is_distributed:
+        dist.barrier()
+    return payload
 
 
 def main():
@@ -6141,7 +6218,10 @@ def main():
     train_tokens = train_tokens.pin_memory()
     val_tokens = val_tokens.pin_memory()
 
-    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer, cache_dir=args.hf_cache)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        args.tokenizer,
+        cache_dir=args.hf_cache,
+    )
     vocab_size = len(tokenizer)
     global_tokens = args.batch_size * args.grad_accum * world_size * args.seq_len
     if args.steps <= 0:
@@ -6154,15 +6234,60 @@ def main():
     )
     enable_rlb_training_telemetry(model, args)
     param_count = sum(param.numel() for param in model.parameters())
+    m1_campaign_identity = audit_m1_300m_campaign_identity(
+        args,
+        world_size=world_size,
+        global_tokens=global_tokens,
+        train_token_count=train_tokens.numel(),
+        val_token_count=val_tokens.numel(),
+        parameter_count=param_count,
+    )
     if is_distributed:
-        model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
+        model = nn.parallel.DistributedDataParallel(
+            model,
+            device_ids=[local_rank],
+            output_device=local_rank,
+        )
     rational_optimizer_parameter_count = count_rational_optimizer_parameters(model)
     optimizer = configure_optimizer(model, args)
+    optimizer_lr_wd_fairness = audit_optimizer_lr_wd_fairness(
+        model, optimizer, args
+    )
     offsets = torch.arange(args.seq_len + 1)
     train_generator = torch.Generator(device="cpu")
     train_generator.manual_seed(args.seed + 997 * rank)
     out_path = Path(args.output_dir) / args.run_name / f"{args.activation}.jsonl"
     probe_state = prepare_probe_batch(val_tokens, args, offsets, rank, device, out_path)
+    resume_checkpoint = (
+        None
+        if args.resume_checkpoint is None
+        else Path(args.resume_checkpoint)
+    )
+    resume_payload = (
+        None
+        if resume_checkpoint is None
+        else _load_exact_resume_checkpoint(
+            resume_checkpoint,
+            args=args,
+            rank=rank,
+            world_size=world_size,
+            is_distributed=is_distributed,
+            device=device,
+            model=model,
+            optimizer=optimizer,
+            train_generator=train_generator,
+            probe_state=probe_state,
+        )
+    )
+    resume_step = (
+        0
+        if resume_payload is None
+        else int(resume_payload["completed_step"])
+    )
+    if resume_step < 0 or resume_step >= args.steps:
+        raise RuntimeError(
+            f"invalid exact-resume completed step: {resume_step}"
+        )
     rb_settings = rational_basis_settings(
         args.activation,
         args.ffn_dim,
@@ -6273,10 +6398,14 @@ def main():
     slurm_restart_count = int(os.environ.get("SLURM_RESTART_COUNT", "0") or 0)
     slurm_node = os.environ.get("SLURMD_NODENAME") or os.environ.get("SLURM_NODELIST")
     timing_attempt_id = f"{slurm_job_id or 'manual'}:{slurm_restart_count}:{int(time.time())}"
+    optimizer_telemetry_steps = parse_optimizer_telemetry_steps(
+        os.environ.get("E9_OPTIMIZER_TELEMETRY_STEPS"),
+        args.steps,
+    )
     strict_gpu_metadata = os.environ.get("E9_STRICT_GPU_METADATA", "0") == "1"
     ddp_sync_check_interval = max(
         0,
-        int(os.environ.get("MATRIXPOLICY_DDP_SYNC_CHECK_INTERVAL", "0") or 0),
+        int(os.environ.get("RLB_DDP_SYNC_CHECK_INTERVAL", "0") or 0),
     )
     gpu_metadata = nvidia_smi_metadata(strict=strict_gpu_metadata) if rank == 0 else None
     train_token_sample_sha256 = tensor_sample_sha256(train_tokens) if rank == 0 else None
@@ -6311,12 +6440,36 @@ def main():
         "slurm_restart_count": slurm_restart_count,
         "slurm_node": slurm_node,
         "timing_attempt_id": timing_attempt_id,
+        "optimizer_telemetry_steps": (
+            None if optimizer_telemetry_steps is None else list(optimizer_telemetry_steps)
+        ),
         "e9_row_id": os.environ.get("E9_ROW_ID"),
         "e9_arm_id": os.environ.get("E9_ARM_ID"),
         "e9_design_version": os.environ.get("E9_DESIGN_VERSION"),
         "e9_manifest_sha256": os.environ.get("E9_MANIFEST_SHA256"),
         "e9_freeze_sha256": os.environ.get("E9_FREEZE_SHA256"),
         "e9_runtime_freeze_sha256": os.environ.get("E9_RUNTIME_FREEZE_SHA256"),
+        "e9_environment_sha256": os.environ.get("E9_ENVIRONMENT_SHA256"),
+        "e9_array_job_id": os.environ.get("E9_ARRAY_JOB_ID"),
+        "e9_array_task_id": os.environ.get("E9_ARRAY_TASK_ID"),
+        "e9_array_task_count": os.environ.get("E9_ARRAY_TASK_COUNT"),
+        "e9_array_task_min": os.environ.get("E9_ARRAY_TASK_MIN"),
+        "e9_array_task_max": os.environ.get("E9_ARRAY_TASK_MAX"),
+        "e9_array_task_step": os.environ.get("E9_ARRAY_TASK_STEP"),
+        "e9_array_task_throttle": os.environ.get("E9_ARRAY_TASK_THROTTLE"),
+        "e9_spooled_launcher_sha256": os.environ.get("E9_SPOOLED_LAUNCHER_SHA256"),
+        "e9_runtime_environment_validated": os.environ.get("E9_RUNTIME_ENVIRONMENT_VALIDATED"),
+        "e9_distribution_closure_sha256": os.environ.get("E9_DISTRIBUTION_CLOSURE_SHA256"),
+        "e9_submission_nonce": os.environ.get("E9_SUBMISSION_NONCE"),
+        "e9_submission_intent_sha256": os.environ.get("E9_SUBMISSION_INTENT_SHA256"),
+        "e9_submission_result_sha256": os.environ.get("E9_SUBMISSION_RESULT_SHA256"),
+        "e9_submission_dependency_job_id": os.environ.get(
+            "E9_SUBMISSION_DEPENDENCY_JOB_ID"
+        ),
+        "e9_preflight_attempt_id": os.environ.get("E9_PREFLIGHT_ATTEMPT_ID"),
+        "e9_preflight_spooled_launcher_sha256": os.environ.get(
+            "E9_PREFLIGHT_SPOOLED_LAUNCHER_SHA256"
+        ),
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "slurm_job_gpus": os.environ.get("SLURM_JOB_GPUS"),
         "gpu_metadata": gpu_metadata,
@@ -6326,12 +6479,22 @@ def main():
         "first_batch_index_sha256": first_batch_index_sha256,
         "validation_index_sha256": validation_index_sha256,
         "timing_guard_max_seconds_per_step": args.timing_guard_max_seconds_per_step,
+        "timing_guard_max_optimizer_step_seconds": (
+            args.timing_guard_max_optimizer_step_seconds
+        ),
         "timing_guard_min_step": args.timing_guard_min_step,
+        "resume_checkpoint": (
+            None
+            if resume_checkpoint is None
+            else str(resume_checkpoint.resolve())
+        ),
+        "resume_checkpoint_interval": args.resume_checkpoint_interval,
         "batch_size_per_gpu": args.batch_size,
         "birational_alpha_init": args.birational_alpha_init,
         "birational_denominator_init": args.birational_denominator_init,
         "birational_eps": args.birational_eps,
         "d_model": args.d_model,
+        "init_std": args.init_std,
         "dataset": args.dataset_name,
         "dataset_config": args.dataset_config,
         "dataset_streaming": args.dataset_streaming,
@@ -6357,7 +6520,7 @@ def main():
         "telemetry_rlb_stat_every": args.telemetry_rlb_stat_every,
         "telemetry_rlb_stat_samples": args.telemetry_rlb_stat_samples,
         "rlb_live_stats_scope": rlb_live_stats_scope(model),
-        "matrixpolicy_ddp_sync_check_interval": ddp_sync_check_interval,
+        "rlb_ddp_sync_check_interval": ddp_sync_check_interval,
         "telemetry_denominator_probe_points": args.telemetry_denominator_probe_points,
         "matrix_spectrum_interval": args.matrix_spectrum_interval,
         "matrix_spectrum_max_dim": args.matrix_spectrum_max_dim,
@@ -6365,11 +6528,15 @@ def main():
         "rlb_init_gauge_seed": args.rlb_init_gauge_seed,
         "rlb_init_gauge_groups": rlb_init_gauge_groups,
         "optimizer": args.optimizer,
+        "fairness_contract": args.fairness_contract,
+        "optimizer_lr_wd_fairness": optimizer_lr_wd_fairness,
+        "m1_300m_campaign_identity": m1_campaign_identity,
         "optimizer_lr": args.lr,
         "optimizer_min_lr": args.min_lr,
         "optimizer_weight_decay": args.weight_decay,
         "optimizer_beta1": args.beta1,
         "optimizer_beta2": args.beta2,
+        "optimizer_eps": args.eps,
         "early_stop_min_step": args.early_stop_min_step,
         "early_stop_max_val_loss": args.early_stop_max_val_loss,
         "early_stop_loss_increase": args.early_stop_loss_increase,
@@ -6419,115 +6586,14 @@ def main():
         "rlb_gauge_end": args.rlb_gauge_end if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
         "rlb_gauge_depth_gain": args.rlb_gauge_depth_gain if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
         "rlb_gauge_every": args.rlb_gauge_every if args.optimizer in RATIONAL_SPECIFIC_OPTIMIZERS else None,
-        "rational_matrix_policy_backbone_optimizer": args.rational_matrix_policy_backbone_optimizer if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_backbone_beta2": args.rational_matrix_policy_backbone_beta2 if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_beta2": args.rational_matrix_policy_beta2 if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_muon_strength": args.rational_matrix_policy_muon_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_apply_muon_update": args.rational_matrix_policy_apply_muon_update if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_muon_lr_scale": args.rational_matrix_policy_muon_lr_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_lr_scale": args.rational_matrix_policy_adam_lr_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_lr_scale_final": args.rational_matrix_policy_adam_lr_scale_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_decay_start": args.rational_matrix_policy_adam_decay_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_decay_end": args.rational_matrix_policy_adam_decay_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_decay_depth_shift": args.rational_matrix_policy_adam_decay_depth_shift if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_beta2_final": args.rational_matrix_policy_adam_beta2_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_beta2_input_final": args.rational_matrix_policy_adam_beta2_input_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_beta2_output_final": args.rational_matrix_policy_adam_beta2_output_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_beta2_decay_start": args.rational_matrix_policy_adam_beta2_decay_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_beta2_decay_end": args.rational_matrix_policy_adam_beta2_decay_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_beta2_decay_depth_shift": args.rational_matrix_policy_adam_beta2_decay_depth_shift if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_role_strength": args.rational_matrix_policy_adam_role_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_role_strength_final": args.rational_matrix_policy_adam_role_strength_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_role_decay_start": args.rational_matrix_policy_adam_role_decay_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_role_decay_end": args.rational_matrix_policy_adam_role_decay_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_stat_strength": args.rational_matrix_policy_adam_stat_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_pressure_balance": args.rational_matrix_policy_adam_pressure_balance if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_stat_start": args.rational_matrix_policy_adam_stat_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_stat_end": args.rational_matrix_policy_adam_stat_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_min_lr_scale": args.rational_matrix_policy_adam_min_lr_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_max_lr_scale": args.rational_matrix_policy_adam_max_lr_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_adam_reset_on_switch": args.rational_matrix_policy_adam_reset_on_switch if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_weight_decay_scale": args.rational_matrix_policy_weight_decay_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_function_coeff": args.rational_matrix_policy_function_coeff if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_start": args.rational_matrix_policy_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_end": args.rational_matrix_policy_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_decay_start": args.rational_matrix_policy_decay_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_decay_end": args.rational_matrix_policy_decay_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_muon_decay_depth_shift": args.rational_matrix_policy_muon_decay_depth_shift if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_muon_input_decay_shift": args.rational_matrix_policy_muon_input_decay_shift if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_muon_output_decay_shift": args.rational_matrix_policy_muon_output_decay_shift if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_muon_reset_adam_state": args.rational_matrix_policy_muon_reset_adam_state if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_final_muon": args.rational_matrix_policy_final_muon if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_min_muon": args.rational_matrix_policy_min_muon if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_max_muon": args.rational_matrix_policy_max_muon if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_input_depth_gain": args.rational_matrix_policy_input_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_output_depth_gain": args.rational_matrix_policy_output_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_pressure_weight": args.rational_matrix_policy_pressure_weight if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_activity_weight": args.rational_matrix_policy_activity_weight if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_activity_target": args.rational_matrix_policy_activity_target if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_activity_width": args.rational_matrix_policy_activity_width if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_pressure_clip": args.rational_matrix_policy_pressure_clip if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_group_gain_strength": args.rational_matrix_policy_group_gain_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_group_pressure_strength": args.rational_matrix_policy_group_pressure_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_group_activity_damping": args.rational_matrix_policy_group_activity_damping if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_group_activity_target": args.rational_matrix_policy_group_activity_target if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_group_activity_width": args.rational_matrix_policy_group_activity_width if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_group_start": args.rational_matrix_policy_group_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_group_end": args.rational_matrix_policy_group_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_group_min_scale": args.rational_matrix_policy_group_min_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_matrix_policy_group_max_scale": args.rational_matrix_policy_group_max_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_quotient_strength": args.rational_transport_quotient_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_strength": args.rational_transport_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_final_strength": args.rational_transport_final_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_start": args.rational_transport_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_end": args.rational_transport_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_decay_start": args.rational_transport_decay_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_decay_end": args.rational_transport_decay_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_every": args.rational_transport_every if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_max_log_step": args.rational_transport_max_log_step if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_derivative_weight": args.rational_transport_derivative_weight if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_headroom": args.rational_transport_headroom if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_depth_gain": args.rational_transport_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_derivative_depth_gain": args.rational_transport_derivative_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_matrix_strength": args.rational_transport_matrix_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_matrix_depth_gain": args.rational_transport_matrix_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_matrix_time_gain": args.rational_transport_matrix_time_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_stat_every": args.rational_transport_stat_every if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_matrix_input_depth_gain": args.rational_transport_matrix_input_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_matrix_output_depth_gain": args.rational_transport_matrix_output_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_live_matrix_stats": args.rational_transport_live_matrix_stats if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_update_gain": args.rational_transport_coeff_update_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_update_gain_final": args.rational_transport_coeff_update_gain_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_decay_start": args.rational_transport_coeff_decay_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_decay_end": args.rational_transport_coeff_decay_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_depth_gain": args.rational_transport_coeff_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_switch_depth_shift": args.rational_transport_coeff_switch_depth_shift if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_reset_on_switch": args.rational_transport_coeff_reset_on_switch if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_select_strength": args.rational_transport_coeff_select_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_select_start": args.rational_transport_coeff_select_start if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_select_end": args.rational_transport_coeff_select_end if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_select_activity_threshold": args.rational_transport_coeff_select_activity_threshold if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_select_activity_width": args.rational_transport_coeff_select_activity_width if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_select_pressure_weight": args.rational_transport_coeff_select_pressure_weight if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_atom_decay": args.rational_transport_coeff_atom_decay if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_den_decay": args.rational_transport_coeff_den_decay if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_atom_lr_scale": args.rational_transport_coeff_atom_lr_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_atom_lr_scale_final": args.rational_transport_coeff_atom_lr_scale_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_den_lr_scale": args.rational_transport_coeff_den_lr_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_den_lr_scale_final": args.rational_transport_coeff_den_lr_scale_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_trust": args.rational_transport_coeff_trust if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_coeff_trust_final": args.rational_transport_coeff_trust_final if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_pressure_strength": args.rational_transport_pressure_strength if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_pressure_depth_gain": args.rational_transport_pressure_depth_gain if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_pressure_min_scale": args.rational_transport_pressure_min_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "rational_transport_pressure_max_scale": args.rational_transport_pressure_max_scale if args.optimizer in MATRIX_POLICY_OPTIMIZERS else None,
-        "muon_adjust_lr_fn": args.muon_adjust_lr_fn if args.optimizer in {"muon", "rational_matrix_policy_onpolicy"} else None,
-        "muon_momentum": args.muon_momentum if args.optimizer in {"muon", "rational_matrix_policy_onpolicy"} else None,
-        "muon_ns_steps": args.muon_ns_steps if args.optimizer in {"muon", "rational_matrix_policy_onpolicy"} else None,
+        "muon_adjust_lr_fn": args.muon_adjust_lr_fn if args.optimizer == "muon" else None,
+        "muon_momentum": args.muon_momentum if args.optimizer == "muon" else None,
+        "muon_ns_steps": args.muon_ns_steps if args.optimizer == "muon" else None,
         "heads": args.heads,
         "layers": args.layers,
         "params": param_count,
         "rational_group_size": args.rational_group_size,
+        "rational_max_groups": args.rational_max_groups,
         "rational_init": args.rational_init,
         "rational_basis_count": None if rb_settings is None else rb_settings["basis_count"],
         "rational_basis_eps": args.rational_basis_eps,
@@ -6663,24 +6729,87 @@ def main():
         "world_size": world_size,
     }
     rank0_print(rank, json.dumps(config_record, sort_keys=True))
-    if rank == 0:
+    if rank == 0 and resume_payload is None:
         write_jsonl(out_path, config_record)
+    elif rank == 0:
+        write_jsonl(
+            out_path,
+            {
+                "event": "resumed",
+                "activation": args.activation,
+                "step": resume_step,
+                "checkpoint": str(resume_checkpoint.resolve()),
+                "slurm_job_id": slurm_job_id,
+                "slurm_restart_count": slurm_restart_count,
+                "slurm_node": slurm_node,
+                "timing_attempt_id": timing_attempt_id,
+            },
+        )
 
-    step_times = []
+    step_times = (
+        []
+        if resume_payload is None
+        else [float(value) for value in resume_payload["step_times"]]
+    )
+    optimizer_step_times = (
+        []
+        if resume_payload is None
+        else [
+            float(value)
+            for value in resume_payload.get("optimizer_step_times", [])
+        ]
+    )
+    optimizer_start_event = (
+        torch.cuda.Event(enable_timing=True)
+        if device.type == "cuda"
+        else None
+    )
+    optimizer_end_event = (
+        torch.cuda.Event(enable_timing=True)
+        if device.type == "cuda"
+        else None
+    )
     loss_since_log = 0.0
     steps_since_log = 0
-    best_val_loss = math.inf
+    best_val_loss = (
+        math.inf
+        if resume_payload is None
+        else float(resume_payload["best_val_loss"])
+    )
     stop_reason = None
     stop_step = None
-    grad_clip_observed_steps = 0
-    grad_clip_triggered_steps = 0
-    run_cuda_max_memory_allocated = 0
-    run_cuda_max_memory_reserved = 0
+    grad_clip_observed_steps = (
+        0
+        if resume_payload is None
+        else int(resume_payload["grad_clip_observed_steps"])
+    )
+    grad_clip_triggered_steps = (
+        0
+        if resume_payload is None
+        else int(resume_payload["grad_clip_triggered_steps"])
+    )
+    run_cuda_max_memory_allocated = (
+        0
+        if resume_payload is None
+        else int(resume_payload["run_cuda_max_memory_allocated"])
+    )
+    run_cuda_max_memory_reserved = (
+        0
+        if resume_payload is None
+        else int(resume_payload["run_cuda_max_memory_reserved"])
+    )
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
         torch.cuda.synchronize(device)
-    start_time = time.perf_counter()
-    for step in range(args.steps):
+    prior_active_seconds = (
+        0.0
+        if resume_payload is None
+        else float(resume_payload["active_seconds"])
+    )
+    start_time = time.perf_counter() - prior_active_seconds
+    realized_lr_trace = hashlib.sha256()
+    realized_lr_audit_steps = 0
+    for step in range(resume_step, args.steps):
         model.train()
         step_start = time.perf_counter()
         will_log = (step + 1) % args.log_interval == 0 or step == 0 or step + 1 == args.steps
@@ -6699,7 +6828,11 @@ def main():
             )
             torch.cuda.reset_peak_memory_stats(device)
             torch.cuda.synchronize(device)
-        set_optimizer_telemetry_capture(optimizer, capture_step_telemetry)
+        capture_optimizer_telemetry = capture_step_telemetry and (
+            optimizer_telemetry_steps is None
+            or step + 1 in optimizer_telemetry_steps
+        )
+        set_optimizer_telemetry_capture(optimizer, capture_optimizer_telemetry)
         forward_backward_start = time.perf_counter()
         forward_backward_seconds = None
         optimizer_step_seconds = None
@@ -6711,18 +6844,25 @@ def main():
         lr = learning_rate(step, args)
         for group in optimizer.param_groups:
             group["lr"] = lr * float(group.get("lr_scale", 1.0))
+        assert_optimizer_realized_lr(optimizer, lr, args)
         optimizer.zero_grad(set_to_none=True)
 
         local_loss = 0.0
         rho = sam_rho(step, args)
         if rho > 0.0:
             batches = []
-            for _ in range(args.grad_accum):
+            for micro_step in range(args.grad_accum):
                 x, y = sample_batch(train_tokens, args.batch_size, args.seq_len, offsets, train_generator, device)
                 batches.append((x, y))
-                logits = model(x)
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
-                (loss / args.grad_accum).backward()
+                sync_context = (
+                    model.no_sync()
+                    if is_distributed and micro_step + 1 < args.grad_accum
+                    else contextlib.nullcontext()
+                )
+                with sync_context:
+                    logits = model(x)
+                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
+                    (loss / args.grad_accum).backward()
                 local_loss += float(loss.item())
             sam_first_grad_global_norm_before_clip, sam_first_grad_clip_triggered = clip_or_measure_gradients(
                 model,
@@ -6732,10 +6872,16 @@ def main():
             perturbations = sam_first_step(model, rho, args, device, is_distributed)
             if perturbations:
                 optimizer.zero_grad(set_to_none=True)
-                for x, y in batches:
-                    logits = model(x)
-                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
-                    (loss / args.grad_accum).backward()
+                for micro_step, (x, y) in enumerate(batches):
+                    sync_context = (
+                        model.no_sync()
+                        if is_distributed and micro_step + 1 < args.grad_accum
+                        else contextlib.nullcontext()
+                    )
+                    with sync_context:
+                        logits = model(x)
+                        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
+                        (loss / args.grad_accum).backward()
                 sam_restore(perturbations)
                 if capture_step_telemetry and device.type == "cuda":
                     torch.cuda.synchronize(device)
@@ -6752,13 +6898,23 @@ def main():
                 grad_global_norm_before_clip = sam_first_grad_global_norm_before_clip
                 grad_clip_triggered = sam_first_grad_clip_triggered
             optimizer_step_start = time.perf_counter()
+            if optimizer_start_event is not None:
+                optimizer_start_event.record()
             optimizer.step()
+            if optimizer_end_event is not None:
+                optimizer_end_event.record()
         else:
-            for _ in range(args.grad_accum):
+            for micro_step in range(args.grad_accum):
                 x, y = sample_batch(train_tokens, args.batch_size, args.seq_len, offsets, train_generator, device)
-                logits = model(x)
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
-                (loss / args.grad_accum).backward()
+                sync_context = (
+                    model.no_sync()
+                    if is_distributed and micro_step + 1 < args.grad_accum
+                    else contextlib.nullcontext()
+                )
+                with sync_context:
+                    logits = model(x)
+                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.reshape(-1))
+                    (loss / args.grad_accum).backward()
                 local_loss += float(loss.item())
             if capture_step_telemetry and device.type == "cuda":
                 torch.cuda.synchronize(device)
@@ -6769,13 +6925,19 @@ def main():
                 capture_step_telemetry,
             )
             optimizer_step_start = time.perf_counter()
+            if optimizer_start_event is not None:
+                optimizer_start_event.record()
             optimizer.step()
-        if capture_step_telemetry and device.type == "cuda":
-            torch.cuda.synchronize(device)
-        optimizer_step_seconds = time.perf_counter() - optimizer_step_start
+            if optimizer_end_event is not None:
+                optimizer_end_event.record()
+        assert_optimizer_realized_lr(optimizer, lr, args)
+        if args.fairness_contract == UNIT_LR_WD_FAIRNESS_CONTRACT:
+            realized_lr_trace.update(f"{step + 1}:{float(lr).hex()}\n".encode("ascii"))
+            realized_lr_audit_steps += 1
         ddp_parameter_sync_max_abs = None
+        rlb_fmg_coefficient_sync_max_abs = None
         if (
-            args.optimizer in MATRIX_POLICY_OPTIMIZERS
+            args.optimizer in RLB_MATRIX_SYNC_OPTIMIZERS
             and ddp_sync_check_interval > 0
             and (
                 step == 0
@@ -6790,8 +6952,23 @@ def main():
                 device,
                 is_distributed,
             )
+        if args.optimizer in RLB_COEFFICIENT_SYNC_OPTIMIZERS and (
+            step == 0 or will_eval or step + 1 == args.steps
+        ):
+            rlb_fmg_coefficient_sync_max_abs = assert_rlb_coefficient_parameters_synced(
+                model,
+                args,
+                device,
+                is_distributed,
+            )
         if device.type == "cuda":
             torch.cuda.synchronize(device)
+            if optimizer_start_event is None or optimizer_end_event is None:
+                raise RuntimeError("CUDA optimizer timing events were lost")
+            optimizer_step_seconds = (
+                optimizer_start_event.elapsed_time(optimizer_end_event)
+                / 1000.0
+            )
             run_cuda_max_memory_allocated = max(
                 run_cuda_max_memory_allocated,
                 int(torch.cuda.max_memory_allocated(device)),
@@ -6800,9 +6977,14 @@ def main():
                 run_cuda_max_memory_reserved,
                 int(torch.cuda.max_memory_reserved(device)),
             )
+        else:
+            optimizer_step_seconds = (
+                time.perf_counter() - optimizer_step_start
+            )
 
         step_time = time.perf_counter() - step_start
         step_times.append(step_time)
+        optimizer_step_times.append(optimizer_step_seconds)
         mean_loss = reduce_mean(local_loss / args.grad_accum, device, is_distributed)
         loss_since_log += mean_loss
         steps_since_log += 1
@@ -6828,7 +7010,13 @@ def main():
 
         if will_log:
             recent = step_times[-args.log_interval :]
+            recent_optimizer = optimizer_step_times[
+                -args.log_interval :
+            ]
             mean_recent_step = sum(recent) / len(recent)
+            mean_recent_optimizer = (
+                sum(recent_optimizer) / len(recent_optimizer)
+            )
             tokens_per_second = global_tokens / mean_recent_step
             record = {
                 "event": "train",
@@ -6843,8 +7031,11 @@ def main():
                 "grad_clip_triggered": bool(grad_clip_triggered),
                 "grad_clip_threshold": args.grad_clip,
                 "forward_backward_seconds": _finite_float(forward_backward_seconds),
-                "optimizer_step_seconds": _finite_float(optimizer_step_seconds),
+                "optimizer_step_seconds": _finite_float(
+                    mean_recent_optimizer
+                ),
                 "ddp_parameter_sync_max_abs": _finite_float(ddp_parameter_sync_max_abs),
+                "rlb_fmg_coefficient_sync_max_abs": _finite_float(rlb_fmg_coefficient_sync_max_abs),
                 "timing_attempt_id": timing_attempt_id,
                 "active_seconds_after_event": time.perf_counter() - start_time,
             }
@@ -6890,6 +7081,47 @@ def main():
                     cleanup_distributed(is_distributed)
                     raise SystemExit(88)
 
+            optimizer_guard_limit = float(
+                args.timing_guard_max_optimizer_step_seconds
+            )
+            if (
+                optimizer_guard_limit > 0.0
+                and step + 1 >= guard_min_step
+            ):
+                guard_optimizer_time = reduce_max(
+                    mean_recent_optimizer,
+                    device,
+                    is_distributed,
+                )
+                if guard_optimizer_time >= optimizer_guard_limit:
+                    guard_record = {
+                        "event": "optimizer_timing_guard_failed",
+                        "activation": args.activation,
+                        "step": step + 1,
+                        "optimizer_step_seconds": guard_optimizer_time,
+                        "max_optimizer_step_seconds": (
+                            optimizer_guard_limit
+                        ),
+                        "timing_guard_min_step": guard_min_step,
+                        "slurm_job_id": slurm_job_id,
+                        "slurm_restart_count": slurm_restart_count,
+                        "slurm_node": slurm_node,
+                        "timing_attempt_id": timing_attempt_id,
+                        "active_seconds_after_event": (
+                            time.perf_counter() - start_time
+                        ),
+                    }
+                    rank0_print(
+                        rank,
+                        json.dumps(guard_record, sort_keys=True),
+                    )
+                    if rank == 0:
+                        write_jsonl(out_path, guard_record)
+                    if is_distributed:
+                        dist.barrier()
+                    cleanup_distributed(is_distributed)
+                    raise SystemExit(88)
+
         if will_eval:
             eval_start = time.perf_counter()
             val_loss = evaluate(model, val_tokens, args, offsets, rank, world_size, device, is_distributed)
@@ -6902,6 +7134,7 @@ def main():
                 "step": step + 1,
                 "val_loss": val_loss,
                 "val_ppl": math.exp(min(20.0, val_loss)),
+                "rlb_fmg_coefficient_sync_max_abs": _finite_float(rlb_fmg_coefficient_sync_max_abs),
                 "timing_attempt_id": timing_attempt_id,
                 "active_seconds_at_val_loss": active_seconds_at_val_loss,
             }
@@ -6966,6 +7199,60 @@ def main():
                     write_jsonl(out_path, stop_record)
                 break
 
+            checkpoint_interval = max(
+                0, int(args.resume_checkpoint_interval)
+            )
+            if (
+                resume_checkpoint is not None
+                and checkpoint_interval > 0
+                and current_step < args.steps
+                and current_step % checkpoint_interval == 0
+            ):
+                checkpoint_active_seconds = (
+                    time.perf_counter() - start_time
+                )
+                _save_exact_resume_checkpoint(
+                    resume_checkpoint,
+                    args=args,
+                    rank=rank,
+                    world_size=world_size,
+                    is_distributed=is_distributed,
+                    device=device,
+                    model=model,
+                    optimizer=optimizer,
+                    train_generator=train_generator,
+                    probe_state=probe_state,
+                    completed_step=current_step,
+                    best_val_loss=best_val_loss,
+                    step_times=step_times,
+                    optimizer_step_times=optimizer_step_times,
+                    grad_clip_observed_steps=grad_clip_observed_steps,
+                    grad_clip_triggered_steps=grad_clip_triggered_steps,
+                    run_cuda_max_memory_allocated=(
+                        run_cuda_max_memory_allocated
+                    ),
+                    run_cuda_max_memory_reserved=(
+                        run_cuda_max_memory_reserved
+                    ),
+                    active_seconds=checkpoint_active_seconds,
+                )
+                if rank == 0:
+                    write_jsonl(
+                        out_path,
+                        {
+                            "event": "resume_checkpoint",
+                            "activation": args.activation,
+                            "step": current_step,
+                            "path": str(
+                                resume_checkpoint.resolve()
+                            ),
+                            "timing_attempt_id": timing_attempt_id,
+                            "active_seconds_after_event": (
+                                time.perf_counter() - start_time
+                            ),
+                        },
+                    )
+
     total_time = time.perf_counter() - start_time
     warmup_drop = min(5, max(0, len(step_times) - 1))
     timed_steps = step_times[warmup_drop:]
@@ -6981,6 +7268,15 @@ def main():
             run_cuda_max_memory_reserved,
             int(torch.cuda.max_memory_reserved(device)),
         )
+        if dist.is_available() and dist.is_initialized():
+            global_memory_peaks = torch.tensor(
+                [run_cuda_max_memory_allocated, run_cuda_max_memory_reserved],
+                device=device,
+                dtype=torch.int64,
+            )
+            dist.all_reduce(global_memory_peaks, op=dist.ReduceOp.MAX)
+            run_cuda_max_memory_allocated = int(global_memory_peaks[0].item())
+            run_cuda_max_memory_reserved = int(global_memory_peaks[1].item())
     summary = {
         "event": "summary",
         "activation": args.activation,
@@ -6989,6 +7285,9 @@ def main():
         "slurm_node": slurm_node,
         "timing_attempt_id": timing_attempt_id,
         "timing_guard_max_seconds_per_step": args.timing_guard_max_seconds_per_step,
+        "timing_guard_max_optimizer_step_seconds": (
+            args.timing_guard_max_optimizer_step_seconds
+        ),
         "timing_guard_min_step": args.timing_guard_min_step,
         "mean_seconds_per_step": mean_step,
         "tokens_per_second": global_tokens / mean_step,
@@ -6997,6 +7296,12 @@ def main():
         "steps": args.steps,
         "completed_steps": completed_steps,
         "completed_tokens": completed_tokens,
+        "realized_lr_audit_steps": realized_lr_audit_steps,
+        "realized_lr_trace_sha256": (
+            realized_lr_trace.hexdigest()
+            if args.fairness_contract == UNIT_LR_WD_FAIRNESS_CONTRACT
+            else None
+        ),
         "grad_clip_observed_steps": grad_clip_observed_steps,
         "grad_clip_triggered_steps": grad_clip_triggered_steps,
         "grad_clip_trigger_fraction": (
@@ -7009,6 +7314,9 @@ def main():
         ),
         "cuda_run_max_memory_reserved": (
             run_cuda_max_memory_reserved if device.type == "cuda" else None
+        ),
+        "cuda_run_memory_peak_scope": (
+            "global_max_all_ranks" if device.type == "cuda" else None
         ),
         "stopped_early": stop_reason is not None,
         "stop_reason": stop_reason,

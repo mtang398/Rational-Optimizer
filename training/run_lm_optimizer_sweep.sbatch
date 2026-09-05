@@ -20,12 +20,12 @@ export TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS=8
 export MAX_JOBS=8
 export PATH="${PWD}/.venv-cu128/bin:${PATH}"
-export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-1}"
+export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-0}"
 
 RUN_NAME="${RUN_NAME:-optimizer_sweep_${SLURM_JOB_ID}}"
 PYTHON="${PWD}/.venv-cu128/bin/python"
 ACTIVATIONS="${ACTIVATIONS:-silu rlb_fused_fixed_strong_ffn rlb_fused_fixed_strong_h2880_ffn}"
-OPTIMIZERS="${OPTIMIZERS:-adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_matrix_policy_onpolicy}"
+OPTIMIZERS="${OPTIMIZERS:-adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw}"
 SEEDS="${SEEDS:-1337}"
 STEPS="${STEPS:-500}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-250}"
@@ -36,7 +36,7 @@ BUILD_EXT_ARGS="${BUILD_EXT_ARGS:-}"
 SKIP_BUILD_EXT="${SKIP_BUILD_EXT:-0}"
 SKIP_PREPARE="${SKIP_PREPARE:-0}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
-ACTIVE_OPTIMIZERS="adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw rational_matrix_policy_onpolicy"
+ACTIVE_OPTIMIZERS="adamw muon lion ademamix schedule_free_adamw adafactor_came soap_adamw"
 
 for optimizer in ${OPTIMIZERS}; do
   case " ${ACTIVE_OPTIMIZERS} " in

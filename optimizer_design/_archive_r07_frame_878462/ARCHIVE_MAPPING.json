@@ -1,0 +1,224 @@
+{
+  "fairness_contract": {
+    "all_internal_lr_wd_scalars": 1.0,
+    "minimum_lr": 3e-05,
+    "model_parameters": 296871080,
+    "name": "rlb-m1-300mtok-4000-unit-lr-wd-v2",
+    "peak_lr": 0.0003,
+    "seed": 1337,
+    "steps": 4000,
+    "structural_parameters": 245366784,
+    "weight_decay": 0.1
+  },
+  "files": {
+    "__init__.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/__init__.py",
+      "bytes": 333,
+      "historical_runtime_file": false,
+      "lines": 8,
+      "original_path": null,
+      "sha256": "668f5c7bbfbe9a16e47d05798171e9dd528f40a821f3d31c8931393b763736fe"
+    },
+    "rlb_group_muon_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_group_muon_core.py",
+      "bytes": 7953,
+      "historical_runtime_file": true,
+      "lines": 196,
+      "original_path": "optimizer_design/rlb_group_muon_core.py",
+      "sha256": "cec37fee0a4ae52d1e5d296dc0e4cad1db5ade8e5f644cc247df1226f760da17"
+    },
+    "rlb_r01.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r01.py",
+      "bytes": 182,
+      "historical_runtime_file": true,
+      "lines": 7,
+      "original_path": "optimizer_design/rlb_r01.py",
+      "sha256": "285c15a7e4e0acf5721f902fb25855e3715f4f9e5b8803412af74247f0c56f62"
+    },
+    "rlb_r01_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r01_core.py",
+      "bytes": 18331,
+      "historical_runtime_file": true,
+      "lines": 427,
+      "original_path": "optimizer_design/rlb_r01_core.py",
+      "sha256": "c49245355e438cc70868973ba38411d4d627fdb812777c68870b6a3b5388df0d"
+    },
+    "rlb_r02.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r02.py",
+      "bytes": 216,
+      "historical_runtime_file": true,
+      "lines": 11,
+      "original_path": "optimizer_design/rlb_r02.py",
+      "sha256": "85914e6146c55d36e6be85a3c7e8e5a578aba3cac433531887cf81fb53ec24be"
+    },
+    "rlb_r02_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r02_core.py",
+      "bytes": 37119,
+      "historical_runtime_file": true,
+      "lines": 879,
+      "original_path": "optimizer_design/rlb_r02_core.py",
+      "sha256": "740cbd164a98b37ef7deeb01f1a49f3e932c8489f3cad66dec3b352b7b99a9c5"
+    },
+    "rlb_r03.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r03.py",
+      "bytes": 401,
+      "historical_runtime_file": true,
+      "lines": 15,
+      "original_path": "optimizer_design/rlb_r03.py",
+      "sha256": "bf8111944954bc8d80a4e0befcf94c364bbe9544badb4d4d0514b55cc2b08566"
+    },
+    "rlb_r03_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r03_core.py",
+      "bytes": 9513,
+      "historical_runtime_file": true,
+      "lines": 241,
+      "original_path": "optimizer_design/rlb_r03_core.py",
+      "sha256": "31fda9c367806b27710858510c98138e05f1680aa7fea3a9712c3259355b1a35"
+    },
+    "rlb_r04_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r04_core.py",
+      "bytes": 18731,
+      "historical_runtime_file": true,
+      "lines": 449,
+      "original_path": "optimizer_design/rlb_r04_core.py",
+      "sha256": "461e4dba14d205aaf1dd3b9f961da1c4162a192306e4aad9c3eaf6360d47f884"
+    },
+    "rlb_r04_revision_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r04_revision_core.py",
+      "bytes": 17577,
+      "historical_runtime_file": true,
+      "lines": 399,
+      "original_path": "optimizer_design/rlb_r04_revision_core.py",
+      "sha256": "a4bebb96b5d50150ebbcdd5472885f887710cc6dace33bbd401e44953a0cae03"
+    },
+    "rlb_r05_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r05_core.py",
+      "bytes": 77134,
+      "historical_runtime_file": true,
+      "lines": 1751,
+      "original_path": "optimizer_design/rlb_r05_core.py",
+      "sha256": "6bb9b983a9c016dcb536ad4e85b04e18fd64527ce8bb33f0756b0fa5a035918b"
+    },
+    "rlb_r05_next_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r05_next_core.py",
+      "bytes": 23267,
+      "historical_runtime_file": true,
+      "lines": 571,
+      "original_path": "optimizer_design/rlb_r05_next_core.py",
+      "sha256": "842a2c0dcd8dc371bc57fcd4fa7e1e656dc2d9ec500d669efa0d0442a7de6523"
+    },
+    "rlb_r05_revision_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r05_revision_core.py",
+      "bytes": 9634,
+      "historical_runtime_file": true,
+      "lines": 209,
+      "original_path": "optimizer_design/rlb_r05_revision_core.py",
+      "sha256": "49ad4f2106c30b7608722003113288a662e3252f58c85ba4ca4dbfc10958eac1"
+    },
+    "rlb_r06_revision_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r06_revision_core.py",
+      "bytes": 8241,
+      "historical_runtime_file": true,
+      "lines": 195,
+      "original_path": "optimizer_design/rlb_r06_revision_core.py",
+      "sha256": "79dafe29a88d778a880115b50e0eab6471f463e29b190fbc2b4f388725dcbe07"
+    },
+    "rlb_r07.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r07.py",
+      "bytes": 413,
+      "historical_runtime_file": true,
+      "lines": 15,
+      "original_path": "optimizer_design/rlb_r07.py",
+      "sha256": "736ccd319392f05eb6881c1aea3ecf22786d1163d828874b5deae0fbc1f83827"
+    },
+    "rlb_r07_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r07_core.py",
+      "bytes": 7363,
+      "historical_runtime_file": true,
+      "lines": 178,
+      "original_path": "optimizer_design/rlb_r07_core.py",
+      "sha256": "0d16158d9e489b88f1d7d3df08f3c57a7197f805c65ac4c542780edb82b15255"
+    },
+    "rlb_r07_frame_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r07_frame_core.py",
+      "bytes": 27334,
+      "historical_runtime_file": true,
+      "lines": 667,
+      "original_path": "optimizer_design/rlb_r07_frame_core.py",
+      "sha256": "f3972bc060e26959ae33170992bd2b1fd2b0635a36d64e29e7c47ff7c6d06bef"
+    },
+    "rlb_r08.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r08.py",
+      "bytes": 435,
+      "historical_runtime_file": true,
+      "lines": 15,
+      "original_path": "optimizer_design/rlb_r08.py",
+      "sha256": "21ec992bd3588d11819d67e3ea1bd6c459832a79f219f69b4eebbb69375ec558"
+    },
+    "rlb_r08_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r08_core.py",
+      "bytes": 15233,
+      "historical_runtime_file": true,
+      "lines": 390,
+      "original_path": "optimizer_design/rlb_r08_core.py",
+      "sha256": "89031fc7dbd7056461fbe2b951916e24ed93d3176062c0bf83f270c2f999136d"
+    },
+    "rlb_r08_next_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r08_next_core.py",
+      "bytes": 14780,
+      "historical_runtime_file": true,
+      "lines": 347,
+      "original_path": "optimizer_design/rlb_r08_next_core.py",
+      "sha256": "cfd3883b2f1db084c0cd61170bd0644fd6bcae034f67de87316702aacc57a691"
+    },
+    "rlb_r09.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r09.py",
+      "bytes": 256,
+      "historical_runtime_file": true,
+      "lines": 10,
+      "original_path": "optimizer_design/rlb_r09.py",
+      "sha256": "439c5a7c01f5d2148f7256a1c8caf598cf505a35a1657785f70c054566fcfc4e"
+    },
+    "rlb_r09_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_r09_core.py",
+      "bytes": 27258,
+      "historical_runtime_file": true,
+      "lines": 657,
+      "original_path": "optimizer_design/rlb_r09_core.py",
+      "sha256": "248507f032ba4f672cf56f1da6487e956b2a2020e06018c34fbbb78783cbd9e9"
+    },
+    "rlb_response_capture_core.py": {
+      "archive_path": "optimizer_design/_archive_r07_frame_878462/rlb_response_capture_core.py",
+      "bytes": 15394,
+      "historical_runtime_file": true,
+      "lines": 357,
+      "original_path": "optimizer_design/rlb_response_capture_core.py",
+      "sha256": "cc084d17663831f971f419d29b8f199e2c0a96d7fac7b8dc63a3d046aea45968"
+    }
+  },
+  "historical_frame_core_sha256": "f3972bc060e26959ae33170992bd2b1fd2b0635a36d64e29e7c47ff7c6d06bef",
+  "historical_job_id": "878462_0",
+  "historical_result_certificates": {
+    "candidate_report_sha256": "039d0634153857e3a7622c922c9ce52149ac252daea85446b79b2e89d0a892f4",
+    "candidate_report_sidecar_sha256": "1b6421f9a7b17363d748e63e8c1dca66d6e65a5229560a3123b03faed935eaf2",
+    "initial_state_sha256": "08a940c7c64d56c53fa417facf8b64cf600965a4eb44e13878d4ed2c21658b3c",
+    "scheduler_log_sha256": "f2baa4131e419c88f479fd710ffd47e546606e1bfe962392816ae70106e732999",
+    "trajectory_sha256": "0efb3b0dc24c6104c43030533bd4811c2e5770a60921db9172793478f6aecd8c"
+  },
+  "historical_source_freeze_manifest_sha256": "9e84fbcb882bbedb83abffcbcd04ae3e23d5f573d010c3c1ae5b83c6719a0b4f",
+  "historical_wrapper_sha256": "736ccd319392f05eb6881c1aea3ecf22786d1163d828874b5deae0fbc1f83827",
+  "launch_runtime_corrections": {
+    "optimizer_design/rlb_r05_core.py": {
+      "actual_launch_sha256": "6bb9b983a9c016dcb536ad4e85b04e18fd64527ce8bb33f0756b0fa5a035918b",
+      "inherited_manifest_sha256": "24f601a7b346e93d54dae7fbc3e10ff54a12cbcb074fb80e48deecb7e986a067",
+      "reason": "pre-launch equation-neutral implementation repair"
+    },
+    "optimizer_design/rlb_r05_next_core.py": {
+      "actual_launch_sha256": "842a2c0dcd8dc371bc57fcd4fa7e1e656dc2d9ec500d669efa0d0442a7de6523",
+      "inherited_manifest_sha256": "75a8807187a618cc7e3898849912f204a5a710aed0ab2d203b842aa20d7e7d1d",
+      "reason": "pre-launch equation-neutral implementation repair"
+    }
+  },
+  "runtime_closure_kind": "bytes_actually_imported_by_completed_job",
+  "schema": "r07_frame_878462_import_isolated_archive_v1"
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the forward-only ICLR 2026 MatrixPolicy experiment manifest."""
+"""Build the retained ICLR 2026 baseline experiment manifest."""
 
 from __future__ import annotations
 
@@ -78,15 +78,6 @@ METHODS = [
     {"method": "rlb_came", "activation": RLB, "optimizer": "adafactor_came", "lr": "0.0003", "min_lr": "0.00003", "weight_decay": "0.10", "extra_args": "--came-confidence-scale 1.0"},
     {"method": "silu_schedulefree", "activation": "silu", "optimizer": "schedule_free_adamw", "lr": "0.0003", "min_lr": "0.00003", "weight_decay": "0.10", "extra_args": "--schedule-free-beta1 0.90 --schedule-free-warmup-steps 0"},
     {"method": "rlb_schedulefree", "activation": RLB, "optimizer": "schedule_free_adamw", "lr": "0.0003", "min_lr": "0.00003", "weight_decay": "0.10", "extra_args": "--schedule-free-beta1 0.90 --schedule-free-warmup-steps 0"},
-    {
-        "method": "rlb_matrixpolicy_original",
-        "activation": RLB,
-        "optimizer": "rational_matrix_policy_onpolicy",
-        "lr": "0.0003",
-        "min_lr": "0.00003",
-        "weight_decay": "0.10",
-        "extra_args": "--rational-matrix-policy-backbone-optimizer adamw --rational-matrix-policy-adam-lr-scale 3.0 --rational-matrix-policy-group-gain-strength 0.20 --rational-matrix-policy-group-pressure-strength 0.10 --rational-matrix-policy-group-activity-damping 0.20 --rational-matrix-policy-group-start 0.02 --rational-matrix-policy-group-end 0.30 --rational-matrix-policy-group-min-scale 0.75 --rational-matrix-policy-group-max-scale 1.35",
-    },
 ]
 
 SEEDS = [1337, 2027, 3407]
@@ -177,7 +168,7 @@ def add_row(rows: list[dict[str, str]], *, phase: str, dataset: str, model_name:
 def build_rows() -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
 
-    preflight_methods = [m for m in METHODS if m["method"] in {"silu_adamw", "rlb_adamw", "rlb_matrixpolicy_original"}]
+    preflight_methods = [m for m in METHODS if m["method"] in {"silu_adamw", "rlb_adamw"}]
     for dataset in MAIN_DATASETS:
         for method in preflight_methods:
             add_row(rows, phase="E0_preflight", dataset=dataset, model_name="M0", train_tokens=100_000_000, seed=1337, method=method)
@@ -194,7 +185,7 @@ def build_rows() -> list[dict[str, str]]:
                 for method in METHODS:
                     add_row(rows, phase=phase, dataset=dataset, model_name="M0", train_tokens=tokens, seed=seed, method=method)
 
-    m1_methods = [m for m in METHODS if m["method"] in {"silu_adamw", "rlb_adamw", "silu_soap", "rlb_soap", "rlb_matrixpolicy_original"}]
+    m1_methods = [m for m in METHODS if m["method"] in {"silu_adamw", "rlb_adamw", "silu_soap", "rlb_soap"}]
     for dataset in ["dclm", "fineweb_edu", "c4_en"]:
         for seed in SEEDS:
             for method in m1_methods:
@@ -211,18 +202,15 @@ def verify(rows: list[dict[str, str]]) -> None:
     for row in rows:
         if int(row["eval_interval"]) > 50:
             raise SystemExit(f"eval interval too sparse in {row['row_id']}")
-        if row["method"] == "rlb_matrixpolicy_original" and row["optimizer"] != "rational_matrix_policy_onpolicy":
-            raise SystemExit(f"bad MatrixPolicy optimizer in {row['row_id']}")
-
     required = {m["method"] for m in METHODS}
     parity_phases = {"E0_preflight", "E1_m0_100m", "E2_m0_300m", "E3_m1_300m"}
     main_phases = {"E1_m0_100m", "E2_m0_300m"}
 
     methods_by_phase = {
-        "E0_preflight": {"silu_adamw", "rlb_adamw", "rlb_matrixpolicy_original"},
+        "E0_preflight": {"silu_adamw", "rlb_adamw"},
         "E1_m0_100m": required,
         "E2_m0_300m": required,
-        "E3_m1_300m": {"silu_adamw", "rlb_adamw", "silu_soap", "rlb_soap", "rlb_matrixpolicy_original"},
+        "E3_m1_300m": {"silu_adamw", "rlb_adamw", "silu_soap", "rlb_soap"},
     }
 
     cells: dict[tuple[str, str, str, str, str], list[dict[str, str]]] = defaultdict(list)
@@ -243,17 +231,6 @@ def verify(rows: list[dict[str, str]]) -> None:
             for row in cell_rows
             if row["method"] in {"silu_adamw", "rlb_adamw"}
         }
-        matrix_outer = {
-            (row["lr"], row["min_lr"], row["weight_decay"])
-            for row in cell_rows
-            if row["method"] == "rlb_matrixpolicy_original"
-        }
-        if adamw_outer != matrix_outer:
-            raise SystemExit(
-                "outer config parity failed for "
-                f"{key}: adamw={sorted(adamw_outer)} matrixpolicy={sorted(matrix_outer)}"
-            )
-
     if main_phases - {row["phase"] for row in rows}:
         raise SystemExit("manifest is missing a main evidence phase")
 

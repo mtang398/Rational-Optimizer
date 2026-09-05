@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Inject the current opaque R10 candidate without changing the trainer."""
+
+from __future__ import annotations
+
+try:
+    from . import candidate_entrypoint_r01 as base
+except ImportError:
+    import candidate_entrypoint_r01 as base
+
+from optimizer_design.rlb_r03 import R03Optimizer
+from optimizer_design.rlb_r10 import R10AttentionOptimizer
+
+
+class R10CompositeOptimizer(base.R01CompositeOptimizer):
+    """Schema-checked R03 router, R10 attention, and literal AdamW."""
+
+    _ROLES = (
+        "complete_r03_router",
+        "rlb_conditioned_row_product_attention",
+        "ordinary_adamw",
+    )
+
+    def state_dict(self):
+        return {
+            "schema": "r10_r03_attention_row_product_composite_v1",
+            "roles": self._ROLES,
+            "children": [child.state_dict() for child in self.optimizers],
+        }
+
+    def load_state_dict(self, state_dict):
+        if (
+            not isinstance(state_dict, dict)
+            or set(state_dict) != {"schema", "roles", "children"}
+            or state_dict.get("schema")
+            != "r10_r03_attention_row_product_composite_v1"
+            or tuple(state_dict.get("roles", ())) != self._ROLES
+            or len(state_dict.get("children", ())) != len(self.optimizers)
+        ):
+            raise RuntimeError("R10 composite checkpoint schema changed")
+        for child, child_state in zip(
+            self.optimizers, state_dict["children"], strict=True
+        ):
+            child.load_state_dict(child_state)
+
+
+def main():
+    base.CANDIDATES = {"r10": R03Optimizer}
+    base.R02AttentionOptimizer = R10AttentionOptimizer
+    base.R01CompositeOptimizer = R10CompositeOptimizer
+    base.main()
+
+
+if __name__ == "__main__":
+    main()

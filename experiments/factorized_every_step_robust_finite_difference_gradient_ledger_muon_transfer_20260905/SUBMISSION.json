@@ -1,0 +1,22 @@
+{
+  "aggregate_job_id": 452321,
+  "array_job_id": 452320,
+  "array_rows": 24,
+  "array_throttle": 2,
+  "candidate_endpoints": 24,
+  "control_endpoints": 24,
+  "exact_internal_optimizer_key": "factorized_every_step_rfd_gradient_ledger_muon_v1",
+  "hardware_request": {
+    "cpus": 16,
+    "exclusive": true,
+    "gpu_count": 4,
+    "gpu_type": "NVIDIA RTX A6000",
+    "memory": "128G",
+    "named_node": null,
+    "node_exclusion": null,
+    "required_feature": "nvlink"
+  },
+  "method": "Factorized Every-Step Robust Finite-Difference Gradient-Ledger Muon",
+  "schema": "factorized_ledger_full_transfer_submission_v1",
+  "submitted_at": "2026-09-05T14:55:50-04:00"
+}

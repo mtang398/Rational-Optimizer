@@ -1,0 +1,67 @@
+{
+  "schema": "r10_row_product_881377_import_isolated_archive_v1",
+  "historical_job_id": "881377_0",
+  "documented_method": "Method3",
+  "historical_source_freeze_manifest_sha256": "77c3af57490d4d34c877a36572c661805e11481871bd7f8ab8a81a5b6caa3988",
+  "historical_preregistration_sha256": "3a19b9de81c117f31c0747f6701e19893232395e11656d5084c8dc122fdcfe9a",
+  "historical_result": {
+    "endpoint_validation_loss": 4.148172855377197,
+    "lead_over_swiglu_muon": 0.08029413223266602,
+    "endpoint_validation_ppl": 63.31820302697175,
+    "late_validation_partial_auc": 4.3503420869509375
+  },
+  "historical_cell": {
+    "trainable_parameters": 296871080,
+    "steps": 4000,
+    "seed": 1337,
+    "lr": 0.0003,
+    "min_lr": 0.00003,
+    "weight_decay": 0.1,
+    "beta1": 0.9,
+    "beta2": 0.95,
+    "eps": 1e-08
+  },
+  "parent_archive": {
+    "path": "../_archive_r07_frame_878462",
+    "mapping_sha256": "23a941b4136f6930a4a6acd199c2bff6861fde7def475dc9725fe0b744a2c7ed",
+    "rlb_r03_py_sha256": "bf8111944954bc8d80a4e0befcf94c364bbe9544badb4d4d0514b55cc2b08566",
+    "rlb_r03_core_py_sha256": "31fda9c367806b27710858510c98138e05f1680aa7fea3a9712c3259355b1a35",
+    "rlb_r02_py_sha256": "85914e6146c55d36e6be85a3c7e8e5a578aba3cac433531887cf81fb53ec24be",
+    "rlb_r02_core_py_sha256": "740cbd164a98b37ef7deeb01f1a49f3e932c8489f3cad66dec3b352b7b99a9c5"
+  },
+  "files": {
+    "__init__.py": {
+      "kind": "replay_infrastructure",
+      "bytes": 71,
+      "lines": 1,
+      "sha256": "cca4fd436e9dcc383ff3b1032ef72950067304489ae728c1fb03503b4284a9e6"
+    },
+    "rlb_r02_core.py": {
+      "kind": "replay_parent_bridge",
+      "bytes": 199,
+      "lines": 7,
+      "sha256": "2e983692a13769a0e642668e70274bd88db6b76a3c36d0bbb8d191e93a9d893e"
+    },
+    "rlb_r10_core.py": {
+      "kind": "byte_exact_historical_source",
+      "original_path": "optimizer_design/rlb_r10_core.py",
+      "bytes": 10174,
+      "lines": 232,
+      "sha256": "fa1bee6c4d5fa0a879d2542a7f135520bde6877e5a85dc34e2bb77aa715585fd"
+    },
+    "rlb_r10.py": {
+      "kind": "byte_exact_historical_source",
+      "original_path": "optimizer_design/rlb_r10.py",
+      "bytes": 273,
+      "lines": 10,
+      "sha256": "db3edafa0ccd9b8e6824f739cd68829dec13db5e4b8689bd622af1d4a128f076"
+    },
+    "candidate_entrypoint_r10.py.source": {
+      "kind": "byte_exact_historical_source_snapshot",
+      "original_path": "experiments/rlb_300m_4000_design_20260731/candidate_entrypoint_r10.py",
+      "bytes": 1734,
+      "lines": 55,
+      "sha256": "f298767aa13fe3c1b33459fbc323594cb69dd537ab6241b455e58d035fa3f754"
+    }
+  }
+}

@@ -49,4 +49,9 @@ experiments/corrections/*/.submit.lock
 experiments/corrections/*/submissions/failed_freeze_*/
 abalation/runs/
 abalation/logs/
+experiments/factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905/runs/
+experiments/factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905/failed_attempts/
+experiments/factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905/results/*/execution.lock
+experiments/rlb_300m_4000_design_20260731/logs/
+experiments/rlb_300m_4000_design_20260731/runs/
 tmp/

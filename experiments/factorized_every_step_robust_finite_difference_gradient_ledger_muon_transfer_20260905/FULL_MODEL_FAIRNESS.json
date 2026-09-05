@@ -1,0 +1,106 @@
+{
+  "passed": true,
+  "reports": [
+    {
+      "all_group_lr_scales_are_one": true,
+      "all_internal_lr_wd_scalars_are_one": true,
+      "arm": "control",
+      "base_lr": 0.0003,
+      "base_weight_decay": 0.1,
+      "covered_parameter_elements": 123551232,
+      "identity": {
+        "arm": "control",
+        "dataset": "c4_en",
+        "matrix_index": 14,
+        "model": "M0",
+        "parameter_count": 123551232,
+        "passed": true,
+        "seed": 3407,
+        "source_manifest_row_index": 225,
+        "train_token_count": 100000000,
+        "val_token_count": 4000000
+      },
+      "minimum_lr": 3e-05,
+      "model": "M0",
+      "optimizer": "adamw",
+      "parameter_count": 123551232,
+      "trainable_parameter_elements": 123551232
+    },
+    {
+      "all_group_lr_scales_are_one": true,
+      "all_internal_lr_wd_scalars_are_one": true,
+      "arm": "candidate",
+      "base_lr": 0.0003,
+      "base_weight_decay": 0.1,
+      "covered_parameter_elements": 123552672,
+      "identity": {
+        "arm": "candidate",
+        "dataset": "c4_en",
+        "matrix_index": 14,
+        "model": "M0",
+        "parameter_count": 123552672,
+        "passed": true,
+        "seed": 3407,
+        "source_manifest_row_index": 225,
+        "train_token_count": 100000000,
+        "val_token_count": 4000000
+      },
+      "minimum_lr": 3e-05,
+      "model": "M0",
+      "optimizer": "factorized_every_step_rfd_gradient_ledger_muon_v1",
+      "parameter_count": 123552672,
+      "trainable_parameter_elements": 123552672
+    },
+    {
+      "all_group_lr_scales_are_one": true,
+      "all_internal_lr_wd_scalars_are_one": true,
+      "arm": "control",
+      "base_lr": 0.0003,
+      "base_weight_decay": 0.1,
+      "covered_parameter_elements": 296867840,
+      "identity": {
+        "arm": "control",
+        "dataset": "c4_en",
+        "matrix_index": 23,
+        "model": "M1",
+        "parameter_count": 296867840,
+        "passed": true,
+        "seed": 3407,
+        "source_manifest_row_index": 505,
+        "train_token_count": 300000000,
+        "val_token_count": 8000000
+      },
+      "minimum_lr": 3e-05,
+      "model": "M1",
+      "optimizer": "muon",
+      "parameter_count": 296867840,
+      "trainable_parameter_elements": 296867840
+    },
+    {
+      "all_group_lr_scales_are_one": true,
+      "all_internal_lr_wd_scalars_are_one": true,
+      "arm": "candidate",
+      "base_lr": 0.0003,
+      "base_weight_decay": 0.1,
+      "covered_parameter_elements": 296871080,
+      "identity": {
+        "arm": "candidate",
+        "dataset": "c4_en",
+        "matrix_index": 23,
+        "model": "M1",
+        "parameter_count": 296871080,
+        "passed": true,
+        "seed": 3407,
+        "source_manifest_row_index": 505,
+        "train_token_count": 300000000,
+        "val_token_count": 8000000
+      },
+      "minimum_lr": 3e-05,
+      "model": "M1",
+      "optimizer": "factorized_every_step_rfd_gradient_ledger_muon_v1",
+      "parameter_count": 296871080,
+      "trainable_parameter_elements": 296871080
+    }
+  ],
+  "schema": "factorized_ledger_m0_m1_full_model_fairness_v1"
+}

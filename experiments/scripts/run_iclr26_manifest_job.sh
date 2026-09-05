@@ -144,7 +144,7 @@ archive_incomplete_jsonl() {
 
 require_nvlink_for_timing_row() {
   case "${ROW_PHASE}" in
-    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_fineweb_edu_seed2027_runtime_repair_100m|E1_rational_only_100m|E2_rational_only_300m|E1_global_rational_optimizers_100m|E2_global_rational_optimizers_300m|E8_primary_100m)
+    E1_fineweb_edu_seed2027_runtime_repair_100m|E1_global_rational_optimizers_100m|E2_global_rational_optimizers_300m)
       ;;
     *)
       return 0
@@ -219,13 +219,6 @@ run_manifest_row() {
   mkdir -p "${run_dir}"
 
   local timing_guard_extra=""
-  case "${ROW_PHASE}" in
-    E1_matrixpolicy_safe_speed_100m|E2_matrixpolicy_safe_speed_300m|E1_rational_only_100m|E2_rational_only_300m|E8_primary_100m)
-      if [[ "${ROW_OPTIMIZER}" == "rational_matrix_policy_onpolicy" ]]; then
-        timing_guard_extra="--timing-guard-min-step ${TIMING_GUARD_MIN_STEP} --timing-guard-max-seconds-per-step ${TIMING_GUARD_MAX_SECONDS_PER_STEP}"
-      fi
-      ;;
-  esac
 
   echo "=== row=${ROW_ROW_INDEX}; id=${ROW_ROW_ID}; phase=${ROW_PHASE}; dataset=${ROW_DATASET}; method=${ROW_METHOD}; seed=${ROW_SEED}; one job uses 4 A6000s ==="
 
