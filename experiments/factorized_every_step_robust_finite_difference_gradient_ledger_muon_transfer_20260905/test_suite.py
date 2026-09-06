@@ -177,6 +177,14 @@ def test_source_port_manifest_is_exact_and_legacy_method_is_absent():
     for item in manifest["files"]:
         path = root / item["path"]
         assert hashlib.sha256(path.read_bytes()).hexdigest() == item["sha256"]
+    exact_activation = {
+        "activation/csrc/rational_ext.cpp",
+        "activation/csrc/rational_cuda_kernel.cu",
+        "activation/rational_opt/__init__.py",
+        "activation/rational_opt/rational.py",
+        "activation/rational_opt/_C.cpython-312-x86_64-linux-gnu.so",
+    }
+    assert exact_activation <= {item["path"] for item in manifest["files"]}
     forbidden = ("matrix" + "policy").lower()
     forbidden_spaced = ("matrix" + " policy").lower()
     inventory = subprocess.check_output(

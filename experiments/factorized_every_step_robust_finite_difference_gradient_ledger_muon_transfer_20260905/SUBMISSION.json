@@ -1,6 +1,6 @@
 {
-  "aggregate_job_id": 506961,
-  "array_job_id": 506959,
+  "aggregate_job_id": 507162,
+  "array_job_id": 507161,
   "array_rows": 24,
   "array_throttle": 2,
   "candidate_endpoints": 24,
@@ -17,13 +17,32 @@
     "required_feature": "nvlink"
   },
   "method": "Factorized Every-Step Robust Finite-Difference Gradient-Ledger Muon",
-  "previous_attempt": {
-    "aggregate_job_id": 452321,
-    "array_job_id": 452320,
-    "failed_before_training": true,
-    "failure": "NVLink topology audit parser mistook the GPU0 data row for the ANSI-formatted header",
-    "training_steps_completed": 0
+  "cuda_smoke_job": {
+    "job_id": 507159,
+    "operations_exercised": [
+      "local_basis_forward",
+      "local_basis_backward",
+      "local_basis_affine_statistics",
+      "local_basis_restricted_backward"
+    ],
+    "passed": true
   },
+  "previous_attempts": [
+    {
+      "aggregate_job_id": 452321,
+      "array_job_id": 452320,
+      "failed_before_training": true,
+      "failure": "NVLink topology audit parser mistook the GPU0 data row for the ANSI-formatted header",
+      "training_steps_completed": 0
+    },
+    {
+      "aggregate_job_id": 506961,
+      "array_job_id": 506959,
+      "failed_before_training": true,
+      "failure": "ported repository still contained the older activation CUDA sources and binary without the restricted-backward operation",
+      "training_steps_completed": 0
+    }
+  ],
   "schema": "factorized_ledger_full_transfer_submission_v1",
-  "submitted_at": "2026-09-06T13:16:45-04:00"
+  "submitted_at": "2026-09-06T13:55:27-04:00"
 }

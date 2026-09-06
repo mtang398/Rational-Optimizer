@@ -66,6 +66,24 @@ def main() -> None:
             raise RuntimeError(f"entrypoint differs from authoritative bytes: {item}")
         entries.append({"path": item, "sha256": digest(local)})
 
+    activation_relatives = (
+        "activation/csrc/rational_ext.cpp",
+        "activation/csrc/rational_cuda_kernel.cu",
+        "activation/rational_opt/__init__.py",
+        "activation/rational_opt/rational.py",
+        "activation/rational_opt/_C.cpython-312-x86_64-linux-gnu.so",
+    )
+    for item in activation_relatives:
+        local = ROOT / item
+        source = AUTHORITATIVE / item
+        if not source.is_file():
+            raise FileNotFoundError(f"authoritative activation artifact missing: {source}")
+        if digest(local) != digest(source):
+            raise RuntimeError(
+                f"activation artifact differs from authoritative bytes: {item}"
+            )
+        entries.append({"path": item, "sha256": digest(local)})
+
     port = {
         "schema": "exact_factorized_ledger_source_port_v1",
         "authoritative_root": str(AUTHORITATIVE),
@@ -82,20 +100,15 @@ def main() -> None:
         and path.name not in {"RESULTS.json"}
     ]
     other_inputs = [
-        ROOT / "activation/csrc/rational_ext.cpp",
-        ROOT / "activation/csrc/rational_cuda_kernel.cu",
-        ROOT / "activation/rational_opt/__init__.py",
-        ROOT / "activation/rational_opt/rational.py",
         ROOT / "training/transformer_lm_compare.py",
         ROOT / "training/fairness_exact_resume.py",
         ROOT / "experiments/manifests/iclr26_main_manifest.csv",
         ROOT / "experiments/rlb_300m_4000_design_20260731/test_factorized_every_step_rfd_gradient_ledger_muon.py",
         *[ROOT / item for item in entrypoint_relatives],
+        *[ROOT / item for item in activation_relatives],
         *exact_paths,
     ]
-    extension = next((ROOT / "activation/rational_opt").glob("_C*.so"), None)
-    if extension is None:
-        raise FileNotFoundError("NVCC-built rational extension is absent")
+    extension = ROOT / activation_relatives[-1]
     all_inputs = sorted(
         {path.resolve() for path in (*package_inputs, *other_inputs, extension)},
         key=str,

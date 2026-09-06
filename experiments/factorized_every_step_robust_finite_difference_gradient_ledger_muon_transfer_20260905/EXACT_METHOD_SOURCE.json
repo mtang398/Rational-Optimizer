@@ -605,6 +605,26 @@
     {
       "path": "experiments/rlb_300m_4000_design_20260731/candidate_entrypoint_scalable_group_muon_base.py",
       "sha256": "daa03b6330e8750a6f12dcc498ae1ccdae4a874c7a8ad1b14b5d2c4eb8b57566"
+    },
+    {
+      "path": "activation/csrc/rational_ext.cpp",
+      "sha256": "19f9bf44b585454baa9327f455423e02c0f0cb0fe9520d050ee768568bcfd49a"
+    },
+    {
+      "path": "activation/csrc/rational_cuda_kernel.cu",
+      "sha256": "359ba8cc4017ac1afef82eeff21e6e22d3d9a44850462c7483ffd09e94109baa"
+    },
+    {
+      "path": "activation/rational_opt/__init__.py",
+      "sha256": "951a5a1bdd9f894897342dc20538da1ee04f2aac3e3a4c6174ca01ad5482bd70"
+    },
+    {
+      "path": "activation/rational_opt/rational.py",
+      "sha256": "12e1936425be5c4cff330e2326586ef8abb8e3269be0b17048ff33f2d0f1f975"
+    },
+    {
+      "path": "activation/rational_opt/_C.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "6e771f5414062bebe32a2c634505c05e46d45b8d61e53056f7f7ac993cdcc83f"
     }
   ],
   "schema": "exact_factorized_ledger_source_port_v1"

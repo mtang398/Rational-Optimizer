@@ -55,7 +55,7 @@ fi
 sha256sum -c "${package}/SOURCE_FREEZE.sha256"
 "${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.audit_runtime_hardware \
   --output "${result_root}/HARDWARE.json"
-"${python}" -c 'from rational_opt import _C; assert hasattr(_C, "local_basis_restricted_backward"); print(_C.__file__)'
+"${python}" -c 'from rational_opt import _C; assert hasattr(_C, "local_basis_restricted_backward"); assert hasattr(_C, "local_basis_affine_statistics"); print(_C.__file__)'
 
 mapfile -t row < <("${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.row_tools \
   describe --matrix-index "${index}" --output-root "${output_root}")

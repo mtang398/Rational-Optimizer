@@ -16,6 +16,14 @@ constexpr int kGradCount = kNumerator + kDenominator;
 constexpr int kThreads = 256;
 constexpr int kMaxBlocks = 4096;
 
+__device__ __forceinline__ float warp_sum(float value) {
+#pragma unroll
+  for (int offset = 16; offset > 0; offset >>= 1) {
+    value += __shfl_down_sync(0xffffffffu, value, offset);
+  }
+  return value;
+}
+
 __device__ __forceinline__ float sign0(float x) {
   return (x > 0.0f) ? 1.0f : ((x < 0.0f) ? -1.0f : 0.0f);
 }
@@ -480,6 +488,90 @@ __global__ void rational_local_basis_forward_kernel(const float* __restrict__ x,
   }
 }
 
+// R03 consumes the same group RMS field as the installed activation together
+// with four empirical affine-projection sums.  Computing those values with
+// separate PyTorch reductions rereads each full activation four times.  This
+// kernel performs the identical scalar construction in one read and emits
+// only one FP64 row-group partial into each final group sum.
+__global__ void rational_local_basis_affine_statistics_kernel(
+    const float* __restrict__ x,
+    const float* __restrict__ feature,
+    float* __restrict__ rho,
+    double* __restrict__ statistics,
+    int64_t rows,
+    int hidden_dim,
+    int groups,
+    float eps) {
+  __shared__ float rms_shared[kThreads];
+  __shared__ float warp_partials[4][kThreads / 32];
+
+  const int row_group = blockIdx.x;
+  const int group = row_group % groups;
+  const int row = row_group / groups;
+  const int width = hidden_dim / groups;
+  const int tid = threadIdx.x;
+  const int lane = tid & 31;
+  const int warp = tid >> 5;
+  const int64_t base_offset =
+      static_cast<int64_t>(row) * hidden_dim
+      + static_cast<int64_t>(group) * width;
+
+  float value = 0.0f;
+  if (tid < width) {
+    value = x[base_offset + tid];
+  }
+  rms_shared[tid] = (tid < width) ? value * value : 0.0f;
+  __syncthreads();
+  for (int offset = blockDim.x / 2; offset > 0; offset >>= 1) {
+    if (tid < offset) {
+      rms_shared[tid] += rms_shared[tid + offset];
+    }
+    __syncthreads();
+  }
+  const float rms =
+      sqrtf(rms_shared[0] / static_cast<float>(width) + eps);
+  if (tid == 0) {
+    rho[row_group] = rms;
+    if (row == 0) {
+      statistics[static_cast<int64_t>(group) * 5] =
+          static_cast<double>(rows * static_cast<int64_t>(width));
+    }
+  }
+
+  float values[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  if (tid < width) {
+    const float normalized = value / rms;
+    // Match the installed output path: H is rounded to FP32 before H/rho.
+    const float function = feature[base_offset + tid] / rms;
+    values[0] = normalized;
+    values[1] = normalized * normalized;
+    values[2] = function;
+    values[3] = normalized * function;
+  }
+
+#pragma unroll
+  for (int statistic = 0; statistic < 4; ++statistic) {
+    const float partial = warp_sum(values[statistic]);
+    if (lane == 0) {
+      warp_partials[statistic][warp] = partial;
+    }
+  }
+  __syncthreads();
+  if (warp == 0) {
+#pragma unroll
+    for (int statistic = 0; statistic < 4; ++statistic) {
+      float partial =
+          lane < (kThreads / 32) ? warp_partials[statistic][lane] : 0.0f;
+      partial = warp_sum(partial);
+      if (lane == 0) {
+        atomicAdd(
+            statistics + static_cast<int64_t>(group) * 5 + statistic + 1,
+            static_cast<double>(partial));
+      }
+    }
+  }
+}
+
 __global__ void rational_local_basis_backward_kernel(const float* __restrict__ grad_output,
                                                      const float* __restrict__ x,
                                                      const float* __restrict__ numerator,
@@ -487,6 +579,9 @@ __global__ void rational_local_basis_backward_kernel(const float* __restrict__ g
                                                      const float* __restrict__ coeff_logits,
                                                      const float* __restrict__ centers,
                                                      const float* __restrict__ beta,
+                                                     const float* __restrict__ affine_alpha,
+                                                     const float* __restrict__ affine_beta,
+                                                     float* __restrict__ nonlinear_y,
                                                      float* __restrict__ grad_x,
                                                      float* __restrict__ grad_numerator,
                                                      float* __restrict__ grad_denominator,
@@ -498,6 +593,7 @@ __global__ void rational_local_basis_backward_kernel(const float* __restrict__ g
                                                      float coeff_limit,
                                                      float eps) {
   __shared__ float shared[kThreads];
+  __shared__ float affine_shared[kThreads];
   __shared__ float grad_shared[kFastRlbMaxGrad][kThreads];
 
   const int row_group = blockIdx.x;
@@ -506,6 +602,7 @@ __global__ void rational_local_basis_backward_kernel(const float* __restrict__ g
   const int width = hidden_dim / groups;
   const int tid = threadIdx.x;
   const int grad_count = kGradCount + 2 * basis_count;
+  const bool restrict_morphology = nonlinear_y != nullptr;
   const int64_t base_offset = static_cast<int64_t>(row) * hidden_dim + static_cast<int64_t>(group) * width;
 
   float value = 0.0f;
@@ -539,6 +636,8 @@ __global__ void rational_local_basis_backward_kernel(const float* __restrict__ g
   }
 
   shared[tid] = (tid < width) ? gy * (f - dfdt * t) : 0.0f;
+  affine_shared[tid] =
+      (restrict_morphology && tid < width) ? gy : 0.0f;
   for (int idx = 0; idx < kFastRlbMaxGrad; ++idx) {
     grad_shared[idx][tid] = (tid < width && idx < grad_count) ? gy * rms * partials[idx] : 0.0f;
   }
@@ -547,6 +646,9 @@ __global__ void rational_local_basis_backward_kernel(const float* __restrict__ g
   for (int offset = blockDim.x / 2; offset > 0; offset >>= 1) {
     if (tid < offset) {
       shared[tid] += shared[tid + offset];
+      if (restrict_morphology) {
+        affine_shared[tid] += affine_shared[tid + offset];
+      }
 #pragma unroll
       for (int idx = 0; idx < kFastRlbMaxGrad; ++idx) {
         grad_shared[idx][tid] += grad_shared[idx][tid + offset];
@@ -556,7 +658,20 @@ __global__ void rational_local_basis_backward_kernel(const float* __restrict__ g
   }
 
   if (tid < width) {
-    grad_x[base_offset + tid] = gy * dfdt + (t / static_cast<float>(width)) * shared[0];
+    float gradient =
+        gy * dfdt + (t / static_cast<float>(width)) * shared[0];
+    if (restrict_morphology) {
+      const float alpha = affine_alpha[group];
+      const float beta_value = affine_beta[group];
+      float feature = rms * f;
+      feature -= value * alpha;
+      feature -= rms * beta_value;
+      nonlinear_y[base_offset + tid] = feature;
+      gradient -= gy * alpha;
+      gradient -=
+          (t / static_cast<float>(width)) * beta_value * affine_shared[0];
+    }
+    grad_x[base_offset + tid] = gradient;
   }
 
   if (tid < grad_count) {
@@ -721,6 +836,37 @@ torch::Tensor rational_local_basis_forward_cuda(torch::Tensor x,
   return y;
 }
 
+std::vector<torch::Tensor> rational_local_basis_affine_statistics_cuda(
+    torch::Tensor x,
+    torch::Tensor feature,
+    double eps,
+    int64_t hidden_dim,
+    int64_t groups) {
+  const at::cuda::CUDAGuard device_guard(x.device());
+  const int64_t rows = x.numel() / hidden_dim;
+  auto rho = torch::empty(
+      {rows, groups, 1},
+      x.options());
+  auto statistics = torch::zeros(
+      {groups, 5},
+      x.options().dtype(torch::kFloat64));
+  const int64_t blocks = rows * groups;
+  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+
+  rational_local_basis_affine_statistics_kernel<<<
+      static_cast<int>(blocks), kThreads, 0, stream>>>(
+      x.data_ptr<float>(),
+      feature.data_ptr<float>(),
+      rho.data_ptr<float>(),
+      statistics.data_ptr<double>(),
+      rows,
+      static_cast<int>(hidden_dim),
+      static_cast<int>(groups),
+      static_cast<float>(eps));
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
+  return {statistics, rho};
+}
+
 std::vector<torch::Tensor> rational_local_basis_backward_cuda(torch::Tensor grad_output,
                                                               torch::Tensor x,
                                                               torch::Tensor numerator,
@@ -751,6 +897,9 @@ std::vector<torch::Tensor> rational_local_basis_backward_cuda(torch::Tensor grad
       coeff_logits.data_ptr<float>(),
       centers.data_ptr<float>(),
       beta.data_ptr<float>(),
+      nullptr,
+      nullptr,
+      nullptr,
       grad_x.data_ptr<float>(),
       grad_numerator.data_ptr<float>(),
       grad_denominator.data_ptr<float>(),
@@ -764,4 +913,62 @@ std::vector<torch::Tensor> rational_local_basis_backward_cuda(torch::Tensor grad
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 
   return {grad_x, grad_numerator, grad_denominator, grad_coeff_logits};
+}
+
+std::vector<torch::Tensor> rational_local_basis_restricted_backward_cuda(
+    torch::Tensor grad_output,
+    torch::Tensor x,
+    torch::Tensor numerator,
+    torch::Tensor denominator,
+    torch::Tensor coeff_logits,
+    torch::Tensor centers,
+    torch::Tensor beta,
+    torch::Tensor affine_alpha,
+    torch::Tensor affine_beta,
+    double coeff_limit,
+    double eps,
+    int64_t hidden_dim,
+    int64_t groups) {
+  const at::cuda::CUDAGuard device_guard(x.device());
+  auto nonlinear_y = torch::empty_like(x);
+  auto nonlinear_grad_x = torch::empty_like(x);
+  auto grad_numerator = torch::zeros_like(numerator);
+  auto grad_denominator = torch::zeros_like(denominator);
+  auto grad_coeff_logits = torch::zeros_like(coeff_logits);
+
+  const int64_t rows = x.numel() / hidden_dim;
+  const int64_t basis_count = centers.size(1);
+  const int64_t blocks = rows * groups;
+  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+
+  rational_local_basis_backward_kernel<<<static_cast<int>(blocks), kThreads, 0, stream>>>(
+      grad_output.data_ptr<float>(),
+      x.data_ptr<float>(),
+      numerator.data_ptr<float>(),
+      denominator.data_ptr<float>(),
+      coeff_logits.data_ptr<float>(),
+      centers.data_ptr<float>(),
+      beta.data_ptr<float>(),
+      affine_alpha.data_ptr<float>(),
+      affine_beta.data_ptr<float>(),
+      nonlinear_y.data_ptr<float>(),
+      nonlinear_grad_x.data_ptr<float>(),
+      grad_numerator.data_ptr<float>(),
+      grad_denominator.data_ptr<float>(),
+      grad_coeff_logits.data_ptr<float>(),
+      rows,
+      static_cast<int>(hidden_dim),
+      static_cast<int>(groups),
+      static_cast<int>(basis_count),
+      static_cast<float>(coeff_limit),
+      static_cast<float>(eps));
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
+
+  return {
+      nonlinear_y,
+      nonlinear_grad_x,
+      grad_numerator,
+      grad_denominator,
+      grad_coeff_logits,
+  };
 }
