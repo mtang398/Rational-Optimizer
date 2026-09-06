@@ -25,8 +25,11 @@ hyperparameter.
 Each matrix row runs its fresh control and fresh candidate endpoint on one
 exclusive four-RTX-A6000 allocation. The scheduler may choose any eligible
 node; no node or exclusion list is named. The node must advertise NVLink, all
-four selected ranks must have direct peer access, `NCCL_P2P_DISABLE=0`, and
-the NVCC-built rational extension must load with PyTorch fallback disabled.
+four selected ranks must have direct peer access, `NCCL_P2P_DISABLE=0`,
+`NCCL_P2P_LEVEL=NVL`, and shared-memory transport enabled. This uses direct
+P2P only across actual NVLink peers and shared memory across the remaining
+pairwise paths, avoiding the cluster's hanging PCIe/CUMEM P2P route. The
+NVCC-built rational extension must load with PyTorch fallback disabled.
 
 This campaign does not repeat the already-passed short timing admission gate.
 The exact end-to-end candidate/control total-training-time ratio comes from

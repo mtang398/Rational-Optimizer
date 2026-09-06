@@ -134,6 +134,7 @@ def main() -> None:
         and every_rank_has_peer
         and every_physical_gpu_has_nvlink_peer
         and os.environ.get("NCCL_P2P_DISABLE") == "0"
+        and os.environ.get("NCCL_P2P_LEVEL") == "NVL"
         and os.environ.get("NCCL_SHM_DISABLE") == "0"
         and os.environ.get("RATIONAL_OPT_TORCH_FALLBACK") == "0"
     )
@@ -159,6 +160,7 @@ def main() -> None:
         "nvlink_status_diagnostic": nvlink.stdout.strip(),
         "nvlink_status_exit_code": nvlink.returncode,
         "nccl_p2p_disable": os.environ.get("NCCL_P2P_DISABLE"),
+        "nccl_p2p_level": os.environ.get("NCCL_P2P_LEVEL"),
         "nccl_shm_disable": os.environ.get("NCCL_SHM_DISABLE"),
         "torch_fallback": os.environ.get("RATIONAL_OPT_TORCH_FALLBACK"),
     }

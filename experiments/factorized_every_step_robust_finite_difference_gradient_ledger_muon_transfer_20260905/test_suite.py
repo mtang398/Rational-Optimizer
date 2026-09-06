@@ -108,7 +108,7 @@ def test_launcher_is_unpinned_four_a6000_nvlink_p2p_endpoint_pair():
         "#SBATCH --constraint=nvlink",
         "#SBATCH --gres=gpu:nvidia_rtx_a6000:4",
         "#SBATCH --cpus-per-gpu=4",
-        "NCCL_P2P_DISABLE=0 NCCL_SHM_DISABLE=0",
+        "NCCL_P2P_DISABLE=0 NCCL_P2P_LEVEL=NVL NCCL_SHM_DISABLE=0",
         "audit_runtime_hardware",
         "control_endpoint",
         "candidate_endpoint_step1000_screen",

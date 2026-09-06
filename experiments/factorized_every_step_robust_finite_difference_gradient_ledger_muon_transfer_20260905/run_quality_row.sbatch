@@ -24,7 +24,7 @@ export PATH="/usr/local/slurm/current/bin:/usr/local/bin:/usr/bin:/bin"
 export PYTHONHASHSEED=0 PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 PYTHONDONTWRITEBYTECODE=1
 export PYTHONPATH="${PWD}/activation:${PWD}:${PWD}/.venv-cu128/lib/python3.12/site-packages:/home/mt872/.local/lib/python3.12/site-packages"
 export RATIONAL_OPT_TORCH_FALLBACK=0
-export NCCL_P2P_DISABLE=0 NCCL_SHM_DISABLE=0
+export NCCL_P2P_DISABLE=0 NCCL_P2P_LEVEL=NVL NCCL_SHM_DISABLE=0
 export NCCL_ALGO="Ring;allreduce:Tree" NCCL_ASYNC_ERROR_HANDLING=1 TORCH_NCCL_BLOCKING_WAIT=1
 export CUBLAS_WORKSPACE_CONFIG=:4096:8 PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 export OMP_NUM_THREADS=4 TOKENIZERS_PARALLELISM=false

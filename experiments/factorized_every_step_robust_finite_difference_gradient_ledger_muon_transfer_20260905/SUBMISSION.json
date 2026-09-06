@@ -1,6 +1,6 @@
 {
-  "aggregate_job_id": 507162,
-  "array_job_id": 507161,
+  "aggregate_job_id": 507199,
+  "array_job_id": 507198,
   "array_rows": 24,
   "array_throttle": 2,
   "candidate_endpoints": 24,
@@ -17,6 +17,19 @@
     "required_feature": "nvlink"
   },
   "method": "Factorized Every-Step Robust Finite-Difference Gradient-Ledger Muon",
+  "nccl_transport_smoke_jobs": [
+    {
+      "job_id": 507185,
+      "no_p2p_custom_passed": true,
+      "p2p_custom_timed_out": true,
+      "p2p_default_timed_out": true
+    },
+    {
+      "full_p2p_legacy_cuda_ipc_passed": true,
+      "job_id": 507195,
+      "nvlink_only_p2p_passed": true
+    }
+  ],
   "cuda_smoke_job": {
     "job_id": 507159,
     "operations_exercised": [
@@ -41,8 +54,15 @@
       "failed_before_training": true,
       "failure": "ported repository still contained the older activation CUDA sources and binary without the restricted-backward operation",
       "training_steps_completed": 0
+    },
+    {
+      "aggregate_job_id": 507162,
+      "array_job_id": 507161,
+      "failed_before_training": true,
+      "failure": "unrestricted NCCL PCIe/CUMEM P2P stalled all four ranks before the configuration record",
+      "training_steps_completed": 0
     }
   ],
   "schema": "factorized_ledger_full_transfer_submission_v1",
-  "submitted_at": "2026-09-06T13:55:27-04:00"
+  "submitted_at": "2026-09-06T14:12:04-04:00"
 }
