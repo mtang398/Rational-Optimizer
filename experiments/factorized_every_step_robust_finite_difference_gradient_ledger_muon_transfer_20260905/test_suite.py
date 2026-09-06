@@ -120,6 +120,16 @@ def test_launcher_is_unpinned_four_a6000_nvlink_p2p_endpoint_pair():
     assert "gate_runtime" not in launcher
 
 
+def test_launcher_uses_scale_valid_locked_telemetry_schedules():
+    launcher = (suite.PACKAGE / "run_quality_row.sbatch").read_text()
+    m0 = "E9_OPTIMIZER_TELEMETRY_STEPS=1,100,200,500,1000,1500,2000,2500,3000,3050"
+    m1 = m0 + ",3500,4000,5000,6000,7000,8000,9000,9150"
+    assert launcher.count(m0) == 2
+    assert launcher.count(m1) == 1
+    assert 'case "${steps}" in' in launcher
+    assert "unsupported endpoint for locked telemetry schedule" in launcher
+
+
 def test_nvlink_audit_parses_ansi_header_and_pairwise_a6000_topology():
     topology = """\
 \x1b[4mGPU0 GPU1 GPU2 GPU3 CPU Affinity\x1b[0m

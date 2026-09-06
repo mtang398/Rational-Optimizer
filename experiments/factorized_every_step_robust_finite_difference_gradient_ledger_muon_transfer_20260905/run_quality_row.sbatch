@@ -32,7 +32,6 @@ export HF_HOME="${PWD}/experiments/cache/huggingface"
 export HF_DATASETS_CACHE="${HF_HOME}/datasets" TRANSFORMERS_CACHE="${HF_HOME}/transformers"
 export HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 E9_STRICT_GPU_METADATA=1
 export E9_ARM_ID="factorized_every_step_rfd_gradient_ledger_muon_v1"
-export E9_OPTIMIZER_TELEMETRY_STEPS=1,100,200,500,1000,1500,2000,2500,3000,3050,3500,4000,5000,6000,7000,8000,9000,9150
 
 # On this cluster an exclusive request can expose every physical device on an
 # eight-GPU host.  Restrict the process to the first four Slurm allocation IDs.
@@ -63,6 +62,21 @@ model="${row[0]}"
 dataset="${row[1]}"
 seed="${row[2]}"
 steps="${row[3]}"
+# Keep the same locked observation cadence at both scales, with the exact
+# endpoint appended.  The trainer rejects observation steps beyond the row's
+# endpoint, so M0 must not inherit the M1-only checkpoints.
+case "${steps}" in
+  3050)
+    export E9_OPTIMIZER_TELEMETRY_STEPS=1,100,200,500,1000,1500,2000,2500,3000,3050
+    ;;
+  9150)
+    export E9_OPTIMIZER_TELEMETRY_STEPS=1,100,200,500,1000,1500,2000,2500,3000,3050,3500,4000,5000,6000,7000,8000,9000,9150
+    ;;
+  *)
+    echo "unsupported endpoint for locked telemetry schedule: ${steps}" >&2
+    exit 93
+    ;;
+esac
 control_jsonl="${row[4]}"
 candidate_jsonl="${row[5]}"
 control_run="${row[6]}"

@@ -1,6 +1,6 @@
 {
-  "aggregate_job_id": 507199,
-  "array_job_id": 507198,
+  "aggregate_job_id": 507224,
+  "array_job_id": 507221,
   "array_rows": 24,
   "array_throttle": 2,
   "candidate_endpoints": 24,
@@ -61,8 +61,15 @@
       "failed_before_training": true,
       "failure": "unrestricted NCCL PCIe/CUMEM P2P stalled all four ranks before the configuration record",
       "training_steps_completed": 0
+    },
+    {
+      "aggregate_job_id": 507199,
+      "array_job_id": 507198,
+      "failed_before_training": true,
+      "failure": "the global diagnostic checkpoint list included M1-only steps beyond the M0 endpoint",
+      "training_steps_completed": 0
     }
   ],
   "schema": "factorized_ledger_full_transfer_submission_v1",
-  "submitted_at": "2026-09-06T14:12:04-04:00"
+  "submitted_at": "2026-09-06T14:17:18-04:00"
 }
