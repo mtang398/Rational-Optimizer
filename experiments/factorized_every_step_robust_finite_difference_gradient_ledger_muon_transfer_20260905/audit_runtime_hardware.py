@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -31,6 +32,33 @@ def slurm_value(description: str, key: str) -> str | None:
         raise RuntimeError(f"Slurm job description lacks {key}")
     value = token[len(prefix):]
     return None if value == "(null)" else value
+
+
+def nvlink_peer_map(
+    topology: str, selected_indices: list[str]
+) -> dict[str, bool]:
+    """Return whether each selected physical GPU has a selected NVLink peer."""
+    topology_rows: dict[str, list[str]] = {}
+    for line in topology.splitlines():
+        fields = line.split()
+        if not fields or re.fullmatch(r"GPU[0-9]+", fields[0]) is None:
+            continue
+        # A matrix data row contains its diagonal X entry; the header does not.
+        if "X" not in fields[1:]:
+            continue
+        topology_rows[fields[0][3:]] = fields[1:]
+    topology_columns = sorted(topology_rows, key=int)
+    result: dict[str, bool] = {}
+    for physical_index in selected_indices:
+        peer_values = dict(
+            zip(topology_columns, topology_rows.get(physical_index, []))
+        )
+        result[physical_index] = any(
+            peer_values.get(other, "").startswith("NV")
+            for other in selected_indices
+            if other != physical_index
+        )
+    return result
 
 
 def main() -> None:
@@ -82,24 +110,7 @@ def main() -> None:
         token if token.isdigit() else uuid_to_index.get(token, "")
         for token in selected_tokens
     ]
-    topology_rows = {
-        fields[0][3:]: fields[1:]
-        for line in topology.splitlines()
-        if (fields := line.split()) and fields[0].startswith("GPU")
-    }
-    topology_header = next(
-        (line.split() for line in topology.splitlines() if line.lstrip().startswith("GPU0")),
-        [],
-    )
-    topology_columns = [item[3:] for item in topology_header if item.startswith("GPU")]
-    nvlink_peer_by_physical_index = {}
-    for physical_index in selected_indices:
-        values = topology_rows.get(physical_index, [])
-        peer_values = dict(zip(topology_columns, values))
-        nvlink_peer_by_physical_index[physical_index] = any(
-            peer_values.get(other, "").startswith("NV")
-            for other in selected_indices if other != physical_index
-        )
+    nvlink_peer_by_physical_index = nvlink_peer_map(topology, selected_indices)
     every_physical_gpu_has_nvlink_peer = bool(selected_indices) and all(
         selected_indices
     ) and all(nvlink_peer_by_physical_index.values())

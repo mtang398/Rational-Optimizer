@@ -11,6 +11,7 @@ from optimizer_design.rlb_factorized_every_step_rfd_gradient_ledger_muon import 
 from training import transformer_lm_compare as trainer
 
 from . import suite
+from .audit_runtime_hardware import nvlink_peer_map
 from .row_tools import terminal
 
 
@@ -117,6 +118,22 @@ def test_launcher_is_unpinned_four_a6000_nvlink_p2p_endpoint_pair():
     assert "#SBATCH --exclude=" not in launcher
     assert "benchmark_runtime" not in launcher
     assert "gate_runtime" not in launcher
+
+
+def test_nvlink_audit_parses_ansi_header_and_pairwise_a6000_topology():
+    topology = """\
+\x1b[4mGPU0 GPU1 GPU2 GPU3 CPU Affinity\x1b[0m
+GPU0 X NODE NODE NV4 0-31
+GPU1 NODE X NV4 PIX 0-31
+GPU2 NODE NV4 X PIX 0-31
+GPU3 NV4 PIX PIX X 0-31
+"""
+    assert nvlink_peer_map(topology, ["0", "1", "2", "3"]) == {
+        "0": True,
+        "1": True,
+        "2": True,
+        "3": True,
+    }
 
 
 def test_scaling_is_activation_position_invariant_and_owner_free():
