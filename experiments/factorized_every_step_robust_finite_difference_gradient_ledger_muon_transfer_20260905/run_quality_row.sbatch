@@ -77,13 +77,8 @@ case "${steps}" in
     exit 93
     ;;
 esac
-control_jsonl="${row[4]}"
 candidate_jsonl="${row[5]}"
-control_run="${row[6]}"
 candidate_run="${row[7]}"
-result_json="${result_root}/RESULT.json"
-screen="${result_root}/STEP1000_SCREEN.json"
-control_stdout="${result_root}/CONTROL.stdout.log"
 candidate_stdout="${result_root}/CANDIDATE.stdout.log"
 failure_stage="row_setup"
 failure_json="${result_root}/FAILURE-${SLURM_JOB_ID}-${SLURM_RESTART_COUNT:-0}.json"
@@ -95,8 +90,8 @@ record_failure() {
     set +e
     "${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.record_failure \
       --matrix-index "${index}" --stage "${failure_stage}" --exit-code "${code}" \
-      --screen "${screen}" --output "${failure_json}"
-    for log_path in "${control_stdout}" "${candidate_stdout}"; do
+      --output "${failure_json}"
+    for log_path in "${candidate_stdout}"; do
       if test -f "${log_path}"; then gzip -f "${log_path}"; fi
     done
   fi
@@ -104,14 +99,10 @@ record_failure() {
 }
 trap record_failure EXIT
 
-if test -s "${result_json}"; then
-  "${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.row_tools \
-    terminal --path "${control_jsonl}" --steps "${steps}"
+if "${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.row_tools \
+    terminal --path "${candidate_jsonl}" --steps "${steps}"; then
   "${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.row_tools \
     terminal --path "${candidate_jsonl}" --steps "${steps}"
-  "${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.analyze_row \
-    --matrix-index "${index}" --control "${control_jsonl}" \
-    --candidate "${candidate_jsonl}" --output "${result_json}"
   sha256sum -c "${package}/SOURCE_FREEZE.sha256"
   exit 0
 fi
@@ -127,54 +118,15 @@ archive_arm() {
     mv "${run_dir}" "${package}/failed_attempts/${run}-${SLURM_JOB_ID}-${SLURM_RESTART_COUNT:-0}-${stamp}"
   fi
 }
-archive_arm "${control_jsonl}" "${control_run}"
 archive_arm "${candidate_jsonl}" "${candidate_run}"
 
-failure_stage="control_endpoint"
+failure_stage="candidate_endpoint"
 "${python}" -m torch.distributed.run --standalone --nproc_per_node=4 \
   -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.suite \
-  --matrix-index "${index}" --arm control --output-root "${output_root}" \
-  >"${control_stdout}" 2>&1
-"${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.row_tools \
-  terminal --path "${control_jsonl}" --steps "${steps}"
-
-failure_stage="candidate_endpoint_step1000_screen"
-setsid "${python}" -m torch.distributed.run --standalone --nproc_per_node=4 \
-  -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.suite \
   --matrix-index "${index}" --arm candidate --output-root "${output_root}" \
-  >"${candidate_stdout}" 2>&1 &
-train_pid=$!
-while kill -0 "${train_pid}" 2>/dev/null; do
-  set +e
-  "${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.monitor_step1000 \
-    --matrix-index "${index}" --control "${control_jsonl}" \
-    --candidate "${candidate_jsonl}" --output "${screen}"
-  status=$?
-  set -e
-  if test "${status}" -eq 0; then break; fi
-  if test "${status}" -eq 4; then
-    kill -TERM -- "-${train_pid}" 2>/dev/null || true
-    wait "${train_pid}" || true
-    echo "candidate interrupted: negative paired step-1,000 lead for ${model}/${dataset}/seed${seed}" >&2
-    exit 4
-  fi
-  if test "${status}" -ne 3; then
-    kill -TERM -- "-${train_pid}" 2>/dev/null || true
-    wait "${train_pid}" || true
-    exit "${status}"
-  fi
-  sleep 20
-done
-wait "${train_pid}"
+  >"${candidate_stdout}" 2>&1
 "${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.row_tools \
   terminal --path "${candidate_jsonl}" --steps "${steps}"
-"${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.monitor_step1000 \
-  --matrix-index "${index}" --control "${control_jsonl}" \
-  --candidate "${candidate_jsonl}" --output "${screen}"
-failure_stage="endpoint_analysis"
-"${python}" -m experiments.factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905.analyze_row \
-  --matrix-index "${index}" --control "${control_jsonl}" \
-  --candidate "${candidate_jsonl}" --output "${result_json}"
 failure_stage="post_run_source_freeze"
 sha256sum -c "${package}/SOURCE_FREEZE.sha256"
-gzip -f "${control_stdout}" "${candidate_stdout}"
+gzip -f "${candidate_stdout}"

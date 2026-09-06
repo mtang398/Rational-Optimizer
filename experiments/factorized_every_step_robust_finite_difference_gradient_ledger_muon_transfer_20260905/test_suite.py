@@ -101,7 +101,7 @@ def test_terminal_requires_one_complete_trajectory(tmp_path):
     assert not terminal(path, 3050)
 
 
-def test_launcher_is_unpinned_four_a6000_nvlink_p2p_endpoint_pair():
+def test_launcher_is_unpinned_four_a6000_nvlink_p2p_candidate_only():
     launcher = (suite.PACKAGE / "run_quality_row.sbatch").read_text()
     required = (
         "#SBATCH --exclusive",
@@ -110,14 +110,15 @@ def test_launcher_is_unpinned_four_a6000_nvlink_p2p_endpoint_pair():
         "#SBATCH --cpus-per-gpu=4",
         "NCCL_P2P_DISABLE=0 NCCL_P2P_LEVEL=NVL NCCL_SHM_DISABLE=0",
         "audit_runtime_hardware",
-        "control_endpoint",
-        "candidate_endpoint_step1000_screen",
+        'failure_stage="candidate_endpoint"',
     )
     assert all(marker in launcher for marker in required)
     assert "#SBATCH --nodelist=" not in launcher
     assert "#SBATCH --exclude=" not in launcher
     assert "benchmark_runtime" not in launcher
     assert "gate_runtime" not in launcher
+    assert "--arm control" not in launcher
+    assert "control_endpoint" not in launcher
 
 
 def test_launcher_uses_scale_valid_locked_telemetry_schedules():
