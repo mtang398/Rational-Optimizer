@@ -1,59 +1,72 @@
 # RationalOPT
 
-RationalOPT studies loss-aware coordination of structured update directions for
-Rational Latent Basis Transformer feed-forward layers.
+RationalOPT contains two coupled Transformer components:
 
-The active optimizer is **Factorized Every-Step Robust Finite-Difference
-Gradient-Ledger Muon, version 1**. The repository carries the complete optimizer
-implementation and its exact experiment entrypoint; no reduced proxy is used.
+- **GRAIN** — Groupwise Rational Activation with Internal Normalization.
+- **TILLER** — Tangents Informed by a Loss Ledger for Equal-budget Reweighting.
 
-## Existing evidence
-
-- M0/DCLM/3,050 steps, three-seed mean: `4.337422212` versus SwiGLU+AdamW
-  `4.405600000`, for a final lead of `+0.068177788`.
-- M1/FineWeb-Edu/9,150 steps: `3.649184942` versus SwiGLU+Muon `3.690944910`,
-  for a final lead of `+0.041759968`.
-- Qualifying matched end-to-end timing ratio: `1.049116783x`.
-
-These are historical source records. The active campaign requires newly
-completed matched endpoints for final transfer claims.
-
-## Locked transfer campaign
-
-- M0: DCLM, FineWeb-Edu, FineWeb, Dolma-sample, and C4; seeds `1337`, `2027`,
-  and `3407`; 3,050 steps; control SwiGLU+AdamW.
-- M1: DCLM, FineWeb-Edu, and C4; the same seeds; 9,150 steps; control
-  SwiGLU+Muon.
-- LR `3e-4`, minimum LR `3e-5`, warmup `200`, weight decay `0.1`, betas
-  `(0.9, 0.95)`, epsilon `1e-8`, clipping `1.0`, initialization, schedule,
-  model, batching, token order, evaluation, and diagnostics are inherited
-  exactly from the corresponding original control cell.
-- Candidate hyperparameters are frozen to the successful implementation. No
-  transfer-specific tuning is permitted.
-
-Every row reports endpoint loss, absolute matched lead, step-1,000 lead,
-end-to-end total time, exact total-time ratio, and scalability evidence. A
-candidate run is terminated if its matched lead is negative at step 1,000; a
-partial trajectory never counts as endpoint evidence.
-
-## Scalability contract
-
-The method is owner-free. It requires no complete-layer ownership,
-owner-local mathematics, state proportional to total activation positions,
-dense `(LG) x (LG)` materialization, dense cubic solve in `LG`, or
-parameter-sized selected-update publication. Its declared persistent state is
-`O(LH + LGd + 64LG)`, with fixed-size transaction solves.
+GRAIN replaces a SwiGLU feed-forward block with a parameter-matched grouped
+rational block. TILLER uses loss responses collected across GRAIN groups to
+coordinate their structured update directions under a fixed global update
+budget.
 
 ## Repository map
 
 ```text
-activation/                 Rational Latent Basis activations and fused kernels
-optimizer_design/           Complete optimizer implementation and audits
-training/                   Matched language-model training harness
-experiments/                Locked manifests, launchers, reports, and raw records
-RLB_OPTIMIZER_FAIRNESS_CONTRACT.md
-REPO_STORAGE_POLICY.md
+activation/          GRAIN and SwiGLU definitions, Python operators, CUDA kernels
+optimizer_design/    TILLER mathematics and implementation
+training/            Shared Transformer trainer and baseline optimizers
+experiments/         Manifests, launchers, validation, and compact results
+paper/               Reserved for the manuscript
 ```
 
-Large token caches and virtual environments remain local and ignored. New
-campaigns reuse shared token caches rather than duplicating them.
+Every experiment is generated from a manifest row. The row records the model,
+dataset slice, seed, token budget, optimizer, activation, learning-rate
+schedule, weight decay, batching, initialization, evaluation cadence, and all
+method arguments used by the shared trainer.
+
+## Install
+
+The reference environment uses Python 3.12, PyTorch 2.11.0 with CUDA 12.8,
+and four NVIDIA RTX A6000 GPUs for the reported distributed runs.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python setup.py build_ext --inplace
+```
+
+The CUDA build creates `rational_opt._C` inside `activation/rational_opt/`.
+
+## Verify
+
+```bash
+.venv/bin/python -m experiments.protocol.build_activation_optimizer_manifest --print-summary
+.venv/bin/python -m experiments.protocol.build_matrix
+.venv/bin/python -m experiments.protocol.verify_repository
+.venv/bin/python -m pytest
+```
+
+## Reproduce
+
+For the primary 18-layer suite, submit Muon activation pairs first, followed
+by TILLER, AdamW, and the remaining activation–optimizer pairs:
+
+```bash
+suite=18l_1024d_300m_tokens_9150_steps
+sbatch --array=0-29%2 \
+  experiments/protocol/run_activation_optimizer_sweep.sbatch muon "$suite"
+```
+
+After that array is terminal, submit the TILLER, AdamW, and remaining stages
+in order using the commands in
+[experiments/protocol](experiments/protocol/). Review the recorded step-1,000
+screens before advancing to AdamW.
+
+Each TILLER row reuses the completed control selected by `matrix.json` and runs
+the candidate under the same four-GPU RTX A6000/NVLink execution standard.
+The launcher records the assigned hardware and topology, checks the source
+manifest, and writes endpoint and timing records.
+See [experiments/protocol](experiments/protocol/) for the complete command and
+[experiments/results](experiments/results/) for the compact result tables.

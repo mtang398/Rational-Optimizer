@@ -12,8 +12,40 @@ build/
 dist/
 *.egg-info/
 
-# Local experiment caches and large model artifacts
+# Superseded local compatibility files
+training/aggregate_lm_multiseed.py
+training/fairness_exact_resume.py
+training/run_lm_optimizer_sweep.sbatch
+training/transformer_lm_compare.py
+
+# TILLER package boundary
+optimizer_design/*
+!optimizer_design/README.md
+!optimizer_design/__init__.py
+!optimizer_design/tiller.py
+!optimizer_design/_tiller/
+!optimizer_design/_tiller/**
+optimizer_design/_tiller/**/__pycache__/
+optimizer_design/_tiller/**/*.py[cod]
+
+# Experiment working data
 experiments/cache/
+experiments/manifests/
+experiments/scripts/
+experiments/runs/
+experiments/corrections/
+experiments/*_transfer_20260905/
+experiments/*_design_20260731/
+experiments/tiller_12layer_768wide_300m_token_completion_20260907/
+experiments/tiller_296m_parameter_activation_optimizer_factorial_20260907/
+experiments/protocol/logs/
+experiments/protocol/runs/
+experiments/protocol/failed_attempts/
+experiments/protocol/results/
+tmp/
+slurm-*.out
+
+# Large model artifacts
 *.pt
 *.pth
 *.ckpt
@@ -23,7 +55,9 @@ experiments/cache/
 .DS_Store
 *.swp
 
-# Local TeX build and visual-audit artifacts
+# Paper placeholder and local TeX build files
+paper/*
+!paper/.gitkeep
 .TinyTeX/
 *.aux
 *.bbl
@@ -33,25 +67,3 @@ experiments/cache/
 *.log
 *.out
 missfont.log
-paper/iclr_method_draft/visual_audit/
-paper/iclr_method_draft/figures_src/*.pdf
-
-# Generated experiment logs and raw transport probes
-experiments/runs/logs/*.out
-experiments/runs/logs/ract-wt103-opt-*.out
-experiments/runs/iclr26_main/
-experiments/runs/lm_optimizer_sweep/
-experiments/corrections/*/runtime/
-experiments/corrections/*/cache/
-experiments/corrections/*/runs/
-experiments/corrections/*/logs/
-experiments/corrections/*/.submit.lock
-experiments/corrections/*/submissions/failed_freeze_*/
-abalation/runs/
-abalation/logs/
-experiments/factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905/runs/
-experiments/factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905/failed_attempts/
-experiments/factorized_every_step_robust_finite_difference_gradient_ledger_muon_transfer_20260905/results/*/execution.lock
-experiments/rlb_300m_4000_design_20260731/logs/
-experiments/rlb_300m_4000_design_20260731/runs/
-tmp/

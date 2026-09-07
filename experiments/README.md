@@ -1,29 +1,21 @@
 # Experiments
 
-The active experiment package validates **Factorized Every-Step Robust
-Finite-Difference Gradient-Ledger Muon, version 1** across the locked M0 and M1
-transfer suites.
+This directory connects declarative experiment rows to the shared trainer and
+stores compact, reviewable results.
 
-## Evidence rules
+```text
+protocol/   manifests, matrix builders, launchers, checks, and collectors
+results/    checkpoints, endpoints, timing, and summaries grouped by optimizer
+```
 
-- Build every candidate row from the original AdamW or Muon control cell.
-- Permit differences only in activation, optimizer identity, run/output name,
-  and the audit contract that binds the complete implementation.
-- Keep LR, minimum LR, WD and parameter routing, betas, epsilon, clipping,
-  schedule, initialization, data tokens and order, model, batching, evaluation,
-  diagnostics, and seeds exactly matched.
-- Use generic four-RTX-A6000 requests without a named-node pin.
-- Verify the NVCC-built fused activation and enable peer-to-peer GPU
-  communication.
-- Record topology rather than selecting a particular node.
-- Stop a candidate whose matched step-1,000 lead is negative.
-- Count only completed endpoints as quality evidence.
+The activation–optimizer manifest covers AdamW, Muon, Lion, SOAP, AdEMAMix,
+CAME, Schedule-Free AdamW, and TILLER where applicable. Each optimizer has its
+own directory under `results/`; model scale, dataset, seed, activation, and
+training budget remain columns rather than directory levels, so later suites
+can extend the same schema.
 
-## Matrix
-
-- M0: five datasets x three seeds x two arms, 3,050 steps, AdamW control.
-- M1: three datasets x three seeds x two arms, 9,150 steps, Muon control.
-- Total: 24 paired cells and 48 endpoint trajectories.
-
-Reports include endpoint loss, absolute lead, lead retention, exact end-to-end
-total-time ratio, and scalability evidence for every row.
+The published inventory spans a 12-layer, 768-wide model at 100M and 300M
+training tokens, plus the primary 18-layer, 1,024-wide model at 300M tokens.
+Every endpoint suite covers DCLM, FineWeb-Edu, FineWeb, Dolma sample, and C4
+with seeds 1337, 2027, and 3407. The protocol README gives the exact inventory
+and launch commands.

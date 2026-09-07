@@ -1,0 +1,99 @@
+{
+  "schema": "rationalopt_token_fingerprints_v2",
+  "sample_hash_definition": "SHA-256 over shape, dtype, element count, first 4096 int32 tokens, and last 4096 int32 tokens",
+  "content_hash_definition": "SHA-256 over the contiguous logical int32 token bytes in index order",
+  "tokenizer": "gpt2",
+  "tokenizer_revision": "607a30d783dfa663caf39e06633721c8d4cfcd7e",
+  "cells": [
+    {
+      "dataset": "dclm",
+      "train_tokens": 100000000,
+      "validation_tokens": 4000000,
+      "train_token_content_sha256": "2df58796ea25ca6b56f7f7c6ea51fabf3cc00cef8a50bf2202f3cc9304a1749f",
+      "validation_token_content_sha256": "14c276272407221e05503e25be3bdb613ff60beb3f502d5d552dec45cd58bb73",
+      "train_token_sample_sha256": "674ed3aa3df0f2f9a422ceab707a6c3d23519ca4608502bf693c5ee7b19a8230",
+      "validation_token_sample_sha256": "90c117a0cdb584c70a7a9b90b82f6476a15a2cb35834d3baf1a209f43e543003"
+    },
+    {
+      "dataset": "fineweb_edu",
+      "train_tokens": 100000000,
+      "validation_tokens": 4000000,
+      "train_token_content_sha256": "01ab3e254e61adb2d601f94aa82cfd0d7e5e49aa6d98837f8d56859fea7ab162",
+      "validation_token_content_sha256": "d0ca08a4a6dc2d92a15aa84cfd81662695a0135929b03cdcc5a78bfd23ad1e0a",
+      "train_token_sample_sha256": "60c002201705aabbca1a9b3a3a352b5455f383e5c0b6252c09581797994e2855",
+      "validation_token_sample_sha256": "4f7202a82bd10ce76a2a829c2bde00cc8c1cd0c125cd2919395cb88c89752cf3"
+    },
+    {
+      "dataset": "fineweb",
+      "train_tokens": 100000000,
+      "validation_tokens": 4000000,
+      "train_token_content_sha256": "8086ef96d99965c8ae0ea88e966ae632429de0e1bbce0334fe8120161fb9b859",
+      "validation_token_content_sha256": "263dbe5cfc98b339e2d8065822be3b6456385b9ced8951826c4e08234cb37fcb",
+      "train_token_sample_sha256": "40d9fa7ceae506d828329b95dc62acd97b32b51daa1a5c96f68a4f59c587c9a1",
+      "validation_token_sample_sha256": "8bdf5d3abdc1649ed323a75fbfe9f7555c9ac60c8a35c582b3ef35085b27626f"
+    },
+    {
+      "dataset": "dolma_sample",
+      "train_tokens": 100000000,
+      "validation_tokens": 4000000,
+      "train_token_content_sha256": "4fdf238361e0c7b8fb49bac624a9c29773795c48b324b4b459840fcc6492dda0",
+      "validation_token_content_sha256": "4236c51ff759de8dac31a17a387f7081bb31eb0aa2ccbe1c59e9a26fd4aa5a63",
+      "train_token_sample_sha256": "5050a798c740c205a993dc9f0ab9760bcea6055538f71d4d244fe6d2d1518407",
+      "validation_token_sample_sha256": "197c8f926288adcb5ac8c2496f95a101d8a987287718d60c26970575581bb6f8"
+    },
+    {
+      "dataset": "c4_en",
+      "train_tokens": 100000000,
+      "validation_tokens": 4000000,
+      "train_token_content_sha256": "a18c1e1ccbea0d29b0c9dd542fb0ff977b3d19b7cde03c1d33362bb947b3ef2b",
+      "validation_token_content_sha256": "5a0e9f127b1046535e9d38bbb593bb06ee40281fb33366b7ee7ad98a22e88a14",
+      "train_token_sample_sha256": "c8d7546aedff891e04cdaf3c9884115b78c6599897efc1251828a5b9697e4c1c",
+      "validation_token_sample_sha256": "bc025515e398f38fa0f67817f9a14623bd67f6ad96a7c5914f7e05939e18da8e"
+    },
+    {
+      "dataset": "dclm",
+      "train_tokens": 300000000,
+      "validation_tokens": 8000000,
+      "train_token_content_sha256": "ea0d563e5f22a81bd898e183e4aac50501a96c6617aac8a56640593777ca92e4",
+      "validation_token_content_sha256": "07c174dc1524528dfeda83b8af67d21c8f364d653a62fff9b6c7659c95bc93f8",
+      "train_token_sample_sha256": "0c439066af7501ab9a6b2b5b6f1ac1f42379a1d02c33244d2eb7058fede767cf",
+      "validation_token_sample_sha256": "7647f71bdd73e92deca679ea84115e5615bbe981d847a2c1f4c8262e663395e4"
+    },
+    {
+      "dataset": "fineweb_edu",
+      "train_tokens": 300000000,
+      "validation_tokens": 8000000,
+      "train_token_content_sha256": "47ee1bbb02f1f98f1629d3f236bc4e896e95815e6af459109e23fb917ae3eafb",
+      "validation_token_content_sha256": "de2bb7d3d0cd864047c57e0d39936fb15e4924765e529afa1fa672390f08e2fa",
+      "train_token_sample_sha256": "d3b5fb4b1546758163c37a90905a52b8d95feb1c29396cf6f498d373d962d30e",
+      "validation_token_sample_sha256": "593e2bd661703f9ce0cbe8e07d23da07901c8b278867ff8091820dbd0b519327"
+    },
+    {
+      "dataset": "fineweb",
+      "train_tokens": 300000000,
+      "validation_tokens": 8000000,
+      "train_token_content_sha256": "09dcbe9d6eb8769477f61fc3ae734a9fb26825a15f6c4802fa3f8a4fa3fe3dca",
+      "validation_token_content_sha256": "fe5ac7c7c2abcb8dc1fa45d996e7561a0c63fa62ce24c9bb972f37b2deea9fcb",
+      "train_token_sample_sha256": "2f5f69c17060e04c0a1ad45fa787d3db2402502e471f524f8aebe4fc90756006",
+      "validation_token_sample_sha256": "0053eee580d5216d35730d281402c5866802152294824d9cc381b2db54be28a8"
+    },
+    {
+      "dataset": "dolma_sample",
+      "train_tokens": 300000000,
+      "validation_tokens": 8000000,
+      "train_token_content_sha256": "94fbcd20e626ec8a078109d83817d68bb151d67875708a699c1f8126d5f021ec",
+      "validation_token_content_sha256": "df0010b1d291e9c81d7df1ae61f0c6a2f10039818bff0b4ec355c0d1628d572f",
+      "train_token_sample_sha256": "6bbe30d925d0762bbf22b56aeca3109a355a157c747183aad96985e96f35701a",
+      "validation_token_sample_sha256": "b5d2856e2b7d553c64357d5d619818879c1676f57814e81d1bf6dfa5660448c1"
+    },
+    {
+      "dataset": "c4_en",
+      "train_tokens": 300000000,
+      "validation_tokens": 8000000,
+      "train_token_content_sha256": "6b96c25b23e3153da3f21e05d730838a2268aaedf10e565f92abc6f21d7939cc",
+      "validation_token_content_sha256": "5be9a9e0cd611ffe50cbac7d4dfb192fd4b7336bb3ee1ad9e48687b7b714af0c",
+      "train_token_sample_sha256": "b25a7ad2b1557da95b8b1300af7fbb1feddd3ec2b37f61b3d06a774f784e0997",
+      "validation_token_sample_sha256": "3d24487a581b938d93e30e8d8c9057b99127008856b427f55c8dce77bd4aaf61"
+    }
+  ]
+}

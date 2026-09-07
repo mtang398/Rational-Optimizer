@@ -1,6 +1,11 @@
-"""Public optimizer API for RationalOPT."""
+"""Public API for TILLER.
 
-from .tiller import (
+TILLER stands for Tangents Informed by a Loss Ledger for Equal-budget
+Reweighting. Its implementation is self-contained under
+``optimizer_design._tiller``.
+"""
+
+from ._tiller import (
     FAMILY_ID,
     PREFIX,
     TILLERAttentionOptimizer,

@@ -1,14 +1,22 @@
-from setuptools import find_packages, setup
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+import sys
+
+from setuptools import setup
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CUDA_HOME
 
 
-setup(
-    name="rational-opt",
-    version="0.1.0",
-    description="CUDA Rational 5/4 activation for PyTorch",
-    package_dir={"": "activation"},
-    packages=find_packages("activation"),
-    ext_modules=[
+building_extension = any(
+    command in sys.argv for command in ("build_ext", "bdist_wheel", "install")
+)
+if building_extension and CUDA_HOME is None:
+    raise RuntimeError(
+        "CUDA_HOME is required to build the fused GRAIN extension. "
+        "Load CUDA 12.8 or set CUDA_HOME before building."
+    )
+
+extensions = []
+commands = {}
+if CUDA_HOME is not None:
+    extensions = [
         CUDAExtension(
             name="rational_opt._C",
             sources=[
@@ -25,6 +33,24 @@ setup(
                 ],
             },
         )
+    ]
+    commands = {"build_ext": BuildExtension}
+
+
+setup(
+    name="rational-opt",
+    version="0.1.0",
+    description="GRAIN activations and the TILLER optimizer for PyTorch",
+    python_requires=">=3.12",
+    package_dir={"rational_opt": "activation/rational_opt"},
+    packages=[
+        "rational_opt",
+        "optimizer_design",
+        "optimizer_design._tiller",
+        "training",
+        "experiments",
+        "experiments.protocol",
     ],
-    cmdclass={"build_ext": BuildExtension},
+    ext_modules=extensions,
+    cmdclass=commands,
 )

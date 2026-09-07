@@ -488,7 +488,7 @@ __global__ void rational_local_basis_forward_kernel(const float* __restrict__ x,
   }
 }
 
-// R03 consumes the same group RMS field as the installed activation together
+// TILLER consumes the same group RMS field as the installed activation together
 // with four empirical affine-projection sums.  Computing those values with
 // separate PyTorch reductions rereads each full activation four times.  This
 // kernel performs the identical scalar construction in one read and emits
