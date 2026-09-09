@@ -5,10 +5,11 @@ the official conference style, bibliography style, and bundled compatibility
 files, together with the paper source and a rendered PDF.
 
 Read the [paper](main.pdf) or edit [the LaTeX source](main.tex). The method
-section introduces GRAIN's learned group responses and TILLER's construction
-and coordination of update directions. The appendices develop the response
-calculus, direction geometry, loss measurements, spectral approximation,
-coefficient solver, and complete update algorithm.
+section has two parts: GRAIN's learned group responses and TILLER's
+construction and coordination of update directions. The appendices explain
+the geometry behind the activation response and structured updates, derive
+the shared loss measurements and spectral approximation, and specify the
+coefficient solver and complete update algorithm.
 
 ## Compile locally
 

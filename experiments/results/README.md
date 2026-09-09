@@ -32,6 +32,8 @@ The 100M-token study uses SwiGLU + AdamW as its control.
 
 The 100M per-seed losses are retained at the six-decimal precision of the
 completed experiment ledger; the 300M table retains the full-precision values
-from the per-seed result artifacts. Timing columns preserve the per-run
-training-loop measurements, and `time_scope` identifies that measurement
-boundary explicitly.
+from the per-seed result artifacts. The `time_scope` column identifies the
+boundary of each timing measurement: `end_to_end_process` records the full
+training process, while `training_loop` records the trainer's loop time.
+The separate `training_loop_total_seconds` column retains the loop measurement
+when full-process timing is available.
