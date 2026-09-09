@@ -21,7 +21,7 @@ The tables cover the 12-layer, 768-wide model at 100M and 300M training tokens
 and the primary 18-layer, 1,024-wide model at 300M tokens. Unfinished endpoint
 rows are represented with `pending` status and empty measurement fields.
 
-The primary 225-cell inventory currently contains 34 complete runs, 2
+The primary 225-cell inventory currently contains 35 complete runs, 1
 incomplete runs, and 189 pending runs. The incomplete rows remain visible with
 their completed-step counts and recorded validation checkpoints; they are
 excluded from endpoint aggregates.
