@@ -598,7 +598,11 @@ def factorial_muon_runs(
         if historical_path is not None:
             # Keep the verified digest while omitting a machine-local source path.
             run["source_jsonl_sha256"] = existing["file_sha256"]
-        if isinstance(existing, dict) and existing.get("status") == "complete":
+        if (
+            not run_path.is_file()
+            and isinstance(existing, dict)
+            and existing.get("status") == "complete"
+        ):
             endpoint = float(existing["endpoint"])
             loop_seconds = float(existing["total_seconds"])
             run.update(

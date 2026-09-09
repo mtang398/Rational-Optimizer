@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import subprocess
@@ -12,12 +13,47 @@ from pathlib import Path
 
 from . import analyze_row
 from . import build_source_freeze
+from . import collect_results
 from . import row_tools
 from . import run_activation_row
 from . import verify_repository as verifier
 
 
 class PublicReproducibilityTests(unittest.TestCase):
+    def test_completed_rerun_supersedes_historical_result(self) -> None:
+        manifest = collect_results.DEFAULT_MANIFEST
+        with manifest.open(newline="") as handle:
+            sources = [r for r in csv.DictReader(handle)
+                       if r["phase"] == collect_results.FACTORIAL_PHASE
+                       and r["optimizer"] == "muon"]
+        staged = [dict(r, matrix_index=i) for i, r in enumerate(sources)]
+        target = staged[0]
+        target["existing_result"] = {
+            "status": "complete", "endpoint": 9.0, "step1000": 10.0,
+            "total_seconds": 999.0, "completed_steps": 9150,
+            "realized_lr_trace_sha256": "old", "file_sha256": "old",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "matrix.json").write_text(json.dumps({"rows": staged}))
+            artifact = root / "runs" / target["row_id"] / f"{target['activation']}.jsonl"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text("\n".join(json.dumps(r) for r in [
+                {"event": "config"},
+                {"event": "eval", "step": 1000, "val_loss": 4.0},
+                {"event": "eval", "step": 9150, "val_loss": 3.0},
+                {"event": "summary", "completed_steps": 9150, "total_seconds": 20.0},
+            ]))
+            rows, checkpoints = collect_results.factorial_muon_runs(manifest, root)
+            result = next(r for r in rows if r["run_index"] == int(target["row_index"]))
+            self.assertEqual(result["final_validation_loss"], 3.0)
+            self.assertEqual(result["step1000_validation_loss"], 4.0)
+            self.assertEqual(result["training_loop_total_seconds"], 20.0)
+            self.assertEqual(result["source_jsonl_sha256"], collect_results.sha256(artifact))
+            endpoint = next(r for r in checkpoints if r["run_index"] == result["run_index"]
+                            and r["step"] == 9150)
+            self.assertEqual(endpoint["validation_loss"], result["final_validation_loss"])
+
     def test_manifest_has_exact_matched_activation_pairs(self) -> None:
         rows = verifier.verify_manifest()
         self.assertEqual(len(rows), 640)

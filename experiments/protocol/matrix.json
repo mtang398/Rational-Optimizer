@@ -2586,13 +2586,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": 3.6909449100494385,
+        "endpoint_validation_loss": 3.6909682750701904,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 488,
         "status": "complete",
-        "step1000_validation_loss": 4.725745677947998,
-        "time_scope": "training_loop",
-        "total_seconds": 10675.326404648833
+        "step1000_validation_loss": 4.726249694824219,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7398.071623237
       },
       "matrix_index": 34,
       "matrix_spectrum_interval": 0,
