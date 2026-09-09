@@ -53,6 +53,24 @@ class PublicReproducibilityTests(unittest.TestCase):
             endpoint = next(r for r in checkpoints if r["run_index"] == result["run_index"]
                             and r["step"] == 9150)
             self.assertEqual(endpoint["validation_loss"], result["final_validation_loss"])
+            # An unfinished retry leaves the completed historical result intact.
+            artifact.write_text(json.dumps({"event": "eval", "step": 1000,
+                                           "val_loss": 5.0}))
+            rows, checkpoints = collect_results.factorial_muon_runs(manifest, root)
+            result = next(r for r in rows if r["run_index"] == int(target["row_index"]))
+            self.assertEqual(result["final_validation_loss"], 9.0)
+            self.assertEqual(result["training_loop_total_seconds"], 999.0)
+            self.assertEqual(result["source_jsonl_sha256"], "old")
+            self.assertEqual(checkpoints, [])
+            historical = root / "completed.jsonl"
+            historical.write_text(json.dumps({"event": "eval", "step": 9150,
+                                             "val_loss": 9.0}))
+            target["existing_result"]["canonical_path"] = str(historical)
+            target["existing_result"]["file_sha256"] = collect_results.sha256(historical)
+            (root / "matrix.json").write_text(json.dumps({"rows": staged}))
+            rows, checkpoints = collect_results.factorial_muon_runs(manifest, root)
+            self.assertEqual(len(checkpoints), 1)
+            self.assertEqual(checkpoints[0]["validation_loss"], 9.0)
 
     def test_manifest_has_exact_matched_activation_pairs(self) -> None:
         rows = verifier.verify_manifest()

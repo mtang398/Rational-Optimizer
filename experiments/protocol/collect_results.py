@@ -567,10 +567,20 @@ def factorial_muon_runs(
             / f"{source['activation']}.jsonl"
         )
         existing = staged.get("existing_result")
+        use_existing = isinstance(existing, dict) and existing.get("status") == "complete"
+        if use_existing and run_path.is_file():
+            records = safe_records(run_path)
+            summary = unique_event(records, "summary") or {}
+            endpoint = evaluations(records).get(int(source["steps"]), {})
+            use_existing = not (
+                summary.get("completed_steps") == int(source["steps"])
+                and not summary.get("stopped_early", False)
+                and finite(endpoint.get("val_loss")) is not None
+            )
         historical_path = None
-        if not run_path.is_file() and isinstance(existing, dict):
+        if (use_existing or not run_path.is_file()) and isinstance(existing, dict):
             candidate = Path(str(existing.get("canonical_path", "")))
-            if candidate.is_file():
+            if candidate.is_file() or use_existing:
                 historical_path = candidate
         source_path = historical_path or run_path
         run, eval_rows = raw_run(
@@ -598,11 +608,7 @@ def factorial_muon_runs(
         if historical_path is not None:
             # Keep the verified digest while omitting a machine-local source path.
             run["source_jsonl_sha256"] = existing["file_sha256"]
-        if (
-            not run_path.is_file()
-            and isinstance(existing, dict)
-            and existing.get("status") == "complete"
-        ):
+        if use_existing:
             endpoint = float(existing["endpoint"])
             loop_seconds = float(existing["total_seconds"])
             run.update(
@@ -628,7 +634,7 @@ def factorial_muon_runs(
                     "source_jsonl_sha256": existing["file_sha256"],
                 }
             )
-        wall_clock = factorial_process_time(
+        wall_clock = None if use_existing else factorial_process_time(
             campaign_root / "results" / "01_muon"
             / f"matrix-{int(staged['matrix_index'])}" / "WALL_CLOCK.json",
             staged_row=staged,
