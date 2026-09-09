@@ -45,7 +45,7 @@ reproducing reported rows.
 Point `--run-dir` to the directory containing the run's JSONL file:
 
 ```bash
-suite=18l_1024d_300m_tokens_9150_steps
+suite=18l_1024d_100m_tokens_3050_steps
 run_id=${suite}_dclm_seed1337_silu_muon
 .venv/bin/python training/aggregate_results.py \
   --run-dir "experiments/runs/activation_optimizer/$suite/dclm/$run_id" \

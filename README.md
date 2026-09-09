@@ -56,19 +56,22 @@ examples below; apply it in each new shell used with this checkout.
 
 ## Reproduce
 
-For the primary 18-layer suite, submit Muon activation pairs first, followed
-by TILLER, AdamW, and the remaining activation–optimizer pairs:
+The primary suite trains a 296.87M-parameter, 18-layer model for 3,050 steps
+and approximately 100M training tokens. Submit Muon activation pairs first,
+followed by full TILLER, TILLER for the first 1,000 updates followed by Muon,
+AdamW, and the remaining activation–optimizer pairs:
 
 ```bash
-suite=18l_1024d_300m_tokens_9150_steps
-sbatch --array=0-29%2 \
+suite=18l_1024d_100m_tokens_3050_steps
+sbatch --array=0-29%3 \
   experiments/protocol/run_activation_optimizer_sweep.sbatch muon "$suite"
 ```
 
-After that array is terminal, submit the TILLER, AdamW, and remaining stages
-in order using the commands in
-[experiments/protocol](experiments/protocol/). Review the recorded step-1,000
-screens before advancing to AdamW.
+The complete five-stage submission commands are in
+[experiments/protocol](experiments/protocol/). This suite contains 225 main
+runs and 15 runs of the two-stage optimizer across five datasets and three
+seeds. The 12-layer, 768-wide studies at 100M and 300M tokens are available
+alongside the primary suite.
 
 Each TILLER row reuses the completed control selected by `matrix.json` and runs
 the candidate under the same four-GPU RTX A6000/NVLink execution standard.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Connect TILLER to the shared language-model trainer."""
+"""Connect full TILLER and the two-stage candidate to the shared trainer."""
 
 from __future__ import annotations
 
@@ -116,11 +116,16 @@ def partition_parameters(model, blocks):
 
 
 def configure_candidate_optimizer(model, args):
-    """Build the optimizer composition used by every TILLER manifest row."""
+    """Build full TILLER or delegate the independently registered candidate."""
 
     global _ACTIVE_ROUTER
+    _ACTIVE_ROUTER = None
     if args.optimizer != OPTIMIZER_ID:
         return _BASE_CONFIGURE_OPTIMIZER(model, args)
+    # The trainer owns the two-stage clipping observer. Full TILLER uses the
+    # local router observer below, so sequential CPU constructions cannot
+    # leave an earlier candidate attached to this model's gradients.
+    trainer._ACTIVE_GRADIENT_CLIP_OBSERVER = None
 
     blocks = collect_blocks(model, args)
     structural_ids, adam_decay, adam_no_decay = partition_parameters(model, blocks)

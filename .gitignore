@@ -23,6 +23,7 @@ optimizer_design/*
 !optimizer_design/README.md
 !optimizer_design/__init__.py
 !optimizer_design/tiller.py
+!optimizer_design/tiller_then_muon.py
 !optimizer_design/_tiller/
 !optimizer_design/_tiller/**
 optimizer_design/_tiller/**/__pycache__/

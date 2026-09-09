@@ -15,7 +15,7 @@ LARGE_MODEL = "18l_1024d"
 PREFLIGHT_SUITE = "12l_768d_preflight_2621440_tokens_80_steps"
 SUITE_100M = "12l_768d_100m_tokens_3050_steps"
 SUITE_300M_SMALL = "12l_768d_300m_tokens_9150_steps"
-SUITE_300M_LARGE = "18l_1024d_300m_tokens_9150_steps"
+SUITE_100M_LARGE = "18l_1024d_100m_tokens_3050_steps"
 
 DATASETS = {
     "dclm": {
@@ -258,7 +258,7 @@ def build_rows() -> list[dict[str, str]]:
     for dataset in MAIN_DATASETS:
         for seed in SEEDS:
             for method in METHODS:
-                add_row(rows, phase=SUITE_300M_LARGE, dataset=dataset, model_name=LARGE_MODEL, train_tokens=300_000_000, seed=seed, method=method)
+                add_row(rows, phase=SUITE_100M_LARGE, dataset=dataset, model_name=LARGE_MODEL, train_tokens=100_000_000, seed=seed, method=method)
 
     for idx, row in enumerate(rows):
         row["row_index"] = str(idx)
@@ -273,15 +273,15 @@ def verify(rows: list[dict[str, str]]) -> None:
             raise SystemExit(f"eval interval too sparse in {row['row_id']}")
     required = {m["method"] for m in METHODS}
     parity_phases = {
-        PREFLIGHT_SUITE, SUITE_100M, SUITE_300M_SMALL, SUITE_300M_LARGE,
+        PREFLIGHT_SUITE, SUITE_100M, SUITE_300M_SMALL, SUITE_100M_LARGE,
     }
-    endpoint_phases = {SUITE_100M, SUITE_300M_SMALL, SUITE_300M_LARGE}
+    endpoint_phases = {SUITE_100M, SUITE_300M_SMALL, SUITE_100M_LARGE}
 
     methods_by_phase = {
         PREFLIGHT_SUITE: {"silu_adamw", "rlb_adamw"},
         SUITE_100M: required,
         SUITE_300M_SMALL: required,
-        SUITE_300M_LARGE: required,
+        SUITE_100M_LARGE: required,
     }
 
     cells: dict[tuple[str, str, str, str, str], list[dict[str, str]]] = defaultdict(list)

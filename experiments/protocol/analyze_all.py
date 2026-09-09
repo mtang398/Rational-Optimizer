@@ -12,7 +12,8 @@ from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parent
 MATRIX = PACKAGE / "matrix.json"
-EXACT_OPTIMIZER_KEY = "tiller_v1"
+PRIMARY_PHASE = "18l_1024d_100m_tokens_3050_steps"
+CANDIDATE_STAGES = {"tiller_v1": "02_tiller", "tiller_then_muon_v1": "03_tiller_then_muon"}
 
 
 def matrix_payload():
@@ -43,6 +44,9 @@ def main() -> None:
     pending = []
     for row in matrix["rows"]:
         root = args.results_root / f"row-{int(row['matrix_index']):02d}"
+        staged = args.results_root / CANDIDATE_STAGES[row["candidate_optimizer"]] / f"matrix-{row['matrix_index']}"
+        if row["phase"] == PRIMARY_PHASE and staged.is_dir():
+            root = staged
         report = root / "RESULT.json"
         screen = root / "STEP1000_SCREEN.json"
         if report.is_file():
@@ -53,10 +57,25 @@ def main() -> None:
                 "matrix_index", "model", "dataset", "seed", "steps",
             )):
                 raise RuntimeError(f"completed row report has mismatched matrix identity: {report}")
+            if item.get("candidate_optimizer", row["candidate_optimizer"]) != row["candidate_optimizer"]:
+                raise RuntimeError(f"completed report has the wrong candidate optimizer: {report}")
+            if row["phase"] == PRIMARY_PHASE and (
+                item.get("phase") != PRIMARY_PHASE
+                or item.get("candidate_optimizer") != row["candidate_optimizer"]
+            ):
+                raise RuntimeError(f"primary report lacks its independent suite/candidate identity: {report}")
+            item["candidate_optimizer"] = row["candidate_optimizer"]
+            item["phase"] = row["phase"]
             complete.append(item)
         elif screen.is_file():
             item = json.loads(screen.read_text())
             if item.get("status") == "failed_negative_interrupted":
+                if any(item.get(key) != row[key] for key in ("matrix_index", "model", "dataset", "seed")):
+                    raise RuntimeError(f"step-1000 screen has mismatched matrix identity: {screen}")
+                if row["phase"] == PRIMARY_PHASE and root != staged and item.get("phase") != PRIMARY_PHASE:
+                    raise RuntimeError(f"primary screen lacks an independent suite identity: {screen}")
+                item["candidate_optimizer"] = row["candidate_optimizer"]
+                item["phase"] = row["phase"]
                 failed.append(item)
             else:
                 pending.append(row["matrix_index"])
@@ -77,9 +96,10 @@ def main() -> None:
     for item in complete:
         source = matrix_by_index[int(item["matrix_index"])]
         grouped[(item["model"], item["dataset"], source["phase"],
-                 int(source["max_train_tokens"]), int(source["steps"]))].append(item)
+                 int(source["max_train_tokens"]), int(source["steps"]),
+                 source["candidate_optimizer"])].append(item)
     summaries = []
-    for (model, dataset, phase, train_tokens, steps), rows in sorted(grouped.items()):
+    for (model, dataset, phase, train_tokens, steps, optimizer), rows in sorted(grouped.items()):
         leads = [float(row["absolute_endpoint_lead"]) for row in rows]
         candidate = [float(row["candidate_endpoint_loss"]) for row in rows]
         control = [float(row["control_endpoint_loss"]) for row in rows]
@@ -89,6 +109,7 @@ def main() -> None:
             "phase": phase,
             "train_tokens": train_tokens,
             "steps_required": steps,
+            "candidate_optimizer": optimizer,
             "completed_seeds": sorted(int(row["seed"]) for row in rows),
             "tiller_endpoint_loss_mean": statistics.fmean(candidate),
             "tiller_endpoint_loss_std": statistics.stdev(candidate) if len(candidate) > 1 else None,
@@ -119,7 +140,7 @@ def main() -> None:
         "complete_rows": len(complete),
         "failed_negative_step1000_rows": len(failed),
         "pending_rows": pending,
-        "method": EXACT_OPTIMIZER_KEY,
+        "methods": sorted({row["candidate_optimizer"] for row in matrix["rows"]}),
         "matrix_sha256": sha256(MATRIX),
         "dataset_summaries": summaries,
         "row_results": sorted(complete, key=lambda row: row["matrix_index"]),

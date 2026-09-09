@@ -16,6 +16,7 @@ from training import train as trainer
 PACKAGE = Path(__file__).resolve().parent
 MATRIX = PACKAGE / "matrix.json"
 EXACT_OPTIMIZER_KEY = "tiller_v1"
+TWO_STAGE_OPTIMIZER_KEY = "tiller_then_muon_v1"
 CANDIDATE_MODULE = (
     "experiments.protocol."
     "method_entrypoint"
@@ -35,7 +36,7 @@ def matrix_payload() -> dict[str, Any]:
     expected_schema = "tiller_evaluation_matrix_v1"
     if payload.get("schema") != expected_schema:
         raise RuntimeError("full-method transfer matrix schema changed")
-    if payload.get("matrix_rows") != 45 or len(payload.get("rows", ())) != 45:
+    if payload.get("matrix_rows") != 60 or len(payload.get("rows", ())) != 60:
         raise RuntimeError("full-method transfer matrix inventory changed")
     return payload
 
@@ -56,14 +57,28 @@ def contract(row: dict[str, Any]) -> str:
 
 
 def experiment_identity(row: dict[str, Any]) -> str:
-    del row
+    if row["candidate_optimizer"] == TWO_STAGE_OPTIMIZER_KEY:
+        return trainer.TILLER_THEN_MUON_EXPERIMENT_IDENTITY
     return trainer.TILLER_EXPERIMENT_IDENTITY
 
 
 def run_name(row: dict[str, Any], arm: str) -> str:
+    if arm == "control":
+        suffix = "control"
+    elif arm == "candidate":
+        suffixes = {
+            EXACT_OPTIMIZER_KEY: "tiller",
+            TWO_STAGE_OPTIMIZER_KEY: "tiller_then_muon",
+        }
+        try:
+            suffix = suffixes[row["candidate_optimizer"]]
+        except KeyError as exc:
+            raise RuntimeError("unrecognized TILLER candidate optimizer") from exc
+    else:
+        raise RuntimeError(f"unknown arm {arm!r}")
     return (
         f"{row['phase']}-{row['dataset']}-seed{row['seed']}-"
-        f"{'control' if arm == 'control' else 'tiller'}"
+        f"{suffix}"
     )
 
 
@@ -346,7 +361,7 @@ def install_cache_views(row: dict[str, Any]) -> None:
             payload, tokens = _payload_tokens(source)
             start, stop = 0, 4_000_000
         else:
-            raise RuntimeError("unapproved 12-layer cache-view request")
+            raise RuntimeError("unapproved 100M cache-view request")
         metadata = {
             "dataset": args.dataset_name,
             "dataset_config": args.dataset_config,
@@ -362,12 +377,12 @@ def install_cache_views(row: dict[str, Any]) -> None:
         }
         if mismatch or tokens.dtype != torch.int32 or int(tokens.numel()) < stop:
             raise RuntimeError(
-                f"12-layer cache-view source mismatch: metadata={mismatch}, "
+                f"100M cache-view source mismatch: metadata={mismatch}, "
                 f"dtype={tokens.dtype}, tokens={tokens.numel()}, stop={stop}"
             )
         view = tokens[start:stop]
         if int(view.numel()) != int(max_tokens) or not view.is_contiguous():
-            raise RuntimeError("12-layer cache view has the wrong shape/layout")
+            raise RuntimeError("100M cache view has the wrong shape/layout")
         return view
 
     trainer.load_or_tokenize = load_or_view

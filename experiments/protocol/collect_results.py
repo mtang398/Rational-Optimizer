@@ -18,7 +18,9 @@ PACKAGE = Path(__file__).resolve().parent
 REPOSITORY = PACKAGE.parents[1]
 DEFAULT_MANIFEST = PACKAGE / "activation_optimizer_manifest.csv"
 DEFAULT_MATRIX = PACKAGE / "matrix.json"
-FACTORIAL_PHASE = "18l_1024d_300m_tokens_9150_steps"
+PRIMARY_PHASE = "18l_1024d_100m_tokens_3050_steps"
+CANDIDATE_METHODS = {"tiller_v1": "tiller", "tiller_then_muon_v1": "tiller_then_muon"}
+CANDIDATE_STAGES = {"tiller_v1": "02_tiller", "tiller_then_muon_v1": "03_tiller_then_muon"}
 
 GRAIN_ID = "rlb_fused_global_rational"
 PREFLIGHT_SUITE = "12l_768d_preflight_2621440_tokens_80_steps"
@@ -32,6 +34,7 @@ OPTIMIZER_NAMES = {
     "adafactor_came": "CAME",
     "schedule_free_adamw": "Schedule-Free AdamW",
     "tiller_v1": "TILLER",
+    "tiller_then_muon_v1": "TILLER→Muon",
 }
 OUTPUT_DIRECTORIES = {
     "adamw": "adamw",
@@ -42,6 +45,7 @@ OUTPUT_DIRECTORIES = {
     "adafactor_came": "came",
     "schedule_free_adamw": "schedule_free_adamw",
     "tiller_v1": "tiller",
+    "tiller_then_muon_v1": "tiller_then_muon",
 }
 
 RUN_FIELDS = [
@@ -202,6 +206,8 @@ def process_time(path: Path) -> tuple[float | None, str]:
     if not sidecar.is_file():
         return None, "training_loop"
     payload = json.loads(sidecar.read_text())
+    if payload.get("schema") == "rationalopt_process_wall_clock_v1" and payload.get("return_code") != 0:
+        return None, "training_loop"
     if (
         payload.get("schema") != "rationalopt_process_wall_clock_v1"
         or payload.get("return_code") != 0
@@ -210,40 +216,6 @@ def process_time(path: Path) -> tuple[float | None, str]:
         raise RuntimeError(f"invalid process wall-clock sidecar: {sidecar}")
     return float(payload["elapsed_seconds"]), "end_to_end_process"
 
-
-def factorial_process_time(
-    path: Path,
-    *,
-    staged_row: dict[str, Any],
-    artifact: Path,
-    source_freeze: Path,
-    stage: str = "01_muon",
-) -> float | None:
-    """Read the process wall clock emitted by the staged factorial launcher."""
-
-    if not path.is_file():
-        return None
-    payload = json.loads(path.read_text())
-    expected_artifact_sha256 = sha256(artifact)
-    expected_source_freeze_sha256 = sha256(source_freeze)
-    if (
-        payload.get("schema") != "tiller_endpoint_process_wall_clock_v1"
-        or payload.get("process_exit_status") != 0
-        or isinstance(payload.get("process_exit_status"), bool)
-        or finite(payload.get("elapsed_seconds")) is None
-        or isinstance(payload.get("elapsed_seconds"), bool)
-        or float(payload["elapsed_seconds"]) <= 0
-        or int(payload.get("matrix_index", -1)) != int(staged_row["matrix_index"])
-        or payload.get("row_id") != staged_row["row_id"]
-        or payload.get("stage") != stage
-        or Path(str(payload.get("artifact_path", ""))).resolve() != artifact.resolve()
-        or payload.get("artifact_exists") is not True
-        or payload.get("artifact_bytes") != artifact.stat().st_size
-        or payload.get("artifact_sha256") != expected_artifact_sha256
-        or payload.get("source_freeze_sha256") != expected_source_freeze_sha256
-    ):
-        raise RuntimeError(f"invalid factorial process wall clock: {path}")
-    return float(payload["elapsed_seconds"])
 
 
 def raw_run(
@@ -281,8 +253,8 @@ def raw_run(
             "optimizer_display_name": OPTIMIZER_NAMES[optimizer],
             "method": method,
             "method_display_name": (
-                "TILLER"
-                if optimizer == "tiller_v1"
+                OPTIMIZER_NAMES[optimizer]
+                if optimizer in CANDIDATE_METHODS
                 else f"{ACTIVATION_NAMES[activation]} + {OPTIMIZER_NAMES[optimizer]}"
             ),
             "source_phase": phase,
@@ -323,6 +295,11 @@ def raw_run(
         status = "non_finite"
     elif summary and completed == steps and endpoint_loss is not None:
         status = "complete"
+    sidecar = path.with_suffix(".wall_clock.json")
+    if status == "complete" and sidecar.is_file():
+        if json.loads(sidecar.read_text()).get("return_code") != 0:
+            status = "incomplete"
+            endpoint_loss = endpoint_ppl = None
     fairness = (config or {}).get("optimizer_lr_wd_fairness", {})
     base.update(
         {
@@ -409,8 +386,137 @@ def pair(candidate: dict[str, Any], control: dict[str, Any]) -> None:
         candidate["total_time_ratio_vs_matched_control"] = candidate_time / control_time
 
 
+def validate_primary_artifact(
+    path: Path, source: dict[str, Any], *, campaign_root: Path | None,
+    candidate: bool = False,
+) -> None:
+    """Bind fresh 18-layer observations to the independent 3050-step protocol."""
+    data = safe_records(path)
+    config = unique_event(data, "config")
+    if config is None:
+        if data:
+            raise RuntimeError(f"primary trajectory has observations but no config: {path}")
+        return
+    expected = {key: int(source[key]) for key in (
+        "seed", "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps", "grad_accum",
+    )}
+    expected.update(
+        activation=source["candidate_activation" if candidate else "activation"],
+        optimizer=source["candidate_optimizer" if candidate else "optimizer"],
+        dataset=source["dataset_name"], dataset_config=source["dataset_config"],
+        dataset_revision=source["dataset_revision"], tokenizer=source["tokenizer"],
+        tokenizer_revision=source["tokenizer_revision"],
+        train_tokens=int(source["max_train_tokens" if candidate else "train_tokens"]),
+        val_tokens=int(source["max_val_tokens" if candidate else "val_tokens"]),
+        batch_size_per_gpu=int(source["batch_size"]), world_size=4,
+        validation_skip_tokens=int(source["validation_skip_tokens" if candidate else "val_skip_tokens"]),
+        train_skip_tokens=int(source["train_skip_tokens"]),
+    )
+    for field, key in (("optimizer_lr", "lr"), ("optimizer_min_lr", "min_lr"),
+                       ("optimizer_weight_decay", "weight_decay"), ("optimizer_beta1", "beta1"),
+                       ("optimizer_beta2", "beta2"), ("optimizer_eps", "eps"), ("grad_clip", "grad_clip")):
+        expected[field] = float(source[key])
+    fingerprints = json.loads((PACKAGE / "token_fingerprints.json").read_text())["cells"]
+    token_cell = next(item for item in fingerprints
+                      if item["dataset"] == source["dataset"] and item["train_tokens"] == 100_000_000)
+    expected.update(train_token_sample_sha256=token_cell["train_token_sample_sha256"],
+                    val_token_sample_sha256=token_cell["validation_token_sample_sha256"])
+    if candidate:
+        expected["experiment_identity"] = (
+            "tiller_matrix_v1" if source["candidate_optimizer"] == "tiller_v1"
+            else "tiller_then_muon_matrix_v1"
+        )
+        identity = config.get("tiller_experiment_identity", {})
+        if identity.get("passed") is not True or any(identity.get(key) != source[key] for key in (
+            "matrix_index", "source_manifest_row_index", "source_manifest_row_id",
+        )):
+            raise RuntimeError(f"primary candidate matrix identity mismatch: {path}")
+    else:
+        snapshot = PACKAGE if campaign_root is None else campaign_root / "source_muon/experiments/protocol"
+        expected.update(
+            experiment_identity="none",
+            source_manifest_sha256=sha256(snapshot / "activation_optimizer_manifest.csv"),
+            source_manifest_row_sha256=hashlib.sha256(json.dumps(
+                source, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            ).encode("utf-8")).hexdigest(),
+            source_manifest_row_id=source["row_id"], source_manifest_row_index=str(source["row_index"]),
+            source_freeze_sha256=sha256(snapshot / "SOURCE_FREEZE.sha256"),
+        )
+    fairness = config.get("optimizer_lr_wd_fairness", {})
+    if (any(config.get(key) != value for key, value in expected.items())
+            or fairness.get("passed") is not True or fairness.get("contract") != "exact_lr_wd_v1"):
+        raise RuntimeError(f"primary trajectory configuration mismatch: {path}")
+
+
+def validate_primary_result(
+    path: Path, result: dict[str, Any], source: dict[str, Any], artifact: Path,
+    result_root: Path, campaign_root: Path | None,
+) -> None:
+    data = safe_records(artifact)
+    summary = unique_event(data, "summary") or {}
+    evaluation = evaluations(data)
+    if (summary.get("completed_steps") != 3050 or summary.get("stopped_early") is not False
+            or any(finite(evaluation.get(step, {}).get("val_loss")) is None for step in (1000, 3050))):
+        raise RuntimeError(f"primary result lacks a completed raw endpoint: {path}")
+    snapshot = PACKAGE if campaign_root is None else campaign_root / "source_tiller/experiments/protocol"
+    if result.get("source_freeze_manifest_sha256") != sha256(snapshot / "SOURCE_FREEZE.sha256"):
+        raise RuntimeError(f"primary result source freeze mismatch: {path}")
+    checksum = path.with_suffix(path.suffix + ".sha256")
+    if not checksum.is_file() or checksum.read_text().strip() != f"{sha256(path)}  {path.name}":
+        raise RuntimeError(f"primary result checksum mismatch: {path}")
+    clock_path = result_root / "CANDIDATE_WALL_CLOCK.json"
+    clock = json.loads(clock_path.read_text())
+    if (clock.get("schema") != "rationalopt_process_wall_clock_v1"
+            or clock.get("arm") != "candidate" or clock.get("return_code") != 0
+            or finite(clock.get("elapsed_seconds")) is None or float(clock["elapsed_seconds"]) <= 0
+            or result.get("candidate_end_to_end_total_seconds") != clock["elapsed_seconds"]):
+        raise RuntimeError(f"primary result lacks successful process timing: {path}")
+    for key, target in (("candidate_jsonl", artifact), ("candidate_wall_clock", clock_path)):
+        identity = result.get(key, {})
+        if Path(str(identity.get("path", ""))).resolve() != target.resolve() or identity.get("sha256") != sha256(target):
+            raise RuntimeError(f"primary result {key} is not bound to its artifact: {path}")
+    if (result.get("candidate_endpoint_loss") != evaluation[3050]["val_loss"]
+            or result.get("candidate_step1000_loss") != evaluation[1000]["val_loss"]
+            or finite(result.get("step1000_absolute_lead")) is None
+            or float(result["step1000_absolute_lead"]) < 0):
+        raise RuntimeError(f"primary result losses or step-1000 decision differ: {path}")
+    control_path = Path(str(result.get("control_jsonl", {}).get("path", "")))
+    if campaign_root is not None:
+        expected_control_path = (campaign_root / "runs/activation_optimizer" / source["phase"]
+                                 / source["dataset"] / source["source_manifest_row_id"] / "silu.jsonl")
+        if control_path.resolve() != expected_control_path.resolve():
+            raise RuntimeError(f"primary result uses another control path: {path}")
+    if result.get("control_jsonl", {}).get("sha256") != sha256(control_path):
+        raise RuntimeError(f"primary result control artifact hash mismatch: {path}")
+    baseline_snapshot = PACKAGE if campaign_root is None else campaign_root / "source_muon/experiments/protocol"
+    with (baseline_snapshot / "activation_optimizer_manifest.csv").open(newline="") as handle:
+        baseline = list(csv.DictReader(handle))[int(source["source_manifest_row_index"])]
+    if baseline["row_id"] != source["source_manifest_row_id"]:
+        raise RuntimeError(f"primary result control manifest identity mismatch: {path}")
+    validate_primary_artifact(control_path, baseline, campaign_root=campaign_root)
+    control_data = safe_records(control_path)
+    control_summary = unique_event(control_data, "summary") or {}
+    control_evals = evaluations(control_data)
+    if (control_summary.get("completed_steps") != 3050 or control_summary.get("stopped_early") is not False
+            or any(finite(control_evals.get(step, {}).get("val_loss")) is None for step in (1000, 3050))):
+        raise RuntimeError(f"primary result control lacks its independent endpoint: {path}")
+    control_clock_path = control_path.with_suffix(".wall_clock.json")
+    control_clock = json.loads(control_clock_path.read_text())
+    if (control_clock.get("schema") != "rationalopt_process_wall_clock_v1"
+            or control_clock.get("arm") != "silu_muon" or control_clock.get("return_code") != 0
+            or finite(control_clock.get("elapsed_seconds")) is None or float(control_clock["elapsed_seconds"]) <= 0
+            or result.get("control_wall_clock", {}).get("sha256") != sha256(control_clock_path)
+            or result.get("control_end_to_end_total_seconds") != control_clock["elapsed_seconds"]):
+        raise RuntimeError(f"primary result control timing mismatch: {path}")
+    if (result.get("control_step1000_loss") != control_evals[1000]["val_loss"]
+            or result.get("control_endpoint_loss") != control_evals[3050]["val_loss"]
+            or result["step1000_absolute_lead"] != control_evals[1000]["val_loss"] - evaluation[1000]["val_loss"]
+            or result.get("absolute_endpoint_lead") != control_evals[3050]["val_loss"] - evaluation[3050]["val_loss"]):
+        raise RuntimeError(f"primary result losses do not match its exact control: {path}")
+
+
 def manifest_runs(
-    manifest: Path, run_root: Path
+    manifest: Path, run_root: Path, *, campaign_root: Path | None = None
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
     with manifest.open(newline="") as handle:
         source = list(csv.DictReader(handle))
@@ -427,6 +533,8 @@ def manifest_runs(
             / row["row_id"]
             / f"{row['activation']}.jsonl"
         )
+        if row["phase"] == PRIMARY_PHASE and path.is_file():
+            validate_primary_artifact(path, row, campaign_root=campaign_root)
         run, eval_rows = raw_run(
             index=int(row["row_index"]),
             model=row["model"],
@@ -456,18 +564,28 @@ def manifest_runs(
 
 
 def tiller_runs(
-    matrix: Path, run_root: Path, analysis_root: Path
+    matrix: Path, run_root: Path, analysis_root: Path, *, campaign_root: Path | None = None
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     payload = json.loads(matrix.read_text())
     rows: list[dict[str, Any]] = []
     checkpoints: list[dict[str, Any]] = []
     for source in payload["rows"]:
         index = int(source["matrix_index"])
+        optimizer = source["candidate_optimizer"]
+        method = CANDIDATE_METHODS[optimizer]
+        candidate_root = run_root
+        result_root = analysis_root / f"row-{index:02d}"
+        if campaign_root is not None and source["phase"] == PRIMARY_PHASE:
+            stage = CANDIDATE_STAGES[optimizer]
+            candidate_root = campaign_root / "runs" / stage
+            result_root = campaign_root / "results" / stage / f"matrix-{index}"
         candidate_path = (
-            run_root
-            / f"{source['phase']}-{source['dataset']}-seed{source['seed']}-tiller"
+            candidate_root
+            / f"{source['phase']}-{source['dataset']}-seed{source['seed']}-{method}"
             / f"{source['candidate_activation']}.jsonl"
         )
+        if source["phase"] == PRIMARY_PHASE and candidate_path.is_file():
+            validate_primary_artifact(candidate_path, source, campaign_root=campaign_root, candidate=True)
         run, eval_rows = raw_run(
             index=index,
             model=source["model"],
@@ -476,21 +594,42 @@ def tiller_runs(
             train_tokens=int(source["max_train_tokens"]),
             steps=int(source["steps"]),
             activation=source["candidate_activation"],
-            optimizer="tiller_v1",
-            method="tiller",
+            optimizer=optimizer,
+            method=method,
             phase=source["phase"],
             source_row_index=int(source["source_manifest_row_index"]),
             source_row_id=source["source_manifest_row_id"],
             path=candidate_path,
         )
-        result_path = analysis_root / f"row-{index:02d}" / "RESULT.json"
+        result_path = result_root / "RESULT.json"
+        if source["phase"] == PRIMARY_PHASE and run["status"] == "complete" and not result_path.is_file():
+            run.update(status="incomplete", final_validation_loss="", final_validation_perplexity="")
+        screen_path = result_root / "STEP1000_SCREEN.json"
+        if screen_path.is_file():
+            screen = json.loads(screen_path.read_text())
+            if screen.get("matrix_index") != index:
+                raise RuntimeError(f"step-1000 screen has the wrong matrix identity: {screen_path}")
+            if screen.get("status") == "failed_negative_interrupted":
+                if candidate_path.is_file():
+                    observed = evaluations(safe_records(candidate_path)).get(1000, {}).get("val_loss")
+                    if (finite(observed) is None or screen.get("candidate_step1000_loss") != observed
+                            or finite(screen.get("control_step1000_loss")) is None
+                            or screen.get("candidate_step1000_lead") != screen["control_step1000_loss"] - observed
+                            or screen["candidate_step1000_lead"] >= 0):
+                        raise RuntimeError(f"negative screen does not match the candidate trajectory: {screen_path}")
+                    run.update(status="stopped_early", stopped_early=True,
+                               final_validation_loss="", final_validation_perplexity="")
         if result_path.is_file():
             result = json.loads(result_path.read_text())
             required = {
                 "schema": "tiller_matched_endpoint_result_v1",
                 "status": "complete",
                 "matrix_index": index,
+                "model": source["model"], "dataset": source["dataset"],
+                "seed": int(source["seed"]), "steps": int(source["steps"]),
             }
+            if source["phase"] == PRIMARY_PHASE:
+                required.update(phase=PRIMARY_PHASE, candidate_optimizer=optimizer)
             mismatch = {
                 key: (result.get(key), value)
                 for key, value in required.items()
@@ -498,6 +637,11 @@ def tiller_runs(
             }
             if mismatch:
                 raise RuntimeError(f"invalid paired result {result_path}: {mismatch}")
+            if source["phase"] == PRIMARY_PHASE:
+                validate_primary_result(result_path, result, source, candidate_path,
+                                        result_root, campaign_root)
+                if run["status"] == "stopped_early":
+                    raise RuntimeError(f"stopped candidate also has a complete result: {result_path}")
             run.update(
                 {
                     "step1000_validation_loss": result["candidate_step1000_loss"],
@@ -527,336 +671,6 @@ def tiller_runs(
         rows.append(run)
         checkpoints.extend(eval_rows)
     return rows, checkpoints
-
-
-def factorial_muon_runs(
-    manifest: Path, campaign_root: Path
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Import the staged 18-layer Muon activation grid into the public schema."""
-
-    matrix_path = campaign_root / "matrix.json"
-    if not matrix_path.is_file():
-        raise RuntimeError(f"factorial matrix is absent: {matrix_path}")
-    matrix = json.loads(matrix_path.read_text())
-    factorial_rows = {
-        (
-            str(row["dataset"]), int(row["seed"]), str(row["activation"]),
-            str(row["optimizer"]),
-        ): row
-        for row in matrix["rows"]
-        if row["optimizer"] == "muon"
-    }
-    if len(factorial_rows) != 30:
-        raise RuntimeError(
-            f"expected 30 factorial Muon rows, found {len(factorial_rows)}"
-        )
-
-    with manifest.open(newline="") as handle:
-        public_rows = [
-            row for row in csv.DictReader(handle)
-            if row["phase"] == FACTORIAL_PHASE and row["optimizer"] == "muon"
-        ]
-    if len(public_rows) != 30:
-        raise RuntimeError(
-            f"expected 30 public 18-layer Muon rows, found {len(public_rows)}"
-        )
-
-    rows: list[dict[str, Any]] = []
-    checkpoints: list[dict[str, Any]] = []
-    pairs: dict[tuple[Any, ...], dict[str, dict[str, Any]]] = defaultdict(dict)
-    for source in public_rows:
-        key = (
-            source["dataset"], int(source["seed"]), source["activation"], "muon"
-        )
-        staged = factorial_rows[key]
-        run_path = (
-            campaign_root / "runs" / staged["row_id"]
-            / f"{source['activation']}.jsonl"
-        )
-        existing = staged.get("existing_result")
-        use_existing = isinstance(existing, dict) and existing.get("status") == "complete"
-        if use_existing and run_path.is_file():
-            records = safe_records(run_path)
-            summary = unique_event(records, "summary") or {}
-            endpoint = evaluations(records).get(int(source["steps"]), {})
-            use_existing = not (
-                summary.get("completed_steps") == int(source["steps"])
-                and not summary.get("stopped_early", False)
-                and finite(endpoint.get("val_loss")) is not None
-            )
-        historical_path = None
-        if (use_existing or not run_path.is_file()) and isinstance(existing, dict):
-            candidate = Path(str(existing.get("canonical_path", "")))
-            if candidate.is_file() or use_existing:
-                historical_path = candidate
-        source_path = historical_path or run_path
-        run, eval_rows = raw_run(
-            index=int(source["row_index"]),
-            model=source["model"],
-            dataset=source["dataset"],
-            seed=int(source["seed"]),
-            train_tokens=int(source["train_tokens"]),
-            steps=int(source["steps"]),
-            activation=source["activation"],
-            optimizer="muon",
-            method=source["method"],
-            phase=source["phase"],
-            source_row_index=int(source["row_index"]),
-            source_row_id=source["row_id"],
-            path=source_path,
-        )
-        # The compact public tables carry the verified artifact identity and
-        # all evaluation records, not cluster-local paths or scheduler labels.
-        run["source_jsonl"] = ""
-        run["slurm_job_id"] = ""
-        run["slurm_restart_count"] = ""
-        run["slurm_node"] = ""
-        run["timing_attempt_id"] = ""
-        if historical_path is not None:
-            # Keep the verified digest while omitting a machine-local source path.
-            run["source_jsonl_sha256"] = existing["file_sha256"]
-        if use_existing:
-            endpoint = float(existing["endpoint"])
-            loop_seconds = float(existing["total_seconds"])
-            run.update(
-                {
-                    "steps_completed": int(existing["completed_steps"]),
-                    "status": "complete",
-                    "step1000_validation_loss": float(existing["step1000"]),
-                    "final_validation_loss": endpoint,
-                    "final_validation_perplexity": math.exp(endpoint),
-                    "time_scope": "training_loop",
-                    "total_seconds": loop_seconds,
-                    "training_loop_total_seconds": loop_seconds,
-                    "mean_seconds_per_step": loop_seconds / int(source["steps"]),
-                    "tokens_per_second": (
-                        int(source["global_tokens_per_step"])
-                        / (loop_seconds / int(source["steps"]))
-                    ),
-                    "stopped_early": False,
-                    "lr_wd_fairness_passed": True,
-                    "realized_lr_trace_sha256": existing[
-                        "realized_lr_trace_sha256"
-                    ],
-                    "source_jsonl_sha256": existing["file_sha256"],
-                }
-            )
-        wall_clock = None if use_existing else factorial_process_time(
-            campaign_root / "results" / "01_muon"
-            / f"matrix-{int(staged['matrix_index'])}" / "WALL_CLOCK.json",
-            staged_row=staged,
-            artifact=run_path,
-            source_freeze=campaign_root / "SOURCE_FREEZE.sha256",
-        )
-        if wall_clock is not None:
-            if run["status"] != "complete":
-                raise RuntimeError(
-                    f"successful wall clock accompanies incomplete row {staged['row_id']}"
-                )
-            run["time_scope"] = "end_to_end_process"
-            run["total_seconds"] = wall_clock
-        rows.append(run)
-        checkpoints.extend(eval_rows)
-        pairs[(source["dataset"], int(source["seed"]))][source["activation"]] = run
-
-    for arms in pairs.values():
-        if "silu" in arms and GRAIN_ID in arms:
-            pair(arms[GRAIN_ID], arms["silu"])
-    return rows, checkpoints
-
-
-def factorial_tiller_runs(
-    matrix: Path,
-    campaign_root: Path,
-    published_rows: list[dict[str, Any]],
-    published_checkpoints: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Replace a published attempt only with a complete, audited factorial run."""
-
-    campaign_root = campaign_root.resolve()
-    staged_rows = json.loads((campaign_root / "matrix.json").read_text())["rows"]
-    staged_tiller = {
-        int(row["matrix_index"]): row for row in staged_rows
-        if row["optimizer"] == "tiller_v1"
-    }
-    public_tiller = {
-        int(row["matrix_index"]): row
-        for row in json.loads(matrix.read_text())["rows"]
-        if row["phase"] == FACTORIAL_PHASE
-    }
-    if set(staged_tiller) != set(range(210, 225)) or set(public_tiller) != set(range(30, 45)):
-        raise RuntimeError("factorial/public TILLER row inventory changed")
-    replacements: dict[int, dict[str, Any]] = {}
-    new_checkpoints: list[dict[str, Any]] = []
-    for staged_index, staged in staged_tiller.items():
-        index = staged_index - 180
-        source = public_tiller[index]
-        required = {
-            key: source[key]
-            for key in (
-                "model", "dataset", "dataset_name", "dataset_config", "seed",
-                "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps",
-            )
-        }
-        required.update(
-            activation=source["candidate_activation"],
-            optimizer=source["candidate_optimizer"],
-            train_tokens=source["max_train_tokens"],
-            val_tokens=source["max_val_tokens"],
-        )
-        if any(staged.get(key) != value for key, value in required.items()):
-            raise RuntimeError(f"factorial/public TILLER identity mismatch: {staged_index}")
-        artifact = campaign_root / "runs" / staged["row_id"] / f"{staged['activation']}.jsonl"
-        result_root = campaign_root / "results/02_tiller" / f"matrix-{staged_index}"
-        timing_path = result_root / "WALL_CLOCK.json"
-        decision_path = result_root / "STEP1000.json"
-        if not all(path.is_file() for path in (artifact, timing_path, decision_path)):
-            continue
-        timing = json.loads(timing_path.read_text())
-        decision = json.loads(decision_path.read_text())
-        # A stopped or failed retry cannot supersede a completed historical run.
-        if timing.get("process_exit_status") != 0 or decision.get("scientific_stop") is True:
-            continue
-        records = safe_records(artifact)
-        summary = unique_event(records, "summary") or {}
-        evals = evaluations(records)
-        steps = int(source["steps"])
-        if (
-            summary.get("completed_steps") != steps
-            or summary.get("stopped_early") is not False
-            or finite(evals.get(steps, {}).get("val_loss")) is None
-        ):
-            continue
-        config = unique_event(records, "config") or {}
-        expected_config = {
-            key: staged[key]
-            for key in ("seed", "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps",
-                        "train_tokens", "val_tokens", "activation", "dataset_config")
-        }
-        expected_config.update(
-            dataset=staged["dataset_name"],
-            optimizer="factorized_every_step_rfd_gradient_ledger_muon_v1",
-            params=staged["expected_parameter_count"],
-            train_token_sample_sha256=staged["token_fingerprints"]["train_token_sample_sha256"],
-            val_token_sample_sha256=staged["token_fingerprints"]["validation_token_sample_sha256"],
-        )
-        identity = config.get("m1_300m_campaign_identity", {})
-        if (
-            any(config.get(key) != value for key, value in expected_config.items())
-            or identity.get("passed") is not True
-            or identity.get("scientific_cell_key") != staged["scientific_cell_key"]
-        ):
-            raise RuntimeError(f"factorial TILLER configuration mismatch: {staged_index}")
-        controls = [row for row in staged_rows if row["optimizer"] == "muon"
-                    and row["activation"] == "silu" and row["dataset"] == staged["dataset"]
-                    and int(row["seed"]) == int(staged["seed"])]
-        if len(controls) != 1:
-            raise RuntimeError(f"factorial TILLER lacks one exact control: {staged_index}")
-        control = controls[0]
-        control_path = campaign_root / "runs" / control["row_id"] / "silu.jsonl"
-        if control.get("execution_action") == "skip_after_full_evidence_validation":
-            control_path = Path(control["existing_result"]["canonical_path"])
-            if sha256(control_path) != control["existing_result"]["file_sha256"]:
-                raise RuntimeError(f"factorial TILLER historical control changed: {staged_index}")
-        control_step1000 = evaluations(safe_records(control_path)).get(1000, {}).get("val_loss")
-        candidate_step1000 = evals.get(1000, {}).get("val_loss")
-        required_decision = {
-            "schema": "tiller_exact_matched_step1000_gate_v1",
-            "dataset": staged["dataset"], "seed": int(staged["seed"]),
-            "candidate_matrix_index": staged_index,
-            "control_matrix_index": int(control["matrix_index"]),
-            "candidate_path": str(artifact), "control_path": str(control_path),
-            "candidate_step1000_loss": candidate_step1000,
-            "control_step1000_loss": control_step1000,
-        }
-        if (
-            decision.get("passed") is not True or decision.get("scientific_stop") is not False
-            or any(decision.get(key) != value for key, value in required_decision.items())
-            or any(isinstance(value, bool) or finite(value) is None for value in (
-                candidate_step1000, control_step1000, decision.get("candidate_lead"),
-                evals[steps].get("val_loss"),
-            ))
-            or decision["candidate_lead"] != control_step1000 - candidate_step1000
-            or decision["candidate_lead"] < 0
-        ):
-            raise RuntimeError(f"invalid factorial TILLER step-1000 decision: {staged_index}")
-        wall_seconds = factorial_process_time(
-            timing_path, staged_row=staged, artifact=artifact,
-            source_freeze=campaign_root / "SOURCE_FREEZE.sha256", stage="02_tiller",
-        )
-        run, eval_rows = raw_run(
-            index=index, model=source["model"], dataset=source["dataset"],
-            seed=int(source["seed"]), train_tokens=int(source["max_train_tokens"]),
-            steps=steps, activation=source["candidate_activation"], optimizer="tiller_v1",
-            method="tiller", phase=source["phase"],
-            source_row_index=int(source["source_manifest_row_index"]),
-            source_row_id=source["source_manifest_row_id"], path=artifact,
-        )
-        run.update(time_scope="end_to_end_process", total_seconds=wall_seconds)
-        for field in ("source_jsonl", "slurm_job_id", "slurm_restart_count", "slurm_node", "timing_attempt_id"):
-            run[field] = ""
-        replacements[index] = run
-        new_checkpoints.extend(eval_rows)
-    return (
-        [row for row in published_rows if int(row["run_index"]) not in replacements]
-        + list(replacements.values()),
-        [row for row in published_checkpoints if int(row["run_index"]) not in replacements]
-        + new_checkpoints,
-    )
-
-
-def refresh_tiller_controls(
-    output_root: Path,
-    control_rows: Iterable[dict[str, Any]],
-    *,
-    matrix: Path = DEFAULT_MATRIX,
-    factorial_campaign: Path | None = None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Attach every newly available exact control to the published TILLER rows."""
-
-    runs_path = output_root / "tiller" / "runs.csv"
-    checkpoints_path = output_root / "tiller" / "checkpoints.csv"
-    if not runs_path.is_file() or not checkpoints_path.is_file():
-        raise RuntimeError("published TILLER tables are absent")
-    with runs_path.open(newline="") as handle:
-        candidates = list(csv.DictReader(handle))
-    with checkpoints_path.open(newline="") as handle:
-        checkpoints = list(csv.DictReader(handle))
-    if factorial_campaign is not None:
-        candidates, checkpoints = factorial_tiller_runs(
-            matrix, factorial_campaign, candidates, checkpoints
-        )
-    controls = {
-        (
-            str(row["model_scale"]), str(row["dataset"]), int(row["seed"]),
-            int(row["train_tokens"]), int(row["steps_required"]),
-            str(row["optimizer"]),
-        ): row
-        for row in control_rows
-        if row["activation"] == "silu" and row["optimizer"] in {"adamw", "muon"}
-    }
-    for candidate in candidates:
-        if factorial_campaign is not None and candidate["source_phase"] != FACTORIAL_PHASE:
-            continue
-        for field in (
-            "matched_control_step1000_validation_loss",
-            "matched_control_validation_loss",
-            "lead_at_step1000_vs_matched_control",
-            "lead_vs_matched_control",
-            "matched_control_total_seconds",
-            "total_time_ratio_vs_matched_control",
-        ):
-            candidate[field] = ""
-        key = (
-            str(candidate["model_scale"]), str(candidate["dataset"]),
-            int(candidate["seed"]), int(candidate["train_tokens"]),
-            int(candidate["steps_required"]),
-            "adamw" if int(candidate["train_tokens"]) == 100_000_000 else "muon",
-        )
-        control = controls.get(key)
-        if control is not None:
-            pair(candidate, control)
-    return candidates, checkpoints
 
 
 def sample_std(values: list[float]) -> float | str:
@@ -1008,6 +822,42 @@ def publish(
     write_csv(directory / "checkpoints.csv", CHECKPOINT_FIELDS, checkpoints)
 
 
+def preserve_published_attempts(
+    output_root: Path, optimizer: str, rows: list[dict[str, Any]],
+    checkpoints: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Retain legacy 12-layer data and never splice a partial retry into an endpoint."""
+    directory = output_root / OUTPUT_DIRECTORIES[optimizer]
+    if not (directory / "runs.csv").is_file():
+        return rows, checkpoints
+    with (directory / "runs.csv").open(newline="") as handle:
+        previous = list(csv.DictReader(handle))
+    fields = ("run_index", "model_scale", "dataset", "seed", "train_tokens",
+              "steps_required", "activation", "optimizer", "source_phase", "source_row_id")
+    key = lambda row: tuple(str(row[field]) for field in fields)
+    existing = {key(row): row for row in previous}
+    retained = set()
+    merged = []
+    for row in rows:
+        old = existing.get(key(row))
+        if old is not None and (
+            row["model_scale"] == "12l_768d"
+            or row["status"] == "pending"
+            or (old["status"] == "complete" and row["status"] != "complete")
+        ):
+            merged.append(old)
+            retained.add(int(old["run_index"]))
+        else:
+            merged.append(row)
+    checkpoint_path = directory / "checkpoints.csv"
+    with checkpoint_path.open(newline="") as handle:
+        prior_checkpoints = list(csv.DictReader(handle))
+    return merged, (
+        [row for row in checkpoints if int(row["run_index"]) not in retained]
+        + [row for row in prior_checkpoints if int(row["run_index"]) in retained]
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
@@ -1022,14 +872,8 @@ def main() -> None:
     parser.add_argument(
         "--tiller-analysis", type=Path, default=Path("experiments/protocol/results")
     )
-    parser.add_argument(
-        "--factorial-campaign",
-        type=Path,
-        help=(
-            "optional staged 18-layer campaign root; import its Muon rows and "
-            "completed TILLER endpoints into the corresponding public rows"
-        ),
-    )
+    parser.add_argument("--campaign", type=Path,
+                        help="independent 18-layer 100M campaign with source_muon/source_tiller snapshots")
     parser.add_argument(
         "--only-optimizer",
         choices=tuple(OUTPUT_DIRECTORIES),
@@ -1043,50 +887,37 @@ def main() -> None:
         help="materialize manifest rows that have not produced an output file",
     )
     args = parser.parse_args()
-
-    by_optimizer, checkpoint_rows = manifest_runs(args.manifest, args.activation_runs)
-    tiller, tiller_checkpoints = tiller_runs(
-        args.matrix, args.tiller_runs, args.tiller_analysis
+    if args.campaign is not None:
+        args.activation_runs = args.campaign / "runs/activation_optimizer"
+    by_optimizer, checkpoint_rows = manifest_runs(
+        args.manifest, args.activation_runs, campaign_root=args.campaign
     )
-    by_optimizer["tiller_v1"] = tiller
-    checkpoint_rows["tiller_v1"] = tiller_checkpoints
-    if args.factorial_campaign is not None:
-        factorial, factorial_checkpoints = factorial_muon_runs(
-            args.manifest, args.factorial_campaign
+    tiller, tiller_checkpoints = tiller_runs(
+        args.matrix, args.tiller_runs, args.tiller_analysis, campaign_root=args.campaign
+    )
+    for optimizer in CANDIDATE_METHODS:
+        by_optimizer[optimizer] = [row for row in tiller if row["optimizer"] == optimizer]
+        checkpoint_rows[optimizer] = [row for row in tiller_checkpoints if row["optimizer"] == optimizer]
+    for optimizer in OUTPUT_DIRECTORIES:
+        for row in by_optimizer.get(optimizer, []):
+            if row["source_phase"] == PRIMARY_PHASE:
+                for field in ("source_jsonl", "slurm_job_id", "slurm_restart_count", "slurm_node", "timing_attempt_id"):
+                    row[field] = ""
+        by_optimizer[optimizer], checkpoint_rows[optimizer] = preserve_published_attempts(
+            args.output_root, optimizer, by_optimizer.get(optimizer, []), checkpoint_rows.get(optimizer, [])
         )
-        published_runs_path = args.output_root / "muon" / "runs.csv"
-        published_checkpoints_path = args.output_root / "muon" / "checkpoints.csv"
-        if published_runs_path.is_file():
-            with published_runs_path.open(newline="") as handle:
-                existing_runs = list(csv.DictReader(handle))
-        else:
-            existing_runs = by_optimizer.get("muon", [])
-        if published_checkpoints_path.is_file():
-            with published_checkpoints_path.open(newline="") as handle:
-                existing_checkpoints = list(csv.DictReader(handle))
-        else:
-            existing_checkpoints = checkpoint_rows.get("muon", [])
-        replaced_indices = {int(item["run_index"]) for item in factorial}
-        by_optimizer["muon"] = [
-            row for row in existing_runs
-            if not (
-                row["model_scale"] == "18l_1024d"
-                and int(row["train_tokens"]) == 300_000_000
-            )
-        ] + factorial
-        checkpoint_rows["muon"] = [
-            row for row in existing_checkpoints
-            if int(row["run_index"]) not in replaced_indices
-        ] + factorial_checkpoints
-        adamw_path = args.output_root / "adamw" / "runs.csv"
-        with adamw_path.open(newline="") as handle:
-            adamw_controls = list(csv.DictReader(handle))
-        refreshed_tiller, refreshed_tiller_checkpoints = refresh_tiller_controls(
-            args.output_root, by_optimizer["muon"] + adamw_controls,
-            matrix=args.matrix, factorial_campaign=args.factorial_campaign,
-        )
-        by_optimizer["tiller_v1"] = refreshed_tiller
-        checkpoint_rows["tiller_v1"] = refreshed_tiller_checkpoints
+    controls = {
+        (row["source_phase"], row["dataset"], int(row["seed"]), row["optimizer"]): row
+        for rows in by_optimizer.values() for row in rows if row["activation"] == "silu"
+    }
+    for optimizer, rows in by_optimizer.items():
+        for row in rows:
+            if row["source_phase"] != PRIMARY_PHASE or row["activation"] != GRAIN_ID:
+                continue
+            control_optimizer = "muon" if optimizer in CANDIDATE_METHODS else optimizer
+            control = controls.get((PRIMARY_PHASE, row["dataset"], int(row["seed"]), control_optimizer))
+            if control is not None:
+                pair(row, control)
     written = 0
     for optimizer in OUTPUT_DIRECTORIES:
         if args.only_optimizer and optimizer not in args.only_optimizer:

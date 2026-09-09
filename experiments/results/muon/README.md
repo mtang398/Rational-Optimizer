@@ -9,7 +9,6 @@ across the published model scales, five datasets, and three seeds.
 
 Both SwiGLU and GRAIN activation records use the same table schema.
 
-For the 18-layer, 1,024-wide, 300M-token suite, all 30 Muon runs have
-complete 9,150-step endpoints. Twenty-nine completed
-rows carry verified end-to-end process timing, and one retained endpoint
-carries its original training-loop timing scope.
+The 18-layer, 1,024-wide suite trains for 3,050 steps and approximately
+100M tokens. Its 30 Muon rows are currently pending. Completed 12-layer
+results remain in the same tables.

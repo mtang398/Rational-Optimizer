@@ -8,12 +8,10 @@ import csv
 import json
 from pathlib import Path
 
-from . import suite
-
-
 PACKAGE = Path(__file__).resolve().parent
 DEFAULT_MANIFEST = PACKAGE / "activation_optimizer_manifest.csv"
-PRIMARY_SUITE = "18l_1024d_300m_tokens_9150_steps"
+PRIMARY_SUITE = "18l_1024d_100m_tokens_3050_steps"
+CANDIDATE_OPTIMIZERS = ("tiller_v1", "tiller_then_muon_v1")
 BASELINE_STAGES = {
     "muon": {"muon"},
     "adamw": {"adamw"},
@@ -40,14 +38,22 @@ def manifest_stage_indices(
     return [int(row["row_index"]) for row in selected]
 
 
-def matrix_suite_indices(phase: str) -> list[int]:
+def matrix_suite_indices(
+    phase: str, optimizer: str = "tiller_v1"
+) -> list[int]:
+    if optimizer not in CANDIDATE_OPTIMIZERS:
+        raise RuntimeError(f"unknown candidate optimizer: {optimizer}")
+    payload = json.loads((PACKAGE / "matrix.json").read_text())
+    if (payload.get("schema") != "tiller_evaluation_matrix_v1"
+            or payload.get("matrix_rows") != len(payload.get("rows", ()))):
+        raise RuntimeError("candidate matrix inventory changed")
     selected = [
         int(row["matrix_index"])
-        for row in suite.matrix_payload()["rows"]
-        if row["phase"] == phase
+        for row in payload["rows"]
+        if row["phase"] == phase and row["candidate_optimizer"] == optimizer
     ]
     if not selected:
-        raise RuntimeError(f"unknown TILLER suite: {phase}")
+        raise RuntimeError(f"unknown TILLER suite/optimizer: {phase}/{optimizer}")
     return selected
 
 
@@ -117,6 +123,9 @@ def main() -> None:
     manifest_index.add_argument("--ordinal", required=True, type=int)
     matrix_index = sub.add_parser("matrix-index")
     matrix_index.add_argument("--suite", default=PRIMARY_SUITE)
+    matrix_index.add_argument(
+        "--optimizer", choices=CANDIDATE_OPTIMIZERS, default="tiller_v1"
+    )
     matrix_index.add_argument("--ordinal", required=True, type=int)
     args = parser.parse_args()
     if args.command == "terminal":
@@ -126,9 +135,11 @@ def main() -> None:
         print(ordinal_value(values, args.ordinal, "manifest stage"))
         return
     if args.command == "matrix-index":
-        values = matrix_suite_indices(args.suite)
+        values = matrix_suite_indices(args.suite, args.optimizer)
         print(ordinal_value(values, args.ordinal, "TILLER suite"))
         return
+    from . import suite
+
     row = suite.row_at(args.matrix_index)
     fields = (
         row["model"], row["dataset"], str(row["seed"]), str(row["steps"]),

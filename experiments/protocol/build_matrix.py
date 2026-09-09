@@ -14,9 +14,10 @@ PACKAGE = Path(__file__).resolve().parent
 SOURCE_MANIFEST = PACKAGE / "activation_optimizer_manifest.csv"
 RESULTS = PACKAGE.parent / "results"
 EXACT_OPTIMIZER_KEY = "tiller_v1"
+TWO_STAGE_OPTIMIZER_KEY = "tiller_then_muon_v1"
 SUITE_100M = "12l_768d_100m_tokens_3050_steps"
 SUITE_300M_SMALL = "12l_768d_300m_tokens_9150_steps"
-SUITE_300M_LARGE = "18l_1024d_300m_tokens_9150_steps"
+SUITE_100M_LARGE = "18l_1024d_100m_tokens_3050_steps"
 
 def as_bool(value: str) -> bool:
     normalized = value.strip().lower()
@@ -40,7 +41,7 @@ def matched_controls() -> dict[tuple[str, str, int], dict[str, object]]:
     for phase, model, folder, tokens, steps in (
         (SUITE_100M, "12l_768d", "adamw", 100_000_000, 3_050),
         (SUITE_300M_SMALL, "12l_768d", "muon", 300_000_000, 9_150),
-        (SUITE_300M_LARGE, "18l_1024d", "muon", 300_000_000, 9_150),
+        (SUITE_100M_LARGE, "18l_1024d", "muon", 100_000_000, 3_050),
     ):
         path = RESULTS / folder / "runs.csv"
         with path.open(newline="") as handle:
@@ -49,6 +50,7 @@ def matched_controls() -> dict[tuple[str, str, int], dict[str, object]]:
         for row in rows:
             if not (
                 row["model_scale"] == model
+                and row["source_phase"] == phase
                 and int(row["train_tokens"]) == tokens
                 and int(row["steps_required"]) == steps
                 and row["activation"] == "silu"
@@ -85,7 +87,7 @@ def selected_rows() -> list[dict[str, str]]:
             and row["method"] == "silu_adamw"
         )
         or (
-            row["phase"] in {SUITE_300M_SMALL, SUITE_300M_LARGE}
+            row["phase"] in {SUITE_300M_SMALL, SUITE_100M_LARGE}
             and row["method"] == "silu_muon"
         )
     ]
@@ -100,7 +102,7 @@ def selected_rows() -> list[dict[str, str]]:
             {"1337", "2027", "3407"},
             15,
         ),
-        SUITE_300M_LARGE: (
+        SUITE_100M_LARGE: (
             {"dclm", "fineweb_edu", "fineweb", "dolma_sample", "c4_en"},
             {"1337", "2027", "3407"},
             15,
@@ -121,15 +123,21 @@ def build_row(
     index: int,
     row: dict[str, str],
     controls: dict[tuple[str, str, int], dict[str, object]],
+    *,
+    candidate_optimizer: str = EXACT_OPTIMIZER_KEY,
 ) -> dict[str, object]:
-    is_100m_suite = row["phase"] == SUITE_100M
+    if candidate_optimizer not in {EXACT_OPTIMIZER_KEY, TWO_STAGE_OPTIMIZER_KEY}:
+        raise ValueError(f"unknown candidate optimizer: {candidate_optimizer}")
+    if candidate_optimizer == TWO_STAGE_OPTIMIZER_KEY and row["phase"] != SUITE_100M_LARGE:
+        raise ValueError("the two-stage candidate is defined only for the 18-layer 100M suite")
+    uses_adamw_control = row["phase"] == SUITE_100M
     control_key = (row["phase"], row["dataset"], int(row["seed"]))
     control = controls.get(control_key)
     if control is None:
         control = {
             "source_result": (
                 "experiments/results/adamw/runs.csv"
-                if is_100m_suite else "experiments/results/muon/runs.csv"
+                if uses_adamw_control else "experiments/results/muon/runs.csv"
             ),
             "source_run_index": None,
             "status": "pending",
@@ -138,7 +146,7 @@ def build_row(
             "time_scope": None,
             "total_seconds": None,
         }
-    return {
+    result = {
         "matrix_index": index,
         "source_manifest_row_index": int(row["row_index"]),
         "source_manifest_row_id": row["row_id"],
@@ -196,32 +204,54 @@ def build_row(
         "tokenizer": row["tokenizer"],
         "tokenizer_revision": row["tokenizer_revision"],
         "control_activation": "silu",
-        "control_optimizer": "adamw" if is_100m_suite else "muon",
-        "control_name": "SwiGLU+AdamW" if is_100m_suite else "SwiGLU+Muon",
+        "control_optimizer": "adamw" if uses_adamw_control else "muon",
+        "control_name": "SwiGLU+AdamW" if uses_adamw_control else "SwiGLU+Muon",
         "candidate_activation": "rlb_fused_global_rational",
-        "candidate_optimizer": EXACT_OPTIMIZER_KEY,
-        "candidate_name": "TILLER",
+        "candidate_optimizer": candidate_optimizer,
+        "candidate_name": (
+            "TILLER" if candidate_optimizer == EXACT_OPTIMIZER_KEY else "TILLER→Muon"
+        ),
         "quality_action": "selected_method_endpoint",
         "timing_condition": "exclusive 4x RTX A6000 with NVLink and NCCL P2P",
         "matched_control": control,
     }
+    if candidate_optimizer == TWO_STAGE_OPTIMIZER_KEY:
+        result.update(
+            switch_after_step=1_000,
+            optimizer_state_transition="preserve_compatible_state",
+            learning_rate_schedule="single_full_horizon_cosine",
+        )
+    return result
 
 
 def build_payload() -> dict[str, object]:
     controls = matched_controls()
+    source_rows = selected_rows()
     matrix = [
         build_row(index, row, controls)
-        for index, row in enumerate(selected_rows())
+        for index, row in enumerate(source_rows)
     ]
+    for row in source_rows:
+        if row["phase"] == SUITE_100M_LARGE:
+            matrix.append(build_row(
+                len(matrix), row, controls, candidate_optimizer=TWO_STAGE_OPTIMIZER_KEY
+            ))
     return {
         "schema": "tiller_evaluation_matrix_v1",
-        "objective": "TILLER evaluation across the published model and token-budget suites",
+        "objective": "TILLER and TILLER-to-Muon evaluation across the published model and token-budget suites",
         "source_manifest": "experiments/protocol/activation_optimizer_manifest.csv",
         "source_manifest_sha256": sha256(SOURCE_MANIFEST),
         "matrix_rows": len(matrix),
         "12l_100m_suite_rows": sum(row["phase"] == SUITE_100M for row in matrix),
         "12l_300m_suite_rows": sum(row["phase"] == SUITE_300M_SMALL for row in matrix),
-        "18l_300m_suite_rows": sum(row["phase"] == SUITE_300M_LARGE for row in matrix),
+        "18l_100m_suite_rows": sum(row["phase"] == SUITE_100M_LARGE for row in matrix),
+        "18l_100m_full_tiller_rows": sum(
+            row["phase"] == SUITE_100M_LARGE
+            and row["candidate_optimizer"] == EXACT_OPTIMIZER_KEY for row in matrix
+        ),
+        "18l_100m_tiller_then_muon_rows": sum(
+            row["candidate_optimizer"] == TWO_STAGE_OPTIMIZER_KEY for row in matrix
+        ),
         "rows": matrix,
     }
 

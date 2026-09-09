@@ -88,11 +88,13 @@ BASELINE_OPTIMIZERS = {
     "adafactor_came",
     "soap_adamw",
 }
-RLB_MATRIX_SYNC_OPTIMIZERS = set()
-RLB_COEFFICIENT_SYNC_OPTIMIZERS = set()
-RATIONAL_SPECIFIC_OPTIMIZERS = set()
+TILLER_THEN_MUON_OPTIMIZER = "tiller_then_muon_v1"
+RLB_MATRIX_SYNC_OPTIMIZERS = {TILLER_THEN_MUON_OPTIMIZER}
+RLB_COEFFICIENT_SYNC_OPTIMIZERS = {TILLER_THEN_MUON_OPTIMIZER}
+RATIONAL_SPECIFIC_OPTIMIZERS = {TILLER_THEN_MUON_OPTIMIZER}
 ACTIVE_OPTIMIZERS = sorted(BASELINE_OPTIMIZERS | RATIONAL_SPECIFIC_OPTIMIZERS)
 GRAIN_ACTIVATION_IDS = {GRAIN_ACTIVATION, _LEGACY_GRAIN_ACTIVATION}
+_ACTIVE_GRADIENT_CLIP_OBSERVER = None
 
 
 def resolve_group_count(hidden_dim, group_size, max_groups):
@@ -940,13 +942,27 @@ def grad_global_norm(model):
     return float(torch.sqrt(total).item())
 
 
+def _record_active_gradient_clipping(norm_value, grad_clip):
+    observer = _ACTIVE_GRADIENT_CLIP_OBSERVER
+    if observer is None:
+        return
+    recorder = getattr(observer, "record_realized_clipping", None)
+    if recorder is None:
+        raise RuntimeError("active gradient clip observer cannot record clipping")
+    recorder(norm_value, grad_clip)
+
+
 def clip_or_measure_gradients(model, grad_clip, capture_norm):
     if grad_clip > 0:
         norm = nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         norm_value = float(norm.item() if torch.is_tensor(norm) else norm)
+        _record_active_gradient_clipping(norm_value, grad_clip)
         return norm_value, bool(norm_value > float(grad_clip))
     if capture_norm:
-        return grad_global_norm(model), False
+        norm_value = grad_global_norm(model)
+        _record_active_gradient_clipping(norm_value, grad_clip)
+        return norm_value, False
+    _record_active_gradient_clipping(None, grad_clip)
     return None, False
 
 
@@ -1037,6 +1053,11 @@ def collect_optimizer_telemetry(optimizer):
         if telemetry:
             record.update(telemetry)
     return record
+
+
+def optimizer_method_specific_sync_active(optimizer):
+    checker = getattr(optimizer, "method_specific_sync_active", None)
+    return True if checker is None else bool(checker())
 
 
 def parse_optimizer_telemetry_steps(value, total_steps):
@@ -1344,6 +1365,11 @@ class CompositeOptimizer:
 EXACT_LR_WD_CONTRACT = "exact_lr_wd_v1"
 TILLER_LR_WD_CONTRACT = EXACT_LR_WD_CONTRACT
 TILLER_EXPERIMENT_IDENTITY = "tiller_matrix_v1"
+TILLER_THEN_MUON_EXPERIMENT_IDENTITY = "tiller_then_muon_matrix_v1"
+TILLER_EXPERIMENT_IDENTITIES = (
+    TILLER_EXPERIMENT_IDENTITY,
+    TILLER_THEN_MUON_EXPERIMENT_IDENTITY,
+)
 _TILLER_IDENTITY_AUDITOR = None
 
 
@@ -1367,7 +1393,7 @@ def audit_tiller_experiment_identity(
 ):
     """Evaluate the identity contract installed by the experiment suite."""
 
-    if args.experiment_identity != TILLER_EXPERIMENT_IDENTITY:
+    if args.experiment_identity not in TILLER_EXPERIMENT_IDENTITIES:
         return None
     if _TILLER_IDENTITY_AUDITOR is None:
         raise RuntimeError("the TILLER suite has not installed its identity auditor")
@@ -1437,6 +1463,7 @@ def audit_optimizer_lr_wd_fairness(model, optimizer, args):
             tied_embedding_no_decay = tied_embedding and args.optimizer in {
                 "muon",
                 "tiller_v1",
+                TILLER_THEN_MUON_OPTIMIZER,
             }
             required_wd = (
                 0.0
@@ -1628,6 +1655,60 @@ def collect_rlb_optimizer_groups(model, args):
     return groups
 
 
+def collect_tiller_then_muon_blocks(model, args):
+    """Collect GRAIN MLP and attention matrices for the two-stage candidate."""
+
+    raw_model = unwrap_model(model)
+    groups = collect_rlb_optimizer_groups(model, args)
+    by_layer = {int(group["layer_index"]): dict(group) for group in groups}
+    if len(by_layer) != int(args.layers) or len(raw_model.layers) != int(args.layers):
+        raise RuntimeError("TILLER-then-Muon requires one GRAIN block per Transformer layer")
+    blocks = []
+    for layer_index, block in enumerate(raw_model.layers):
+        group = by_layer.get(layer_index)
+        if group is None or group["mlp"] is not block.mlp:
+            raise RuntimeError("TILLER-then-Muon block inventory does not match model depth")
+        group.update(
+            {
+                "block": block,
+                "qkv_weight": block.attn.qkv.weight,
+                "attn_out_weight": block.attn.out.weight,
+            }
+        )
+        blocks.append(group)
+    return blocks
+
+
+def partition_tiller_then_muon_parameters(model, blocks):
+    """Partition trainable tensors between structural Muon/TILLER and AdamW."""
+
+    structural_ids = {
+        id(parameter)
+        for block in blocks
+        for parameter in (
+            block["in_weight"],
+            block["out_weight"],
+            block["qkv_weight"],
+            block["attn_out_weight"],
+        )
+    }
+    if len(structural_ids) != 4 * len(blocks):
+        raise RuntimeError("TILLER-then-Muon structural parameter ownership overlaps")
+
+    adam_decay = []
+    adam_no_decay = []
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad or id(parameter) in structural_ids:
+            continue
+        tied = is_tied_embedding_parameter_name(name)
+        no_decay = is_no_decay_parameter(name, parameter)
+        if no_decay or tied:
+            adam_no_decay.append(parameter)
+        else:
+            adam_decay.append(parameter)
+    return structural_ids, adam_decay, adam_no_decay
+
+
 def resolve_ademamix_warmup(value, steps):
     if value is None:
         return None
@@ -1639,6 +1720,8 @@ def resolve_ademamix_warmup(value, steps):
 
 
 def configure_optimizer(model, args):
+    global _ACTIVE_GRADIENT_CLIP_OBSERVER
+    _ACTIVE_GRADIENT_CLIP_OBSERVER = None
     if args.optimizer not in ACTIVE_OPTIMIZERS:
         allowed = ", ".join(ACTIVE_OPTIMIZERS)
         raise ValueError(f"Accepted optimizer choices: {allowed}")
@@ -1761,6 +1844,41 @@ def configure_optimizer(model, args):
                 )
             )
         return CompositeOptimizer(optimizers)
+    if args.optimizer == TILLER_THEN_MUON_OPTIMIZER:
+        from optimizer_design.tiller_then_muon import (
+            TillerThenMuonOptimizer,
+            configure_microbatch_count,
+        )
+
+        configure_microbatch_count(int(args.grad_accum))
+        blocks = collect_tiller_then_muon_blocks(model, args)
+        structural_ids, adam_decay, adam_no_decay = partition_tiller_then_muon_parameters(
+            model,
+            blocks,
+        )
+        covered = structural_ids | {id(parameter) for parameter in adam_decay + adam_no_decay}
+        trainable = {id(parameter) for parameter in model.parameters() if parameter.requires_grad}
+        if covered != trainable:
+            raise RuntimeError("TILLER-then-Muon parameter partition is incomplete")
+        adam_groups = []
+        if adam_decay:
+            adam_groups.append({"params": adam_decay, "weight_decay": args.weight_decay})
+        if adam_no_decay:
+            adam_groups.append({"params": adam_no_decay, "weight_decay": 0.0})
+        optimizer = TillerThenMuonOptimizer(
+            blocks,
+            adam_groups=adam_groups,
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            momentum=args.muon_momentum,
+            ns_steps=args.muon_ns_steps,
+            beta1=args.beta1,
+            beta2=args.beta2,
+            eps=args.eps,
+            adjust_lr_fn=args.muon_adjust_lr_fn,
+        )
+        _ACTIVE_GRADIENT_CLIP_OBSERVER = optimizer
+        return optimizer
     allowed = ", ".join(ACTIVE_OPTIMIZERS)
     raise ValueError(f"Accepted optimizer choices: {allowed}")
 
@@ -1845,7 +1963,7 @@ def parse_args():
     )
     parser.add_argument(
         "--experiment-identity",
-        choices=["none", TILLER_EXPERIMENT_IDENTITY],
+        choices=["none", *TILLER_EXPERIMENT_IDENTITIES],
         default="none",
         help="Validate a registered matched-experiment identity.",
     )
@@ -1994,7 +2112,7 @@ def validate_optimizer_protocol(args):
         if args.resume_checkpoint is not None:
             raise ValueError("fairness-contracted runs may not resume from an external checkpoint")
     if (
-        args.experiment_identity == TILLER_EXPERIMENT_IDENTITY
+        args.experiment_identity in TILLER_EXPERIMENT_IDENTITIES
         and args.fairness_contract != EXACT_LR_WD_CONTRACT
     ):
         raise ValueError("the TILLER matrix identity requires the exact LR/WD contract")
@@ -2435,6 +2553,19 @@ def main():
         "matrix_spectrum_interval": args.matrix_spectrum_interval,
         "matrix_spectrum_max_dim": args.matrix_spectrum_max_dim,
         "optimizer": args.optimizer,
+        "optimizer_formal_candidate": (
+            "tiller_then_muon"
+            if args.optimizer == TILLER_THEN_MUON_OPTIMIZER
+            else None
+        ),
+        "tiller_then_muon_switch_after_step": (
+            1000 if args.optimizer == TILLER_THEN_MUON_OPTIMIZER else None
+        ),
+        "tiller_then_muon_state_transition": (
+            "preserve_compatible_state"
+            if args.optimizer == TILLER_THEN_MUON_OPTIMIZER
+            else None
+        ),
         "fairness_contract": args.fairness_contract,
         "experiment_identity": args.experiment_identity,
         "optimizer_lr_wd_fairness": optimizer_lr_wd_fairness,
@@ -2540,13 +2671,19 @@ def main():
             args.soap_one_sided if args.optimizer == "soap_adamw" else None
         ),
         "muon_adjust_lr_fn": (
-            args.muon_adjust_lr_fn if args.optimizer == "muon" else None
+            args.muon_adjust_lr_fn
+            if args.optimizer in {"muon", TILLER_THEN_MUON_OPTIMIZER}
+            else None
         ),
         "muon_momentum": (
-            args.muon_momentum if args.optimizer == "muon" else None
+            args.muon_momentum
+            if args.optimizer in {"muon", TILLER_THEN_MUON_OPTIMIZER}
+            else None
         ),
         "muon_ns_steps": (
-            args.muon_ns_steps if args.optimizer == "muon" else None
+            args.muon_ns_steps
+            if args.optimizer in {"muon", TILLER_THEN_MUON_OPTIMIZER}
+            else None
         ),
         "sam_rho": args.sam_rho,
         "sam_adaptive": args.sam_adaptive,
@@ -2748,6 +2885,7 @@ def main():
         grain_coefficient_sync_max_abs = None
         if (
             args.optimizer in RLB_MATRIX_SYNC_OPTIMIZERS
+            and optimizer_method_specific_sync_active(optimizer)
             and ddp_sync_check_interval > 0
             and (
                 step == 0
@@ -2762,8 +2900,10 @@ def main():
                 device,
                 is_distributed,
             )
-        if args.optimizer in RLB_COEFFICIENT_SYNC_OPTIMIZERS and (
-            step == 0 or will_eval or step + 1 == args.steps
+        if (
+            args.optimizer in RLB_COEFFICIENT_SYNC_OPTIMIZERS
+            and optimizer_method_specific_sync_active(optimizer)
+            and (step == 0 or will_eval or step + 1 == args.steps)
         ):
             grain_coefficient_sync_max_abs = assert_rlb_coefficient_parameters_synced(
                 model,

@@ -41,7 +41,7 @@ LARGE_MODEL = "18l_1024d"
 PREFLIGHT_SUITE = "12l_768d_preflight_2621440_tokens_80_steps"
 SUITE_100M = "12l_768d_100m_tokens_3050_steps"
 SUITE_300M_SMALL = "12l_768d_300m_tokens_9150_steps"
-SUITE_300M_LARGE = "18l_1024d_300m_tokens_9150_steps"
+SUITE_100M_LARGE = "18l_1024d_100m_tokens_3050_steps"
 
 MANIFEST_FIELDS = [
     "row_index", "row_id", "phase", "dataset", "dataset_name",
@@ -109,6 +109,7 @@ OPTIMIZERS = {
         "schedule_free_adamw", "Schedule-Free AdamW", "schedulefree"
     ),
     "tiller": ("tiller_v1", "TILLER", "tiller"),
+    "tiller_then_muon": ("tiller_then_muon_v1", "TILLER→Muon", "tiller_then_muon"),
 }
 
 PHASES = {
@@ -145,7 +146,7 @@ PHASES = {
         "train_tokens": "300000000",
         "steps": "9150",
     },
-    SUITE_300M_LARGE: {
+    SUITE_100M_LARGE: {
         "count": 210,
         "datasets": {"dclm", "fineweb_edu", "fineweb", "dolma_sample", "c4_en"},
         "seeds": {"1337", "2027", "3407"},
@@ -154,8 +155,8 @@ PHASES = {
             "adafactor_came", "schedule_free_adamw",
         },
         "model": LARGE_MODEL,
-        "train_tokens": "300000000",
-        "steps": "9150",
+        "train_tokens": "100000000",
+        "steps": "3050",
     },
 }
 
@@ -407,6 +408,19 @@ def verify_manifest() -> list[dict[str, str]]:
             if field not in permitted_differences and left[field] != right[field]
         }
         require(not mismatches, f"matched cell {key} differs in shared fields: {mismatches}")
+    small_100m = {(row["dataset"], row["seed"], row["method"]): row for row in rows
+                  if row["phase"] == SUITE_100M}
+    data_fields = (
+        "dataset_name", "dataset_config", "dataset_revision", "dataset_streaming", "text_column",
+        "train_split", "val_split", "train_skip_documents", "validation_skip_documents",
+        "train_skip_tokens", "val_skip_tokens", "cache_dir", "train_tokens", "val_tokens",
+        "tokenizer", "tokenizer_revision",
+    )
+    for row in rows:
+        if row["phase"] == SUITE_100M_LARGE:
+            reference = small_100m[(row["dataset"], row["seed"], row["method"])]
+            require(all(row[field] == reference[field] for field in data_fields),
+                    f"new 18-layer suite does not reuse exact 12-layer 100M data: {row['row_id']}")
     return rows
 
 
@@ -484,27 +498,30 @@ def verify_matrix(manifest_rows: list[dict[str, str]]) -> dict[str, Any]:
     require(payload.get("schema") == "tiller_evaluation_matrix_v1", "matrix schema changed")
     require(payload.get("source_manifest") == "experiments/protocol/activation_optimizer_manifest.csv", "matrix source path changed")
     require(payload.get("source_manifest_sha256") == _sha256(MANIFEST), "matrix source-manifest hash is stale")
-    require(payload.get("matrix_rows") == 45 == len(rows), "matrix must contain 45 rows")
+    require(payload.get("matrix_rows") == 60 == len(rows), "matrix must contain 60 rows")
     require(payload.get("12l_100m_suite_rows") == 15, "matrix must contain 15 12-layer/100M-token rows")
     require(payload.get("12l_300m_suite_rows") == 15, "matrix must contain 15 12-layer/300M-token rows")
-    require(payload.get("18l_300m_suite_rows") == 15, "matrix must contain 15 18-layer/300M-token rows")
-    require([row.get("matrix_index") for row in rows] == list(range(45)), "matrix_index must be the ordered range 0..44")
+    require(payload.get("18l_100m_suite_rows") == 30, "matrix must contain 30 18-layer/100M-token candidates")
+    require(payload.get("18l_100m_full_tiller_rows") == 15, "matrix must contain 15 full TILLER primary candidates")
+    require(payload.get("18l_100m_tiller_then_muon_rows") == 15, "matrix must contain 15 two-stage candidates")
+    require([row.get("matrix_index") for row in rows] == list(range(60)), "matrix_index must be the ordered range 0..59")
 
     expected_inventory = {
-        (SUITE_100M, SMALL_MODEL, dataset, seed)
+        (SUITE_100M, SMALL_MODEL, dataset, seed, "tiller_v1")
         for dataset in ("dclm", "fineweb_edu", "fineweb", "dolma_sample", "c4_en")
         for seed in (1337, 2027, 3407)
     } | {
-        (SUITE_300M_SMALL, SMALL_MODEL, dataset, seed)
+        (SUITE_300M_SMALL, SMALL_MODEL, dataset, seed, "tiller_v1")
         for dataset in ("dclm", "fineweb_edu", "fineweb", "dolma_sample", "c4_en")
         for seed in (1337, 2027, 3407)
     } | {
-        (SUITE_300M_LARGE, LARGE_MODEL, dataset, seed)
+        (SUITE_100M_LARGE, LARGE_MODEL, dataset, seed, optimizer)
         for dataset in ("dclm", "fineweb_edu", "fineweb", "dolma_sample", "c4_en")
         for seed in (1337, 2027, 3407)
+        for optimizer in ("tiller_v1", "tiller_then_muon_v1")
     }
     require(
-        {(row.get("phase"), row.get("model"), row.get("dataset"), row.get("seed")) for row in rows}
+        {(row.get("phase"), row.get("model"), row.get("dataset"), row.get("seed"), row.get("candidate_optimizer")) for row in rows}
         == expected_inventory,
         "matrix dataset/seed inventory changed",
     )
@@ -514,7 +531,7 @@ def verify_matrix(manifest_rows: list[dict[str, str]]) -> dict[str, Any]:
     control_tables = {
         SUITE_100M: read_csv(RESULTS / "adamw" / "runs.csv", RUN_FIELDS),
         SUITE_300M_SMALL: read_csv(RESULTS / "muon" / "runs.csv", RUN_FIELDS),
-        SUITE_300M_LARGE: read_csv(RESULTS / "muon" / "runs.csv", RUN_FIELDS),
+        SUITE_100M_LARGE: read_csv(RESULTS / "muon" / "runs.csv", RUN_FIELDS),
     }
     arm_fields = {
         "control_activation", "control_optimizer", "control_name",
@@ -530,6 +547,9 @@ def verify_matrix(manifest_rows: list[dict[str, str]]) -> dict[str, Any]:
         require(source_index in by_index, f"{context}: source row index is unknown")
         source = by_id[source_id]
         require(source is by_index[source_index], f"{context}: source id/index disagree")
+        expected_phase = (SUITE_100M if row["matrix_index"] < 15 else
+                          SUITE_300M_SMALL if row["matrix_index"] < 30 else SUITE_100M_LARGE)
+        require(row["phase"] == expected_phase, f"{context}: suite-to-index mapping changed")
 
         is_100m_suite = row["phase"] == SUITE_100M
         expected_method = "silu_adamw" if is_100m_suite else "silu_muon"
@@ -547,8 +567,14 @@ def verify_matrix(manifest_rows: list[dict[str, str]]) -> dict[str, Any]:
         require(row.get("control_optimizer") == expected_control, f"{context}: wrong control optimizer")
         require(row.get("control_name") == expected_control_name, f"{context}: wrong control name")
         require(row.get("candidate_activation") == GRAIN_ID, f"{context}: wrong GRAIN trainer ID")
-        require(row.get("candidate_optimizer") == "tiller_v1", f"{context}: wrong TILLER key")
-        require(row.get("candidate_name") == "TILLER", f"{context}: wrong TILLER display name")
+        hybrid = row["matrix_index"] >= 45
+        require(row.get("candidate_optimizer") == ("tiller_then_muon_v1" if hybrid else "tiller_v1"), f"{context}: wrong candidate optimizer")
+        require(row.get("candidate_name") == ("TILLER→Muon" if hybrid else "TILLER"), f"{context}: wrong candidate display name")
+        if hybrid:
+            require(row.get("switch_after_step") == 1000
+                    and row.get("optimizer_state_transition") == "preserve_compatible_state"
+                    and row.get("learning_rate_schedule") == "single_full_horizon_cosine",
+                    f"{context}: two-stage transition contract changed")
 
         matched = row.get("matched_control")
         require(isinstance(matched, dict), f"{context}: exact matched control is missing")
@@ -645,7 +671,7 @@ def verify_matrix(manifest_rows: list[dict[str, str]]) -> dict[str, Any]:
         elif row["model"] == SMALL_MODEL:
             expected_budget = (9150, 300_000_000, 1, 250)
         else:
-            expected_budget = (9150, 300_000_000, 0, 0)
+            expected_budget = (3050, 100_000_000, 0, 0)
         require(
             (
                 row["steps"], row["max_train_tokens"], row["probe_batch_size"],
@@ -664,6 +690,7 @@ def _load_suite_without_training_dependencies() -> types.ModuleType:
     trainer_stub = types.ModuleType("training.train")
     trainer_stub.TILLER_LR_WD_CONTRACT = EXACT_LR_WD_CONTRACT
     trainer_stub.TILLER_EXPERIMENT_IDENTITY = "tiller_matrix_v1"
+    trainer_stub.TILLER_THEN_MUON_EXPERIMENT_IDENTITY = "tiller_then_muon_matrix_v1"
     trainer_stub.audit_optimizer_lr_wd_fairness = lambda *args, **kwargs: None
     package_stub.train = trainer_stub  # type: ignore[attr-defined]
 
@@ -742,7 +769,10 @@ def verify_launcher_pairing(matrix_payload: dict[str, Any]) -> None:
             )
             identity_index = argv.index("--experiment-identity")
             require(
-                argv[identity_index + 1] == "tiller_matrix_v1",
+                argv[identity_index + 1] == (
+                    "tiller_then_muon_matrix_v1" if row["candidate_optimizer"] == "tiller_then_muon_v1"
+                    else "tiller_matrix_v1"
+                ),
                 f"{context}/{arm}: wrong experiment identity",
             )
 
@@ -784,12 +814,12 @@ def verify_stage_launchers() -> None:
     activation = (PACKAGE / "run_activation_optimizer_sweep.sbatch").read_text()
     tiller = (PACKAGE / "run_quality_row.sbatch").read_text()
     require(
-        "#SBATCH --array=0-29%2" in activation,
-        "activation launcher default must be a 30-row stage with concurrency two",
+        "#SBATCH --array=0-29%3" in activation,
+        "activation launcher default must be a 30-row stage with concurrency three",
     )
     require(
         'stage="${1:-muon}"' in activation
-        and 'suite="${2:-18l_1024d_300m_tokens_9150_steps}"' in activation,
+        and 'suite="${2:-18l_1024d_100m_tokens_3050_steps}"' in activation,
         "activation launcher lacks meaningful stage/suite selection",
     )
     require(
@@ -797,12 +827,12 @@ def verify_stage_launchers() -> None:
         "activation launcher does not bind rows to the frozen manifest source",
     )
     require(
-        "#SBATCH --array=0-14%2" in tiller,
-        "TILLER launcher default must be a 15-row suite with concurrency two",
+        "#SBATCH --array=0-14%3" in tiller,
+        "TILLER launcher default must be a 15-row suite with concurrency three",
     )
     require(
-        'suite="${1:-18l_1024d_300m_tokens_9150_steps}"' in tiller
-        and "matrix-index" in tiller,
+        'suite="${1:-18l_1024d_100m_tokens_3050_steps}"' in tiller
+        and "matrix-index" in tiller and "--optimizer" in tiller,
         "TILLER launcher lacks meaningful suite selection",
     )
     require(
@@ -857,9 +887,10 @@ def _result_identity(row: dict[str, str], folder: str, context: str) -> None:
     require(activation in ACTIVATION_DISPLAY, f"{context}: unknown activation key")
     activation_display = ACTIVATION_DISPLAY[activation]
     require(row["activation_display_name"] == activation_display, f"{context}: activation display mapping changed")
-    if folder == "tiller":
-        expected_method = "tiller"
-        expected_display = "TILLER"
+    if folder in {"tiller", "tiller_then_muon"}:
+        require(activation == GRAIN_ID, f"{context}: candidate optimizer requires GRAIN")
+        expected_method = suffix
+        expected_display = optimizer_display
     else:
         prefix = "silu" if activation == "silu" else "rlb"
         expected_method = f"{prefix}_{suffix}"
@@ -935,7 +966,7 @@ def _result_suite(row: dict[str, str], context: str) -> str:
     suites = {
         (SMALL_MODEL, "100000000", "3050"): SUITE_100M,
         (SMALL_MODEL, "300000000", "9150"): SUITE_300M_SMALL,
-        (LARGE_MODEL, "300000000", "9150"): SUITE_300M_LARGE,
+        (LARGE_MODEL, "100000000", "3050"): SUITE_100M_LARGE,
     }
     require(coordinates in suites, f"{context}: result is outside the published suites")
     return suites[coordinates]
@@ -949,7 +980,7 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
     matrix_payload = json.loads(MATRIX.read_text(encoding="utf-8"))
     tiller_sources = {
         (
-            row["phase"], row["model"], row["dataset"], str(row["seed"])
+            row["phase"], row["model"], row["dataset"], str(row["seed"]), row["candidate_optimizer"]
         ): (
             row["source_manifest_row_id"], str(row["source_manifest_row_index"])
         )
@@ -957,8 +988,12 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
     }
     tiller_controls = {
         (
-            row["phase"], row["model"], row["dataset"], str(row["seed"])
+            row["phase"], row["model"], row["dataset"], str(row["seed"]), row["candidate_optimizer"]
         ): row["matched_control"]
+        for row in matrix_payload["rows"]
+    }
+    tiller_indices = {
+        (row["phase"], row["model"], row["dataset"], str(row["seed"]), row["candidate_optimizer"]): row["matrix_index"]
         for row in matrix_payload["rows"]
     }
     directories = {path.name for path in RESULTS.iterdir() if path.is_dir()}
@@ -1012,7 +1047,8 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
                 require(completed_steps == 0, f"{context}: pending run has completed steps")
                 require(row["final_validation_loss"] == "", f"{context}: pending run has endpoint loss")
             if row["status"] == "incomplete":
-                require(completed_steps < required_steps, f"{context}: incomplete run reached endpoint")
+                require(completed_steps < required_steps or not row["final_validation_loss"],
+                        f"{context}: unaudited endpoint cannot publish a final loss")
             stopped = _truth(row["stopped_early"], f"{context}/stopped_early")
             _truth(row["lr_wd_fairness_passed"], f"{context}/lr_wd_fairness_passed")
             if row["status"] == "stopped_early":
@@ -1098,10 +1134,11 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
                     row[result_field] == source[source_field],
                     f"{context}: {result_field} disagrees with source manifest",
                 )
-            if folder == "tiller":
+            if folder in {"tiller", "tiller_then_muon"}:
                 tiller_key = (
-                    expected_suite, row["model_scale"], row["dataset"], row["seed"]
+                    expected_suite, row["model_scale"], row["dataset"], row["seed"], row["optimizer"]
                 )
+                require(run_index == tiller_indices[tiller_key], f"{context}: candidate run index differs from matrix")
                 require(
                     (source_id, source_index)
                     == tiller_sources[tiller_key],
@@ -1364,14 +1401,14 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
 
     tiller_runs = loaded["tiller"]["runs"]
     for folder, tables in loaded.items():
-        if folder == "tiller":
+        if folder in {"tiller", "tiller_then_muon"}:
             continue
         require(len(tables["runs"]) == 90, f"results/{folder}: expected 90 run rows")
         require(len(tables["summary"]) == 30, f"results/{folder}: expected 30 summary rows")
         for model, tokens, steps in (
             (SMALL_MODEL, "100000000", "3050"),
             (SMALL_MODEL, "300000000", "9150"),
-            (LARGE_MODEL, "300000000", "9150"),
+            (LARGE_MODEL, "100000000", "3050"),
         ):
             subset = [
                 row for row in tables["runs"]
@@ -1392,7 +1429,7 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
     for model, tokens, steps in (
         (SMALL_MODEL, "100000000", "3050"),
         (SMALL_MODEL, "300000000", "9150"),
-        (LARGE_MODEL, "300000000", "9150"),
+        (LARGE_MODEL, "100000000", "3050"),
     ):
         subset = [
             row for row in tiller_runs
@@ -1411,19 +1448,27 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
             f"TILLER {model}/{tokens}-token status inventory changed",
         )
 
+    require(len(tiller_runs) == 45 and len(loaded["tiller"]["summary"]) == 15,
+            "full TILLER result inventory changed")
+    hybrid = loaded["tiller_then_muon"]
+    require(len(hybrid["runs"]) == 15 and len(hybrid["summary"]) == 5,
+            "two-stage candidate must contain 15 runs and five dataset summaries")
+    require(all(row["model_scale"] == LARGE_MODEL and row["train_tokens"] == "100000000"
+                and row["steps_required"] == "3050" and row["activation"] == GRAIN_ID
+                for row in hybrid["runs"]), "two-stage candidate escaped the primary suite")
     primary_rows = [
         row
         for tables in loaded.values()
         for row in tables["runs"]
         if row["model_scale"] == LARGE_MODEL
-        and row["train_tokens"] == "300000000"
-        and row["steps_required"] == "9150"
+        and row["train_tokens"] == "100000000"
+        and row["steps_required"] == "3050"
     ]
-    require(len(primary_rows) == 225, "primary 18-layer result inventory changed")
+    require(len(primary_rows) == 240, "primary 18-layer result inventory changed")
     primary_status = Counter(row["status"] for row in primary_rows)
     require(
-        primary_status == Counter({"complete": 35, "incomplete": 1, "pending": 189}),
-        f"primary 18-layer result status changed: {dict(primary_status)}",
+        set(primary_status) <= RUN_STATUSES,
+        f"primary 18-layer result has unknown statuses: {dict(primary_status)}",
     )
 
     return loaded
@@ -1472,6 +1517,7 @@ def verify_public_layout() -> tuple[str, ...]:
         "optimizer_design/README.md",
         "optimizer_design/__init__.py",
         "optimizer_design/tiller.py",
+        "optimizer_design/tiller_then_muon.py",
         "optimizer_design/_tiller/README.md",
         "optimizer_design/_tiller/__init__.py",
         "optimizer_design/_tiller/core.py",

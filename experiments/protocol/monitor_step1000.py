@@ -9,6 +9,10 @@ import json
 from pathlib import Path
 
 from . import suite
+from .analyze_row import (
+    control_source_identity_mismatch,
+    expected_experiment_identity,
+)
 from .row_tools import records
 
 
@@ -22,6 +26,8 @@ def evals(path: Path) -> dict[int, float]:
 def audited_config(path: Path, row: dict, arm: str) -> dict:
     configs = [record for record in records(path) if record.get("event") == "config"]
     if len(configs) != 1:
+        if arm == "candidate" and len(configs) == 0:
+            raise SystemExit(3)
         raise RuntimeError(f"{arm} must contain exactly one config record")
     config = configs[0]
     prefix = "control" if arm == "control" else "candidate"
@@ -33,6 +39,7 @@ def audited_config(path: Path, row: dict, arm: str) -> dict:
         "dataset_revision": row["dataset_revision"],
         "tokenizer": row["tokenizer"],
         "tokenizer_revision": row["tokenizer_revision"],
+        "experiment_identity": expected_experiment_identity(row, arm),
         "steps": row["steps"],
         "seed": row["seed"],
         "train_tokens": row["max_train_tokens"],
@@ -43,7 +50,14 @@ def audited_config(path: Path, row: dict, arm: str) -> dict:
         for key, value in expected.items()
         if config.get(key) != value
     }
-    if arm == "candidate":
+    if arm == "control":
+        mismatch.update(
+            {
+                f"control_source_identity.{key}": value
+                for key, value in control_source_identity_mismatch(config, row).items()
+            }
+        )
+    else:
         identity = config.get("tiller_experiment_identity", {})
         for key, value in {
             "matrix_index": row["matrix_index"],
@@ -98,10 +112,13 @@ def main() -> None:
     payload = {
         "schema": "tiller_step1000_screen_v1",
         "matrix_index": row["matrix_index"],
+        "phase": row["phase"],
         "model": row["model"],
         "dataset": row["dataset"],
         "seed": row["seed"],
         "control": row["control_name"],
+        "candidate": row["candidate_name"],
+        "candidate_optimizer": row["candidate_optimizer"],
         "control_step1000_loss": control[1000],
         "candidate_step1000_loss": candidate[1000],
         "candidate_step1000_lead": lead,

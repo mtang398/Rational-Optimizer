@@ -6,25 +6,29 @@
 #SBATCH --gres=gpu:nvidia_rtx_a6000:4
 #SBATCH --cpus-per-gpu=4
 #SBATCH --mem=128G
-#SBATCH --time=36:00:00
-#SBATCH --array=0-14%2
-#SBATCH --requeue
+#SBATCH --time=03:00:00
+#SBATCH --array=0-14%3
+#SBATCH --no-requeue
 #SBATCH --export=NIL
 #SBATCH --output=slurm-%x-%A_%a.out
 
 set -euo pipefail
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "${script_dir}/../.." && pwd)"
+if test -n "${SLURM_SUBMIT_DIR:-}"; then
+  repo_root="${SLURM_SUBMIT_DIR}"
+else
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  repo_root="$(cd "${script_dir}/../.." && pwd)"
+fi
 cd "${repo_root}"
+if ! test -f experiments/protocol/SOURCE_FREEZE.sha256; then
+  echo "run from the repository root or submit with SLURM_SUBMIT_DIR set to it" >&2
+  exit 90
+fi
 package="experiments/protocol"
 python="${PYTHON:-${PWD}/.venv/bin/python}"
 ordinal="${SLURM_ARRAY_TASK_ID:?missing suite row ordinal}"
-suite="${1:-18l_1024d_300m_tokens_9150_steps}"
-index="$("${python}" -m experiments.protocol.row_tools matrix-index \
-  --suite "${suite}" --ordinal "${ordinal}")"
-output_root="${PWD}/${package}/runs"
-control_root="${PWD}/experiments/runs/activation_optimizer"
-result_root="${PWD}/${package}/results/row-$(printf '%02d' "${index}")"
+suite="${1:-18l_1024d_100m_tokens_3050_steps}"
+candidate_optimizer="${2:-tiller_v1}"
 
 export PATH="/usr/local/slurm/current/bin:/usr/local/bin:/usr/bin:/bin"
 export PYTHONHASHSEED=0 PYTHONNOUSERSITE=1 PYTHONSAFEPATH=1 PYTHONDONTWRITEBYTECODE=1
@@ -36,10 +40,16 @@ export CUBLAS_WORKSPACE_CONFIG=:4096:8 PYTORCH_CUDA_ALLOC_CONF="expandable_segme
 export OMP_NUM_THREADS=4 TOKENIZERS_PARALLELISM=false
 export HF_HOME="${PWD}/experiments/cache/huggingface"
 export HF_DATASETS_CACHE="${HF_HOME}/datasets" TRANSFORMERS_CACHE="${HF_HOME}/transformers"
-export HF_DATASETS_OFFLINE="${HF_DATASETS_OFFLINE:-0}"
-export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-0}"
+export HF_DATASETS_OFFLINE="${HF_DATASETS_OFFLINE:-1}"
+export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-1}"
 export TILLER_STRICT_GPU_METADATA=1
-export TILLER_ARM_ID="tiller_v1"
+export TILLER_ARM_ID="${candidate_optimizer}"
+
+index="$("${python}" -m experiments.protocol.row_tools matrix-index \
+  --suite "${suite}" --optimizer "${candidate_optimizer}" --ordinal "${ordinal}")"
+output_root="${PWD}/${package}/runs"
+control_root="${PWD}/experiments/runs/activation_optimizer"
+result_root="${PWD}/${package}/results/row-$(printf '%02d' "${index}")"
 
 # On this cluster an exclusive request can expose every physical device on an
 # eight-GPU host.  Restrict the process to the first four Slurm allocation IDs.
@@ -59,6 +69,7 @@ if ! flock -n 9; then
   exit 91
 fi
 
+"${python}" -m experiments.protocol.verify_repository --quick
 sha256sum -c "${package}/SOURCE_FREEZE.sha256"
 "${python}" -m experiments.protocol.audit_runtime_hardware \
   --output "${result_root}/HARDWARE.json"
@@ -144,6 +155,15 @@ failure_stage="control_reuse_validation"
 "${python}" -m experiments.protocol.row_tools \
   terminal --path "${control_jsonl}" --steps "${steps}"
 test -s "${control_wall_clock}"
+set +e
+"${python}" -m experiments.protocol.monitor_step1000 \
+  --matrix-index "${index}" --control "${control_jsonl}" \
+  --candidate "${candidate_jsonl}" --output "${screen}"
+status=$?
+set -e
+if test "${status}" -ne 3; then
+  exit "${status}"
+fi
 
 failure_stage="candidate_endpoint_step1000_screen"
 setsid "${python}" -m experiments.protocol.run_timed \

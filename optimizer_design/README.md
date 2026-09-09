@@ -9,6 +9,14 @@ directions available at this step?
 The public API is [`tiller.py`](tiller.py), with the numerical implementation
 in [`_tiller/`](_tiller/).
 
+An additional execution schedule is provided in
+[`tiller_then_muon.py`](tiller_then_muon.py): updates 1–1,000 use TILLER,
+and subsequent updates use ordinary Muon. The switch transfers each matrix's
+first-moment buffer to Muon and retains the same AdamW optimizer for the
+remaining parameters. TILLER's response-capture hooks are removed at the
+transition, so later updates operate directly on the current gradients and
+the retained optimizer state.
+
 ## Structured directions
 
 Let $C=LG$ index the $G$ rational groups in each of $L$ Transformer

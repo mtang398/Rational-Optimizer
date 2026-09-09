@@ -199,6 +199,7 @@ def test_public_activation_surface_and_sam_contract(monkeypatch):
     import rational_opt
 
     assert train.ACTIVATIONS == ("silu", "grain")
+    assert train.TILLER_THEN_MUON_OPTIMIZER in train.ACTIVE_OPTIMIZERS
     assert rational_opt.__all__ == ["GRAIN", "rational_local_basis"]
     assert not hasattr(rational_opt, "RationalFusedGlobalA5_4")
     monkeypatch.setattr(
@@ -223,6 +224,32 @@ def test_public_activation_surface_and_sam_contract(monkeypatch):
     )
     legacy_args = train.parse_args()
     train.validate_optimizer_protocol(legacy_args)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train.py",
+            "--activation",
+            train.GRAIN_ACTIVATION,
+            "--optimizer",
+            train.TILLER_THEN_MUON_OPTIMIZER,
+            "--experiment-identity",
+            train.TILLER_THEN_MUON_EXPERIMENT_IDENTITY,
+            "--fairness-contract",
+            train.EXACT_LR_WD_CONTRACT,
+        ],
+    )
+    two_stage_args = train.parse_args()
+    with pytest.raises(RuntimeError, match="identity auditor"):
+        train.audit_tiller_experiment_identity(
+            two_stage_args,
+            world_size=1,
+            global_tokens=1,
+            train_token_count=1,
+            val_token_count=1,
+            parameter_count=1,
+        )
 
 
 @pytest.mark.parametrize("activation", train.ACTIVATIONS)
@@ -356,3 +383,283 @@ def test_baseline_main_path_does_not_require_tiller_identity(monkeypatch):
     monkeypatch.setattr(train, "_TILLER_IDENTITY_AUDITOR", None)
     with pytest.raises(_ReachedOptimizer, match="reached optimizer construction"):
         train.main()
+
+
+class _FakeHookHandle:
+    def __init__(self):
+        self.removed = False
+
+    def remove(self):
+        if self.removed:
+            raise AssertionError("hook removed twice")
+        self.removed = True
+
+
+class _FakeTillerRouter:
+    def __init__(
+        self,
+        blocks,
+        *,
+        lr,
+        weight_decay,
+        momentum,
+        ns_steps,
+        beta2,
+        eps,
+    ):
+        del momentum, ns_steps, beta2, eps
+        self.pairs = list(blocks)
+        parameters = [
+            parameter
+            for block in self.pairs
+            for parameter in (block["in_weight"], block["out_weight"])
+        ]
+        self.param_groups = [
+            {
+                "params": parameters,
+                "lr": float(lr),
+                "weight_decay": float(weight_decay),
+                "lr_scale": 1.0,
+            }
+        ]
+        self.state = {}
+        self._hook_handles = [_FakeHookHandle() for _ in range(3 * len(self.pairs))]
+        self._pending_inputs = [None for _ in self.pairs]
+        self._functional_records = [[] for _ in self.pairs]
+        self._cotangent_records = [[] for _ in self.pairs]
+        self._clip_factor = None
+        self.clip_calls = 0
+        self.steps = 0
+        self._capture_telemetry_next_step = False
+        self._last_telemetry = {}
+
+    def zero_grad(self, set_to_none=True):
+        for parameter in self.param_groups[0]["params"]:
+            parameter.grad = None if set_to_none else torch.zeros_like(parameter)
+
+    def record_realized_clipping(self, preclip_norm, max_norm):
+        assert preclip_norm is not None
+        assert float(max_norm) == 1.0
+        self.clip_calls += 1
+        self._clip_factor = 1.0
+
+    def step(self):
+        assert self._clip_factor == 1.0
+        self.steps += 1
+        for index, parameter in enumerate(self.param_groups[0]["params"]):
+            self.state.setdefault(parameter, {})["momentum_buffer"] = torch.full_like(
+                parameter,
+                10_000.0 + self.steps + index,
+            )
+        if self._capture_telemetry_next_step:
+            self._last_telemetry = {"tiller_fake_router_steps": self.steps}
+        else:
+            self._last_telemetry = {}
+        self._capture_telemetry_next_step = False
+        self._clip_factor = None
+
+    def lr_wd_fairness_audit(self):
+        return {"fake_router_lr_scale": 1.0, "weight_decay_scale": 1.0}
+
+    def set_telemetry_capture(self, enabled=True):
+        self._capture_telemetry_next_step = bool(enabled)
+
+    def telemetry(self):
+        return dict(self._last_telemetry)
+
+    def state_dict(self):
+        return {"state": self.state, "param_groups": self.param_groups}
+
+    def load_state_dict(self, state_dict):
+        self.state = state_dict["state"]
+
+
+class _FakeTillerAttention:
+    def __init__(
+        self,
+        blocks,
+        router,
+        *,
+        lr,
+        weight_decay,
+        momentum,
+        ns_steps,
+        beta2,
+        eps,
+        adjust_lr_fn,
+    ):
+        del router, momentum, ns_steps, beta2, eps, adjust_lr_fn
+        self.blocks = list(blocks)
+        parameters = [
+            parameter
+            for block in self.blocks
+            for parameter in (block["qkv_weight"], block["attn_out_weight"])
+        ]
+        self.param_groups = [
+            {
+                "params": parameters,
+                "lr": float(lr),
+                "weight_decay": float(weight_decay),
+                "lr_scale": 1.0,
+            }
+        ]
+        self.state = {}
+        self.steps = 0
+        self._capture_telemetry_next_step = False
+        self._last_telemetry = {}
+
+    def zero_grad(self, set_to_none=True):
+        for parameter in self.param_groups[0]["params"]:
+            parameter.grad = None if set_to_none else torch.zeros_like(parameter)
+
+    def step(self):
+        self.steps += 1
+        for index, parameter in enumerate(self.param_groups[0]["params"]):
+            self.state.setdefault(parameter, {})["momentum_buffer"] = torch.full_like(
+                parameter,
+                20_000.0 + self.steps + index,
+            )
+        if self._capture_telemetry_next_step:
+            self._last_telemetry = {"tiller_fake_attention_steps": self.steps}
+        else:
+            self._last_telemetry = {}
+        self._capture_telemetry_next_step = False
+
+    def lr_wd_fairness_audit(self):
+        return {"fake_attention_lr_scale": 1.0, "weight_decay_scale": 1.0}
+
+    def set_telemetry_capture(self, enabled=True):
+        self._capture_telemetry_next_step = bool(enabled)
+
+    def telemetry(self):
+        return dict(self._last_telemetry)
+
+    def state_dict(self):
+        return {"state": self.state, "param_groups": self.param_groups}
+
+    def load_state_dict(self, state_dict):
+        self.state = state_dict["state"]
+
+
+def _two_stage_args():
+    args = _model_args(train.GRAIN_ACTIVATION)
+    args.optimizer = train.TILLER_THEN_MUON_OPTIMIZER
+    args.lr = 3e-4
+    args.min_lr = 3e-5
+    args.weight_decay = 0.1
+    args.beta1 = 0.9
+    args.beta2 = 0.95
+    args.eps = 1e-8
+    args.grad_accum = 1
+    args.muon_momentum = 0.95
+    args.muon_ns_steps = 5
+    args.muon_adjust_lr_fn = "match_rms_adamw"
+    args.steps = 3050
+    args.warmup_steps = 200
+    args.sam_rho = 0.0
+    args.sam_adaptive = False
+    args.fairness_contract = train.EXACT_LR_WD_CONTRACT
+    args.experiment_identity = "none"
+    args.resume_checkpoint = None
+    args.grad_clip = 1.0
+    return args
+
+
+def _install_fake_tiller(monkeypatch):
+    from optimizer_design import tiller_then_muon
+
+    monkeypatch.setattr(tiller_then_muon, "TILLERRouter", _FakeTillerRouter)
+    monkeypatch.setattr(
+        tiller_then_muon,
+        "TILLERAttentionOptimizer",
+        _FakeTillerAttention,
+    )
+    monkeypatch.setattr(tiller_then_muon, "configure_microbatch_count", lambda count: None)
+    return tiller_then_muon
+
+
+def _fill_gradients(model, value):
+    for parameter in model.parameters():
+        if parameter.requires_grad:
+            parameter.grad = torch.full_like(parameter, float(value))
+
+
+def test_tiller_then_muon_boundary_preserves_state_lr_wd_and_removes_hooks(
+    monkeypatch,
+):
+    monkeypatch.setenv("RATIONAL_OPT_TORCH_FALLBACK", "1")
+    two_stage = _install_fake_tiller(monkeypatch)
+    args = _two_stage_args()
+    train.validate_optimizer_protocol(args)
+    model = train.CausalTransformer(args, 97)
+    optimizer = train.configure_optimizer(model, args)
+    assert optimizer.stage == "tiller"
+    assert train.optimizer_method_specific_sync_active(optimizer) is True
+    report = train.audit_optimizer_lr_wd_fairness(model, optimizer, args)
+    assert report["covered_parameter_elements"] == report["trainable_parameter_elements"]
+
+    optimizer._completed_steps = two_stage.SWITCH_AFTER_STEP - 1
+    boundary_lr = train.learning_rate(two_stage.SWITCH_AFTER_STEP - 1, args)
+    for group in optimizer.param_groups:
+        group["lr"] = boundary_lr
+    train.assert_optimizer_realized_lr(optimizer, boundary_lr, args)
+    handles = list(optimizer.tiller_router._hook_handles)
+
+    _fill_gradients(model, 0.01)
+    train.clip_or_measure_gradients(model, args.grad_clip, capture_norm=True)
+    assert optimizer.tiller_router.clip_calls == 1
+    optimizer.step()
+
+    assert optimizer.completed_steps == two_stage.SWITCH_AFTER_STEP
+    assert optimizer.stage == "muon"
+    assert train.optimizer_method_specific_sync_active(optimizer) is False
+    assert optimizer.tiller_router.steps == 1
+    assert optimizer.tiller_attention.steps == 1
+    assert all(handle.removed for handle in handles)
+    assert optimizer.tiller_router._hook_handles == []
+    assert optimizer.tiller_router._functional_records == [
+        [] for _ in optimizer.tiller_router.pairs
+    ]
+    assert optimizer.tiller_router._cotangent_records == [
+        [] for _ in optimizer.tiller_router.pairs
+    ]
+    assert optimizer.optimizers == [optimizer.ordinary_muon, optimizer.adamw]
+    assert all(float(group["lr"]) == float(boundary_lr) for group in optimizer.param_groups)
+    assert all(float(group.get("lr_scale", 1.0)) == 1.0 for group in optimizer.param_groups)
+    assert all(
+        float(group["weight_decay"]) in {0.0, args.weight_decay}
+        for group in optimizer.param_groups
+    )
+
+    for block in optimizer.blocks:
+        for key, source in (
+            ("in_weight", optimizer.tiller_router),
+            ("out_weight", optimizer.tiller_router),
+            ("qkv_weight", optimizer.tiller_attention),
+            ("attn_out_weight", optimizer.tiller_attention),
+        ):
+            parameter = block[key]
+            assert torch.equal(
+                optimizer.ordinary_muon.state[parameter]["momentum_buffer"],
+                source.state[parameter]["momentum_buffer"],
+            )
+
+    next_lr = train.learning_rate(two_stage.SWITCH_AFTER_STEP, args)
+    for group in optimizer.param_groups:
+        group["lr"] = next_lr
+    train.assert_optimizer_realized_lr(optimizer, next_lr, args)
+    _fill_gradients(model, 0.02)
+    train.clip_or_measure_gradients(model, args.grad_clip, capture_norm=True)
+    assert optimizer.tiller_router.clip_calls == 1
+    train.set_optimizer_telemetry_capture(optimizer, True)
+    optimizer.step()
+    telemetry = train.collect_optimizer_telemetry(optimizer)
+
+    assert optimizer.completed_steps == two_stage.SWITCH_AFTER_STEP + 1
+    assert optimizer.stage == "muon"
+    assert optimizer.tiller_router.steps == 1
+    assert optimizer.tiller_attention.steps == 1
+    assert telemetry["tiller_then_muon_stage_before_step"] == "muon"
+    assert telemetry["tiller_then_muon_stage_after_step"] == "muon"
+    assert telemetry["tiller_then_muon_switched_to_muon"] == 0
+    assert not any(key.startswith("tiller_fake_") for key in telemetry)

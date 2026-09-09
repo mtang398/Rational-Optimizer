@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 from pathlib import Path
@@ -123,6 +124,79 @@ def matched_hardware(control: dict, candidate: dict) -> dict:
     return comparison
 
 
+def manifest_row_sha256(row: dict[str, str]) -> str:
+    payload = json.dumps(
+        row, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def is_sha256_hex(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value.lower())
+    )
+
+
+def source_manifest_row(row: dict) -> dict[str, str]:
+    manifest = PACKAGE / "activation_optimizer_manifest.csv"
+    with manifest.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    index = int(row["source_manifest_row_index"])
+    if not 0 <= index < len(rows):
+        raise RuntimeError(f"source manifest row index is outside the public manifest: {index}")
+    source = rows[index]
+    mismatch = {
+        "row_index": {"observed": source.get("row_index"), "required": str(index)},
+        "row_id": {
+            "observed": source.get("row_id"),
+            "required": row["source_manifest_row_id"],
+        },
+    }
+    mismatch = {
+        key: value
+        for key, value in mismatch.items()
+        if str(value["observed"]) != str(value["required"])
+    }
+    if mismatch:
+        raise RuntimeError(f"source manifest row mismatch: {mismatch}")
+    return source
+
+
+def expected_experiment_identity(row: dict, arm: str) -> str:
+    if arm == "control":
+        return "none"
+    if arm == "candidate":
+        return suite.experiment_identity(row)
+    raise RuntimeError(f"unknown arm {arm!r}")
+
+
+def control_source_identity_mismatch(config: dict, row: dict) -> dict:
+    source = source_manifest_row(row)
+    required = {
+        "source_manifest_sha256": hashlib.sha256(
+            (PACKAGE / "activation_optimizer_manifest.csv").read_bytes()
+        ).hexdigest(),
+        "source_manifest_row_index": str(row["source_manifest_row_index"]),
+        "source_manifest_row_id": row["source_manifest_row_id"],
+        "source_manifest_row_sha256": manifest_row_sha256(source),
+    }
+    mismatch = {
+        key: {"observed": config.get(key), "required": value}
+        for key, value in required.items()
+        if str(config.get(key, "")) != str(value)
+    }
+    for key in ("source_freeze_sha256",):
+        value = config.get(key)
+        if not is_sha256_hex(value):
+            mismatch[key] = {
+                "observed": value,
+                "required": "64 lowercase/uppercase hex characters from the reused control source",
+            }
+    return mismatch
+
+
 def expected_config(row: dict, arm: str) -> dict:
     """Return the config fields that bind one endpoint to its matrix cell."""
 
@@ -130,7 +204,7 @@ def expected_config(row: dict, arm: str) -> dict:
         "activation": row[f"{'control' if arm == 'control' else 'candidate'}_activation"],
         "optimizer": row[f"{'control' if arm == 'control' else 'candidate'}_optimizer"],
         "fairness_contract": suite.contract(row),
-        "experiment_identity": suite.experiment_identity(row),
+        "experiment_identity": expected_experiment_identity(row, arm),
         "dataset": row["dataset_name"],
         "dataset_config": row["dataset_config"],
         "dataset_revision": row["dataset_revision"],
@@ -221,15 +295,23 @@ def audited(path: Path, row: dict, arm: str):
     for name, value in fairness.get("internal_lr_wd_scalars", {}).items():
         if float(value) != 1.0:
             mismatch[f"internal:{name}"] = value
-    identity = config.get("tiller_experiment_identity", {})
-    if (
-        identity.get("passed") is not True
-        or identity.get("matrix_index") != row["matrix_index"]
-        or identity.get("source_manifest_row_index")
-        != row["source_manifest_row_index"]
-        or identity.get("source_manifest_row_id") != row["source_manifest_row_id"]
-    ):
-        mismatch["matrix_identity"] = identity
+    if arm == "control":
+        mismatch.update(
+            {
+                f"control_source_identity.{key}": value
+                for key, value in control_source_identity_mismatch(config, row).items()
+            }
+        )
+    else:
+        identity = config.get("tiller_experiment_identity", {})
+        if (
+            identity.get("passed") is not True
+            or identity.get("matrix_index") != row["matrix_index"]
+            or identity.get("source_manifest_row_index")
+            != row["source_manifest_row_index"]
+            or identity.get("source_manifest_row_id") != row["source_manifest_row_id"]
+        ):
+            mismatch["matrix_identity"] = identity
     if mismatch:
         raise RuntimeError(f"{arm} configuration mismatch: {mismatch}")
     if 1000 not in evals or int(row["steps"]) not in evals:
@@ -319,10 +401,13 @@ def main() -> None:
         "status": "complete" if step1000_lead >= 0.0 else "invalid_not_interrupted",
         "matrix_index": row["matrix_index"],
         "source_manifest_row_index": row["source_manifest_row_index"],
+        "phase": row["phase"],
         "model": row["model"],
         "dataset": row["dataset"],
         "seed": row["seed"],
         "control": row["control_name"],
+        "candidate": row["candidate_name"],
+        "candidate_optimizer": row["candidate_optimizer"],
         "steps": endpoint,
         "control_step1000_loss": control_eval[1000],
         "candidate_step1000_loss": candidate_eval[1000],
