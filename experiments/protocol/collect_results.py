@@ -217,6 +217,7 @@ def factorial_process_time(
     staged_row: dict[str, Any],
     artifact: Path,
     source_freeze: Path,
+    stage: str = "01_muon",
 ) -> float | None:
     """Read the process wall clock emitted by the staged factorial launcher."""
 
@@ -228,10 +229,16 @@ def factorial_process_time(
     if (
         payload.get("schema") != "tiller_endpoint_process_wall_clock_v1"
         or payload.get("process_exit_status") != 0
+        or isinstance(payload.get("process_exit_status"), bool)
         or finite(payload.get("elapsed_seconds")) is None
+        or isinstance(payload.get("elapsed_seconds"), bool)
+        or float(payload["elapsed_seconds"]) <= 0
         or int(payload.get("matrix_index", -1)) != int(staged_row["matrix_index"])
         or payload.get("row_id") != staged_row["row_id"]
-        or payload.get("stage") != "01_muon"
+        or payload.get("stage") != stage
+        or Path(str(payload.get("artifact_path", ""))).resolve() != artifact.resolve()
+        or payload.get("artifact_exists") is not True
+        or payload.get("artifact_bytes") != artifact.stat().st_size
         or payload.get("artifact_sha256") != expected_artifact_sha256
         or payload.get("source_freeze_sha256") != expected_source_freeze_sha256
     ):
@@ -658,9 +665,152 @@ def factorial_muon_runs(
     return rows, checkpoints
 
 
+def factorial_tiller_runs(
+    matrix: Path,
+    campaign_root: Path,
+    published_rows: list[dict[str, Any]],
+    published_checkpoints: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Replace a published attempt only with a complete, audited factorial run."""
+
+    campaign_root = campaign_root.resolve()
+    staged_rows = json.loads((campaign_root / "matrix.json").read_text())["rows"]
+    staged_tiller = {
+        int(row["matrix_index"]): row for row in staged_rows
+        if row["optimizer"] == "tiller_v1"
+    }
+    public_tiller = {
+        int(row["matrix_index"]): row
+        for row in json.loads(matrix.read_text())["rows"]
+        if row["phase"] == FACTORIAL_PHASE
+    }
+    if set(staged_tiller) != set(range(210, 225)) or set(public_tiller) != set(range(30, 45)):
+        raise RuntimeError("factorial/public TILLER row inventory changed")
+    replacements: dict[int, dict[str, Any]] = {}
+    new_checkpoints: list[dict[str, Any]] = []
+    for staged_index, staged in staged_tiller.items():
+        index = staged_index - 180
+        source = public_tiller[index]
+        required = {
+            key: source[key]
+            for key in (
+                "model", "dataset", "dataset_name", "dataset_config", "seed",
+                "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps",
+            )
+        }
+        required.update(
+            activation=source["candidate_activation"],
+            optimizer=source["candidate_optimizer"],
+            train_tokens=source["max_train_tokens"],
+            val_tokens=source["max_val_tokens"],
+        )
+        if any(staged.get(key) != value for key, value in required.items()):
+            raise RuntimeError(f"factorial/public TILLER identity mismatch: {staged_index}")
+        artifact = campaign_root / "runs" / staged["row_id"] / f"{staged['activation']}.jsonl"
+        result_root = campaign_root / "results/02_tiller" / f"matrix-{staged_index}"
+        timing_path = result_root / "WALL_CLOCK.json"
+        decision_path = result_root / "STEP1000.json"
+        if not all(path.is_file() for path in (artifact, timing_path, decision_path)):
+            continue
+        timing = json.loads(timing_path.read_text())
+        decision = json.loads(decision_path.read_text())
+        # A stopped or failed retry cannot supersede a completed historical run.
+        if timing.get("process_exit_status") != 0 or decision.get("scientific_stop") is True:
+            continue
+        records = safe_records(artifact)
+        summary = unique_event(records, "summary") or {}
+        evals = evaluations(records)
+        steps = int(source["steps"])
+        if (
+            summary.get("completed_steps") != steps
+            or summary.get("stopped_early") is not False
+            or finite(evals.get(steps, {}).get("val_loss")) is None
+        ):
+            continue
+        config = unique_event(records, "config") or {}
+        expected_config = {
+            key: staged[key]
+            for key in ("seed", "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps",
+                        "train_tokens", "val_tokens", "activation", "dataset_config")
+        }
+        expected_config.update(
+            dataset=staged["dataset_name"],
+            optimizer="factorized_every_step_rfd_gradient_ledger_muon_v1",
+            params=staged["expected_parameter_count"],
+            train_token_sample_sha256=staged["token_fingerprints"]["train_token_sample_sha256"],
+            val_token_sample_sha256=staged["token_fingerprints"]["validation_token_sample_sha256"],
+        )
+        identity = config.get("m1_300m_campaign_identity", {})
+        if (
+            any(config.get(key) != value for key, value in expected_config.items())
+            or identity.get("passed") is not True
+            or identity.get("scientific_cell_key") != staged["scientific_cell_key"]
+        ):
+            raise RuntimeError(f"factorial TILLER configuration mismatch: {staged_index}")
+        controls = [row for row in staged_rows if row["optimizer"] == "muon"
+                    and row["activation"] == "silu" and row["dataset"] == staged["dataset"]
+                    and int(row["seed"]) == int(staged["seed"])]
+        if len(controls) != 1:
+            raise RuntimeError(f"factorial TILLER lacks one exact control: {staged_index}")
+        control = controls[0]
+        control_path = campaign_root / "runs" / control["row_id"] / "silu.jsonl"
+        if control.get("execution_action") == "skip_after_full_evidence_validation":
+            control_path = Path(control["existing_result"]["canonical_path"])
+            if sha256(control_path) != control["existing_result"]["file_sha256"]:
+                raise RuntimeError(f"factorial TILLER historical control changed: {staged_index}")
+        control_step1000 = evaluations(safe_records(control_path)).get(1000, {}).get("val_loss")
+        candidate_step1000 = evals.get(1000, {}).get("val_loss")
+        required_decision = {
+            "schema": "tiller_exact_matched_step1000_gate_v1",
+            "dataset": staged["dataset"], "seed": int(staged["seed"]),
+            "candidate_matrix_index": staged_index,
+            "control_matrix_index": int(control["matrix_index"]),
+            "candidate_path": str(artifact), "control_path": str(control_path),
+            "candidate_step1000_loss": candidate_step1000,
+            "control_step1000_loss": control_step1000,
+        }
+        if (
+            decision.get("passed") is not True or decision.get("scientific_stop") is not False
+            or any(decision.get(key) != value for key, value in required_decision.items())
+            or any(isinstance(value, bool) or finite(value) is None for value in (
+                candidate_step1000, control_step1000, decision.get("candidate_lead"),
+                evals[steps].get("val_loss"),
+            ))
+            or decision["candidate_lead"] != control_step1000 - candidate_step1000
+            or decision["candidate_lead"] < 0
+        ):
+            raise RuntimeError(f"invalid factorial TILLER step-1000 decision: {staged_index}")
+        wall_seconds = factorial_process_time(
+            timing_path, staged_row=staged, artifact=artifact,
+            source_freeze=campaign_root / "SOURCE_FREEZE.sha256", stage="02_tiller",
+        )
+        run, eval_rows = raw_run(
+            index=index, model=source["model"], dataset=source["dataset"],
+            seed=int(source["seed"]), train_tokens=int(source["max_train_tokens"]),
+            steps=steps, activation=source["candidate_activation"], optimizer="tiller_v1",
+            method="tiller", phase=source["phase"],
+            source_row_index=int(source["source_manifest_row_index"]),
+            source_row_id=source["source_manifest_row_id"], path=artifact,
+        )
+        run.update(time_scope="end_to_end_process", total_seconds=wall_seconds)
+        for field in ("source_jsonl", "slurm_job_id", "slurm_restart_count", "slurm_node", "timing_attempt_id"):
+            run[field] = ""
+        replacements[index] = run
+        new_checkpoints.extend(eval_rows)
+    return (
+        [row for row in published_rows if int(row["run_index"]) not in replacements]
+        + list(replacements.values()),
+        [row for row in published_checkpoints if int(row["run_index"]) not in replacements]
+        + new_checkpoints,
+    )
+
+
 def refresh_tiller_controls(
     output_root: Path,
     control_rows: Iterable[dict[str, Any]],
+    *,
+    matrix: Path = DEFAULT_MATRIX,
+    factorial_campaign: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Attach every newly available exact control to the published TILLER rows."""
 
@@ -672,6 +822,10 @@ def refresh_tiller_controls(
         candidates = list(csv.DictReader(handle))
     with checkpoints_path.open(newline="") as handle:
         checkpoints = list(csv.DictReader(handle))
+    if factorial_campaign is not None:
+        candidates, checkpoints = factorial_tiller_runs(
+            matrix, factorial_campaign, candidates, checkpoints
+        )
     controls = {
         (
             str(row["model_scale"]), str(row["dataset"]), int(row["seed"]),
@@ -682,6 +836,8 @@ def refresh_tiller_controls(
         if row["activation"] == "silu" and row["optimizer"] in {"adamw", "muon"}
     }
     for candidate in candidates:
+        if factorial_campaign is not None and candidate["source_phase"] != FACTORIAL_PHASE:
+            continue
         for field in (
             "matched_control_step1000_validation_loss",
             "matched_control_validation_loss",
@@ -870,8 +1026,8 @@ def main() -> None:
         "--factorial-campaign",
         type=Path,
         help=(
-            "optional staged 18-layer campaign root; its Muon rows replace the "
-            "corresponding manifest rows"
+            "optional staged 18-layer campaign root; import its Muon rows and "
+            "completed TILLER endpoints into the corresponding public rows"
         ),
     )
     parser.add_argument(
@@ -926,7 +1082,8 @@ def main() -> None:
         with adamw_path.open(newline="") as handle:
             adamw_controls = list(csv.DictReader(handle))
         refreshed_tiller, refreshed_tiller_checkpoints = refresh_tiller_controls(
-            args.output_root, by_optimizer["muon"] + adamw_controls
+            args.output_root, by_optimizer["muon"] + adamw_controls,
+            matrix=args.matrix, factorial_campaign=args.factorial_campaign,
         )
         by_optimizer["tiller_v1"] = refreshed_tiller
         checkpoint_rows["tiller_v1"] = refreshed_tiller_checkpoints

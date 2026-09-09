@@ -20,6 +20,186 @@ from . import verify_repository as verifier
 
 
 class PublicReproducibilityTests(unittest.TestCase):
+    def factorial_tiller_fixture(self, root: Path, index: int = 30) -> dict:
+        public = json.loads(collect_results.DEFAULT_MATRIX.read_text())["rows"]
+        staged = []
+        for source in public:
+            if source["phase"] != collect_results.FACTORIAL_PHASE:
+                continue
+            number = int(source["matrix_index"]) + 180
+            row = dict(
+                source, matrix_index=number, row_id=f"factorial-{number}",
+                optimizer="tiller_v1", activation=collect_results.GRAIN_ID,
+                train_tokens=source["max_train_tokens"], val_tokens=source["max_val_tokens"],
+                expected_parameter_count=296871080, scientific_cell_key=f"cell-{number}",
+                token_fingerprints={"train_token_sample_sha256": "train-tokens",
+                                    "validation_token_sample_sha256": "validation-tokens"},
+            )
+            staged.append(row)
+            staged.append(dict(row, matrix_index=number - 200,
+                               row_id=f"control-{number}", optimizer="muon", activation="silu"))
+        (root / "matrix.json").write_text(json.dumps({"rows": staged}))
+        freeze = root / "SOURCE_FREEZE.sha256"
+        freeze.write_text("synthetic frozen source identity\n")
+        target = next(row for row in staged if row["matrix_index"] == index + 180)
+        artifact = root / "runs" / target["row_id"] / f"{target['activation']}.jsonl"
+        artifact.parent.mkdir(parents=True)
+        config = {
+            key: target[key] for key in (
+                "seed", "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps",
+                "train_tokens", "val_tokens", "activation", "dataset_config",
+            )
+        }
+        config.update(
+            event="config", dataset=target["dataset_name"],
+            optimizer="factorized_every_step_rfd_gradient_ledger_muon_v1",
+            params=target["expected_parameter_count"],
+            train_token_sample_sha256="train-tokens", val_token_sample_sha256="validation-tokens",
+            m1_300m_campaign_identity={"passed": True, "scientific_cell_key": target["scientific_cell_key"]},
+            optimizer_lr_wd_fairness={"passed": True},
+        )
+        records = [config,
+                   {"event": "eval", "step": 1000, "val_loss": 4.0},
+                   {"event": "eval", "step": 9150, "val_loss": 3.0},
+                   {"event": "summary", "completed_steps": 9150, "stopped_early": False,
+                    "total_seconds": 20.0, "realized_lr_trace_sha256": "new-trace"}]
+        artifact.write_text("".join(json.dumps(row) + "\n" for row in records))
+        control = next(row for row in staged if row["row_id"] == f"control-{index + 180}")
+        control_path = root / "runs" / control["row_id"] / "silu.jsonl"
+        control_path.parent.mkdir(parents=True)
+        control_path.write_text(json.dumps({"event": "eval", "step": 1000, "val_loss": 4.5}) + "\n")
+        result = root / "results/02_tiller" / f"matrix-{index + 180}"
+        result.mkdir(parents=True)
+        timing = {
+            "schema": "tiller_endpoint_process_wall_clock_v1", "process_exit_status": 0,
+            "elapsed_seconds": 25.0, "stage": "02_tiller", "matrix_index": index + 180,
+            "row_id": target["row_id"], "artifact_path": str(artifact), "artifact_exists": True,
+            "artifact_bytes": artifact.stat().st_size, "artifact_sha256": collect_results.sha256(artifact),
+            "source_freeze_sha256": collect_results.sha256(freeze),
+        }
+        timing_path = result / "WALL_CLOCK.json"
+        timing_path.write_text(json.dumps(timing))
+        decision = {
+            "schema": "tiller_exact_matched_step1000_gate_v1", "passed": True,
+            "scientific_stop": False, "dataset": target["dataset"], "seed": target["seed"],
+            "candidate_matrix_index": index + 180, "control_matrix_index": control["matrix_index"],
+            "candidate_path": str(artifact), "control_path": str(control_path),
+            "candidate_step1000_loss": 4.0, "control_step1000_loss": 4.5, "candidate_lead": 0.5,
+        }
+        decision_path = result / "STEP1000.json"
+        decision_path.write_text(json.dumps(decision))
+        output = collect_results.REPOSITORY / "experiments/results/tiller"
+        with (output / "runs.csv").open(newline="") as handle:
+            published = list(csv.DictReader(handle))
+        with (output / "checkpoints.csv").open(newline="") as handle:
+            checkpoints = list(csv.DictReader(handle))
+        return dict(staged=staged, target=target, artifact=artifact, records=records,
+                    timing=timing, timing_path=timing_path, decision=decision,
+                    decision_path=decision_path, published=published, checkpoints=checkpoints)
+
+    def test_factorial_tiller_endpoint_replaces_quality_time_and_checkpoints_together(self) -> None:
+        for index in (30, 35, 44):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                fixture = self.factorial_tiller_fixture(root, index)
+                rows, checkpoints = collect_results.factorial_tiller_runs(
+                    collect_results.DEFAULT_MATRIX, root, fixture["published"], fixture["checkpoints"]
+                )
+                result = next(row for row in rows if int(row["run_index"]) == index)
+                self.assertEqual(result["status"], "complete")
+                self.assertEqual(result["final_validation_loss"], 3.0)
+                self.assertEqual(result["step1000_validation_loss"], 4.0)
+                self.assertEqual(result["total_seconds"], 25.0)
+                self.assertEqual(result["training_loop_total_seconds"], 20.0)
+                self.assertEqual(result["time_scope"], "end_to_end_process")
+                self.assertEqual(result["source_jsonl"], "")
+                self.assertEqual(result["source_jsonl_sha256"], collect_results.sha256(fixture["artifact"]))
+                self.assertEqual([(row["step"], row["validation_loss"]) for row in checkpoints
+                                  if int(row["run_index"]) == index], [(1000, 4.0), (9150, 3.0)])
+                self.assertEqual([row for row in rows if int(row["run_index"]) != index],
+                                 [row for row in fixture["published"] if int(row["run_index"]) != index])
+
+    def test_factorial_tiller_partial_failed_or_stopped_retry_keeps_historical_attempt(self) -> None:
+        for mode in ("partial", "failed", "missing_timing", "missing_decision", "scientific_stop"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                fixture = self.factorial_tiller_fixture(root)
+                if mode == "partial":
+                    fixture["artifact"].write_text(json.dumps({"event": "eval", "step": 1000, "val_loss": 8.0}))
+                elif mode == "failed":
+                    fixture["timing"]["process_exit_status"] = 1
+                    fixture["timing_path"].write_text(json.dumps(fixture["timing"]))
+                elif mode == "missing_timing":
+                    fixture["timing_path"].unlink()
+                elif mode == "missing_decision":
+                    fixture["decision_path"].unlink()
+                else:
+                    fixture["decision"].update(passed=False, scientific_stop=True)
+                    fixture["decision_path"].write_text(json.dumps(fixture["decision"]))
+                observed = collect_results.factorial_tiller_runs(
+                    collect_results.DEFAULT_MATRIX, root, fixture["published"], fixture["checkpoints"]
+                )
+                self.assertEqual(observed, (fixture["published"], fixture["checkpoints"]))
+
+    def test_factorial_tiller_rejects_wrong_stage_or_stale_process_identity(self) -> None:
+        for field, value in (("stage", "01_muon"), ("matrix_index", 211), ("row_id", "other"),
+                             ("artifact_sha256", "stale"), ("source_freeze_sha256", "stale"),
+                             ("elapsed_seconds", 0), ("artifact_path", "other.jsonl")):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                fixture = self.factorial_tiller_fixture(root)
+                fixture["timing"][field] = value
+                fixture["timing_path"].write_text(json.dumps(fixture["timing"]))
+                with self.assertRaisesRegex(RuntimeError, "invalid factorial process wall clock"):
+                    collect_results.factorial_tiller_runs(
+                        collect_results.DEFAULT_MATRIX, root, fixture["published"], fixture["checkpoints"]
+                    )
+
+    def test_factorial_tiller_validates_public_mapping_and_artifact_configuration(self) -> None:
+        for field, value in (("dataset", "wrong"), ("seed", 999), ("model", "12l_768d"),
+                             ("train_tokens", 100000000), ("steps", 3050)):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                fixture = self.factorial_tiller_fixture(root)
+                fixture["target"][field] = value
+                (root / "matrix.json").write_text(json.dumps({"rows": fixture["staged"]}))
+                with self.assertRaisesRegex(RuntimeError, "factorial/public TILLER identity mismatch"):
+                    collect_results.factorial_tiller_runs(
+                        collect_results.DEFAULT_MATRIX, root, fixture["published"], fixture["checkpoints"]
+                    )
+        for field, value in (("dataset", "wrong"), ("seed", 999), ("layers", 12),
+                             ("train_tokens", 100000000), ("steps", 3050)):
+            with self.subTest(config_field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                fixture = self.factorial_tiller_fixture(root)
+                fixture["records"][0][field] = value
+                fixture["artifact"].write_text("".join(json.dumps(row) + "\n" for row in fixture["records"]))
+                with self.assertRaisesRegex(RuntimeError, "factorial TILLER configuration mismatch"):
+                    collect_results.factorial_tiller_runs(
+                        collect_results.DEFAULT_MATRIX, root, fixture["published"], fixture["checkpoints"]
+                    )
+
+    def test_factorial_tiller_preserves_both_published_12_layer_suites(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fixture = self.factorial_tiller_fixture(root)
+            rows, checkpoints = collect_results.factorial_tiller_runs(
+                collect_results.DEFAULT_MATRIX, root, fixture["published"], fixture["checkpoints"]
+            )
+            small = [row for row in rows if row["model_scale"] == "12l_768d"]
+            self.assertEqual({int(row["train_tokens"]) for row in small}, {100000000, 300000000})
+            self.assertEqual(small, [row for row in fixture["published"] if row["model_scale"] == "12l_768d"])
+            self.assertEqual([row for row in checkpoints if row["model_scale"] == "12l_768d"],
+                             [row for row in fixture["checkpoints"] if row["model_scale"] == "12l_768d"])
+            output = root / "published"
+            collect_results.write_csv(output / "tiller/runs.csv", collect_results.RUN_FIELDS, fixture["published"])
+            collect_results.write_csv(output / "tiller/checkpoints.csv", collect_results.CHECKPOINT_FIELDS,
+                                      fixture["checkpoints"])
+            refreshed, _ = collect_results.refresh_tiller_controls(
+                output, [], factorial_campaign=root,
+            )
+            self.assertEqual([row for row in refreshed if row["model_scale"] == "12l_768d"], small)
+
     def test_completed_rerun_supersedes_historical_result(self) -> None:
         manifest = collect_results.DEFAULT_MANIFEST
         with manifest.open(newline="") as handle:
