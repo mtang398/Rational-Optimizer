@@ -1,0 +1,584 @@
+\documentclass{article}
+
+\usepackage{iclr2027_conference,times}
+\input{math_commands.tex}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{booktabs}
+\usepackage{mathtools}
+\usepackage{microtype}
+\usepackage{url}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newcommand{\grain}{\textsc{Grain}}
+\newcommand{\tiller}{\textsc{Tiller}}
+\newcommand{\frob}[1]{\left\lVert #1\right\rVert_{\mathrm F}}
+\newcommand{\inner}[2]{\left\langle #1,#2\right\rangle}
+
+\title{GRAIN and TILLER: Loss-Informed Rational Transformer Updates}
+
+\author{Anonymous authors}
+
+% \iclrfinalcopy
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\end{abstract}
+
+\section{Introduction}
+
+\section{Related Work}
+
+\section{Method}
+\label{sec:method}
+
+We introduce two coupled components. \grain{} is a grouped rational
+feed-forward activation whose normalization exposes a compact, differentiable
+response geometry. \tiller{} is an optimizer that uses this geometry and
+downstream loss derivatives to coordinate structured matrix directions. Its
+central operation is a global transaction over layer--group coordinates: it
+redistributes a fixed update budget among signed coefficients instead of
+changing the global learning-rate budget.
+
+Let a Transformer have $L$ feed-forward blocks, $G$ rational groups per
+block, model width $d$, and expanded rational width $H_r=Gw$. We index the
+$C=LG$ layer--group coordinates by $i=(\ell,g)$. All inner products and norms
+below are Frobenius inner products and norms after the relevant matrix has been
+viewed in these coordinates.
+
+\subsection{GRAIN: groupwise rational activation with internal normalization}
+\label{sec:grain}
+
+Gated feed-forward networks use multiple projections to create a
+multiplicative feature map \citep{dauphin2017language,shazeer2020glu}. \grain{}
+instead learns the feature map itself. For an input $x\in\R^d$, one block is
+\begin{equation}
+  z=Ax,\qquad h=\Phi(z),\qquad y=Bh,
+  \label{eq:grain-block}
+\end{equation}
+where $A\in\R^{H_r\times d}$ and $B\in\R^{d\times H_r}$. We partition
+$z$ into $G$ contiguous groups $z_g\in\R^w$ and define
+\begin{equation}
+  \rho_g=\sqrt{w^{-1}\frob{z_g}^{,2}+\epsilon_{\rm act}},
+  \qquad u_g=z_g/\rho_g,
+  \qquad \epsilon_{\rm act}=10^{-6}.
+  \label{eq:grain-normalize}
+\end{equation}
+Each group has a learned P5/Q4 rational response
+\begin{align}
+  P_g(u)&=\sum_{k=0}^{5}a_{gk}u^k,\\
+  Q_g(u)&=1+\sum_{k=1}^{4}|b_{gk}|\,|u|^k,\\
+  \Phi_g(z_g)&=\rho_g\,\phi_g(u_g),\qquad
+  \phi_g(u)=P_g(u)/Q_g(u),
+  \label{eq:grain-rational}
+\end{align}
+with elementwise powers. This combines the flexibility of learned rational
+activations \citep{molina2020pade,boulle2020rational} with an internal RMS
+coordinate system \citep{zhang2019rmsnorm}. Since $Q_g(u)\geq1$, the learned
+response has no real denominator poles.
+
+For a SwiGLU intermediate width $H$, we set $H_r=3H/2$. The two dense
+matrices in equation~\ref{eq:grain-block} then contain
+$2dH_r=3dH$ weights, the same dense projection count as the three SwiGLU
+matrices. The activation adds only $10G$ learned rational scalars per block.
+The group width is capped at 256, keeping both the activation kernel and its
+response summaries local and linear in $H_r$.
+
+The normalized map has an especially useful Jacobian. Writing
+$f=\phi_g(u_g)$, $d_g=\phi'_g(u_g)$, and
+$r_g=f-u_g\odot d_g$, differentiation gives
+\begin{equation}
+  J_g \equiv \frac{\partial\Phi_g}{\partial z_g}
+  =\operatorname{Diag}(d_g)+\frac{1}{w}r_gu_g^\top,
+  \qquad
+  J_g^\top v=d_g\odot v+u_g\,\operatorname{mean}(r_g\odot v).
+  \label{eq:grain-jacobian}
+\end{equation}
+Thus a group response and its exact pullback require a diagonal operation and
+one rank-one correction, without materializing a $w\times w$ Jacobian.
+
+\subsection{Response coordinates and structured directions}
+\label{sec:directions}
+
+For each structured matrix role, \tiller{} starts from the Nesterov--Muon
+direction $p_i$: momentum is formed first, followed by the five-step
+Newton--Schulz polar map and Muon's role-dependent RMS adjustment
+\citep{jordan2024muon,bernstein2024old,liu2025muon}. In parallel, it maintains
+factorized row and column second moments, in the spirit of memory-efficient
+factored adaptation \citep{shazeer2018adafactor}. With gradient $g_i$ and
+Nesterov momentum $m_i$,
+\begin{align}
+  R_t&=\beta R_{t-1}+(1-\beta)\operatorname{rowsum}(g_i^2),\\
+  C_t&=\beta C_{t-1}+(1-\beta)\operatorname{colsum}(g_i^2),\\
+  V_{t,jk}&=\frac{R_{t,j}C_{t,k}}{\sum_sR_{t,s}}\,
+             \frac{1}{1-\beta^t},
+  \qquad a_i=\frac{m_i}{\sqrt{V_t}+\epsilon_{\rm opt}}.
+  \label{eq:factored-direction}
+\end{align}
+The implementation uses $\beta=0.95$ and $\epsilon_{\rm opt}=10^{-8}$.
+
+Two bounded summaries determine how much of this adaptive information enters
+the update. The participation $\pi_i\in[0,1]$ measures the effective rank of
+the live group response, using the Jacobian spectrum for the incoming role and
+the feature-energy spectrum for the outgoing role. The congruence
+$\kappa_i\in[0,1]$ is a normalized kernel alignment between the live response
+and the response at initialization. Both are weighted by downstream
+cotangent energy. We allocate
+\begin{equation}
+  e_i=\pi_i(1-\kappa_i^2)
+  \label{eq:departure-energy}
+\end{equation}
+of the direction energy to the adaptive tangent. Let
+\begin{equation}
+  a_i^\perp=a_i-\frac{\inner{a_i}{p_i}}{\frob{p_i}^2}p_i,
+  \qquad
+  s_i=\operatorname{sign}\inner{g_i}{a_i^\perp},
+\end{equation}
+with $s_i=1$ for a zero inner product. The structured chord is
+\begin{equation}
+  q_i=\sqrt{1-e_i}\,p_i+
+      s_i\sqrt{e_i}\frac{\frob{p_i}}{\frob{a_i^\perp}}a_i^\perp.
+  \label{eq:tangent-chord}
+\end{equation}
+Because $a_i^\perp\perp p_i$, the chord preserves the parent norm exactly.
+A nonfinite or degenerate chord, or one that fails positive first-order
+descent for either parent or candidate, reverts locally to $p_i$.
+
+The intuition in equations~\ref{eq:departure-energy}--\ref{eq:tangent-chord}
+is geometric. A concentrated response provides little support for a factored
+tangent, while a diffuse response can support one. A response that still
+matches its initialization keeps the Muon direction; learned departure opens
+an angular budget. The current gradient chooses the tangent orientation, so
+the construction does not impose a nonnegative coefficient convention.
+
+\subsection{Exact loss-coordinate measurements}
+\label{sec:loss-measurements}
+
+Every eighth optimizer step, \tiller{} records $K=32$ fixed functional probes
+distributed across the current batch. For one probe in coordinate
+$i=(\ell,g)$, let $x$ be the block input, $z=Ax$, $h=\Phi(z)$,
+$c=\partial\mathcal L/\partial y$, and let $(\Delta A_i,\Delta B_i)$ be the
+two structured directions after their Muon adjustments. The ledger entry is
+\begin{equation}
+  S_{k,i}=
+  \inner{x\Delta A_i^\top}{J_i^\top B^\top c}
+  +\inner{h_i}{c\Delta B_i}.
+  \label{eq:functional-score}
+\end{equation}
+This is the exact first-order directional derivative of the downstream loss
+along the paired group direction. Equation~\ref{eq:grain-jacobian} evaluates
+it without a residual-sized tangent image. Applying the same contraction to
+the decoupled decay direction yields a probe-wise decay action.
+
+On intermediate steps, the two matrix roles provide exact current-gradient
+scores
+\begin{equation}
+  h_{t,i}=\inner{g^A_{t,i}}{q^A_{t,i}}+
+          \inner{g^B_{t,i}}{q^B_{t,i}}.
+\end{equation}
+Let $\nu$ be the RMS row norm from the latest functional measurement. For
+$\|h_t\|_2>0$, the surrogate row is
+$\bar s_t=(\nu/\|h_t\|_2)h_t$, repeated $K$ times. It therefore preserves
+the calibrated total score energy while incorporating the current gradient on
+every optimizer step.
+
+\subsection{A Robust Frequent-Directions loss ledger}
+\label{sec:ledger}
+
+The score matrix has $C=LG$ columns, but \tiller{} never forms a
+$C\times C$ covariance. It retains a rank-$r$ factor $B_{t-1}$ with $r=64$
+and forms
+\begin{equation}
+  A_t=
+  \begin{bmatrix}
+    \sqrt{\beta}B_{t-1}\\
+    \sqrt{1-\beta}S_t
+  \end{bmatrix},
+  \label{eq:rfd-stack}
+\end{equation}
+whose live row count is at most $r+K=96$. Following Frequent Directions and
+its robust isotropic completion
+\citep{ghashami2016frequent,luo2019robust}, \tiller{} diagonalizes only the
+row Gram matrix $A_tA_t^\top$. If $\Delta$ is the largest discarded
+eigenvalue, it shrinks every retained eigenvalue by $\Delta$ and adds
+$\Delta/(2K)$ to an isotropic tail $\tau_t$. The represented metric is
+\begin{equation}
+  \widehat M_t=\frac1K B_t^\top B_t+\tau_tI,
+  \qquad
+  \tau_t=\beta\tau_{t-1}+\frac{\Delta}{2K}.
+  \label{eq:rfd-metric}
+\end{equation}
+The midpoint tail treats the unresolved interval symmetrically: relative to
+the uncompressed live metric, its worst-direction spectral error is at most
+$\Delta/(2K)$ (Appendix~\ref{app:rfd-proof}). A decay cross term is advanced
+with the same $\beta$ recurrence.
+
+\subsection{Signed equal-budget transaction}
+\label{sec:transaction}
+
+Let $c\in\R^C$ scale the paired structured directions and define
+$w_i=\frob{q_i^A}^2+\frob{q_i^B}^2$. The parent Muon transaction is
+$c=\boldsymbol 1$ with budget $B_0=\sum_iw_i$. With current exact gradient
+score $h$, ledger factor $S$, diagonal completion $d$, decay cross $r_d$, and
+scheduled step size $\eta$, \tiller{} solves the projected problem
+\begin{align}
+  \min_c\quad
+  F(c)&=-\eta h^\top c+\frac{\eta^2}{2}
+  \left[\frac1K\|Sc\|_2^2+d^\top(c\odot c)+2r_d^\top c\right],
+  \label{eq:transaction-objective}\\
+  \text{s.t.}\quad&\sum_iw_ic_i^2=B_0.
+  \label{eq:transaction-budget}
+\end{align}
+The coefficients are signed: the transaction may amplify, attenuate, or
+reverse a coordinate while preserving the global weighted budget.
+
+After whitening $y=W^{1/2}c$, the stationarity equation is
+\begin{equation}
+  (M+\lambda I)y=b,
+  \quad
+  M=W^{-1/2}\left(S^\top S/K+\operatorname{Diag}(d)\right)W^{-1/2},
+  \quad
+  b=W^{-1/2}(h/\eta-r_d).
+  \label{eq:transaction-kkt}
+\end{equation}
+We build a fully reorthogonalized 32-vector Lanczos basis using only
+$v\mapsto d\odot v+S^\top(Sv)/K$ \citep{lanczos1950iteration}, diagonalize
+the resulting at-most $32\times32$ tridiagonal, and find $\lambda$ by fixed
+bisection. The proposed coefficients are reevaluated in the full
+low-rank-plus-diagonal objective. They are accepted only if the budget
+residual is at most $10^{-8}$, $F(c)<F(\boldsymbol1)$, all quantities are
+finite, and current-gradient and Nesterov contractions remain positive for
+both matrix roles in every layer. Otherwise the parent vector
+$\boldsymbol1$ is used.
+
+\subsection{Attention, remaining parameters, and distributed realization}
+\label{sec:distributed}
+
+The attention QKV and output matrices use the same response-informed,
+norm-preserving tangent chord, applied to head-blocked Muon directions, but do
+not enter the $LG$ coefficient transaction. The learned rational coefficients,
+embeddings, normalization parameters, and other remaining tensors use AdamW
+\citep{loshchilov2019decoupled}.
+
+The global algebra is owner-free. A shard stores only its parameter fragments,
+factorized moments, score columns, and coefficient segment. Tensor fragments
+contribute additive inner products; coordinate shards contribute additive
+$K\times K$ row Grams, layer certificates, and Krylov dot products. Collective
+reductions combine these compact quantities, and each shard reconstructs its
+own update from the shared scalar solution. This is compatible with tensor,
+fully sharded, data, and pipeline decompositions
+\citep{zhao2023fsdp,shi2023distributed}; a replicated data-parallel layout is
+the special case in which every rank already holds all $C$ coordinates.
+Neither a complete layer nor a parameter-sized selected update is assigned to
+an owner.
+
+The method-specific persistent floating-point state, excluding the baseline
+Muon momentum and AdamW moments, is
+\begin{equation}
+  112LG+2L+38+2LH_r+2LGd+6Ld
+  =O(LH_r+LGd+64LG).
+  \label{eq:state-count}
+\end{equation}
+The ledger itself uses $66LG+4$ elements, and its maximum live factor uses
+$96LG$ elements. The largest temporal eigendecomposition is $96\times96$;
+the largest transaction eigendecomposition is $32\times32$. All ledger work
+is linear in $LG$ up to these fixed row bounds. Activation evaluation is
+$O(LNH_r)$ for $N$ activation positions, while optimizer state is independent
+of $N$.
+
+\section{Experiments}
+
+\section{Discussion}
+
+\section{Conclusion}
+
+\subsection*{AI use statement}
+
+Generative AI tools assisted with code implementation, mathematical
+cross-checking, literature retrieval, and manuscript drafting. All resulting
+mathematical statements, citations, code paths, and experimental records were
+checked against the implementation, executable artifacts, and primary
+sources. The authors take responsibility for the final content of this work.
+
+\bibliography{references}
+\bibliographystyle{iclr2027_conference}
+
+\appendix
+
+\section{Exact GRAIN calculus}
+\label{app:grain-calculus}
+
+\begin{proposition}[Pole freedom and Jacobian structure]
+For every finite group input, $Q_g(u)\geq1$. Wherever the absolute-value
+terms are differentiable, the Jacobian of equations~\ref{eq:grain-normalize}
+and~\ref{eq:grain-rational} is equation~\ref{eq:grain-jacobian}. At zero,
+the implementation uses the subgradient convention $\operatorname{sign}(0)=0$.
+\end{proposition}
+
+\begin{proof}
+Every term $|b_{gk}|\,|u|^k$ is nonnegative, hence $Q_g(u)\geq1$. For the
+Jacobian, suppress the group index and write
+$\rho=(w^{-1}z^\top z+\epsilon_{\rm act})^{1/2}$ and $u=z/\rho$. Then
+\begin{equation}
+  \nabla_z\rho=u/w,
+  \qquad
+  \frac{\partial u}{\partial z}
+  =\rho^{-1}\left(I-uu^\top/w\right).
+\end{equation}
+Applying the product and chain rules to $\Phi(z)=\rho\phi(u)$ gives
+\begin{align}
+  J
+  &=\phi(u)u^\top/w+\operatorname{Diag}(\phi'(u))
+    \left(I-uu^\top/w\right)\\
+  &=\operatorname{Diag}(d)+\left(\phi(u)-u\odot d\right)u^\top/w.
+\end{align}
+Transposition and multiplication by $v$ yield the pullback in
+equation~\ref{eq:grain-jacobian}. The derivation retains
+$\epsilon_{\rm act}$ throughout.
+\end{proof}
+
+For reproducibility, all groups begin from the same SiLU fit. The numerator
+coefficients, in ascending powers, are
+\begin{equation}
+  a^{\rm init}=\operatorname{vec}\!\begin{pmatrix}
+  2.4915714620520875\!\times\!10^{-5} & 0.5000668663485823\\
+  0.2499441908995771 & 0.0526200910151016\\
+  0.005525765640115002 & 0.00024199321178747251
+  \end{pmatrix},
+\end{equation}
+and the four denominator coefficients are
+\begin{equation}
+  b^{\rm init}=\operatorname{vec}\!\begin{pmatrix}
+  0.00022554017910995938 & 0.10511420350691994\\
+  2.8656992394109812\!\times\!10^{-5} & 0.0004816962110562025
+  \end{pmatrix}.
+\end{equation}
+All ten coefficients then learn independently in every group.
+
+\section{Response participation and the tangent chord}
+\label{app:response-proof}
+
+For a nonzero Jacobian with singular values $\{\sigma_j\}_{j=1}^w$, the
+incoming participation is
+\begin{equation}
+  \pi_{\rm in}
+  =\frac{(\sum_j\sigma_j^2)^2}{w\sum_j\sigma_j^4}.
+  \label{eq:incoming-participation}
+\end{equation}
+For a nonzero normalized feature $f$, the outgoing participation is
+\begin{equation}
+  \pi_{\rm out}=\frac{\|f\|_2^4}{w\|f\|_4^4}.
+  \label{eq:outgoing-participation}
+\end{equation}
+Probe values are averaged with squared downstream pullback or cotangent
+weights. Congruence is the corresponding normalized Frobenius alignment
+between live and initialization-time Jacobian Gram kernels for the incoming
+role, and between live and initialization-time feature kernels for the
+outgoing role.
+
+\begin{lemma}[Participation bounds]
+For a nonzero response, both quantities in
+equations~\ref{eq:incoming-participation} and
+\ref{eq:outgoing-participation} lie in $[1/w,1]$.
+\end{lemma}
+
+\begin{proof}
+For nonnegative $v_j$, Cauchy--Schwarz gives
+$(\sum_jv_j)^2\leq w\sum_jv_j^2$, while
+$(\sum_jv_j)^2\geq\sum_jv_j^2$. Apply this first to
+$v_j=\sigma_j^2$ and then to $v_j=f_j^2$.
+\end{proof}
+
+\begin{proposition}[Local budget and descent certificate]
+Assume $p\neq0$ and $a^\perp\neq0$. The chord in
+equation~\ref{eq:tangent-chord} satisfies $\frob{q}=\frob{p}$. Whenever the
+implementation selects this chord rather than its fallback, it also has
+$\inner{g}{p}>0$ and $\inner{g}{q}>0$.
+\end{proposition}
+
+\begin{proof}
+By construction, $\inner{p}{a^\perp}=0$. Since $e\in[0,1]$,
+\begin{equation}
+  \frob{q}^2=(1-e)\frob{p}^2+
+  e\,\frob{p}^2=\frob{p}^2.
+\end{equation}
+The two strict inequalities are explicit predicates of the local acceptance
+test; failure selects $p$.
+\end{proof}
+
+\section{Loss-ledger identities}
+\label{app:ledger-identities}
+
+\begin{lemma}[Trace-matched intermediate row]
+Let $\nu^2=\|S_{\rm ref}\|_{\rm F}^2/K$ and $h\neq0$. For
+$S=\boldsymbol1_K(\nu h/\|h\|_2)^\top$,
+\begin{equation}
+  \frac1K\|S\|_{\rm F}^2=\nu^2.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+All $K$ rows have squared norm
+$\nu^2\|h\|_2^2/\|h\|_2^2=\nu^2$.
+\end{proof}
+
+The identity matches total score energy, the exact current-gradient vector
+supplies the direction, and functional refreshes supply the full score
+covariance.
+
+\section{Robust Frequent-Directions midpoint completion}
+\label{app:rfd-proof}
+
+\begin{proposition}[PSD and spectral error]
+Let
+\begin{equation}
+  M=A^\top A/K+\beta\tau_{t-1}I
+\end{equation}
+be the live metric before compression. Retain the largest $r$ eigenvalues of
+$AA^\top$, subtract the largest discarded eigenvalue $\Delta$, and form
+$\widehat M$ as in equation~\ref{eq:rfd-metric}. Then
+\begin{equation}
+  \widehat M\succeq0,
+  \qquad
+  \|\widehat M-M\|_2\leq\frac{\Delta}{2K}.
+  \label{eq:rfd-error}
+\end{equation}
+When no row is discarded, $\Delta=0$.
+\end{proposition}
+
+\begin{proof}
+The retained eigenvalues after shrinkage are nonnegative, and
+$\tau_t=\beta\tau_{t-1}+\Delta/(2K)\geq0$, proving positive
+semidefiniteness. On a retained right-singular direction, compression changes
+the eigenvalue by exactly $-\Delta/(2K)$. On a discarded direction with live
+eigenvalue $\lambda\in[0,\Delta]$, the error is
+$(\Delta/2-\lambda)/K\in[-\Delta/(2K),\Delta/(2K)]$. On a null direction it is
+$\Delta/(2K)$. The operator norm is the largest absolute eigenvalue error,
+which proves equation~\ref{eq:rfd-error}.
+\end{proof}
+
+The scalar $\Delta/(2K)$ is the midpoint of the unresolved interval
+$[0,\Delta/K]$ and therefore minimizes the worst absolute scalar-completion
+error over that interval.
+
+\section{Transaction derivation and acceptance guarantees}
+\label{app:transaction-proof}
+
+Let $W=\operatorname{Diag}(w)$ and set $y=W^{1/2}c$. Substituting
+$c=W^{-1/2}y$ into equations~\ref{eq:transaction-objective} and
+\ref{eq:transaction-budget} gives, up to a constant positive factor,
+\begin{equation}
+  \min_{\|y\|_2^2=B_0}\ \frac12y^\top My-b^\top y,
+  \label{eq:whitened-transaction}
+\end{equation}
+with $M$ and $b$ from equation~\ref{eq:transaction-kkt}. Its Lagrangian
+stationarity condition is $(M+\lambda I)y=b$. In the Lanczos subspace
+$\mathcal K_{32}(M,b)$, diagonalizing the tridiagonal projection reduces the
+regular branch to a scalar secular equation in $\lambda$, solved by 64 fixed
+bisection iterations.
+
+\begin{proposition}[Accepted-transaction properties]
+An accepted coefficient vector $c$ satisfies
+\begin{equation}
+  \frac{|c^\top Wc-B_0|}{\max(B_0,1)}\leq10^{-8},
+  \qquad F(c)<F(\boldsymbol1).
+\end{equation}
+It also has positive aggregate current-gradient and Nesterov contractions for
+each matrix role in every layer.
+\end{proposition}
+
+\begin{proof}
+After the projected solve, the implementation recomputes the budget, the full
+low-rank-plus-diagonal objective, and all layer--role contractions from the
+candidate coefficients. The conjunction of the displayed conditions,
+finiteness, a regular secular branch, and the contraction predicates is the
+acceptance mask. A false predicate selects $c=\boldsymbol1$.
+\end{proof}
+
+Together, these predicates certify the update budget, the quadratic loss
+model, and the first-order direction; the experiment section evaluates their
+realized next-step and endpoint behavior.
+
+\section{End-to-end update sequence}
+\label{app:algorithm}
+
+At optimizer step $t$, \tiller{} performs the following sequence.
+\begin{enumerate}
+  \item Form Nesterov momentum and one grouped NS5 Muon parent for each GRAIN
+  matrix role; form head-blocked parents for the two attention roles.
+  \item Update factorized row and column moments. Compute response
+  participation and congruence on a functional refresh; otherwise restore the
+  latest response summaries.
+  \item Construct the norm-preserving adaptive tangent chord for every
+  structured role, using the local descent fallback.
+  \item Every eighth step, evaluate the 32 exact functional-score rows and
+  their decay action. On other steps, create the trace-matched current-gradient
+  rows.
+  \item Advance the rank-64 Robust Frequent-Directions ledger and its
+  isotropic midpoint tail.
+  \item Build the 32-vector loss-Krylov basis, solve the equal-budget secular
+  equation, and apply the global acceptance mask.
+  \item Multiply both GRAIN matrix directions in coordinate $(\ell,g)$ by the
+  selected signed coefficient $c_{\ell g}$. Apply the scheduled update and
+  decoupled decay once. Update attention with its response-informed chord.
+  \item Update the rational coefficients and all remaining parameter classes
+  through their AdamW path.
+\end{enumerate}
+
+\section{State, work, and sharded execution}
+\label{app:scaling}
+
+The exact method-specific floating-state inventory is
+\begin{align}
+  \text{response/window state} &=10LG+2+32(LG+1)+4LG+2L,\\
+  \text{loss ledger} &=66LG+4,\\
+  \text{factorized moments} &=2L(H_r+Gd)+6Ld.
+\end{align}
+Their sum is equation~\ref{eq:state-count}. Table~\ref{tab:state} gives
+concrete counts used by the implementation.
+
+\begin{table}[h]
+  \caption{Method-specific state and largest live temporal factor. Counts
+  exclude baseline Muon momentum and AdamW moments.}
+  \label{tab:state}
+  \centering
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Configuration & $L$ & $G$ & $H_r$ & Persistent & Live factor \\
+    \midrule
+    12 layers, width 768 & 12 & 12 & 3,072 & 366,398 & 13,824 \\
+    18 layers, width 1,024 & 18 & 18 & 4,608 & 976,394 & 31,104 \\
+    Scale example, width 8,192 & 96 & 64 & 24,576 & 110,788,838 & 589,824 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+For coordinate-sharded execution, rank $r$ holds columns $S^{(r)}$ and local
+vectors $h^{(r)},w^{(r)},r_d^{(r)}$. The identities
+\begin{equation}
+  SS^\top=\sum_r S^{(r)}S^{(r)\top},
+  \qquad
+  \inner{u}{v}=\sum_r\inner{u^{(r)}}{v^{(r)}}
+\end{equation}
+reduce row-Gram construction, Krylov orthogonalization, norms, budgets, and
+certificates to associative reductions. Tensor shards within one coordinate
+first reduce their scalar contractions; pipeline stages reduce the same
+layer-indexed summaries. The eigendecompositions remain fixed at 96 and 32,
+independent of $C$, the number of machines, and topology. A topology-aware
+collective may change the reduction tree without changing the mathematical
+result. Each shard retains its coefficient segment and applies it directly to
+its local parameter fragments, so no selected parameter tensor is published.
+
+The total number of activation positions changes the activation work but not
+the optimizer-state formulas, score-row count, ledger rank, or solve sizes.
+Consequently the same state inventory applies for any $N$, including
+$N=1{,}050{,}000$.
+
+\end{document}

@@ -21,11 +21,10 @@ The tables cover the 12-layer, 768-wide model at 100M and 300M training tokens
 and the primary 18-layer, 1,024-wide model at 300M tokens. Unfinished endpoint
 rows are represented with `pending` status and empty measurement fields.
 
-The primary 225-cell inventory currently contains 7 complete runs, 1
-incomplete run, and 217 pending runs. The incomplete GRAIN + TILLER
-FineWeb-Edu seed-3407 trajectory records training through step 6,230 and
-validation checkpoints through step 6,200; it is excluded from endpoint
-aggregates.
+The primary 225-cell inventory currently contains 29 complete runs, 3
+incomplete runs, and 193 pending runs. The incomplete rows remain visible with
+their completed-step counts and recorded validation checkpoints; they are
+excluded from endpoint aggregates.
 
 For both 300M-token TILLER studies, the comparison is GRAIN + TILLER against
 SwiGLU + Muon. GRAIN + Muon is the activation-only decomposition baseline.

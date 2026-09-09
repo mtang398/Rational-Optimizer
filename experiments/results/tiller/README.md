@@ -12,3 +12,8 @@ suites in one schema.
 
 Completed and pending rows share the same schema; pending measurements remain
 empty until their required endpoint is available.
+
+Five completed 18-layer, 300M-token TILLER rows now have their exact matched
+SwiGLU + Muon endpoints. Their per-seed loss leads are recorded directly in
+`runs.csv`; the paired timing-ratio field remains empty when the candidate and
+control timing boundaries differ.

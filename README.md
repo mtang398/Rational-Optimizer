@@ -17,7 +17,7 @@ activation/          GRAIN and SwiGLU definitions, Python operators, CUDA kernel
 optimizer_design/    TILLER mathematics and implementation
 training/            Shared Transformer trainer and baseline optimizers
 experiments/         Manifests, launchers, validation, and compact results
-paper/               Reserved for the manuscript
+paper/               ICLR 2027 manuscript source, official style, and rendered PDF
 ```
 
 Every experiment is generated from a manifest row. The row records the model,
@@ -70,3 +70,5 @@ The launcher records the assigned hardware and topology, checks the source
 manifest, and writes endpoint and timing records.
 See [experiments/protocol](experiments/protocol/) for the complete command and
 [experiments/results](experiments/results/) for the compact result tables.
+The method paper and its TeX Live 2025/Overleaf build instructions are in
+[paper](paper/).

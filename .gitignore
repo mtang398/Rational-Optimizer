@@ -55,9 +55,19 @@ slurm-*.out
 .DS_Store
 *.swp
 
-# Paper placeholder and local TeX build files
+# Paper sources and local TeX build files
 paper/*
-!paper/.gitkeep
+!paper/README.md
+!paper/Makefile
+!paper/OFFICIAL_TEMPLATE.sha256
+!paper/main.tex
+!paper/main.pdf
+!paper/references.bib
+!paper/iclr2027_conference.sty
+!paper/iclr2027_conference.bst
+!paper/math_commands.tex
+!paper/fancyhdr.sty
+!paper/natbib.sty
 .TinyTeX/
 *.aux
 *.bbl

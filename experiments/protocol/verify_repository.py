@@ -1422,7 +1422,7 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
     require(len(primary_rows) == 225, "primary 18-layer result inventory changed")
     primary_status = Counter(row["status"] for row in primary_rows)
     require(
-        primary_status == Counter({"complete": 7, "incomplete": 1, "pending": 217}),
+        primary_status == Counter({"complete": 29, "incomplete": 3, "pending": 193}),
         f"primary 18-layer result status changed: {dict(primary_status)}",
     )
 
@@ -1448,7 +1448,24 @@ def verify_public_layout() -> tuple[str, ...]:
         require(f"{directory}/README.md" in public, f"{directory}/README.md is not public")
     require((ROOT / "paper").is_dir(), "missing root directory paper/")
     paper_files = {path for path in public if path.startswith("paper/")}
-    require(paper_files == {"paper/.gitkeep"}, "paper/ must publicly contain only .gitkeep")
+    expected_paper_files = {
+        "paper/README.md",
+        "paper/Makefile",
+        "paper/OFFICIAL_TEMPLATE.sha256",
+        "paper/fancyhdr.sty",
+        "paper/iclr2027_conference.bst",
+        "paper/iclr2027_conference.sty",
+        "paper/main.pdf",
+        "paper/main.tex",
+        "paper/math_commands.tex",
+        "paper/natbib.sty",
+        "paper/references.bib",
+    }
+    require(
+        paper_files == expected_paper_files,
+        "public paper tree changed: "
+        f"{sorted(paper_files ^ expected_paper_files)}",
+    )
 
     optimizer_files = {path for path in public if path.startswith("optimizer_design/")}
     expected_optimizer_files = {

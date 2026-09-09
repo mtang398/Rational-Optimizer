@@ -2286,13 +2286,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.9768667221069336,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 432,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.927298545837402,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7522.482015446
       },
       "matrix_index": 30,
       "matrix_spectrum_interval": 0,
@@ -2361,13 +2361,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 4.004583358764648,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 446,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.9118218421936035,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7313.423485124
       },
       "matrix_index": 31,
       "matrix_spectrum_interval": 0,
@@ -2436,13 +2436,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.946938991546631,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 460,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.866416931152344,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7312.642556292
       },
       "matrix_index": 32,
       "matrix_spectrum_interval": 0,
@@ -2511,13 +2511,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.66146183013916,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 474,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.715968608856201,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7503.189362476
       },
       "matrix_index": 33,
       "matrix_spectrum_interval": 0,
@@ -2661,13 +2661,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.6825063228607178,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 502,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.705146789550781,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7409.193306545
       },
       "matrix_index": 35,
       "matrix_spectrum_interval": 0,
@@ -2736,13 +2736,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.9298877716064453,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 516,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.9123640060424805,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7442.394227963
       },
       "matrix_index": 36,
       "matrix_spectrum_interval": 0,
@@ -2811,13 +2811,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.9406275749206543,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 530,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.942935466766357,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 6878.837616086
       },
       "matrix_index": 37,
       "matrix_spectrum_interval": 0,
@@ -2886,13 +2886,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.936079263687134,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 544,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.888486385345459,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7578.536136876
       },
       "matrix_index": 38,
       "matrix_spectrum_interval": 0,
@@ -2961,13 +2961,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.8002798557281494,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 558,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.719862937927246,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7411.032888017
       },
       "matrix_index": 39,
       "matrix_spectrum_interval": 0,
@@ -3039,8 +3039,8 @@
         "endpoint_validation_loss": null,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 572,
-        "status": "pending",
-        "step1000_validation_loss": null,
+        "status": "incomplete",
+        "step1000_validation_loss": 4.74886417388916,
         "time_scope": null,
         "total_seconds": null
       },
@@ -3111,13 +3111,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.767225503921509,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 586,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.7263031005859375,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7431.446455319
       },
       "matrix_index": 41,
       "matrix_spectrum_interval": 0,
@@ -3186,13 +3186,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.860654354095459,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 600,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.857048034667969,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7402.686313706
       },
       "matrix_index": 42,
       "matrix_spectrum_interval": 0,
