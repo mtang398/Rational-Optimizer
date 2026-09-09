@@ -3261,13 +3261,13 @@
       "log_interval": 10,
       "lr": 0.0003,
       "matched_control": {
-        "endpoint_validation_loss": null,
+        "endpoint_validation_loss": 3.901270627975464,
         "source_result": "experiments/results/muon/runs.csv",
         "source_run_index": 614,
-        "status": "pending",
-        "step1000_validation_loss": null,
-        "time_scope": null,
-        "total_seconds": null
+        "status": "complete",
+        "step1000_validation_loss": 4.877663612365723,
+        "time_scope": "end_to_end_process",
+        "total_seconds": 7394.711349233
       },
       "matrix_index": 43,
       "matrix_spectrum_interval": 0,

@@ -1422,7 +1422,7 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
     require(len(primary_rows) == 225, "primary 18-layer result inventory changed")
     primary_status = Counter(row["status"] for row in primary_rows)
     require(
-        primary_status == Counter({"complete": 29, "incomplete": 3, "pending": 193}),
+        primary_status == Counter({"complete": 30, "incomplete": 3, "pending": 192}),
         f"primary 18-layer result status changed: {dict(primary_status)}",
     )
 

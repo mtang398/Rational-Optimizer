@@ -9,7 +9,7 @@ model_scale,dataset,train_tokens,steps_required,activation,activation_display_na
 12l_768d,fineweb,300000000,9150,rlb_fused_global_rational,GRAIN,tiller_v1,TILLER,tiller,TILLER,3,0,0,0,0,,,3,4.006566683451335,,,0,,,,,,,pending
 12l_768d,fineweb_edu,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_v1,TILLER,tiller,TILLER,3,3,0,0,3,4.167037645975749,0.012321144664080927,3,4.237481,0.07044335402425113,0.004789772049159833,0,,,1476.1548517526437,51.49231833224602,0.45294640160490185,72408.37209674528,complete
 12l_768d,fineweb_edu,300000000,9150,rlb_fused_global_rational,GRAIN,tiller_v1,TILLER,tiller,TILLER,3,0,0,0,0,,,3,3.745389461517334,,,0,,,,,,,pending
-18l_1024d,c4_en,300000000,9150,rlb_fused_global_rational,GRAIN,tiller_v1,TILLER,tiller,TILLER,3,0,0,0,0,,,1,3.860654354095459,,,0,,,,,,,pending
+18l_1024d,c4_en,300000000,9150,rlb_fused_global_rational,GRAIN,tiller_v1,TILLER,tiller,TILLER,3,0,0,0,0,,,2,3.8809624910354614,,,0,,,,,,,pending
 18l_1024d,dclm,300000000,9150,rlb_fused_global_rational,GRAIN,tiller_v1,TILLER,tiller,TILLER,3,3,0,0,3,3.946514368057251,0.02791676158357128,3,3.976129690806071,0.029615322748819988,0.004962077777060315,0,,,9642.731198172318,376.85791455762563,1.0258357697749958,31979.05000486462,complete
 18l_1024d,dolma_sample,300000000,9150,rlb_fused_global_rational,GRAIN,tiller_v1,TILLER,tiller,TILLER,3,0,0,0,0,,,2,3.783752679824829,,,0,,,,,,,pending
 18l_1024d,fineweb,300000000,9150,rlb_fused_global_rational,GRAIN,tiller_v1,TILLER,tiller,TILLER,3,0,0,0,0,,,3,3.9355315367380777,,,0,,,,,,,pending
