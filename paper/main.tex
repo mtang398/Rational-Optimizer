@@ -35,26 +35,174 @@
 \section{Method}
 \label{sec:method}
 
-We introduce two coupled components. First, \grain{} learns a normalized
-rational response in each feed-forward feature group. Second, response
-statistics interpolate between a Muon direction and an orthogonal,
-factorized adaptive direction of the same norm. Finally, \tiller{} measures
-the loss derivative of every paired group direction, estimates their
-cross-coordinate interactions, and selects signed coefficients under a fixed
-budget for the GRAIN structured directions.
+A learned activation changes both the features a network represents and how
+parameter updates affect those features. We use this connection to design
+\grain{} and \tiller{} together. \grain{} learns a rational response within
+each feature group. \tiller{} uses the resulting response geometry to
+construct update directions, then coordinates these directions through their
+joint effect on the loss. This separates two decisions: which direction to
+take within each group, and how to combine directions across the network.
 
-Let a Transformer have $L$ feed-forward blocks, $G$ rational groups per
-block, model width $d$, and expanded rational width $H_r=Gw$. We index the
-$C=LG$ layer--group coordinates by $i=(\ell,g)$. Matrix inner products and
-norms are Frobenius inner products and norms.
+\subsection{GRAIN: learning the response within each group}
 
-\subsection{GRAIN: a normalized groupwise rational activation}
+Consider a feed-forward block with input $x\in\mathbb R^d$. Partition its
+intermediate features into $G$ groups of width $w$, with incoming matrices
+$A_g\in\mathbb R^{w\times d}$ and outgoing matrices
+$B_g\in\mathbb R^{d\times w}$. The block computes
+\begin{equation}
+ y=\sum_{g=1}^G B_g h_g,\qquad
+ h_g=\rho_g\phi_g(u_g),\qquad
+ u_g=\frac{A_gx}{\rho_g},\quad
+ \rho_g=\sqrt{\|A_gx\|_2^2/w+\epsilon_{\rm act}}.
+ \label{eq:overview-grain}
+\end{equation}
+Each $\phi_g$ is a learned rational function, applied elementwise:
+\begin{equation}
+ \phi_g(u)=
+ \frac{\sum_{j=0}^{5}a_{gj}u^j}
+ {1+\sum_{j=1}^{4}|b_{gj}|\,|u|^j}.
+ \label{eq:overview-rational}
+\end{equation}
+Rational functions offer a trainable response shape
+\citep{molina2020pade,boulle2020rational}; the denominator above stays positive.
+Internal RMS normalization \citep{zhang2019rmsnorm} lets the function act on
+relative feature magnitudes, while multiplication by $\rho_g$ restores the
+group scale. Groups start from a common SiLU fit and learn separate
+responses. With intermediate width $Gw=3H/2$, the two projections use the
+same number of dense weights as a SwiGLU block of width $H$
+\citep{shazeer2020glu}.
+
+This parameterization also exposes the response of a group to an update.
+Writing $J_g=\partial h_g/\partial(A_gx)$, differentiation gives
+\begin{equation}
+ J_g=\operatorname{Diag}(\phi'_g(u_g))
+ +\frac{1}{w}
+ \bigl[\phi_g(u_g)-u_g\odot\phi'_g(u_g)\bigr]u_g^\top.
+ \label{eq:overview-jacobian}
+\end{equation}
+The first term describes the elementwise response; the second captures the
+coupling induced by normalization. Both learned features $h_g$ and their
+Jacobian $J_g$ inform the optimizer below. Appendix~\ref{app:grain-calculus}
+derives this identity and specifies initialization.
+
+\subsection{TILLER: adapting directions to the learned response}
+
+For $L$ feed-forward layers, index the $C=LG$ layer--group pairs by
+$i=(\ell,g)$. Write $g_i$ for a block's current clipped loss gradient.
+For each of its two matrix roles,
+start with a Muon direction $p_i$ and a direction $a_i$ obtained from
+factorized second moments
+\citep{jordan2024muon,liu2025muon,shazeer2018adafactor}.
+Their orthogonal component
+$a_i^\perp=a_i-\inner{a_i}{p_i}p_i/\|p_i\|_{\rm F}^2$
+provides a way to change the direction while controlling its norm.
+
+To determine the rotation magnitude, \tiller{} measures two
+properties of the learned response: participation $\pi_i$, which measures
+how broadly its energy is distributed, and congruence $\kappa_i$, which
+compares its kernel with that of the initial activation at the same input.
+The incoming role uses the Jacobian kernel $J_iJ_i^\top$; the outgoing role
+uses the feature kernel $h_ih_i^\top$. These statistics are weighted by
+downstream loss sensitivity. Their definitions and bounds appear in
+Appendix~\ref{sec:directions}.
+With $e_i=\pi_i(1-\kappa_i^2)\in[0,1]$, the candidate direction is
+\begin{equation}
+ \widetilde q_i=
+ \sqrt{1-e_i}\,p_i+
+ \sigma_i\sqrt{e_i}\,
+ \frac{\|p_i\|_{\rm F}}{\|a_i^\perp\|_{\rm F}}a_i^\perp,
+ \qquad
+ \sigma_i=\operatorname{sign}\inner{g_i}{a_i^\perp}.
+ \label{eq:overview-chord}
+\end{equation}
+We choose $\sigma_i=1$ when the contraction is zero.
+Participation weights the breadth of the response, and $1-\kappa_i^2$
+measures its departure from initialization. A broad response with low congruence permits more adaptive rotation,
+so each group determines its mixture from its learned activation. Orthogonality gives
+$\|\widetilde q_i\|_{\rm F}=\|p_i\|_{\rm F}$: the response changes direction
+without changing its magnitude. The selected $q_i$ is this candidate when
+both it and the parent have positive gradient contraction; degenerate or
+nonfinite candidates retain $p_i$.
+
+\subsection{Coordinating directions through their loss responses}
+
+Directions in separate parameter blocks can affect the same loss
+simultaneously. \tiller{} measures this relationship in a shared set of
+activation probes. For probe $k$ and group $i$, let $\xi_{k\ell}$ be the
+downstream loss cotangent. A paired direction $(q_i^A,q_i^B)$ contributes
+\begin{equation}
+ S_{ki}=
+ \inner{\xi_{k\ell}}
+ {B_iJ_{ki}q_i^Ax_{k\ell}+q_i^Bh_{ki}}.
+ \label{eq:overview-score}
+\end{equation}
+Thus each column describes a group direction, and each row compares all
+groups at the same probe. For coefficients $c$, $Sc$ is their combined
+linearized response. The cross terms in $\|Sc\|_2^2$ distinguish directions
+whose effects reinforce one another from those whose effects offset.
+
+\tiller{} maintains a discounted history of these score rows using a Robust
+Frequent-Directions sketch
+\citep{ghashami2016frequent,luo2019robust}. It retains dominant combinations
+of loss responses and assigns an isotropic remainder to the discarded
+spectrum. Between probe refreshes, the current minibatch contractions
+$s_i=\inner{g_i^A}{q_i^A}+\inner{g_i^B}{q_i^B}$
+supply fresh directional information. This combines the current descent
+signal with recent information about how directions act together.
+Appendices~\ref{sec:loss-measurements} and~\ref{sec:ledger} give the updates.
+
+Let $G_t$ denote the second-moment metric of loss responses used for the current step and $r_t$
+the measured interaction with decoupled weight decay. With scheduled learning
+rate $\eta$, \tiller{} chooses
+signed coefficients through the model
+\begin{equation}
+ \min_c\;
+ -\eta s_t^\top c+
+ \frac{\eta^2}{2}\bigl(c^\top G_tc+2r_t^\top c\bigr),
+ \qquad
+ \sum_i\omega_ic_i^2=\sum_i\omega_i,
+ \quad
+ \omega_i=\|q_i^A\|_{\rm F}^2+\|q_i^B\|_{\rm F}^2.
+ \label{eq:overview-coordinate-model}
+\end{equation}
+The linear term rewards descent on the current batch. The response metric measures squared linearized loss responses across probes;
+the constraint fixes
+their total update energy. Coefficients can amplify, attenuate, or reverse
+individual groups. This makes coordination a choice of how to allocate a
+shared update norm according to loss information.
+
+A projected solver proposes coefficients; the proposal is accepted when it
+improves this model, meets the norm constraint, and passes the layerwise
+descent checks in Appendix~\ref{sec:transaction}. Otherwise $c_i=1$.
+With weight decay $\lambda_{\rm wd}$, each paired matrix updates as
+$A_i\leftarrow(1-\eta\lambda_{\rm wd})A_i-\eta c_iq_i^A$ and analogously
+for $B_i$. Attention uses a response-guided rotation based on the
+same layer's group statistics; rational coefficients and the remaining
+parameters use AdamW \citep{loshchilov2019decoupled}. The full update is in
+Appendix~\ref{app:algorithm}.
+
+\section{Experiments}
+
+\section{Discussion}
+
+\section{Conclusion}
+
+\subsection*{AI use statement}
+
+Generative AI tools assisted with code implementation, mathematical
+cross-checking, literature retrieval, and manuscript drafting. The authors
+reviewed the resulting material and take responsibility for the final
+content.
+
+\bibliography{references}
+\bibliographystyle{iclr2027_conference}
+
+\appendix
+
+\section{GRAIN parameterization}
 \label{sec:grain}
 
-Gated feed-forward networks use multiple projections to create a
-multiplicative feature map \citep{dauphin2017language,shazeer2020glu}. \grain{}
-applies a learned scalar rational function shared within each feature group.
-For an input
+Let $H_r=Gw$ be the expanded width. For an input
 $x\in\R^d$, one block is
 \begin{equation}
   z=Ax,\qquad h=\Phi(z),\qquad y=Bh,
@@ -115,10 +263,62 @@ Thus a group response and its pullback reduce to a diagonal operation and one
 rank-one correction. This structure lets us evaluate loss derivatives of
 matrix directions directly in activation space.
 
-\subsection{Response-aware structured directions}
+\subsection{Jacobian derivation and initialization}
+\label{app:grain-calculus}
+
+\begin{proposition}[Pole freedom and Jacobian structure]
+For every finite group input, $Q_g(u)\geq1$. Wherever the absolute-value
+terms are differentiable, the Jacobian of equations~\ref{eq:grain-normalize}
+and~\ref{eq:grain-rational} is equation~\ref{eq:grain-jacobian}. At
+$u_j=0$, where the response need not be classically differentiable, we use
+the automatic-differentiation selection $\operatorname{sign}(0)=0$; throughout
+the paper, $J_g$ denotes this selected derivative at such coordinates.
+\end{proposition}
+
+\begin{proof}
+Every term $|b_{gk}|\,|u|^k$ is nonnegative, hence $Q_g(u)\geq1$. Suppress
+the group index and write
+$\rho=(w^{-1}z^\top z+\epsilon_{\rm act})^{1/2}$ and $u=z/\rho$. Then
+\begin{equation}
+  \nabla_z\rho=u/w,
+  \qquad
+  \frac{\partial u}{\partial z}
+  =\rho^{-1}\left(I-uu^\top/w\right).
+  \label{eq:grain-normalization-derivative}
+\end{equation}
+Applying the product and chain rules to $\Phi(z)=\rho\phi(u)$ gives
+\begin{align}
+  J
+  &=\phi(u)u^\top/w+\operatorname{Diag}(\phi'(u))
+    \left(I-uu^\top/w\right)\\
+  &=\operatorname{Diag}(d)
+    +\left(\phi(u)-u\odot d\right)u^\top/w.
+\end{align}
+Transposition and multiplication by $v$ yield the pullback in
+equation~\ref{eq:grain-jacobian}.
+\end{proof}
+
+All groups begin from the same SiLU fit. In ascending powers, the coefficients
+are
+\begin{align}
+  (a^{\rm init}_0,\ldots,a^{\rm init}_5)
+  ={}&(2.4915714620520875\!\times\!10^{-5},\
+  0.5000668663485823,\ 0.2499441908995771,\nonumber\\
+  &0.0526200910151016,\ 0.005525765640115002,\
+  0.00024199321178747251),\\
+  (b^{\rm init}_1,\ldots,b^{\rm init}_4)
+  ={}&(0.00022554017910995938,\ 0.10511420350691994,\nonumber\\
+  &2.8656992394109812\!\times\!10^{-5},\
+  0.0004816962110562025).
+\end{align}
+The ten coefficients subsequently learn independently in every group.
+
+\section{Response-aware structured directions}
 \label{sec:directions}
 
 \paragraph{Parent and adaptive directions.}
+Let $g_t$ denote the parameter gradient after microbatch accumulation,
+distributed averaging, and global-norm clipping.
 For each pair of group blocks $i=(\ell,g)$ and role
 $r\in\{A,B\}$, \tiller{} starts from a Nesterov--Muon direction $p_i^r$:
 with $\beta_1=0.95$, it forms
@@ -138,7 +338,7 @@ rank at most $\min\{H_r,d\}$. We therefore apply the calibration
   =\sqrt{\frac{\min\{H_r,d\}}{G\min\{w,d\}}},
   \label{eq:group-polar-calibration}
 \end{equation}
-which matches the squared Frobenius scale of the full-matrix polar direction.
+which calibrates the nominal Frobenius scale to that of a full-matrix polar direction.
 Writing $\mathcal P_5$ for this blockwise polar map, Muon's adjustment is
 $\mu_{\rm mlp}=0.2\sqrt{\max\{H_r,d\}}$ for either GRAIN matrix role. The
 parent group direction is
@@ -257,20 +457,73 @@ The selected direction is
   \end{cases}
   \label{eq:chord-selection}
 \end{equation}
-Because $a_i^\perp\perp p_i$, the two terms in
-equation~\ref{eq:tangent-chord} are orthogonal and
-$\|\widetilde q_i\|_{\rm F}^2=(1-e_i)\|p_i\|_{\rm F}^2+
-e_i\|p_i\|_{\rm F}^2=\|p_i\|_{\rm F}^2$. Both selection branches therefore
-preserve the parent norm.
+Participation measures response spread; congruence measures learned change.
+A broad response with low congruence receives a larger adaptive norm fraction.
+The gradient determines the orientation of the resulting tangent.
 
-The construction has a geometric interpretation. A concentrated response
-supports little motion away from the polar direction, whereas a diffuse
-response supports a higher-dimensional tangent. Congruence distinguishes
-generic dimensionality from learned change. As congruence decreases,
-$e_i^r$ assigns a larger norm fraction to the orthogonal adaptive component.
-The current gradient orients that component, permitting either sign.
+\subsection{Bounds and norm preservation}
+\label{app:response-proof}
 
-\subsection{Loss-coordinate measurements}
+At probe position $n$, the initialization kernels
+$\Gamma^{A,0}_{in}$ and $\Gamma^{B,0}_{in}$ evaluate the frozen initial
+rational coefficients at the current normalized input $u_{in}$. The input
+projection and the downstream cotangent remain at their current values.
+Products between the live and initial Jacobian kernels are evaluated directly
+from equation~\ref{eq:grain-jacobian}.
+
+For a nonzero Jacobian with singular values
+$\{\sigma_j\}_{j=1}^w$,
+\begin{equation}
+  \operatorname{pr}_A(J)
+  =\frac{(\sum_j\sigma_j^2)^2}{w\sum_j\sigma_j^4},
+  \qquad
+  \operatorname{pr}_B(h)=\frac{\|h\|_2^4}{w\|h\|_4^4}.
+  \label{eq:participation-expanded}
+\end{equation}
+We take $\operatorname{pr}_A(0)=\operatorname{pr}_B(0)=0$. If either role has
+zero total sensitivity, we set both participation values to one. If either
+kernel-alignment denominator vanishes, we set both congruence values to one.
+In either case equation~\ref{eq:departure-energy} gives $e_i^r=0$ whenever
+the corresponding response comparison is undefined.
+
+\begin{lemma}[Response-summary bounds]
+For every $J\neq0$ and $h\neq0$,
+$\operatorname{pr}_A(J),\operatorname{pr}_B(h)\in[1/w,1]$. Whenever the
+denominator in equation~\ref{eq:congruence-main} is positive,
+$\kappa_i^r\in[0,1]$.
+\end{lemma}
+
+\begin{proof}
+For nonnegative $v_j$, Cauchy--Schwarz gives
+$(\sum_jv_j)^2\leq w\sum_jv_j^2$, while
+$(\sum_jv_j)^2\geq\sum_jv_j^2$. Apply this first to
+$v_j=\sigma_j^2$ and then to $v_j=h_j^2$. For congruence, concatenate the
+weighted kernels as direct-sum matrices
+$\bigoplus_n\sqrt{\alpha^r_{in}}\Gamma^r_{in}$ and
+$\bigoplus_n\sqrt{\alpha^r_{in}}\Gamma^{r,0}_{in}$.
+Frobenius Cauchy--Schwarz gives the upper bound. The numerator is
+nonnegative because
+$\inner{JJ^\top}{J^0J^{0\top}}=\|J^\top J^0\|_{\rm F}^2$ and
+$\inner{hh^\top}{h^0h^{0\top}}=(h^\top h^0)^2$.
+\end{proof}
+
+\begin{proposition}[Norm preservation]
+Assume $e\in[0,1]$, $p\neq0$, and $a^\perp\neq0$. The candidate in
+equation~\ref{eq:tangent-chord} satisfies
+$\frob{\widetilde q}=\frob{p}$, and the selected direction in
+equation~\ref{eq:chord-selection} satisfies $\frob{q}=\frob{p}$.
+\end{proposition}
+
+\begin{proof}
+By construction, $\inner{p}{a^\perp}=0$. Since $e\in[0,1]$,
+\begin{equation}
+  \frob{\widetilde q}^2=(1-e)\frob{p}^2+
+  e\,\frob{p}^2=\frob{p}^2.
+\end{equation}
+The fallback branch in equation~\ref{eq:chord-selection} is $q=p$.
+\end{proof}
+
+\section{Loss-coordinate measurements}
 \label{sec:loss-measurements}
 
 On optimizer step 1 and every eight steps thereafter, \tiller{}
@@ -280,8 +533,8 @@ row is a joint measurement across the network. For probe
 $k\in\mathcal P_t$ and coordinate $i=(\ell,g)$, let
 $x_{k,\ell}$ be the block input, $z_{k,i}=A_ix_{k,\ell}$,
 $h_{k,i}=\Phi_i(z_{k,i})$. Let $\xi_{k,\ell}$ be the corresponding output
-cotangent of the individual position loss, scaled by the clipping factor
-applied to the parameter gradient. Along the paired direction
+cotangent of the summed microbatch loss at that activation position, scaled
+by the clipping factor applied to the parameter gradient. Along the paired direction
 $(q_i^A,q_i^B)$,
 \begin{equation}
   \delta z_{k,i}=q_i^Ax_{k,\ell},\qquad
@@ -297,8 +550,10 @@ Pairing $\delta y_{k,i}$ with the downstream loss derivative gives
   \label{eq:functional-score}
 \end{equation}
 At differentiability points, equation~\ref{eq:functional-score} is the
-clipped per-position directional contribution. Its row mean is a sampled
-estimate of the corresponding minibatch derivative, whereas the exact
+clipped activation-position contribution to the loss derivative. Averaging
+over all activation positions recovers the clipped mean-reduced minibatch
+derivative; sampled rows
+retain contributions at the probe positions. The exact
 minibatch contraction is computed below from the parameter gradient. At zero
 coordinates, the score uses the derivative convention in
 Appendix~\ref{app:grain-calculus}. The pullback in
@@ -351,7 +606,52 @@ effect reinforces the fixed decay direction. They define a
 functional-response covariance surrogate rather than a Hessian model of the
 loss.
 
-\subsection{A Robust Frequent-Directions loss ledger}
+\subsection{Directional score derivation}
+\label{app:ledger-identities}
+
+At one activation position, consider a local intervention with
+$A_i(\alpha)=A_i+\alpha q_i^A$ and
+$B_i(\alpha)=B_i+\alpha q_i^B$. At points where the rational response is
+differentiable, hold the other positions in this block fixed and differentiate the group contribution
+$B_i(\alpha)\Phi_i(A_i(\alpha)x)$ at $\alpha=0$ gives
+\begin{align}
+  \left.\frac{d}{d\alpha}
+  B_i(\alpha)\Phi_i(A_i(\alpha)x)\right|_{\alpha=0}
+  &=q_i^Bh_i+B_iJ_iq_i^Ax,\\
+  \left.\frac{d\mathcal L}{d\alpha}\right|_{\alpha=0}
+  &=\inner{\xi}{q_i^Bh_i+B_iJ_iq_i^Ax}.
+\end{align}
+Here $\mathcal L$ is the summed microbatch loss multiplied by the realized
+clipping factor, held fixed during the local differentiation.
+At a zero coordinate of the normalized response, the right-hand sides define
+the automatic-differentiation-selected linearization from
+Appendix~\ref{app:grain-calculus}, rather than a classical two-sided
+derivative.
+Moving the linear maps across the inner product yields
+equation~\ref{eq:functional-score}. Thus one row of $S$ records the loss-sensitive
+contributions of every layer--group direction at the same sampled position;
+its rowwise outer product couples coordinates whose contributions vary together.
+
+The captured cotangent is put on the summed-loss scale explicitly. If a
+microbatch contains $R$ activation positions, $M$ microbatches are
+accumulated, $\bar\xi_{k\ell}$ is the cotangent captured from the
+mean-reduced backward pass, and $\chi_{\rm clip}$ is the realized clipping
+factor, then
+\begin{equation}
+  \xi_{k\ell}=RM\chi_{\rm clip}\,\bar\xi_{k\ell}.
+  \label{eq:cotangent-rescaling}
+\end{equation}
+The indices used to sample $x$, $z$, $h$, and $\bar\xi$ are identical within
+each probe row.
+
+
+When $s_t\neq0$, the repeated surrogate has the same trace
+$\operatorname{tr}(S_t^\top S_t/K)=\nu^2$ as the latest functional score factor.
+It has rank at most one (rank one when $\nu>0$) and is aligned with the
+current coordinate-score vector; the next functional refresh replaces that
+directional approximation with probe-level cross-coordinate structure.
+
+\section{A Robust Frequent-Directions loss ledger}
 \label{sec:ledger}
 
 The ledger tracks the two coefficient-dependent terms in
@@ -395,312 +695,13 @@ $(\mathcal B_t,\tau_t,r_t)$ is carried to the next step. At initialization,
 $\mathcal A_1=S_1$, $\delta_1=0$, and
 $r_1=S_1^\top a_1^{\rm dec}/K$.
 
-\subsection{Signed equal-budget transaction}
-\label{sec:transaction}
-
-Let $c\in\R^C$ scale the paired directions and define
-$\omega_i=\frob{q_i^A}^2+\frob{q_i^B}^2$. We work on the nondegenerate
-transaction domain $\omega_i>0$ for every coordinate; this invariant is
-checked before whitening. The uncoordinated parent update is
-$c=\boldsymbol 1$, whose squared norm is
-$\mathcal E_0=\sum_i\omega_i$. Indeed, the parameter blocks associated with
-different coordinates are disjoint, so the structured update
-$\Delta\theta(c)=-\eta\{c_iq_i^A,c_iq_i^B\}_{i=1}^C$ satisfies
-$\|\Delta\theta(c)\|_2^2=\eta^2\sum_i\omega_ic_i^2$.
-With current directional derivatives $s_t$,
-pre-compression factor $\mathcal A_t$, diagonal completion $\delta_t$,
-score--decay cross term $r_t$, and scheduled step size $\eta$, \tiller{}
-forms the response penalty
-\begin{equation}
-  \mathcal R_t(c)=\frac1K\|\mathcal A_tc\|_2^2+
-  \delta_t^\top(c\odot c)+2r_t^\top c
-  \label{eq:ledger-response-penalty}
-\end{equation}
-and searches in a Krylov subspace for a projected positive-multiplier
-stationary candidate of the equal-budget model
-\begin{align}
-  \min_c\quad
-  F_t(c)&=-\eta s_t^\top c+\frac{\eta^2}{2}\mathcal R_t(c),
-  \label{eq:transaction-objective}\\
-  \text{s.t.}\quad&\sum_i\omega_ic_i^2=\mathcal E_0.
-  \label{eq:transaction-budget}
-\end{align}
-The linear term rewards immediate descent. The quadratic term penalizes
-directions that the loss ledger predicts to interact strongly, including the
-effect of decoupled decay. The constraint gives the coordinated GRAIN
-direction the same aggregate squared norm as the parent before applying their
-common decay term.
-Because $c$ is signed, a transaction may amplify, attenuate, or reverse
-individual coordinates.
-
-After whitening $y=W^{1/2}c$, where $W=\operatorname{Diag}(\omega)$, the
-stationarity equation is
-\begin{equation}
-  (M_t+\lambda I)y=b_t,
-  \quad
-  M_t=W^{-1/2}\left(\mathcal A_t^\top\mathcal A_t/K+
-  \operatorname{Diag}(\delta_t)\right)W^{-1/2},
-  \quad
-  b_t=W^{-1/2}(s_t/\eta-r_t).
-  \label{eq:transaction-kkt}
-\end{equation}
-For $b_t\neq0$, define
-$\widetilde{\mathcal A}_t=\mathcal A_tW^{-1/2}$ and
-$\widetilde\delta_t=\delta_t\oslash\omega$. A reorthogonalized Lanczos basis
-is constructed from products
-$v\mapsto\widetilde\delta_t\odot v+
-\widetilde{\mathcal A}_t^\top(\widetilde{\mathcal A}_tv)/K$
-\citep{lanczos1950iteration}. \tiller{} attempts the positive-multiplier
-regular branch, which reduces to a scalar secular equation for $\lambda$.
-The proposal is evaluated in the unprojected low-rank-plus-diagonal
-surrogate. It is retained when it satisfies the budget, lowers
-$F_t$ relative to $c=\boldsymbol1$, and preserves positive layerwise
-gradient and momentum contractions
-\begin{equation}
-  \sum_g c_{\ell g}\inner{g_{\ell g}^r}{q_{\ell g}^r}>0,
-  \qquad
-  \sum_g c_{\ell g}\inner{m_{\ell g}^r}{q_{\ell g}^r}>0
-  \quad (r\in\{A,B\}).
-  \label{eq:transaction-contractions}
-\end{equation}
-The same contractions must also be positive for the parent coefficients
-$c=\boldsymbol1$. The parent coefficients are used when the implemented
-regular branch has no bracketed root or its proposal fails these checks. Appendix
-\ref{app:transaction-proof} derives this regular proposal.
-
-\subsection{Completing the Transformer update}
-\label{sec:distributed}
-
-For attention, the group statistics are summarized at each layer as
-\begin{equation}
-  \pi_\ell^{\rm att}=
-  \sqrt{\left(G^{-1}\sum_g\pi_{\ell g}^A\right)
-              \left(G^{-1}\sum_g\pi_{\ell g}^B\right)},
-  \qquad
-  \kappa_\ell^{\rm att}=\sqrt{\kappa_\ell^A\kappa_\ell^B},
-  \label{eq:attention-response}
-\end{equation}
-where each $\kappa_\ell^r$ is formed by summing the numerator and two
-denominator terms of equation~\ref{eq:congruence-main} over groups before
-normalization. With
-\begin{equation}
-  e_\ell^{\rm att}
-  =\sqrt{\bar\pi_\ell^A\bar\pi_\ell^B}
-   \left(1-\kappa_\ell^A\kappa_\ell^B\right),
-  \qquad
-  \bar\pi_\ell^r=G^{-1}\sum_g\pi_{\ell g}^r,
-  \label{eq:attention-departure}
-\end{equation}
-the participation factor requires broad support on both matrix roles, while
-the departure factor opens when either role has moved away from its initial
-response. These layerwise statistics gate the same norm-preserving chord for
-the QKV and output matrices. Attention heads are partitioned into blocks of four for the
-polar map; the stacked QKV direction is scaled by $1/\sqrt3$ to match its
-three constituent projections. The adaptive tangent is factorized at matrix
-level. Attention does not enter the $LG$ coefficient transaction. Learned
-rational coefficients, embeddings, normalization parameters, and remaining
-tensors use AdamW \citep{loshchilov2019decoupled}.
-
-The auxiliary state consists of factorized moments, response summaries, and
-a rank-$r$ factor over the $LG$ transaction coordinates. Its size is
-$O(LH_r+LGd+rLG)$. For fixed probe count, ledger rank, and Krylov dimension,
-both the ledger update and the transaction are linear in $LG$; their dense
-linear algebra acts only on row or projected matrices of fixed dimension.
-The activation work is $O(LNH_r)$ for $N$ activation positions, whereas the
-optimizer state does not depend on $N$. Appendix~\ref{app:scaling} gives the
-reduction identities for partitioned coordinates, and
-Appendix~\ref{app:algorithm} states the complete update order.
-
-\section{Experiments}
-
-\section{Discussion}
-
-\section{Conclusion}
-
-\subsection*{AI use statement}
-
-Generative AI tools assisted with code implementation, mathematical
-cross-checking, literature retrieval, and manuscript drafting. The authors
-reviewed the resulting material and take responsibility for the final
-content.
-
-\bibliography{references}
-\bibliographystyle{iclr2027_conference}
-
-\appendix
-
-\section{Exact GRAIN calculus}
-\label{app:grain-calculus}
-
-\begin{proposition}[Pole freedom and Jacobian structure]
-For every finite group input, $Q_g(u)\geq1$. Wherever the absolute-value
-terms are differentiable, the Jacobian of equations~\ref{eq:grain-normalize}
-and~\ref{eq:grain-rational} is equation~\ref{eq:grain-jacobian}. At
-$u_j=0$, where the response need not be classically differentiable, we use
-the automatic-differentiation selection $\operatorname{sign}(0)=0$; throughout
-the paper, $J_g$ denotes this selected derivative at such coordinates.
-\end{proposition}
-
-\begin{proof}
-Every term $|b_{gk}|\,|u|^k$ is nonnegative, hence $Q_g(u)\geq1$. Suppress
-the group index and write
-$\rho=(w^{-1}z^\top z+\epsilon_{\rm act})^{1/2}$ and $u=z/\rho$. Then
-\begin{equation}
-  \nabla_z\rho=u/w,
-  \qquad
-  \frac{\partial u}{\partial z}
-  =\rho^{-1}\left(I-uu^\top/w\right).
-  \label{eq:grain-normalization-derivative}
-\end{equation}
-Applying the product and chain rules to $\Phi(z)=\rho\phi(u)$ gives
-\begin{align}
-  J
-  &=\phi(u)u^\top/w+\operatorname{Diag}(\phi'(u))
-    \left(I-uu^\top/w\right)\\
-  &=\operatorname{Diag}(d)
-    +\left(\phi(u)-u\odot d\right)u^\top/w.
-\end{align}
-Transposition and multiplication by $v$ yield the pullback in
-equation~\ref{eq:grain-jacobian}.
-\end{proof}
-
-All groups begin from the same SiLU fit. In ascending powers, the coefficients
-are
-\begin{align}
-  (a^{\rm init}_0,\ldots,a^{\rm init}_5)
-  ={}&(2.4915714620520875\!\times\!10^{-5},\
-  0.5000668663485823,\ 0.2499441908995771,\nonumber\\
-  &0.0526200910151016,\ 0.005525765640115002,\
-  0.00024199321178747251),\\
-  (b^{\rm init}_1,\ldots,b^{\rm init}_4)
-  ={}&(0.00022554017910995938,\ 0.10511420350691994,\nonumber\\
-  &2.8656992394109812\!\times\!10^{-5},\
-  0.0004816962110562025).
-\end{align}
-The ten coefficients subsequently learn independently in every group.
-
-\section{Response geometry}
-\label{app:response-proof}
-
-At probe position $n$, the initialization kernels
-$\Gamma^{A,0}_{in}$ and $\Gamma^{B,0}_{in}$ evaluate the frozen initial
-rational coefficients at the current normalized input $u_{in}$. The input
-projection and the downstream cotangent remain at their current values.
-Products between the live and initial Jacobian kernels are evaluated directly
-from equation~\ref{eq:grain-jacobian}.
-
-For a nonzero Jacobian with singular values
-$\{\sigma_j\}_{j=1}^w$,
-\begin{equation}
-  \operatorname{pr}_A(J)
-  =\frac{(\sum_j\sigma_j^2)^2}{w\sum_j\sigma_j^4},
-  \qquad
-  \operatorname{pr}_B(h)=\frac{\|h\|_2^4}{w\|h\|_4^4}.
-  \label{eq:participation-expanded}
-\end{equation}
-We take $\operatorname{pr}_A(0)=\operatorname{pr}_B(0)=0$. If either role has
-zero total sensitivity, we set both participation values to one. If either
-kernel-alignment denominator vanishes, we set both congruence values to one.
-In either case equation~\ref{eq:departure-energy} gives $e_i^r=0$ whenever
-the corresponding response comparison is undefined.
-
-\begin{lemma}[Response-summary bounds]
-For every nonzero response,
-$\operatorname{pr}_A(J),\operatorname{pr}_B(h)\in[1/w,1]$. Whenever the
-denominator in equation~\ref{eq:congruence-main} is positive,
-$\kappa_i^r\in[0,1]$.
-\end{lemma}
-
-\begin{proof}
-For nonnegative $v_j$, Cauchy--Schwarz gives
-$(\sum_jv_j)^2\leq w\sum_jv_j^2$, while
-$(\sum_jv_j)^2\geq\sum_jv_j^2$. Apply this first to
-$v_j=\sigma_j^2$ and then to $v_j=h_j^2$. For congruence, concatenate the
-weighted kernels as direct-sum matrices
-$\bigoplus_n\sqrt{\alpha^r_{in}}\Gamma^r_{in}$ and
-$\bigoplus_n\sqrt{\alpha^r_{in}}\Gamma^{r,0}_{in}$.
-Frobenius Cauchy--Schwarz gives the upper bound. The numerator is
-nonnegative because
-$\inner{JJ^\top}{J^0J^{0\top}}=\|J^\top J^0\|_{\rm F}^2$ and
-$\inner{hh^\top}{h^0h^{0\top}}=(h^\top h^0)^2$.
-\end{proof}
-
-\begin{proposition}[Norm preservation]
-Assume $e\in[0,1]$, $p\neq0$, and $a^\perp\neq0$. The candidate in
-equation~\ref{eq:tangent-chord} satisfies
-$\frob{\widetilde q}=\frob{p}$, and the selected direction in
-equation~\ref{eq:chord-selection} satisfies $\frob{q}=\frob{p}$.
-\end{proposition}
-
-\begin{proof}
-By construction, $\inner{p}{a^\perp}=0$. Since $e\in[0,1]$,
-\begin{equation}
-  \frob{\widetilde q}^2=(1-e)\frob{p}^2+
-  e\,\frob{p}^2=\frob{p}^2.
-\end{equation}
-The fallback branch in equation~\ref{eq:chord-selection} is $q=p$.
-\end{proof}
-
-\section{Functional scores and trace matching}
-\label{app:ledger-identities}
-
-Let $A_i(\alpha)=A_i+\alpha q_i^A$ and
-$B_i(\alpha)=B_i+\alpha q_i^B$. At points where the rational response is
-differentiable, differentiating the group contribution
-$B_i(\alpha)\Phi_i(A_i(\alpha)x)$ at $\alpha=0$ gives
-\begin{align}
-  \left.\frac{d}{d\alpha}
-  B_i(\alpha)\Phi_i(A_i(\alpha)x)\right|_{\alpha=0}
-  &=q_i^Bh_i+B_iJ_iq_i^Ax,\\
-  \left.\frac{d\mathcal L}{d\alpha}\right|_{\alpha=0}
-  &=\inner{\xi}{q_i^Bh_i+B_iJ_iq_i^Ax}.
-\end{align}
-At a zero coordinate of the normalized response, the right-hand sides define
-the automatic-differentiation-selected linearization from
-Appendix~\ref{app:grain-calculus}, rather than a classical two-sided
-derivative.
-Moving the linear maps across the inner product yields
-equation~\ref{eq:functional-score}. Thus one row of $S$ records how the same
-loss probe responds to every layer--group direction; its rowwise outer
-product couples coordinates that affect that probe together.
-
-The captured cotangent is put on this per-position scale explicitly. If a
-microbatch contains $R$ activation positions, $M=4$ microbatches are
-accumulated, $\bar\xi_{k\ell}$ is the cotangent captured from the
-mean-reduced backward pass, and $\chi_{\rm clip}$ is the realized clipping
-factor, then
-\begin{equation}
-  \xi_{k\ell}=RM\chi_{\rm clip}\,\bar\xi_{k\ell}.
-  \label{eq:cotangent-rescaling}
-\end{equation}
-The indices used to sample $x$, $z$, $h$, and $\bar\xi$ are identical within
-each probe row.
-
-\begin{lemma}[Trace-matched intermediate factor]
-Let $\nu^2=\|S_{\rm ref}\|_{\rm F}^2/K$ and $s_t\neq0$. For
-$S_t=\boldsymbol1_K(\nu s_t/\|s_t\|_2)^\top$,
-\begin{equation}
-  \frac1K\|S_t\|_{\rm F}^2=\nu^2.
-\end{equation}
-\end{lemma}
-
-\begin{proof}
-All $K$ rows have squared norm
-$\nu^2\|s_t\|_2^2/\|s_t\|_2^2=\nu^2$.
-\end{proof}
-
-Consequently, the repeated surrogate has the same trace
-$\operatorname{tr}(S_t^\top S_t/K)=\nu^2$ as the latest functional score factor.
-It has rank at most one (rank one when $\nu>0$) and is aligned with the
-current coordinate-score vector; the next functional refresh replaces that
-directional approximation with probe-level cross-coordinate structure.
-
-\section{Robust Frequent-Directions midpoint completion}
+\subsection{Spectral approximation}
 \label{app:rfd-proof}
 
 \begin{proposition}[Positive semidefiniteness and spectral error]
 Let $K>0$, $0\leq\beta_2\leq1$, $\tau_{t-1}\geq0$, and
-$\mathcal A=U\operatorname{Diag}(\sigma)V^\top$. If
+$\mathcal A=U\operatorname{Diag}(\sigma)V^\top$, with singular values in
+nonincreasing order. If
 $\operatorname{rank}(\mathcal A)>r$, set $\Delta=\sigma_{r+1}^2$ and define
 \begin{equation}
   \mathcal B=\operatorname{Diag}\!\left(
@@ -757,7 +758,66 @@ Indeed, the compression error at step $t$ is a perturbation $D_t$ with
 $\|D_t\|_2\leq\Delta_t/(2K)$, so
 $E_t=\beta_2E_{t-1}+D_t$ and $E_1=0$.
 
-\section{Equal-budget transaction}
+\section{Signed equal-budget transaction}
+\label{sec:transaction}
+
+Let $c\in\R^C$ scale the paired directions and define
+$\omega_i=\frob{q_i^A}^2+\frob{q_i^B}^2$. Assume $\omega_i>0$ for every coordinate. The uncoordinated parent update is
+$c=\boldsymbol 1$, whose squared norm is
+$\mathcal E_0=\sum_i\omega_i$. Indeed, the parameter blocks associated with
+different coordinates are disjoint, so the structured update
+$\Delta\theta(c)=-\eta\{c_iq_i^A,c_iq_i^B\}_{i=1}^C$ satisfies
+$\|\Delta\theta(c)\|_2^2=\eta^2\sum_i\omega_ic_i^2$.
+With current directional derivatives $s_t$,
+pre-compression factor $\mathcal A_t$, diagonal completion $\delta_t$,
+score--decay cross term $r_t$, and scheduled step size $\eta$, \tiller{}
+forms the response penalty
+\begin{equation}
+  \mathcal R_t(c)=\frac1K\|\mathcal A_tc\|_2^2+
+  \delta_t^\top(c\odot c)+2r_t^\top c
+  \label{eq:ledger-response-penalty}
+\end{equation}
+and searches in a Krylov subspace for a projected positive-multiplier
+stationary candidate of the equal-budget model
+\begin{align}
+  \min_c\quad
+  F_t(c)&=-\eta s_t^\top c+\frac{\eta^2}{2}\mathcal R_t(c),
+  \label{eq:transaction-objective}\\
+  \text{s.t.}\quad&\sum_i\omega_ic_i^2=\mathcal E_0.
+  \label{eq:transaction-budget}
+\end{align}
+The linear term rewards immediate descent. The quadratic term penalizes
+directions that the loss ledger predicts to interact strongly, including the
+effect of decoupled decay. The constraint gives the coordinated GRAIN
+direction the same aggregate squared norm as the parent before applying their
+common decay term.
+Because $c$ is signed, a transaction may amplify, attenuate, or reverse
+individual coordinates.
+
+After whitening $y=W^{1/2}c$, where $W=\operatorname{Diag}(\omega)$, the
+stationarity equation is
+\begin{equation}
+  (M_t+\lambda I)y=b_t,
+  \quad
+  M_t=W^{-1/2}\left(\mathcal A_t^\top\mathcal A_t/K+
+  \operatorname{Diag}(\delta_t)\right)W^{-1/2},
+  \quad
+  b_t=W^{-1/2}(s_t/\eta-r_t).
+  \label{eq:transaction-kkt}
+\end{equation}
+The proposal is retained when it satisfies the budget, lowers
+$F_t$ relative to $c=\boldsymbol1$, and preserves positive layerwise
+gradient and momentum contractions
+\begin{equation}
+  \sum_g c_{\ell g}\inner{g_{\ell g}^r}{q_{\ell g}^r}>0,
+  \qquad
+  \sum_g c_{\ell g}\inner{m_{\ell g}^r}{q_{\ell g}^r}>0
+  \quad (r\in\{A,B\}).
+  \label{eq:transaction-contractions}
+\end{equation}
+Both contractions must also be positive for the parent $c=\boldsymbol1$.
+
+\subsection{Projected solution}
 \label{app:transaction-proof}
 
 For $\eta>0$, $\omega_i>0$, and $\delta_t\geq0$, let
@@ -777,7 +837,10 @@ with $M_t$ and $b_t$ from equation~\ref{eq:transaction-kkt}. Its Lagrangian
 \end{equation}
 has stationarity equation $(M_t+\lambda I)y=b_t$.
 
-The transaction requires $b_t\neq0$. Its fully reorthogonalized Lanczos
+For $b_t\neq0$, matrix products are evaluated as
+$M_tv=W^{-1/2}\mathcal A_t^\top(\mathcal A_tW^{-1/2}v)/K+
+(\delta_t\oslash\omega)\odot v$.
+A fully reorthogonalized Lanczos \citep{lanczos1950iteration}
 recurrence starts from $b_t/\|b_t\|_2$ and constructs an orthonormal basis
 $Q_k$, with $k\leq32$.
 Without breakdown, this basis spans
@@ -818,9 +881,7 @@ $\psi(\lambda_{\rm hi})\leq\|b_t\|_2^2/\lambda_{\rm hi}^2
 \leq\mathcal E_0$. When
 $\psi(\lambda_{\rm lo})\geq\mathcal E_0$, a unique root in the positive
 bracket is approximated by 64 bisection steps. Otherwise no multiplier in the
-implemented interval $[\lambda_{\rm lo},\infty)$ attains the budget. TILLER does not use negative-multiplier
-stationary points, for which the shifted system can approach singularity; it
-retains the parent transaction in this case.
+implemented interval $[\lambda_{\rm lo},\infty)$ attains the budget. The parent coefficients are retained in this case.
 
 The projected coefficient vector is evaluated in double precision using the
 unprojected low-rank-plus-diagonal objective. A finite proposal is retained
@@ -830,11 +891,43 @@ when
   \qquad F_t(c)<F_t(\boldsymbol1),
 \end{equation}
 and both its and the parent's aggregate current-gradient and Nesterov
-contractions are positive for both matrix roles in each layer. The residual
-check makes acceptance independent of a uniform error guarantee for the fixed
-bisection count.
+contractions are positive for both matrix roles in each layer.
 
-\section{One TILLER update}
+\section{Completing the Transformer update}
+\label{sec:distributed}
+
+For attention, the group statistics are summarized at each layer as
+\begin{equation}
+  \pi_\ell^{\rm att}=
+  \sqrt{\left(G^{-1}\sum_g\pi_{\ell g}^A\right)
+              \left(G^{-1}\sum_g\pi_{\ell g}^B\right)},
+  \qquad
+  \kappa_\ell^{\rm att}=\sqrt{\kappa_\ell^A\kappa_\ell^B},
+  \label{eq:attention-response}
+\end{equation}
+where each $\kappa_\ell^r$ is formed by summing the numerator and two
+denominator terms of equation~\ref{eq:congruence-main} over groups before
+normalization. With
+\begin{equation}
+  e_\ell^{\rm att}
+  =\sqrt{\bar\pi_\ell^A\bar\pi_\ell^B}
+   \left(1-\kappa_\ell^A\kappa_\ell^B\right),
+  \qquad
+  \bar\pi_\ell^r=G^{-1}\sum_g\pi_{\ell g}^r,
+  \label{eq:attention-departure}
+\end{equation}
+the participation factor requires broad support on both matrix roles, while
+the departure factor opens when either role has moved away from its initial
+response. These layerwise statistics gate the same norm-preserving chord for
+the QKV and output matrices. Attention heads are partitioned into blocks of four for the
+polar map; the stacked QKV direction is scaled by $1/\sqrt3$ to match its
+three constituent projections. The adaptive tangent is factorized at matrix
+level. Attention does not enter the $LG$ coefficient transaction. Learned
+rational coefficients, embeddings, normalization parameters, and remaining
+tensors use AdamW \citep{loshchilov2019decoupled}.
+
+
+\subsection{Complete update}
 \label{app:algorithm}
 
 For completeness, the five-step polar map starts from the input matrix
@@ -848,6 +941,8 @@ tall matrices before the iteration. Each step is
 \end{equation}
 after which the original orientation is restored.
 
+The update below is defined for $C\geq2$ on the transaction domain
+$\omega_i>0$ for every coordinate and $b_t\neq0$.
 The state at step $t$ comprises Nesterov momentum, factorized second moments,
 the most recent response summaries, the score factor $\mathcal B_{t-1}$, its isotropic
 tail $\tau_{t-1}$, and the score--decay cross term. One update proceeds as
@@ -872,7 +967,8 @@ equation~\ref{eq:factored-direction} is $V_t=0$.
   positive regular branch of
   equation~\ref{eq:secular-equation}, and evaluate the proposed transaction.
   \item Scale both GRAIN matrix directions in coordinate $(\ell,g)$ by
-  $c_{\ell g}$, then apply the scheduled parameter update and decoupled decay.
+  $c_{\ell g}$, then apply decoupled decay to the existing parameters and add
+  the scheduled directional update.
   Apply the response-informed chord to the attention matrices.
   \item Update the rational coefficients and remaining parameter classes with
   AdamW.
@@ -883,36 +979,5 @@ width $w=256$. Undefined response comparisons set $e=0$, degenerate tangents
 select the Muon parent, and unbracketed positive-multiplier branches or
 rejected proposals retain $c=\boldsymbol1$.
 
-\section{Computation and partitioned evaluation}
-\label{app:scaling}
-
-Let device $j$ hold a set of coordinate columns
-$\mathcal A_t^{(j)}$ and the corresponding segments of
-$s_t$, $\omega$, $\delta_t$, and $r_t$. The identities
-\begin{equation}
-  \mathcal A_t\mathcal A_t^\top
-  =\sum_j\mathcal A_t^{(j)}\mathcal A_t^{(j)\top},
-  \qquad
-  \inner{u}{v}=\sum_j\inner{u^{(j)}}{v^{(j)}}
-  \label{eq:partition-identities}
-\end{equation}
-express the row Gram matrix, Krylov inner products, norms, and transaction
-budget as sums of local contributions. Each coordinate segment can apply its
-coefficient directly after the collective scalar and row-space quantities
-have been combined.
-
-With $C=LG$, probe count $K$, ledger rank $r$, Krylov dimension $k$, and
-$m=r+K$, the ledger stores $O(rC)$ values. One update, including row-space
-diagnostics, costs
-\begin{equation}
-  O\!\left((m^2+km+k^2)C+m^3+k^3\right).
-\end{equation}
-The $m^2C$ and $m^3$ terms form and diagonalize the temporal row Gram matrix;
-the $kmC$, $k^2C$, and $k^3$ terms construct, reorthogonalize, and solve in
-the projected transaction space. The factorized moments
-add $O(LH_r+LGd)$ state. In \tiller{}, $K=k=32$ and $r=64$, so the fixed-rank
-terms scale linearly with the number of layer--group coordinates. The
-activation computation scales as $O(LNH_r)$, while persistent optimizer state
-is independent of the number of activation positions.
 
 \end{document}

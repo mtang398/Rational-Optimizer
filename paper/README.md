@@ -4,6 +4,12 @@ This directory is a self-contained ICLR 2027 manuscript project. It includes
 the official conference style, bibliography style, and bundled compatibility
 files, together with the paper source and a rendered PDF.
 
+Read the [paper](main.pdf) or edit [the LaTeX source](main.tex). The method
+section introduces GRAIN's learned group responses and TILLER's construction
+and coordination of update directions. The appendices develop the response
+calculus, direction geometry, loss measurements, spectral approximation,
+coefficient solver, and complete update algorithm.
+
 ## Compile locally
 
 Use pdfLaTeX with TeX Live 2025, matching the Overleaf project settings:
