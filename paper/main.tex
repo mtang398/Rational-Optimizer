@@ -40,8 +40,9 @@
 \label{sec:method}
 
 We introduce two coupled components. \grain{} is a grouped rational
-feed-forward activation whose normalization exposes a compact, differentiable
-response geometry. \tiller{} is an optimizer that uses this geometry and
+feed-forward activation whose normalization exposes a compact response
+geometry with an exact implemented pullback. \tiller{} is an optimizer that
+uses this geometry and
 downstream loss derivatives to coordinate structured matrix directions. Its
 central operation is a global transaction over layer--group coordinates: it
 redistributes a fixed update budget among signed coefficients instead of
@@ -66,7 +67,7 @@ instead learns the feature map itself. For an input $x\in\R^d$, one block is
 where $A\in\R^{H_r\times d}$ and $B\in\R^{d\times H_r}$. We partition
 $z$ into $G$ contiguous groups $z_g\in\R^w$ and define
 \begin{equation}
-  \rho_g=\sqrt{w^{-1}\frob{z_g}^{,2}+\epsilon_{\rm act}},
+  \rho_g=\sqrt{w^{-1}\frob{z_g}^{2}+\epsilon_{\rm act}},
   \qquad u_g=z_g/\rho_g,
   \qquad \epsilon_{\rm act}=10^{-6}.
   \label{eq:grain-normalize}
@@ -88,8 +89,9 @@ For a SwiGLU intermediate width $H$, we set $H_r=3H/2$. The two dense
 matrices in equation~\ref{eq:grain-block} then contain
 $2dH_r=3dH$ weights, the same dense projection count as the three SwiGLU
 matrices. The activation adds only $10G$ learned rational scalars per block.
-The group width is capped at 256, keeping both the activation kernel and its
-response summaries local and linear in $H_r$.
+The reported configurations use group width $w=256$. For any divisor-compatible
+choice of $G$, both the activation kernel and its response summaries remain
+local to a group and linear in $H_r$.
 
 The normalized map has an especially useful Jacobian. Writing
 $f=\phi_g(u_g)$, $d_g=\phi'_g(u_g)$, and
@@ -117,12 +119,15 @@ Nesterov momentum $m_i$,
 \begin{align}
   R_t&=\beta R_{t-1}+(1-\beta)\operatorname{rowsum}(g_i^2),\\
   C_t&=\beta C_{t-1}+(1-\beta)\operatorname{colsum}(g_i^2),\\
-  V_{t,jk}&=\frac{R_{t,j}C_{t,k}}{\sum_sR_{t,s}}\,
+  V_{t,jk}&=\frac{R_{t,j}C_{t,k}}
+             {\max\{\sum_sR_{t,s},\delta_{\rm fp}\}}\,
              \frac{1}{1-\beta^t},
   \qquad a_i=\frac{m_i}{\sqrt{V_t}+\epsilon_{\rm opt}}.
   \label{eq:factored-direction}
 \end{align}
-The implementation uses $\beta=0.95$ and $\epsilon_{\rm opt}=10^{-8}$.
+The implementation uses $\beta=0.95$, $\epsilon_{\rm opt}=10^{-8}$, and the
+smallest positive floating-point value $\delta_{\rm fp}$ only for the
+zero-total convention in equation~\ref{eq:factored-direction}.
 
 Two bounded summaries determine how much of this adaptive information enters
 the update. The participation $\pi_i\in[0,1]$ measures the effective rank of
@@ -161,15 +166,17 @@ the construction does not impose a nonnegative coefficient convention.
 \subsection{Exact loss-coordinate measurements}
 \label{sec:loss-measurements}
 
-Every eighth optimizer step, \tiller{} records $K=32$ fixed functional probes
-distributed across the current batch. For one probe in coordinate
+On optimizer step 1 and every eight steps thereafter, \tiller{} records
+$K=32$ fixed functional probes distributed across the current batch. For one
+probe in coordinate
 $i=(\ell,g)$, let $x$ be the block input, $z=Ax$, $h=\Phi(z)$,
-$c=\partial\mathcal L/\partial y$, and let $(\Delta A_i,\Delta B_i)$ be the
-two structured directions after their Muon adjustments. The ledger entry is
+$\xi=\partial\mathcal L/\partial y$. Let $B_i\in\R^{d\times w}$ be the
+outgoing group slice and let $(q_i^A,q_i^B)$ be the two structured directions
+after the local tangent chord and its fallback. The ledger entry is
 \begin{equation}
   S_{k,i}=
-  \inner{x\Delta A_i^\top}{J_i^\top B^\top c}
-  +\inner{h_i}{c\Delta B_i}.
+  \inner{q_i^A x}{J_i^\top B_i^\top \xi}
+  +\inner{q_i^B h_i}{\xi}.
   \label{eq:functional-score}
 \end{equation}
 This is the exact first-order directional derivative of the downstream loss
@@ -185,16 +192,18 @@ scores
 \end{equation}
 Let $\nu$ be the RMS row norm from the latest functional measurement. For
 $\|h_t\|_2>0$, the surrogate row is
-$\bar s_t=(\nu/\|h_t\|_2)h_t$, repeated $K$ times. It therefore preserves
-the calibrated total score energy while incorporating the current gradient on
-every optimizer step.
+$\bar s_t=(\nu/\|h_t\|_2)h_t$, repeated $K$ times. The current structural
+decay derivative is multiplied by the same factor and repeated alongside the
+score row. The surrogate therefore preserves the calibrated total score
+energy while incorporating the current gradient on every optimizer step.
 
 \subsection{A Robust Frequent-Directions loss ledger}
 \label{sec:ledger}
 
 The score matrix has $C=LG$ columns, but \tiller{} never forms a
-$C\times C$ covariance. It retains a rank-$r$ factor $B_{t-1}$ with $r=64$
-and forms
+$C\times C$ covariance. It initializes $B_1=S_1$ and $\tau_1=0$. From the
+second step onward, it retains a factor $B_{t-1}$ of rank at most $r=64$ and
+forms
 \begin{equation}
   A_t=
   \begin{bmatrix}
@@ -224,10 +233,13 @@ with the same $\beta$ recurrence.
 \label{sec:transaction}
 
 Let $c\in\R^C$ scale the paired structured directions and define
-$w_i=\frob{q_i^A}^2+\frob{q_i^B}^2$. The parent Muon transaction is
+$w_i=\frob{q_i^A}^2+\frob{q_i^B}^2$. Transaction coordinates satisfy
+$w_i>0$, which is the numerical precondition used by the implementation. The
+parent Muon transaction is
 $c=\boldsymbol 1$ with budget $B_0=\sum_iw_i$. With current exact gradient
 score $h$, ledger factor $S$, diagonal completion $d$, decay cross $r_d$, and
-scheduled step size $\eta$, \tiller{} solves the projected problem
+scheduled step size $\eta$, \tiller{} forms a regular-branch Krylov proposal
+for the projected problem
 \begin{align}
   \min_c\quad
   F(c)&=-\eta h^\top c+\frac{\eta^2}{2}
@@ -248,39 +260,49 @@ After whitening $y=W^{1/2}c$, the stationarity equation is
   b=W^{-1/2}(h/\eta-r_d).
   \label{eq:transaction-kkt}
 \end{equation}
-We build a fully reorthogonalized 32-vector Lanczos basis using only
-$v\mapsto d\odot v+S^\top(Sv)/K$ \citep{lanczos1950iteration}, diagonalize
-the resulting at-most $32\times32$ tridiagonal, and find $\lambda$ by fixed
-bisection. The proposed coefficients are reevaluated in the full
-low-rank-plus-diagonal objective. They are accepted only if the budget
+Writing $\widetilde S=SW^{-1/2}$ and
+$\widetilde d=d\oslash w$, we build a fully reorthogonalized 32-vector
+Lanczos basis using only
+$v\mapsto\widetilde d\odot v+\widetilde S^\top(\widetilde Sv)/K$
+\citep{lanczos1950iteration}. For the regular branch $\|b\|_2>0$, we
+diagonalize the resulting at-most $32\times32$ tridiagonal and find $\lambda$
+by fixed bisection. For finite validated inputs, the double-precision proposed
+coefficients are reevaluated in the full low-rank-plus-diagonal objective.
+They are accepted only if the budget
 residual is at most $10^{-8}$, $F(c)<F(\boldsymbol1)$, all quantities are
 finite, and current-gradient and Nesterov contractions remain positive for
-both matrix roles in every layer. Otherwise the parent vector
-$\boldsymbol1$ is used.
+both matrix roles in every layer. A failed candidate predicate selects the
+parent vector $\boldsymbol1$ before the selected coefficients are cast to the
+direction dtype.
 
 \subsection{Attention, remaining parameters, and distributed realization}
 \label{sec:distributed}
 
 The attention QKV and output matrices use the same response-informed,
-norm-preserving tangent chord, applied to head-blocked Muon directions, but do
+norm-preserving tangent chord, applied to a fixed 16-way width partition with
+four slices per polar block, but do
 not enter the $LG$ coefficient transaction. The learned rational coefficients,
 embeddings, normalization parameters, and other remaining tensors use AdamW
 \citep{loshchilov2019decoupled}.
 
-The global algebra is owner-free. A shard stores only its parameter fragments,
+The global algebra admits an owner-free sharded realization. A shard stores
+only its parameter fragments,
 factorized moments, score columns, and coefficient segment. Tensor fragments
 contribute additive inner products; coordinate shards contribute additive
 $K\times K$ row Grams, layer certificates, and Krylov dot products. Collective
 reductions combine these compact quantities, and each shard reconstructs its
-own update from the shared scalar solution. This is compatible with tensor,
+own update from the shared secular multiplier and reduced eigensystem. This
+formulation applies to tensor,
 fully sharded, data, and pipeline decompositions
-\citep{zhao2023fsdp,shi2023distributed}; a replicated data-parallel layout is
-the special case in which every rank already holds all $C$ coordinates.
+\citep{zhao2023fsdp,shi2023distributed}. The released experiment path uses
+replicated data parallelism, the special case in which every rank already
+holds all $C$ coordinates.
 Neither a complete layer nor a parameter-sized selected update is assigned to
 an owner.
 
-The method-specific persistent floating-point state, excluding the baseline
-Muon momentum and AdamW moments, is
+The method-specific persistent scalar state, counting two control counters
+alongside its floating-point tensors and excluding the baseline Muon momentum
+and AdamW moments, is
 \begin{equation}
   112LG+2L+38+2LH_r+2LGd+6Ld
   =O(LH_r+LGd+64LG).
@@ -384,9 +406,9 @@ role, and between live and initialization-time feature kernels for the
 outgoing role.
 
 \begin{lemma}[Participation bounds]
-For a nonzero response, both quantities in
-equations~\ref{eq:incoming-participation} and
-\ref{eq:outgoing-participation} lie in $[1/w,1]$.
+For every nonzero Jacobian, equation~\ref{eq:incoming-participation} lies in
+$[1/w,1]$. For every nonzero feature vector $f$,
+equation~\ref{eq:outgoing-participation} lies in $[1/w,1]$.
 \end{lemma}
 
 \begin{proof}
@@ -471,7 +493,8 @@ error over that interval.
 \section{Transaction derivation and acceptance guarantees}
 \label{app:transaction-proof}
 
-Let $W=\operatorname{Diag}(w)$ and set $y=W^{1/2}c$. Substituting
+For the positive transaction weights specified in Section~\ref{sec:transaction},
+let $W=\operatorname{Diag}(w)$ and set $y=W^{1/2}c$. Substituting
 $c=W^{-1/2}y$ into equations~\ref{eq:transaction-objective} and
 \ref{eq:transaction-budget} gives, up to a constant positive factor,
 \begin{equation}
@@ -479,13 +502,14 @@ $c=W^{-1/2}y$ into equations~\ref{eq:transaction-objective} and
   \label{eq:whitened-transaction}
 \end{equation}
 with $M$ and $b$ from equation~\ref{eq:transaction-kkt}. Its Lagrangian
-stationarity condition is $(M+\lambda I)y=b$. In the Lanczos subspace
-$\mathcal K_{32}(M,b)$, diagonalizing the tridiagonal projection reduces the
-regular branch to a scalar secular equation in $\lambda$, solved by 64 fixed
-bisection iterations.
+stationarity condition is $(M+\lambda I)y=b$. When $\|b\|_2>0$, the Lanczos
+subspace $\mathcal K_{32}(M,b)$ is well defined; diagonalizing the tridiagonal
+projection reduces its regular branch to a scalar secular equation in
+$\lambda$, solved by 64 fixed bisection iterations. Only a finite candidate on
+this regular branch proceeds to the full-space acceptance test.
 
 \begin{proposition}[Accepted-transaction properties]
-An accepted coefficient vector $c$ satisfies
+The double-precision candidate $c$ that triggers acceptance satisfies
 \begin{equation}
   \frac{|c^\top Wc-B_0|}{\max(B_0,1)}\leq10^{-8},
   \qquad F(c)<F(\boldsymbol1).
@@ -495,16 +519,18 @@ each matrix role in every layer.
 \end{proposition}
 
 \begin{proof}
-After the projected solve, the implementation recomputes the budget, the full
-low-rank-plus-diagonal objective, and all layer--role contractions from the
+After the projected proposal, the implementation recomputes the budget, the
+full low-rank-plus-diagonal objective, and all layer--role contractions from the
 candidate coefficients. The conjunction of the displayed conditions,
 finiteness, a regular secular branch, and the contraction predicates is the
-acceptance mask. A false predicate selects $c=\boldsymbol1$.
+acceptance mask. For finite validated inputs, a false candidate predicate
+selects $c=\boldsymbol1$; the selected vector is then cast to the direction
+dtype for application.
 \end{proof}
 
-Together, these predicates certify the update budget, the quadratic loss
-model, and the first-order direction; the experiment section evaluates their
-realized next-step and endpoint behavior.
+Together, these predicates certify the double-precision candidate's update
+budget, quadratic loss model, and first-order direction; the experiment
+section evaluates its realized next-step and endpoint behavior.
 
 \section{End-to-end update sequence}
 \label{app:algorithm}
@@ -512,15 +538,16 @@ realized next-step and endpoint behavior.
 At optimizer step $t$, \tiller{} performs the following sequence.
 \begin{enumerate}
   \item Form Nesterov momentum and one grouped NS5 Muon parent for each GRAIN
-  matrix role; form head-blocked parents for the two attention roles.
+  matrix role; form fixed 16-way width-blocked parents, with four slices per
+  polar block, for the two attention roles.
   \item Update factorized row and column moments. Compute response
   participation and congruence on a functional refresh; otherwise restore the
   latest response summaries.
   \item Construct the norm-preserving adaptive tangent chord for every
   structured role, using the local descent fallback.
-  \item Every eighth step, evaluate the 32 exact functional-score rows and
-  their decay action. On other steps, create the trace-matched current-gradient
-  rows.
+  \item On step 1 and every eight steps thereafter, evaluate the 32 exact
+  functional-score rows and their decay action. On other steps, create the
+  trace-matched current-gradient and decay rows.
   \item Advance the rank-64 Robust Frequent-Directions ledger and its
   isotropic midpoint tail.
   \item Build the 32-vector loss-Krylov basis, solve the equal-budget secular
@@ -535,7 +562,8 @@ At optimizer step $t$, \tiller{} performs the following sequence.
 \section{State, work, and sharded execution}
 \label{app:scaling}
 
-The exact method-specific floating-state inventory is
+The exact method-specific scalar-state inventory, including two control
+counters, is
 \begin{align}
   \text{response/window state} &=10LG+2+32(LG+1)+4LG+2L,\\
   \text{loss ledger} &=66LG+4,\\
@@ -560,7 +588,8 @@ concrete counts used by the implementation.
   \end{tabular}
 \end{table}
 
-For coordinate-sharded execution, rank $r$ holds columns $S^{(r)}$ and local
+In an owner-free coordinate-sharded realization, rank $r$ holds columns
+$S^{(r)}$ and local
 vectors $h^{(r)},w^{(r)},r_d^{(r)}$. The identities
 \begin{equation}
   SS^\top=\sum_r S^{(r)}S^{(r)\top},
