@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
+from . import analyze_all
 from . import analyze_row
 from . import build_source_freeze
 from . import collect_results
@@ -20,6 +24,57 @@ from . import verify_repository as verifier
 
 
 class PublicReproducibilityTests(unittest.TestCase):
+    def test_analysis_keeps_12_layer_token_budgets_in_separate_summaries(self) -> None:
+        matrix = json.loads(analyze_all.MATRIX.read_text())
+        selected = [matrix["rows"][index] for index in (0, 1, 15)]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            matrix_path = root / "matrix.json"
+            matrix_path.write_text(json.dumps({
+                "schema": matrix["schema"], "matrix_rows": len(selected), "rows": selected,
+            }))
+            for source, loss, control_loss, elapsed, control_elapsed in zip(
+                selected, (4.0, 6.0, 2.0), (5.0, 7.0, 2.5), (10.0, 30.0, 40.0), (20.0, 60.0, 50.0)
+            ):
+                result_root = root / "results" / f"row-{source['matrix_index']:02d}"
+                result_root.mkdir(parents=True)
+                report = {key: source[key] for key in ("matrix_index", "model", "dataset", "seed", "steps")}
+                report.update(
+                    schema="tiller_matched_endpoint_result_v1", status="complete",
+                    candidate_endpoint_loss=loss, control_endpoint_loss=control_loss,
+                    absolute_endpoint_lead=control_loss - loss, step1000_absolute_lead=0.1,
+                    candidate_end_to_end_total_seconds=elapsed,
+                    control_end_to_end_total_seconds=control_elapsed, passes_final_1_05_time_gate=True,
+                )
+                (result_root / "RESULT.json").write_text(json.dumps(report))
+            output = root / "RESULTS.json"
+            with (
+                patch.object(analyze_all, "MATRIX", matrix_path),
+                patch.object(analyze_all, "PACKAGE", root),
+                patch.object(sys, "argv", ["analyze_all", "--results-root", str(root / "results"),
+                                          "--output", str(output), "--require-complete"]),
+                redirect_stdout(io.StringIO()),
+            ):
+                analyze_all.main()
+            result = json.loads(output.read_text())
+            summaries = {row["train_tokens"]: row for row in result["dataset_summaries"]}
+            self.assertEqual(len(result["dataset_summaries"]), 2)
+            self.assertEqual(set(summaries), {100000000, 300000000})
+            small, large = summaries[100000000], summaries[300000000]
+            self.assertEqual((small["model"], small["dataset"]), (large["model"], large["dataset"]))
+            self.assertEqual((small["phase"], small["steps_required"]),
+                             ("12l_768d_100m_tokens_3050_steps", 3050))
+            self.assertEqual((large["phase"], large["steps_required"]),
+                             ("12l_768d_300m_tokens_9150_steps", 9150))
+            self.assertEqual(small["completed_seeds"], [1337, 2027])
+            self.assertEqual(large["completed_seeds"], [1337])
+            self.assertEqual((small["tiller_endpoint_loss_mean"], large["tiller_endpoint_loss_mean"]), (5.0, 2.0))
+            self.assertEqual((small["control_endpoint_loss_mean"], large["control_endpoint_loss_mean"]), (6.0, 2.5))
+            self.assertEqual(small["exact_matched_hardware_endpoint_total_time_ratio"], 0.5)
+            self.assertEqual(large["exact_matched_hardware_endpoint_total_time_ratio"], 0.8)
+            self.assertEqual(result["complete_rows"], 3)
+            self.assertEqual(result["status"], "complete")
+
     def factorial_tiller_fixture(self, root: Path, index: int = 30) -> dict:
         public = json.loads(collect_results.DEFAULT_MATRIX.read_text())["rows"]
         staged = []

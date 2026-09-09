@@ -126,8 +126,8 @@ low-rank-plus-isotropic metric over all layer/group coordinates.
 ## Equal-budget transaction
 
 The ledger metric scores global coefficient vectors $c\in\mathbb{R}^{C}$.
-TILLER constructs a 32-dimensional loss-Krylov subspace and solves the
-equal-budget quadratic
+TILLER constructs a loss-Krylov subspace of dimension at most 32 and obtains
+a projected candidate for the equal-budget quadratic
 
 \[
 \min_c\; -\eta s_t^\top c+
@@ -145,9 +145,10 @@ direction. The linear term rewards immediate descent; the quadratic term
 penalizes directions whose loss responses repeatedly reinforce one another.
 The selected coefficients may have either sign:
 they can amplify, attenuate, or reverse individual structured directions while
-the global transaction preserves the parent update budget. The candidate is
-accepted after finite-value, budget, and descent checks; otherwise the parent
-coefficient vector is used.
+the global transaction preserves the parent update budget. TILLER evaluates
+the candidate in the full quadratic model and accepts it when it improves on
+the uncoordinated coefficients $c=\mathbf 1$ and passes the finite-value,
+budget, and descent checks. Otherwise it retains $c=\mathbf 1$.
 
 The same factorized tangent construction is applied to the attention matrix
 roles. Other two-dimensional matrices follow Muon, and scalar, normalization,

@@ -29,15 +29,21 @@ method arguments used by the shared trainer.
 
 The reference environment uses Python 3.12, PyTorch 2.11.0 with CUDA 12.8,
 and four NVIDIA RTX A6000 GPUs for the reported distributed runs.
+Building the extension requires the CUDA 12.8 toolkit, including `nvcc`.
+Load the toolkit or set `CUDA_HOME` to its installation directory, then run
+the following commands from the repository root:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python setup.py build_ext --inplace
+export PYTHONPATH="$PWD/activation:$PWD${PYTHONPATH:+:$PYTHONPATH}"
 ```
 
 The CUDA build creates `rational_opt._C` inside `activation/rational_opt/`.
+The `PYTHONPATH` setting exposes the local activation package to the Python
+examples below; apply it in each new shell used with this checkout.
 
 ## Verify
 

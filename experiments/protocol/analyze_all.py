@@ -49,6 +49,10 @@ def main() -> None:
             item = json.loads(report.read_text())
             if item.get("status") != "complete":
                 raise RuntimeError(f"completed row report has bad status: {report}")
+            if any(item.get(key) != row[key] for key in (
+                "matrix_index", "model", "dataset", "seed", "steps",
+            )):
+                raise RuntimeError(f"completed row report has mismatched matrix identity: {report}")
             complete.append(item)
         elif screen.is_file():
             item = json.loads(screen.read_text())
@@ -69,16 +73,22 @@ def main() -> None:
             f"pending={pending}"
         )
     grouped = defaultdict(list)
+    matrix_by_index = {int(row["matrix_index"]): row for row in matrix["rows"]}
     for item in complete:
-        grouped[(item["model"], item["dataset"])].append(item)
+        source = matrix_by_index[int(item["matrix_index"])]
+        grouped[(item["model"], item["dataset"], source["phase"],
+                 int(source["max_train_tokens"]), int(source["steps"]))].append(item)
     summaries = []
-    for (model, dataset), rows in sorted(grouped.items()):
+    for (model, dataset, phase, train_tokens, steps), rows in sorted(grouped.items()):
         leads = [float(row["absolute_endpoint_lead"]) for row in rows]
         candidate = [float(row["candidate_endpoint_loss"]) for row in rows]
         control = [float(row["control_endpoint_loss"]) for row in rows]
         summaries.append({
             "model": model,
             "dataset": dataset,
+            "phase": phase,
+            "train_tokens": train_tokens,
+            "steps_required": steps,
             "completed_seeds": sorted(int(row["seed"]) for row in rows),
             "tiller_endpoint_loss_mean": statistics.fmean(candidate),
             "tiller_endpoint_loss_std": statistics.stdev(candidate) if len(candidate) > 1 else None,

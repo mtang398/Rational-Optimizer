@@ -42,8 +42,15 @@ reproducing reported rows.
 
 ## Aggregate a run directory
 
+Point `--run-dir` to the directory containing the run's JSONL file:
+
 ```bash
+suite=18l_1024d_300m_tokens_9150_steps
+run_id=${suite}_dclm_seed1337_silu_muon
 .venv/bin/python training/aggregate_results.py \
-  --run-dir experiments/runs/activation_optimizer/<phase>/<dataset> \
+  --run-dir "experiments/runs/activation_optimizer/$suite/dclm/$run_id" \
   --out-dir /tmp/rationalopt-summary
 ```
+
+For cross-run and cross-suite tables, use the collection command in
+[the experiment protocol](../experiments/protocol/README.md).
