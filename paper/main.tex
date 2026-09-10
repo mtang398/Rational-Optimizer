@@ -97,12 +97,12 @@ Their orthogonal component
 $a_i^\perp=a_i-\inner{a_i}{p_i}p_i/\|p_i\|_{\rm F}^2$
 provides a way to change the direction while controlling its norm.
 
-To determine the rotation magnitude, \tiller{} measures two
-properties of the learned response: participation $\pi_i$, which measures
-how broadly its energy is distributed, and congruence $\kappa_i$, which
-compares its kernel with that of the initial activation at the same input.
-The incoming role uses the Jacobian kernel $J_iJ_i^\top$; the outgoing role
-uses the feature kernel $h_ih_i^\top$. These statistics are weighted by
+To determine the rotation magnitude, \tiller{} measures two properties of
+the learned response. Participation $\pi_i$ measures the singular-value
+energy of $J_i$ for an incoming matrix, or the coordinate energy of $h_i$
+for an outgoing matrix. Congruence $\kappa_i$ compares the live and initial
+response kernels, using $J_iJ_i^\top$ for the incoming role and
+$h_ih_i^\top$ for the outgoing role. Both statistics are weighted by
 downstream loss sensitivity. Their definitions and bounds appear in
 Appendix~\ref{sec:directions}.
 With $e_i=\pi_i(1-\kappa_i^2)\in[0,1]$, the candidate direction is
@@ -116,9 +116,9 @@ With $e_i=\pi_i(1-\kappa_i^2)\in[0,1]$, the candidate direction is
  \label{eq:overview-chord}
 \end{equation}
 We choose $\sigma_i=1$ when the contraction is zero.
-Participation weights the breadth of the response, and $1-\kappa_i^2$
-measures its departure from initialization. A broad response with low congruence permits more adaptive rotation,
-so each group determines its mixture from its learned activation. Orthogonality gives
+Thus the fixed direction norm moves toward the adaptive tangent only when
+the response is both broadly supported and geometrically distinct from its
+initialization. Orthogonality gives
 $\|\widetilde q_i\|_{\rm F}=\|p_i\|_{\rm F}$: the response changes direction
 without changing its magnitude. The selected $q_i$ is this candidate when
 both it and the parent have positive gradient contraction; degenerate or
@@ -570,9 +570,15 @@ positions. The same positions index every coordinate at that refresh, so each
 row is a joint measurement across the network. For probe
 $k\in\mathcal P_t$ and coordinate $i=(\ell,g)$, let
 $x_{k,\ell}$ be the block input, $z_{k,i}=A_ix_{k,\ell}$,
-$h_{k,i}=\Phi_i(z_{k,i})$. Let $\xi_{k,\ell}$ be the corresponding output
-cotangent of the summed microbatch loss at that activation position, scaled
-by the clipping factor applied to the parameter gradient. Along the paired direction
+$h_{k,i}=\Phi_i(z_{k,i})$. Let $\bar\xi_{k\ell}$ be the corresponding
+cotangent captured from the mean-reduced backward pass. If a microbatch has
+$R$ activation positions, $M$ microbatches are accumulated, and
+$\chi_{\rm clip}$ is the realized gradient-clipping factor, define
+\begin{equation}
+  \xi_{k\ell}=RM\chi_{\rm clip}\,\bar\xi_{k\ell}.
+  \label{eq:cotangent-rescaling}
+\end{equation}
+This places the cotangent on the summed-loss scale after clipping. Along the paired direction
 $(q_i^A,q_i^B)$,
 \begin{equation}
   \delta z_{k,i}=q_i^Ax_{k,\ell},\qquad
@@ -665,24 +671,13 @@ $B_i(\alpha)\Phi_i(A_i(\alpha)x)$ at $\alpha=0$ gives
 \end{align}
 Here $\mathcal L$ is the summed microbatch loss multiplied by the realized
 clipping factor. The clipping factor is held fixed during this differentiation.
-At a zero coordinate of the normalized response, the right-hand sides define
-the automatic-differentiation-selected linearization from
-Appendix~\ref{app:grain-calculus}, rather than a classical two-sided
-derivative.
+At a zero coordinate, we use the derivative convention from
+Appendix~\ref{app:grain-calculus}.
 Moving the linear maps across the inner product yields
 equation~\ref{eq:functional-score}. Thus one row of $S$ records the loss-sensitive
 contributions of every layer--group direction at the same sampled position;
 its rowwise outer product couples coordinates whose contributions vary together.
 
-The captured cotangent is put on the summed-loss scale explicitly. If a
-microbatch contains $R$ activation positions, $M$ microbatches are
-accumulated, $\bar\xi_{k\ell}$ is the cotangent captured from the
-mean-reduced backward pass, and $\chi_{\rm clip}$ is the realized clipping
-factor, then
-\begin{equation}
-  \xi_{k\ell}=RM\chi_{\rm clip}\,\bar\xi_{k\ell}.
-  \label{eq:cotangent-rescaling}
-\end{equation}
 The indices used to sample $x$, $z$, $h$, and $\bar\xi$ are identical within
 each probe row.
 
@@ -702,6 +697,8 @@ For a coefficient vector $c$, $c^\top G_t^\star c$ measures the recent
 squared loss response of that combination. Keeping the off-diagonal
 information lets the optimizer distinguish combinations with similar
 individual descent signals but different joint responses.
+Each historical score row is evaluated using the parameters and directions
+at the step when that row is recorded.
 
 \subsection{Retaining dominant responses and a spectral remainder}
 
@@ -731,8 +728,8 @@ $\Delta_t/(2K)$ to an isotropic tail. The persistent metric is
   \label{eq:rfd-metric}
 \end{equation}
 The midpoint tail assigns half of the unrepresented eigenvalue interval to every
-direction. It therefore halves the worst-direction error of either endpoint
-completion, yielding the bound $\Delta_t/(2K)$ in
+direction. It reduces the worst-case completion bound over
+$[0,\Delta_t/K]$ from $\Delta_t/K$ to $\Delta_t/(2K)$, yielding the bound in
 Appendix~\ref{app:rfd-proof}. The score--decay cross term is
 \begin{equation}
   r_t=\beta_2r_{t-1}+
@@ -924,22 +921,12 @@ has stationarity equation $(M_t+\lambda I)y=b_t$.
 For $b_t\neq0$, matrix products are evaluated as
 $M_tv=W^{-1/2}\mathcal A_t^\top(\mathcal A_tW^{-1/2}v)/K+
 (\delta_t\oslash\omega)\odot v$.
-A fully reorthogonalized Lanczos \citep{lanczos1950iteration}
-recurrence starts from $b_t/\|b_t\|_2$ and constructs an orthonormal basis
-$Q_k$, with $k\leq32$.
-Without breakdown, this basis spans
+A Lanczos recurrence \citep{lanczos1950iteration} constructs an orthonormal
+basis $Q_k$, with $k\leq32$. Without breakdown, this basis spans
 $\mathcal K_k(M_t,b_t)=
 \operatorname{span}\{b_t,M_tb_t,\ldots,M_t^{k-1}b_t\}$.
-If a numerical breakdown threshold is reached early, a deterministic cosine
-vector is reorthogonalized against the existing basis to start the next block,
-and the coupling between the two blocks is set to zero. The recurrence is
-accepted only after its final orthogonality check. Let $\bar T_k$ denote the symmetric block-tridiagonal
-matrix accumulated by this recurrence; without a threshold restart,
-$\bar T_k=Q_k^\top M_tQ_k$. If
-$\bar T_k=U\operatorname{Diag}(\bar\theta)U^\top$, define the numerical
-positive-semidefinite surrogate
-$T_k^+=U\operatorname{Diag}(\theta)U^\top$ with
-$\theta_j=\max\{\bar\theta_j,0\}$. The solver uses
+Let $T_k^+$ be the positive-semidefinite projection of the accumulated
+projected matrix. The solver uses
 \begin{equation}
   (T_k^++\lambda I)z=Q_k^\top b_t,
   \qquad \|z\|_2^2=\mathcal E_0.
@@ -952,21 +939,10 @@ With $\gamma=U^\top Q_k^\top b_t$, the norm constraint becomes
   \label{eq:secular-equation}
 \end{equation}
 On the regular branch $\lambda>0$, $\psi$ is continuous and strictly
-decreasing because $\gamma\neq0$ and $\theta_j\geq0$.
-Let
-\begin{equation}
-  \lambda_{\rm lo}=\epsilon_{\rm mach}C,\qquad
-  \lambda_{\rm hi}=
-  \frac{\|b_t\|_2}{\sqrt{\mathcal E_0}}
-  +\lambda_{\max}(T_k^+)+\lambda_{\rm lo}.
-\end{equation}
-Because $\|\gamma\|_2=\|b_t\|_2$ and every $\theta_j\geq0$,
-$\psi(\lambda_{\rm hi})\leq\|b_t\|_2^2/\lambda_{\rm hi}^2
-\leq\mathcal E_0$. When
-$\psi(\lambda_{\rm lo})\geq\mathcal E_0$, a unique root in the positive
-bracket is approximated by 64 bisection steps. Otherwise no multiplier in the
-implemented interval $[\lambda_{\rm lo},\infty)$ attains the budget. The
-uncoordinated coefficients are retained in this case.
+decreasing because $\gamma\neq0$ and $\theta_j\geq0$. A positive root, when
+it exists in the implemented interval, is obtained by bisection. Otherwise
+the uncoordinated coefficients are retained. Appendix~\ref{app:numerical}
+specifies the restart, projection, and root bracket.
 
 The projected coefficient vector is evaluated in double precision using the
 unprojected low-rank-plus-diagonal objective. A finite proposal is retained
@@ -1003,10 +979,7 @@ denominator terms of equation~\ref{eq:congruence-main} over groups before
 normalization. With
 \begin{equation}
   e_\ell^{\rm att}
-  =\sqrt{\bar\pi_\ell^A\bar\pi_\ell^B}
-   \left(1-\kappa_\ell^A\kappa_\ell^B\right),
-  \qquad
-  \bar\pi_\ell^r=G^{-1}\sum_g\pi_{\ell g}^r,
+  =\pi_\ell^{\rm att}\left[1-(\kappa_\ell^{\rm att})^2\right],
   \label{eq:attention-departure}
 \end{equation}
 the participation factor is largest when both matrix roles have broad support, while
@@ -1015,7 +988,7 @@ response. These layerwise statistics gate the same norm-preserving chord for
 the QKV and output matrices. The 16 attention heads are partitioned into blocks of four for the
 polar map; the stacked QKV direction is scaled by $1/\sqrt3$ to match its
 three constituent projections. The adaptive tangent is factorized at matrix
-level. Attention does not enter the $LG$ coefficient transaction. Learned
+level. Attention does not enter the $LG$ coefficient model. Learned
 rational coefficients, embeddings, normalization parameters, and remaining
 tensors use AdamW \citep{loshchilov2019decoupled}.
 
@@ -1035,11 +1008,14 @@ factorized moments, response summaries, and loss ledger as follows.
   equation~\ref{eq:functional-score} and the corresponding decay action.
   At other steps, form the trace-matched rows from the current batch-gradient
   scores.
-  \item Update the rank-$64$ Robust Frequent-Directions factor, isotropic
-  tail, and score--decay cross term.
-  \item Construct the at-most 32-dimensional Lanczos basis, attempt the
+  \item Form the current pre-compression factor $\mathcal A_t$ using the old
+  factor and the current rows, then update the stored at-most-rank-$64$
+  Robust Frequent-Directions factor, isotropic tail, and score--decay cross
+  term.
+  \item Using the pre-compression factor and the old isotropic tail,
+  construct the at-most 32-dimensional Lanczos basis, attempt the
   positive regular branch of
-  equation~\ref{eq:secular-equation}, and evaluate the proposed transaction.
+  equation~\ref{eq:secular-equation}, and evaluate the coefficient proposal.
   \item Scale both GRAIN matrix directions in coordinate $(\ell,g)$ by
   $c_{\ell g}$, then apply decoupled decay to the existing parameters and add
   the scheduled directional update.
@@ -1053,7 +1029,8 @@ factorized moments, response summaries, and loss ledger as follows.
 
 The five-step polar map starts from the input matrix normalized by its
 Frobenius norm (lower bounded by $10^{-7}$), transposing tall matrices before
-the iteration. Each step is
+the iteration. The normalization norm is evaluated in float32 and the polar
+iteration runs in bfloat16. Each step is
 \begin{equation}
   X_{j+1}=aX_j+b(X_jX_j^\top)X_j+c(X_jX_j^\top)^2X_j,
   \qquad
@@ -1061,6 +1038,23 @@ the iteration. Each step is
   \label{eq:newton-schulz-map}
 \end{equation}
 after which the original orientation is restored.
+The Lanczos recurrence is fully reorthogonalized. If its breakdown threshold
+is reached early, a deterministic cosine vector is reorthogonalized against
+the existing basis to start a new block, with zero coupling between blocks;
+the basis is used only after a final orthogonality check. If
+$\bar T_k=U\operatorname{Diag}(\bar\theta)U^\top$ is the accumulated
+projected matrix, the solver uses
+$T_k^+=U\operatorname{Diag}((\bar\theta)_+)U^\top$. Its positive multiplier
+is bracketed by
+\begin{equation}
+  \lambda_{\rm lo}=\epsilon_{\rm mach}C,\qquad
+  \lambda_{\rm hi}=
+  \frac{\|b_t\|_2}{\sqrt{\mathcal E_0}}
+  +\lambda_{\max}(T_k^+)+\lambda_{\rm lo},
+\end{equation}
+and approximated by 64 bisection steps when
+$\psi(\lambda_{\rm lo})\geq\mathcal E_0$. Otherwise the coefficient proposal
+is rejected.
 The factorized moments use float32 accumulators and
 $\delta_{\rm fp}=\operatorname{finfo}(\texttt{float32}).\operatorname{tiny}$;
 when the row-moment total is zero, the estimate in
