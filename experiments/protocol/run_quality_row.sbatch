@@ -1,6 +1,7 @@
 #!/bin/bash -p
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
+#SBATCH --exclusive
 #SBATCH --constraint=nvlink
 #SBATCH --gres=gpu:nvidia_rtx_a6000:4
 #SBATCH --cpus-per-gpu=4
@@ -50,28 +51,18 @@ output_root="${PWD}/${package}/runs"
 control_root="${PWD}/experiments/runs/activation_optimizer"
 result_root="${PWD}/${package}/results/row-$(printf '%02d' "${index}")"
 
-# Slurm may report SLURM_JOB_GPUS as global physical IDs even though the job
-# cgroup exposes the allocation as local CUDA/nvidia-smi indices. Preserve the
-# CUDA-visible namespace rather than rewriting it from SLURM_JOB_GPUS.
-original_cuda_visible_devices="${CUDA_VISIBLE_DEVICES:-}"
-gpu_source="${original_cuda_visible_devices:-0,1,2,3}"
-IFS=',' read -r -a allocated_gpu_ids <<<"${gpu_source}"
-if test "${#allocated_gpu_ids[@]}" -lt 4; then
-  echo "expected at least four allocated GPU identifiers, found ${gpu_source}" >&2
-  exit 92
-fi
-export CUDA_VISIBLE_DEVICES="${allocated_gpu_ids[0]#gpu:},${allocated_gpu_ids[1]#gpu:},${allocated_gpu_ids[2]#gpu:},${allocated_gpu_ids[3]#gpu:}"
-export CAMPAIGN_ORIGINAL_CUDA_VISIBLE_DEVICES="${original_cuda_visible_devices}"
-export CAMPAIGN_SLURM_JOB_GPUS="${SLURM_JOB_GPUS:-}"
-export CAMPAIGN_SELECTED_VISIBLE_GPU_IDS="${CUDA_VISIBLE_DEVICES}"
-export CAMPAIGN_SELECTED_PHYSICAL_GPU_IDS="${CUDA_VISIBLE_DEVICES}"
-
 mkdir -p "${package}/logs" "${output_root}" "${result_root}" "${package}/failed_attempts"
 exec 9>"${result_root}/execution.lock"
 if ! flock -n 9; then
   echo "matrix row ${index} is already executing" >&2
   exit 91
 fi
+gpu_selection_env="${result_root}/GPU_SELECTION.env"
+gpu_selection_json="${result_root}/GPU_SELECTION.json"
+"${python}" -m experiments.protocol.select_nvlink_gpus \
+  --output-env "${gpu_selection_env}" \
+  --output-json "${gpu_selection_json}"
+. "${gpu_selection_env}"
 
 "${python}" -m experiments.protocol.verify_repository --quick
 sha256sum -c "${package}/SOURCE_FREEZE.sha256"

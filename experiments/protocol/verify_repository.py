@@ -820,18 +820,18 @@ def verify_stage_launchers() -> None:
         ("transport smoke", transport),
     ):
         require(
-            "#SBATCH --exclusive" not in script,
-            f"{label} launcher must not request whole-node exclusivity",
+            "#SBATCH --exclusive" in script,
+            f"{label} launcher must request whole-node exclusivity",
         )
         require(
             'gpu_source="${SLURM_JOB_GPUS' not in script,
             f"{label} launcher must not derive CUDA_VISIBLE_DEVICES from SLURM_JOB_GPUS",
         )
         require(
-            'original_cuda_visible_devices="${CUDA_VISIBLE_DEVICES:-}"' in script
-            and 'CAMPAIGN_SELECTED_VISIBLE_GPU_IDS="${CUDA_VISIBLE_DEVICES}"'
-            in script,
-            f"{label} launcher must preserve the CUDA-visible allocation namespace",
+            "experiments.protocol.select_nvlink_gpus" in script
+            and "--output-env" in script
+            and "--output-json" in script,
+            f"{label} launcher must select two NVLink GPU pairs before training",
         )
     require(
         "#SBATCH --array=0-29%3" in activation,

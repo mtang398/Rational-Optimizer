@@ -34,6 +34,17 @@ def slurm_value(description: str, key: str) -> str | None:
     return None if value == "(null)" else value
 
 
+def optional_slurm_value(description: str, key: str) -> str | None:
+    prefix = f"{key}="
+    token = next(
+        (item for item in description.split() if item.startswith(prefix)), None
+    )
+    if token is None:
+        return None
+    value = token[len(prefix):]
+    return None if value == "(null)" else value
+
+
 def topology_peer_values(topology: str) -> dict[str, dict[str, str]]:
     topology_rows: dict[str, list[str]] = {}
     for line in topology.splitlines():
@@ -163,6 +174,8 @@ def main() -> None:
     if requested_tres_raw is None:
         raise RuntimeError("Slurm job description has null ReqTRES")
     requested_tres = set(requested_tres_raw.split(","))
+    allocated_tres_raw = optional_slurm_value(description, "AllocTRES")
+    allocated_tres = set(allocated_tres_raw.split(",")) if allocated_tres_raw else set()
     required_tres = {
         "cpu=16",
         "mem=128G",
@@ -218,6 +231,7 @@ def main() -> None:
         and slurm_value(description, "ExcNodeList") is None
         and partition_name == "gpu"
         and partition_over_subscribe == "NO"
+        and job_over_subscribe == "NO"
         and feature is not None
         and "nvlink" in feature.lower()
         and required_tres <= requested_tres
@@ -256,6 +270,7 @@ def main() -> None:
         "excluded_node": slurm_value(description, "ExcNodeList"),
         "requested_features": feature,
         "requested_tres": sorted(requested_tres),
+        "allocated_tres": sorted(allocated_tres),
         "visible_cuda_count": visible_count,
         "selected_local_rank_gpu_names": selected_names,
         "cuda_peer_access_matrix": peer_matrix,

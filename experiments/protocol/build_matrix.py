@@ -213,7 +213,8 @@ def build_row(
         ),
         "quality_action": "selected_method_endpoint",
         "timing_condition": (
-            "4x RTX A6000 with NVLink/NCCL P2P; gpu partition OverSubscribe=NO"
+            "exclusive allocation; selected 4x RTX A6000 as two NVLink pairs "
+            "with NCCL P2P"
         ),
         "matched_control": control,
     }

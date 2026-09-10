@@ -22,6 +22,7 @@ from . import build_source_freeze
 from . import collect_results
 from . import row_tools
 from . import run_activation_row
+from . import select_nvlink_gpus
 from . import verify_repository as verifier
 
 
@@ -160,7 +161,84 @@ class PublicReproducibilityTests(unittest.TestCase):
         self.assertEqual(len(hybrid), 15)
         self.assertFalse(set(hybrid) & set(row_tools.matrix_suite_indices(phase)))
 
-    def test_hardware_audit_allows_node_sharing_but_not_partition_oversubscription(self) -> None:
+    @staticmethod
+    def _gpu_topology(count: int, pairs: set[tuple[int, int]]) -> str:
+        header = "        " + " ".join(f"GPU{index}" for index in range(count))
+        normalized_pairs = {tuple(sorted(pair)) for pair in pairs}
+        rows = []
+        for left in range(count):
+            values = []
+            for right in range(count):
+                if left == right:
+                    values.append("X")
+                elif tuple(sorted((left, right))) in normalized_pairs:
+                    values.append("NV4")
+                else:
+                    values.append("PHB")
+            rows.append(f"GPU{left}    " + "  ".join(values))
+        return header + "\n" + "\n".join(rows) + "\n"
+
+    @staticmethod
+    def _selector_devices(count: int = 8) -> tuple[list[dict[str, str]], list[str]]:
+        uuids = [
+            f"GPU-00000000-0000-0000-0000-{10 + index:012x}"
+            for index in range(count)
+        ]
+        rows = "\n".join(
+            f"{index}, {uuid}, NVIDIA RTX A6000"
+            for index, uuid in enumerate(uuids)
+        )
+        return select_nvlink_gpus.parse_visible_gpus(rows), uuids
+
+    def test_nvlink_selector_prefers_shuffled_original_first_four_and_emits_exact_uuids(self) -> None:
+        devices, uuids = self._selector_devices()
+        topology = self._gpu_topology(8, {(0, 1), (2, 3), (4, 5), (6, 7)})
+        original_order = [uuids[index] for index in (4, 5, 6, 7, 0, 1, 2, 3)]
+        selection = select_nvlink_gpus.choose_selection(
+            devices, topology, ",".join(original_order)
+        )
+        self.assertEqual(selection["selected_indices"], ["4", "5", "6", "7"])
+        self.assertEqual(selection["selection_reason"], "original_first_four")
+        self.assertEqual(selection["selected_uuids"], original_order[:4])
+        self.assertEqual(
+            selection["selected_normalized_uuids"],
+            [uuid.upper() for uuid in original_order[:4]],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            env_path = Path(directory) / "selection.env"
+            select_nvlink_gpus.write_env(
+                env_path,
+                selection,
+                original_cuda_visible_devices=",".join(original_order),
+                slurm_job_gpus="0,1,2,3,4,5,6,7",
+            )
+            env_text = env_path.read_text()
+        expected_visible = ",".join(original_order[:4])
+        self.assertIn(f"export CUDA_VISIBLE_DEVICES={expected_visible}\n", env_text)
+        self.assertIn(
+            f"export CAMPAIGN_SELECTED_VISIBLE_GPU_UUIDS={expected_visible}\n",
+            env_text,
+        )
+
+    def test_nvlink_selector_skips_bad_first_four_when_other_pairs_are_valid(self) -> None:
+        devices, _ = self._selector_devices()
+        topology = self._gpu_topology(8, {(0, 1), (4, 5)})
+        selection = select_nvlink_gpus.choose_selection(
+            devices, topology, "0,2,3,4,1,5,6,7"
+        )
+        self.assertEqual(selection["selected_indices"], ["0", "1", "4", "5"])
+        self.assertEqual(selection["selection_reason"], "deterministic_valid_pairs")
+
+    def test_nvlink_selector_rejects_one_pair_and_does_not_escape_original_cvd(self) -> None:
+        devices, _ = self._selector_devices()
+        topology = self._gpu_topology(8, {(0, 1), (4, 5), (6, 7)})
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "no visible four-A6000 selection has two disjoint NVLink pairs",
+        ):
+            select_nvlink_gpus.choose_selection(devices, topology, "0,1,2,3")
+
+    def test_hardware_audit_requires_exclusive_job_and_two_nvlink_pairs(self) -> None:
         torch_uuids = [
             "18d5b80b-03bb-a57d-4f2e-c3102aea8463",
             "ec0281f6-aab7-d36a-ab7c-24bef411856c",
@@ -198,6 +276,8 @@ GPU3    PHB  PHB  PIX  X
                 "Features=nvlink "
                 "ReqTRES=cpu=16,mem=128G,node=1,billing=16,gres/gpu=4,"
                 "gres/gpu:nvidia_rtx_a6000=4 "
+                "AllocTRES=cpu=64,mem=512G,node=1,billing=64,gres/gpu=8,"
+                "gres/gpu:nvidia_rtx_a6000=8 "
                 f"OverSubscribe={job_over_subscribe} "
                 "CpusPerTres=gres/gpu:4"
             )
@@ -228,8 +308,7 @@ GPU3    PHB  PHB  PIX  X
                     "CUDA_VISIBLE_DEVICES": visible_tokens,
                     "SLURM_JOB_GPUS": "2,3,4,5",
                     "CAMPAIGN_SLURM_JOB_GPUS": "2,3,4,5",
-                    "CAMPAIGN_SELECTED_VISIBLE_GPU_IDS": visible_tokens,
-                    "CAMPAIGN_SELECTED_PHYSICAL_GPU_IDS": "2,3,4,5",
+                    "CAMPAIGN_SELECTED_VISIBLE_GPU_IDS": "0,1,2,3",
                     "NCCL_P2P_DISABLE": "0",
                     "NCCL_P2P_LEVEL": "NVL",
                     "NCCL_SHM_DISABLE": "0",
@@ -274,22 +353,19 @@ GPU3    PHB  PHB  PIX  X
                     audit_runtime_hardware.main()
                 return json.loads(output.read_text())
 
-        cases = (
-            ("NO", "0,1,2,3"),
-            ("OK", ",".join(torch_uuids)),
-        )
-        for job_over_subscribe, visible_tokens in cases:
+        cases = ("0,1,2,3", ",".join(f"GPU-{uuid}" for uuid in torch_uuids))
+        for visible_tokens in cases:
             with self.subTest(
-                job_over_subscribe=job_over_subscribe,
                 visible_tokens=visible_tokens,
             ):
                 payload = run_case(
-                    job_over_subscribe, "NO", visible_tokens=visible_tokens
+                    "NO", "NO", visible_tokens=visible_tokens
                 )
                 self.assertTrue(payload["passed"])
                 self.assertEqual(payload["partition_over_subscribe"], "NO")
-                self.assertEqual(payload["job_over_subscribe"], job_over_subscribe)
+                self.assertEqual(payload["job_over_subscribe"], "NO")
                 self.assertEqual(payload["slurm_job_gpus"], "2,3,4,5")
+                self.assertIn("gres/gpu=8", payload["allocated_tres"])
                 self.assertEqual(payload["selected_visible_gpu_indices"], ["0", "1", "2", "3"])
                 self.assertEqual(
                     payload["selected_visible_gpu_token_indices"],
@@ -302,9 +378,11 @@ GPU3    PHB  PHB  PIX  X
                 self.assertTrue(payload["selected_visible_has_two_disjoint_nvlink_pairs"])
 
         with self.assertRaisesRegex(RuntimeError, "contract failed"):
-            run_case("OK", "YES")
+            run_case("NO", "YES")
         with self.assertRaisesRegex(RuntimeError, "contract failed"):
-            run_case("OK", "NO", topology=one_pair_topology)
+            run_case("OK", "NO")
+        with self.assertRaisesRegex(RuntimeError, "contract failed"):
+            run_case("NO", "NO", topology=one_pair_topology)
 
     def test_activation_rerun_requires_exact_row_and_source_identity(self) -> None:
         row = run_activation_row.read_row(verifier.MANIFEST, 10)

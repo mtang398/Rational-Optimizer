@@ -2,6 +2,7 @@
 #SBATCH --job-name=activation-optimizer
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
+#SBATCH --exclusive
 #SBATCH --constraint=nvlink
 #SBATCH --gres=gpu:nvidia_rtx_a6000:4
 #SBATCH --cpus-per-gpu=4
@@ -59,23 +60,13 @@ esac
 index="$("${python}" -m experiments.protocol.row_tools manifest-index \
   --suite "${suite}" --stage "${stage}" --ordinal "${ordinal}")"
 
-# Slurm may report SLURM_JOB_GPUS as global physical IDs even though the job
-# cgroup exposes the allocation as local CUDA/nvidia-smi indices. Preserve the
-# CUDA-visible namespace rather than rewriting it from SLURM_JOB_GPUS.
-original_cuda_visible_devices="${CUDA_VISIBLE_DEVICES:-}"
-gpu_source="${original_cuda_visible_devices:-0,1,2,3}"
-IFS=',' read -r -a allocated_gpu_ids <<<"${gpu_source}"
-if test "${#allocated_gpu_ids[@]}" -lt 4; then
-  echo "expected at least four allocated GPU identifiers, found ${gpu_source}" >&2
-  exit 92
-fi
-export CUDA_VISIBLE_DEVICES="${allocated_gpu_ids[0]#gpu:},${allocated_gpu_ids[1]#gpu:},${allocated_gpu_ids[2]#gpu:},${allocated_gpu_ids[3]#gpu:}"
-export CAMPAIGN_ORIGINAL_CUDA_VISIBLE_DEVICES="${original_cuda_visible_devices}"
-export CAMPAIGN_SLURM_JOB_GPUS="${SLURM_JOB_GPUS:-}"
-export CAMPAIGN_SELECTED_VISIBLE_GPU_IDS="${CUDA_VISIBLE_DEVICES}"
-export CAMPAIGN_SELECTED_PHYSICAL_GPU_IDS="${CUDA_VISIBLE_DEVICES}"
-
 mkdir -p experiments/protocol/logs experiments/runs/activation_optimizer
+selection_job_id="${SLURM_ARRAY_JOB_ID:-${SLURM_JOB_ID:?missing Slurm job id}}"
+gpu_selection_base="experiments/runs/activation_optimizer/gpu-selection-${selection_job_id}-${index}"
+"${python}" -m experiments.protocol.select_nvlink_gpus \
+  --output-env "${gpu_selection_base}.env" \
+  --output-json "${gpu_selection_base}.json"
+. "${gpu_selection_base}.env"
 "${python}" -m experiments.protocol.verify_repository --quick
 sha256sum -c experiments/protocol/SOURCE_FREEZE.sha256
 mkdir -p experiments/cache/build
