@@ -122,7 +122,7 @@ def _diagonal_completed_biatlas_metric___loss_krylov_basis(low_rank: torch.Tenso
     return (q, tridiagonal)
 _diagonal_completed_biatlas_metric___COMPILED_LOSS_KRYLOV_BASIS = torch.compile(_diagonal_completed_biatlas_metric___loss_krylov_basis, fullgraph=True, dynamic=False)
 
-def _diagonal_completed_biatlas_metric__diagonal_completed_biatlas_transaction(rows: _diagonal_completed_biatlas_metric__DiagonalCompletedBiatlasRows, exact_by_role: torch.Tensor, momentum_by_role: torch.Tensor, weights: torch.Tensor, layer_ids: torch.Tensor, *, total_layers: int, eta: float, rounds: int=64) -> _diagonal_completed_biatlas_metric__DiagonalCompletedTransactionResult:
+def _diagonal_completed_biatlas_metric__diagonal_completed_biatlas_transaction(rows: _diagonal_completed_biatlas_metric__DiagonalCompletedBiatlasRows, exact_by_role: torch.Tensor, momentum_by_role: torch.Tensor, weights: torch.Tensor, layer_ids: torch.Tensor, *, total_layers: int, eta: float, rounds: int=64, diagnostics: bool=True) -> _diagonal_completed_biatlas_metric__DiagonalCompletedTransactionResult:
     """Select a same-budget signed update in diagonal-plus-row-space metric."""
     scores = rows.selection_scores
     diagonal_residual = rows.selection_diagonal_residual
@@ -133,9 +133,15 @@ def _diagonal_completed_biatlas_metric__diagonal_completed_biatlas_transaction(r
     if measure_rows < 1 or factor_rows < measure_rows or factor_rows > maximum_selection_rows or (maximum_selection_rows < factor_rows) or (coordinates < 2) or (diagonal_residual.shape != (coordinates,)) or (decay_cross.shape != (coordinates,)) or (exact_by_role.shape != (2, coordinates)) or (momentum_by_role.shape != exact_by_role.shape) or (weights.shape != (coordinates,)) or (layer_ids.shape != (coordinates,)) or (layer_ids.dtype != torch.int64) or (int(total_layers) < 1) or (float(eta) <= 0.0) or (int(rounds) < 1):
         raise RuntimeError('diagonal-completed transaction inventory changed')
     floating = (scores, diagonal_residual, decay_cross, exact_by_role, momentum_by_role, weights)
-    if any((not value.is_floating_point() for value in floating)) or any((value.dtype != scores.dtype for value in floating[1:])) or any((value.device != scores.device for value in floating[1:])) or (layer_ids.device != scores.device) or any((not bool(torch.isfinite(value).all()) for value in floating)) or (not bool((diagonal_residual >= 0.0).all())) or (not bool((weights > 0.0).all())):
+    if any((not value.is_floating_point() for value in floating)) or any((value.dtype != scores.dtype for value in floating[1:])) or any((value.device != scores.device for value in floating[1:])) or (layer_ids.device != scores.device):
         raise RuntimeError('diagonal-completed transaction values changed')
-    if coordinates and (int(layer_ids.amin()) < 0 or int(layer_ids.amax()) >= int(total_layers)):
+    valid_values = torch.isfinite(scores).all()
+    for value in floating[1:]:
+        valid_values = valid_values & torch.isfinite(value).all()
+    valid_values = valid_values & (diagonal_residual >= 0.0).all() & (weights > 0.0).all()
+    if not bool(valid_values):
+        raise RuntimeError('diagonal-completed transaction values changed')
+    if coordinates and (not bool(((layer_ids >= 0) & (layer_ids < int(total_layers))).all())):
         raise RuntimeError('diagonal-completed layer ID is invalid')
     score64 = scores.double()
     diagonal64 = diagonal_residual.double()
@@ -196,21 +202,34 @@ def _diagonal_completed_biatlas_metric__diagonal_completed_biatlas_transaction(r
     accepted = (finite & ~hard_case & (candidate_score < parent_score) & (budget_residual <= 1e-08) & (candidate_exact_layers > 0.0).all() & (candidate_momentum_layers > 0.0).all() & (parent_exact_layers > 0.0).all() & (parent_momentum_layers > 0.0).all()).reshape(1)
     candidate_coefficients = candidate_coefficients64.to(scores.dtype)
     selected = torch.where(accepted, candidate_coefficients, torch.ones_like(candidate_coefficients))
-    singular_values = torch.linalg.svdvals(low_rank)
-    rank_threshold = machine * float(coordinates) * singular_values.amax().clamp_min(tiny)
-    factor_rank = (singular_values > rank_threshold).sum().reshape(1)
-    measure = float(measure_rows)
-    total_row_metric = score64 @ score64.T
-    total_metric_square = total_row_metric.square().sum() / (measure * measure) + 2.0 * (diagonal64 * score64.square().sum(dim=0) / measure).sum() + diagonal64.square().sum()
-    within_layer_square = torch.zeros_like(total_metric_square)
-    for layer in range(int(total_layers)):
-        mask = layer_ids.eq(layer)
-        layer_factor = score64[:, mask]
-        layer_diagonal = diagonal64[mask]
-        layer_row_metric = layer_factor @ layer_factor.T
-        within_layer_square = within_layer_square + (layer_row_metric.square().sum() / (measure * measure) + 2.0 * (layer_diagonal * layer_factor.square().sum(dim=0) / measure).sum() + layer_diagonal.square().sum())
-    cross_layer_coupling_ratio = torch.sqrt((total_metric_square - within_layer_square).clamp_min(0.0) / total_metric_square.clamp_min(tiny))
-    return _diagonal_completed_biatlas_metric__DiagonalCompletedTransactionResult(coefficients=selected, candidate_coefficients=candidate_coefficients, accepted=accepted, multiplier=torch.where(hard_case, torch.zeros_like(hi), hi).reshape(1), hard_case=hard_case.reshape(1), budget_residual=budget_residual.reshape(1), parent_score=parent_score.reshape(1), candidate_score=candidate_score.reshape(1), factor_rank=factor_rank, diagonal_minimum=diagonal64.amin().reshape(1), diagonal_median=diagonal64.median().reshape(1), diagonal_maximum=diagonal64.amax().reshape(1), cross_layer_coupling_ratio=cross_layer_coupling_ratio.reshape(1), dense_coordinate_metric_elements=0, largest_dense_solve_dimension=int(factor_rows), selected_update_elements_published=0, owner_count=0)
+    if diagnostics:
+        singular_values = torch.linalg.svdvals(low_rank)
+        rank_threshold = machine * float(coordinates) * singular_values.amax().clamp_min(tiny)
+        factor_rank = (singular_values > rank_threshold).sum().reshape(1)
+        measure = float(measure_rows)
+        total_row_metric = score64 @ score64.T
+        total_metric_square = total_row_metric.square().sum() / (measure * measure) + 2.0 * (diagonal64 * score64.square().sum(dim=0) / measure).sum() + diagonal64.square().sum()
+        within_layer_square = torch.zeros_like(total_metric_square)
+        for layer in range(int(total_layers)):
+            mask = layer_ids.eq(layer)
+            layer_factor = score64[:, mask]
+            layer_diagonal = diagonal64[mask]
+            layer_row_metric = layer_factor @ layer_factor.T
+            within_layer_square = within_layer_square + (layer_row_metric.square().sum() / (measure * measure) + 2.0 * (layer_diagonal * layer_factor.square().sum(dim=0) / measure).sum() + layer_diagonal.square().sum())
+        cross_layer_coupling_ratio = torch.sqrt((total_metric_square - within_layer_square).clamp_min(0.0) / total_metric_square.clamp_min(tiny)).reshape(1)
+        diagonal_minimum = diagonal64.amin().reshape(1)
+        diagonal_median = diagonal64.median().reshape(1)
+        diagonal_maximum = diagonal64.amax().reshape(1)
+    else:
+        # These fields are observability-only. The accepted coefficients and
+        # every quantity used to decide them have already been computed.
+        factor_rank = torch.zeros((1,), device=scores.device, dtype=torch.int64)
+        diagnostic_zero = score64.new_zeros((1,))
+        diagonal_minimum = diagnostic_zero
+        diagonal_median = diagnostic_zero
+        diagonal_maximum = diagnostic_zero
+        cross_layer_coupling_ratio = diagnostic_zero
+    return _diagonal_completed_biatlas_metric__DiagonalCompletedTransactionResult(coefficients=selected, candidate_coefficients=candidate_coefficients, accepted=accepted, multiplier=torch.where(hard_case, torch.zeros_like(hi), hi).reshape(1), hard_case=hard_case.reshape(1), budget_residual=budget_residual.reshape(1), parent_score=parent_score.reshape(1), candidate_score=candidate_score.reshape(1), factor_rank=factor_rank, diagonal_minimum=diagonal_minimum, diagonal_median=diagonal_median, diagonal_maximum=diagonal_maximum, cross_layer_coupling_ratio=cross_layer_coupling_ratio, dense_coordinate_metric_elements=0, largest_dense_solve_dimension=int(factor_rows), selected_update_elements_published=0, owner_count=0)
 _functional_row__FIXED_GLOBAL_PROBE_COUNT = 32
 
 @dataclass(frozen=True)
@@ -1122,7 +1141,10 @@ _every_step_rfd_gradient_ledger__import_FDTailBiatlasRows = _fd_tail_biatlas_met
 
 def _every_step_rfd_gradient_ledger__trace_matched_gradient_surrogate(exact_by_role: torch.Tensor, decay_derivative: torch.Tensor, reference_row_norm: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Lift one exact batch-gradient score into a trace-matched 32-row factor."""
-    if exact_by_role.ndim != 2 or exact_by_role.shape[0] != 2 or exact_by_role.shape[1] < 2 or (decay_derivative.numel() != 1) or (reference_row_norm.numel() != 1) or (not exact_by_role.is_floating_point()) or (decay_derivative.dtype != exact_by_role.dtype) or (reference_row_norm.dtype != exact_by_role.dtype) or (decay_derivative.device != exact_by_role.device) or (reference_row_norm.device != exact_by_role.device) or (not bool(torch.isfinite(exact_by_role).all())) or (not bool(torch.isfinite(decay_derivative).all())) or (not bool(torch.isfinite(reference_row_norm).all())) or (not bool((reference_row_norm >= 0.0).all())):
+    if exact_by_role.ndim != 2 or exact_by_role.shape[0] != 2 or exact_by_role.shape[1] < 2 or (decay_derivative.numel() != 1) or (reference_row_norm.numel() != 1) or (not exact_by_role.is_floating_point()) or (decay_derivative.dtype != exact_by_role.dtype) or (reference_row_norm.dtype != exact_by_role.dtype) or (decay_derivative.device != exact_by_role.device) or (reference_row_norm.device != exact_by_role.device):
+        raise RuntimeError('gradient-ledger surrogate inventory changed')
+    valid = torch.isfinite(exact_by_role).all() & torch.isfinite(decay_derivative).all() & torch.isfinite(reference_row_norm).all() & (reference_row_norm >= 0.0).all()
+    if not bool(valid):
         raise RuntimeError('gradient-ledger surrogate inventory changed')
     gradient_score = exact_by_role.double().sum(dim=0)
     norm = torch.linalg.vector_norm(gradient_score)
@@ -1136,16 +1158,20 @@ def _every_step_rfd_gradient_ledger__trace_matched_gradient_surrogate(exact_by_r
     torch._assert_async(torch.isfinite(scores).all() & torch.isfinite(decay_action).all() & torch.isfinite(scale64))
     return (scores, decay_action, scale64.to(exact_by_role.dtype))
 
-def _every_step_rfd_gradient_ledger__functional_row_norm(current_scores: torch.Tensor) -> torch.Tensor:
+def _every_step_rfd_gradient_ledger__functional_row_norm(current_scores: torch.Tensor, *, validate_values: bool=True) -> torch.Tensor:
     """RMS norm of one fixed functional-score row."""
-    if current_scores.ndim != 2 or current_scores.shape[0] != _every_step_rfd_gradient_ledger__import_CURRENT_ROWS or current_scores.shape[1] < 2 or (not current_scores.is_floating_point()) or (not bool(torch.isfinite(current_scores).all())):
+    if current_scores.ndim != 2 or current_scores.shape[0] != _every_step_rfd_gradient_ledger__import_CURRENT_ROWS or current_scores.shape[1] < 2 or (not current_scores.is_floating_point()):
+        raise RuntimeError('functional calibration rows changed')
+    if validate_values and (not bool(torch.isfinite(current_scores).all())):
         raise RuntimeError('functional calibration rows changed')
     value = torch.sqrt(current_scores.double().square().sum() / float(_every_step_rfd_gradient_ledger__import_CURRENT_ROWS))
     torch._assert_async(torch.isfinite(value) & (value >= 0.0))
     return value.to(current_scores.dtype)
 
 def _every_step_rfd_gradient_ledger___validate_current(current_scores: torch.Tensor, current_decay_action: torch.Tensor) -> int:
-    if current_scores.ndim != 2 or current_scores.shape[0] != _every_step_rfd_gradient_ledger__import_CURRENT_ROWS or current_scores.shape[1] < 2 or (current_decay_action.shape != (_every_step_rfd_gradient_ledger__import_CURRENT_ROWS,)) or (not current_scores.is_floating_point()) or (current_decay_action.dtype != current_scores.dtype) or (current_decay_action.device != current_scores.device) or (not bool(torch.isfinite(current_scores).all())) or (not bool(torch.isfinite(current_decay_action).all())):
+    if current_scores.ndim != 2 or current_scores.shape[0] != _every_step_rfd_gradient_ledger__import_CURRENT_ROWS or current_scores.shape[1] < 2 or (current_decay_action.shape != (_every_step_rfd_gradient_ledger__import_CURRENT_ROWS,)) or (not current_scores.is_floating_point()) or (current_decay_action.dtype != current_scores.dtype) or (current_decay_action.device != current_scores.device):
+        raise RuntimeError('every-step RFD current-score inventory changed')
+    if not bool(torch.isfinite(current_scores).all() & torch.isfinite(current_decay_action).all()):
         raise RuntimeError('every-step RFD current-score inventory changed')
     return int(current_scores.shape[1])
 
@@ -1171,7 +1197,10 @@ def _every_step_rfd_gradient_ledger__every_step_rfd_gradient_rows(current_scores
     assert previous_total_diagonal is not None
     assert previous_decay_cross is not None
     rows = int(previous_scores.shape[0])
-    if previous_scores.ndim != 2 or previous_scores.shape[1] != coordinates or rows not in (_every_step_rfd_gradient_ledger__import_CURRENT_ROWS, _every_step_rfd_gradient_ledger__import_PERSISTENT_ROWS) or (previous_total_diagonal.shape != (coordinates,)) or (previous_decay_cross.shape != (coordinates,)) or (previous_scores.dtype != current_scores.dtype) or (previous_total_diagonal.dtype != current_scores.dtype) or (previous_decay_cross.dtype != current_scores.dtype) or (previous_scores.device != current_scores.device) or (previous_total_diagonal.device != current_scores.device) or (previous_decay_cross.device != current_scores.device) or (not bool(torch.isfinite(previous_scores).all())) or (not bool(torch.isfinite(previous_total_diagonal).all())) or (not bool(torch.isfinite(previous_decay_cross).all())) or (not bool((previous_total_diagonal >= 0.0).all())) or (previous_isotropic_tail is None) or (not torch.is_tensor(previous_isotropic_tail)) or (previous_isotropic_tail.numel() != 1) or (previous_isotropic_tail.device != current_scores.device) or (not previous_isotropic_tail.is_floating_point()) or (not bool(torch.isfinite(previous_isotropic_tail).all())) or (not bool((previous_isotropic_tail >= 0.0).all())):
+    if previous_scores.ndim != 2 or previous_scores.shape[1] != coordinates or rows not in (_every_step_rfd_gradient_ledger__import_CURRENT_ROWS, _every_step_rfd_gradient_ledger__import_PERSISTENT_ROWS) or (previous_total_diagonal.shape != (coordinates,)) or (previous_decay_cross.shape != (coordinates,)) or (previous_scores.dtype != current_scores.dtype) or (previous_total_diagonal.dtype != current_scores.dtype) or (previous_decay_cross.dtype != current_scores.dtype) or (previous_scores.device != current_scores.device) or (previous_total_diagonal.device != current_scores.device) or (previous_decay_cross.device != current_scores.device) or (previous_isotropic_tail is None) or (not torch.is_tensor(previous_isotropic_tail)) or (previous_isotropic_tail.numel() != 1) or (previous_isotropic_tail.device != current_scores.device) or (not previous_isotropic_tail.is_floating_point()):
+        raise RuntimeError('gradient-ledger persistent inventory changed')
+    valid_previous = torch.isfinite(previous_scores).all() & torch.isfinite(previous_total_diagonal).all() & torch.isfinite(previous_decay_cross).all() & (previous_total_diagonal >= 0.0).all() & torch.isfinite(previous_isotropic_tail).all() & (previous_isotropic_tail >= 0.0).all()
+    if not bool(valid_previous):
         raise RuntimeError('gradient-ledger persistent inventory changed')
     beta = float(beta2)
     previous_tail = previous_isotropic_tail.double().reshape(())
@@ -3652,6 +3681,7 @@ class _cadence_geometry___Cadence8Rank64RouterMixin:
         anchor = self.state[self.pairs[0]['in_weight']]
         for name, value in route.items():
             anchor['cadence8_' + name] = value
+        anchor['cadence8_relative_score_innovation'] = predictive.relative_innovation.detach().clone()
         if self.cache_selection_separately:
             scores = predictive.selection_scores.detach().clone()
             decay = predictive.selection_decay_action.detach().clone()
@@ -3709,6 +3739,7 @@ class _cadence_geometry___Cadence8Rank64RouterMixin:
         congruence = self._group_response_congruence
         role_parameters = {}
         role_selected = {}
+        role_scaled = {}
         role_adjustment = {}
         role_records = {}
         exact = []
@@ -3734,10 +3765,11 @@ class _cadence_geometry___Cadence8Rank64RouterMixin:
             momentum_descent.append((momentum_blocks.float() * scaled).sum(dim=(-2, -1)))
             role_parameters[role] = parameters
             role_selected[role] = selected
+            role_scaled[role] = scaled
             role_adjustment[role] = adjustment
             role_records[role] = metadata
-        incoming = role_selected['incoming'].view(len(self.pairs), self.groups, self.width, self.external).float() * role_adjustment['incoming']
-        outgoing = role_selected['outgoing'].view(len(self.pairs), self.external, self.groups, self.width).permute(0, 2, 3, 1).float() * role_adjustment['outgoing']
+        incoming = role_scaled['incoming']
+        outgoing = role_scaled['outgoing']
         weights = (incoming.square().sum(dim=(-2, -1)) + outgoing.square().sum(dim=(-2, -1))).reshape(-1)
         exact_by_role = torch.stack([value.reshape(-1) for value in exact])
         momentum_by_role = torch.stack([value.reshape(-1) for value in momentum_descent])
@@ -3764,7 +3796,12 @@ class _cadence_geometry___Cadence8Rank64RouterMixin:
             response_safe = torch.cat([role_records[role]['safe'].reshape(-1) for role in ('incoming', 'outgoing')])
             transaction = selection.sharded_result
             prefix = self.telemetry_prefix
-            self._last_telemetry.update({prefix + 'family_id': self.family_id, prefix + 'transaction_accepted': int(transaction.accepted.item()), prefix + 'rank': int(transaction.rank.item()), prefix + 'budget_residual': float(transaction.budget_residual.item()), prefix + 'coefficient_min': float(flat.amin().item()), prefix + 'coefficient_median': float(flat.median().item()), prefix + 'coefficient_max': float(flat.amax().item()), prefix + 'cross_layer_coupling_ratio': float(selection.cross_layer_coupling_ratio.item()), prefix + 'response_parent_cosine_median': float(response_cosine.median().item()), prefix + 'response_safe_fraction': float(response_safe.float().mean().item()), prefix + 'realized_clip_factor': float(self._clip_factor), prefix + 'history_used': int(self._cadence_predictive.history_used), prefix + 'relative_score_innovation': float(self._cadence_predictive.relative_innovation.item()), prefix + 'realized_factor_rows': int(self._cadence_predictive.updated_scores.shape[0])})
+            self._last_telemetry.update({prefix + 'family_id': self.family_id, prefix + 'transaction_accepted': int(transaction.accepted.item()), prefix + 'rank': int(transaction.rank.item()), prefix + 'budget_residual': float(transaction.budget_residual.item()), prefix + 'coefficient_min': float(flat.amin().item()), prefix + 'coefficient_median': float(flat.median().item()), prefix + 'coefficient_max': float(flat.amax().item()), prefix + 'cross_layer_coupling_ratio': float(selection.cross_layer_coupling_ratio.item()), prefix + 'response_parent_cosine_median': float(response_cosine.median().item()), prefix + 'response_safe_fraction': float(response_safe.float().mean().item()), prefix + 'realized_clip_factor': float(self._clip_factor), prefix + 'history_used': int(self._cadence_transition >= _cadence_geometry__REFRESH_INTERVAL), prefix + 'realized_factor_rows': int(anchor['predictive_global_score_ema'].shape[0])})
+            # Older checkpoints predate this diagnostic scalar. Its original
+            # value cannot be recovered from the current factor alone.
+            innovation = anchor.get('cadence8_relative_score_innovation')
+            if innovation is not None:
+                self._last_telemetry[prefix + 'relative_score_innovation'] = float(innovation.item())
         self._capture_telemetry_next_step = False
         self._clip_factor = None
         return loss
@@ -3806,6 +3843,10 @@ class _cadence_geometry___Cadence8Rank64RouterMixin:
             self._cached_selection_decay = anchor.get('predictive_global_decay_ema')
         if not torch.is_tensor(self._cached_selection_scores) or not torch.is_tensor(self._cached_selection_decay):
             raise RuntimeError('cadence8 checkpoint selection factor changed')
+        innovation = anchor.get('cadence8_relative_score_innovation')
+        if innovation is not None and (not torch.is_tensor(innovation) or innovation.numel() != 1 or not innovation.is_floating_point() or not bool(torch.isfinite(innovation).all())):
+            raise RuntimeError('cadence8 checkpoint innovation diagnostic changed')
+        self._cadence_predictive = None
         return result
 
 class _cadence_geometry__PosteriorRank64Cadence8GroupPolarRouter(_cadence_geometry___Cadence8Rank64RouterMixin, _cadence_geometry__import_PosteriorRank64ResponseGroupPolarRouter):
@@ -3948,6 +3989,25 @@ def _factorized_chord___group_view(value: torch.Tensor, *, groups: int, width: i
         return (value.float()[:, None], lambda selected: selected[:, 0])
     raise ValueError(f'unknown TILLER grouped axis: {grouped_axis}')
 
+def _factorized_chord___group_shape(value: torch.Tensor, *, groups: int, width: int | None, grouped_axis: str) -> tuple[int, int, int, int]:
+    """Validate a grouped matrix and return its logical shape without copying."""
+    if value.ndim != 3:
+        raise RuntimeError('TILLER requires batched matrices')
+    layers, rows, columns = map(int, value.shape)
+    if grouped_axis == 'rows':
+        if width is None or rows != int(groups) * int(width):
+            raise RuntimeError('TILLER row-group inventory changed')
+        return (layers, int(groups), int(width), columns)
+    if grouped_axis == 'columns':
+        if width is None or columns != int(groups) * int(width):
+            raise RuntimeError('TILLER column-group inventory changed')
+        return (layers, int(groups), int(width), rows)
+    if grouped_axis == 'matrix':
+        if int(groups) != 1 or width is not None:
+            raise RuntimeError('TILLER matrix inventory changed')
+        return (layers, 1, rows, columns)
+    raise ValueError(f'unknown TILLER grouped axis: {grouped_axis}')
+
 def _factorized_chord__factorized_adaptive_tangent_chord_direction(parent: torch.Tensor, momentum: torch.Tensor, gradient: torch.Tensor, row_second_moment: torch.Tensor, column_second_moment: torch.Tensor, participation: torch.Tensor, congruence: torch.Tensor, *, groups: int, width: int | None, grouped_axis: str, beta2: float, step: int, eps: float=_factorized_chord__LOCKED_EPS):
     """Spend the stable response energy on a factorized adaptive tangent."""
     if not (parent.shape == momentum.shape == gradient.shape and parent.ndim == 3):
@@ -4017,7 +4077,7 @@ def _factorized_chord__factorized_adaptive_tangent_chord_scaling_formula(**kwarg
     return result
 
 def _factorized_chord___state_for_direction(optimizer, *, parent: torch.Tensor, groups: int, width: int | None, grouped_axis: str, key_prefix: str):
-    grouped, _ = _factorized_chord___group_view(parent, groups=groups, width=width, grouped_axis=grouped_axis)
+    grouped_shape = _factorized_chord___group_shape(parent, groups=groups, width=width, grouped_axis=grouped_axis)
     if hasattr(optimizer, 'pairs'):
         anchor = optimizer.state[optimizer.pairs[0]['in_weight']]
     else:
@@ -4027,12 +4087,12 @@ def _factorized_chord___state_for_direction(optimizer, *, parent: torch.Tensor, 
     row = anchor.get(row_key)
     column = anchor.get(column_key)
     if row is None:
-        row = torch.zeros(grouped.shape[:-1], device=grouped.device, dtype=torch.float32)
+        row = torch.zeros(grouped_shape[:-1], device=parent.device, dtype=torch.float32)
         anchor[row_key] = row
     if column is None:
-        column = torch.zeros(grouped.shape[:2] + grouped.shape[-1:], device=grouped.device, dtype=torch.float32)
+        column = torch.zeros(grouped_shape[:2] + grouped_shape[-1:], device=parent.device, dtype=torch.float32)
         anchor[column_key] = column
-    if row.shape != grouped.shape[:-1] or column.shape != grouped.shape[:2] + grouped.shape[-1:]:
+    if row.shape != grouped_shape[:-1] or column.shape != grouped_shape[:2] + grouped_shape[-1:]:
         raise RuntimeError('factorized adaptive tangent checkpoint inventory changed')
     return (anchor, row, column)
 
@@ -4318,7 +4378,7 @@ def tiller_scaling_formula(**kwargs):
     result.update({'family_id': FAMILY_ID, 'coordinate_count': coordinates, 'ledger_checkpoint_tensor_elements': ledger_state, 'additional_persistent_state_elements': ledger_state, 'persistent_state_elements': int(result['persistent_state_elements']) + ledger_state, 'maximum_live_factor_elements': _tiller_core__import_MAXIMUM_SELECTION_ROWS * coordinates, 'every_step_gradient_score_ledger': 1, 'trace_matched_gradient_surrogate': 1, 'functional_score_refresh_interval': 8, 'matched_beta2_every_optimizer_step': 1, 'robust_fd_midpoint_tail': 1, 'factorized_parameter_direction_unchanged': 1, 'adaptive_rank64_cross_coordinate_factor': 1, 'largest_dense_solve_dimension': _tiller_core__import_MAXIMUM_SELECTION_ROWS, 'largest_transaction_dense_dimension': 32, 'largest_temporal_dense_dimension': _tiller_core__import_MAXIMUM_SELECTION_ROWS, 'state_depends_on_total_activation_positions': 0, 'owner_count': 0, 'complete_layer_owners': 0, 'complete_coordinate_owners': 0, 'owner_local_mathematics': 0, 'dense_lg_by_lg_metric_elements': 0, 'selected_update_elements_published': 0, 'new_tunable_hyperparameters': 0, 'state_scales_as': 'O(LH + LGd + 64LG)'})
     return result
 
-def _previous(anchor, reference: torch.Tensor):
+def _previous(anchor, reference: torch.Tensor, *, validate_values: bool=True):
     scores = anchor.get('factorized_rfd_persistent_scores')
     diagonal = anchor.get('factorized_rfd_persistent_total_diagonal')
     decay = anchor.get('factorized_rfd_persistent_decay_cross')
@@ -4326,8 +4386,12 @@ def _previous(anchor, reference: torch.Tensor):
     values = (scores, diagonal, decay, tail)
     if all((value is None for value in values)):
         return (None, None, None, None)
-    if any((not torch.is_tensor(value) for value in values)) or scores.ndim != 2 or int(scores.shape[0]) not in (_tiller_core__import_CURRENT_ROWS, _tiller_core__import_PERSISTENT_ROWS) or (diagonal.shape != scores.shape[1:]) or (decay.shape != scores.shape[1:]) or (tail.numel() != 1) or any((value.dtype != reference.dtype for value in values)) or any((value.device != reference.device for value in values)) or any((not bool(torch.isfinite(value).all()) for value in values)) or (not bool((diagonal >= 0.0).all())) or (not bool((tail >= 0.0).all())):
+    if any((not torch.is_tensor(value) for value in values)) or scores.ndim != 2 or int(scores.shape[0]) not in (_tiller_core__import_CURRENT_ROWS, _tiller_core__import_PERSISTENT_ROWS) or (diagonal.shape != scores.shape[1:]) or (decay.shape != scores.shape[1:]) or (tail.numel() != 1) or any((value.dtype != reference.dtype for value in values)) or any((value.device != reference.device for value in values)):
         raise RuntimeError('TILLER checkpoint inventory changed')
+    if validate_values:
+        valid = torch.isfinite(scores).all() & torch.isfinite(diagonal).all() & torch.isfinite(decay).all() & torch.isfinite(tail).all() & (diagonal >= 0.0).all() & (tail >= 0.0).all()
+        if not bool(valid):
+            raise RuntimeError('TILLER checkpoint inventory changed')
     return (scores, diagonal, decay, tail)
 
 def _store(anchor, rows: _tiller_core__import_FDTailBiatlasRows) -> None:
@@ -4361,13 +4425,16 @@ class TILLERRouter(_compiled_chord__FactorizedAdaptiveTangentChordCompiledRouter
 
     def _advance_rows(self, scores, decay_action, *, functional: bool):
         anchor = self.state[self.pairs[0]['in_weight']]
-        previous_scores, previous_diagonal, previous_decay, previous_tail = _previous(anchor, scores)
+        # The ledger validates these exact values immediately below. Keep the
+        # structural checkpoint check here without synchronizing twice.
+        previous_scores, previous_diagonal, previous_decay, previous_tail = _previous(anchor, scores, validate_values=False)
         rows = _tiller_core__import_every_step_rfd_gradient_rows(scores, decay_action, previous_scores, previous_diagonal, previous_decay, beta2=MATCHED_BETA2, previous_isotropic_tail=previous_tail)
         _store(anchor, rows)
         step = int(anchor.get('factorized_rfd_step', 0)) + 1
         anchor['factorized_rfd_step'] = step
         if functional:
-            anchor['factorized_rfd_reference_row_norm'] = _tiller_core__import_functional_row_norm(scores).detach().clone()
+            # ``every_step_rfd_gradient_rows`` has just validated ``scores``.
+            anchor['factorized_rfd_reference_row_norm'] = _tiller_core__import_functional_row_norm(scores, validate_values=False).detach().clone()
             scale = scores.new_ones(())
         else:
             scale = self._rfd_gradient_scale
@@ -4398,7 +4465,7 @@ class TILLERRouter(_compiled_chord__FactorizedAdaptiveTangentChordCompiledRouter
         rows = self._rfd_rows
         if rows is None:
             raise RuntimeError('TILLER ledger rows are absent')
-        result = _tiller_core__import_diagonal_completed_biatlas_transaction(rows, exact_by_role, momentum_by_role, weights, layer_ids, total_layers=int(total_layers), eta=float(eta), rounds=int(rounds))
+        result = _tiller_core__import_diagonal_completed_biatlas_transaction(rows, exact_by_role, momentum_by_role, weights, layer_ids, total_layers=int(total_layers), eta=float(eta), rounds=int(rounds), diagnostics=bool(self._capture_telemetry_next_step))
         self._rfd_selection = result
         coordinates = int(weights.numel())
         summary_elements = int(rows.selection_scores.numel()) + 4 * coordinates
@@ -4441,14 +4508,20 @@ class TILLERRouter(_compiled_chord__FactorizedAdaptiveTangentChordCompiledRouter
         self._rfd_functional_refresh = False
         self._rfd_gradient_scale = None
         self._rfd_selection = None
-        decay = torch.zeros((), device=self.pairs[0]['in_weight'].device, dtype=torch.float32)
-        for pair in self.pairs:
-            for key in ('in_weight', 'out_weight'):
-                parameter = pair[key]
-                if parameter.grad is None:
-                    raise RuntimeError('TILLER parameter lacks gradient')
-                decay.add_((parameter.grad.detach().float() * parameter.detach().float()).sum())
-        self._rfd_decay_derivative = decay * float(self.param_groups[0]['weight_decay'])
+        if not bool(self._capture_response_this_transition):
+            decay = torch.zeros((), device=self.pairs[0]['in_weight'].device, dtype=torch.float32)
+            for pair in self.pairs:
+                for key in ('in_weight', 'out_weight'):
+                    parameter = pair[key]
+                    if parameter.grad is None:
+                        raise RuntimeError('TILLER parameter lacks gradient')
+                    decay.add_((parameter.grad.detach().float() * parameter.detach().float()).sum())
+            self._rfd_decay_derivative = decay * float(self.param_groups[0]['weight_decay'])
+        else:
+            for pair in self.pairs:
+                for key in ('in_weight', 'out_weight'):
+                    if pair[key].grad is None:
+                        raise RuntimeError('TILLER parameter lacks gradient')
         with self._installed_ordinary_transaction():
             loss = super().step(closure)
         rows = self._rfd_rows

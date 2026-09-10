@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import sys
 from pathlib import Path
@@ -301,7 +302,7 @@ def test_grain_training_telemetry_can_be_disabled_without_changing_math(
     assert train.collect_rlb_telemetry(models[1], disabled) == {}
 
 
-def test_tiller_telemetry_is_one_step_and_does_not_change_updates(monkeypatch):
+def test_tiller_17_step_capture_and_checkpoint_equivalence(monkeypatch):
     monkeypatch.setenv("RATIONAL_OPT_TORCH_FALLBACK", "1")
 
     from experiments.protocol import method_entrypoint
@@ -372,43 +373,181 @@ def test_tiller_telemetry_is_one_step_and_does_not_change_updates(monkeypatch):
         else:
             assert first == second
 
-    with_capture = build()
-    without_capture = build()
-    input_ids = torch.arange(32, dtype=torch.long).view(4, 8) % 97
+    every_step_capture = build()
+    sparse_capture = build()
+    capture_steps = {1, 2, 9, 10, 16, 17}
+    base_input = torch.arange(32, dtype=torch.long).view(4, 8)
+    legacy_restored = None
 
-    take_step(with_capture, input_ids, True)
-    take_step(without_capture, input_ids, False)
-    assert with_capture[1].telemetry()
-    assert with_capture[2].telemetry()
-    assert without_capture[1].telemetry() == {}
-    assert without_capture[2].telemetry() == {}
+    for step in range(1, 18):
+        input_ids = (base_input + 7 * step) % 97
+        take_step(every_step_capture, input_ids, True)
+        take_step(sparse_capture, input_ids, step in capture_steps)
+        if legacy_restored is not None:
+            take_step(legacy_restored, input_ids, True)
+            for first, second in zip(
+                every_step_capture[0].parameters(), legacy_restored[0].parameters()
+            ):
+                assert torch.equal(first, second)
+            expected_report = dict(every_step_capture[1].telemetry())
+            if step < 17:
+                expected_report.pop("tiller_relative_score_innovation")
+            assert_nested_equal(expected_report, legacy_restored[1].telemetry())
+            assert_nested_equal(
+                every_step_capture[2].state_dict(), legacy_restored[2].state_dict()
+            )
+            expected_state = copy.deepcopy(every_step_capture[1].state_dict())
+            if step < 17:
+                for state in expected_state["state"].values():
+                    state.pop("cadence8_relative_score_innovation", None)
+            assert_nested_equal(expected_state, legacy_restored[1].state_dict())
 
-    for first, second in zip(
-        with_capture[0].parameters(), without_capture[0].parameters()
+        full_router_report = every_step_capture[1].telemetry()
+        full_attention_report = every_step_capture[2].telemetry()
+        assert full_router_report
+        assert full_attention_report
+        if step in capture_steps:
+            assert_nested_equal(
+                full_router_report, sparse_capture[1].telemetry()
+            )
+            assert_nested_equal(
+                full_attention_report, sparse_capture[2].telemetry()
+            )
+            assert full_router_report["tiller_functional_score_refresh"] == int(
+                step in {1, 9, 17}
+            )
+            assert full_router_report["tiller_ledger_step"] == step
+        else:
+            assert sparse_capture[1].telemetry() == {}
+            assert sparse_capture[2].telemetry() == {}
+
+        for first, second in zip(
+            every_step_capture[0].parameters(), sparse_capture[0].parameters()
+        ):
+            assert torch.equal(first, second)
+        assert_nested_equal(
+            every_step_capture[1].state_dict(), sparse_capture[1].state_dict()
+        )
+        assert_nested_equal(
+            every_step_capture[2].state_dict(), sparse_capture[2].state_dict()
+        )
+
+        if step == 9:
+            model_state = copy.deepcopy(sparse_capture[0].state_dict())
+            router_state = copy.deepcopy(sparse_capture[1].state_dict())
+            attention_state = copy.deepcopy(sparse_capture[2].state_dict())
+            restored = build()
+            restored[0].load_state_dict(model_state)
+            restored[1].load_state_dict(router_state)
+            restored[2].load_state_dict(attention_state)
+            sparse_capture = restored
+            legacy_restored = build()
+            legacy_restored[0].load_state_dict(model_state)
+            legacy_router_state = copy.deepcopy(router_state)
+            for state in legacy_router_state["state"].values():
+                state.pop("cadence8_relative_score_innovation", None)
+            legacy_restored[1].load_state_dict(legacy_router_state)
+            legacy_restored[2].load_state_dict(copy.deepcopy(attention_state))
+            for first, second in zip(
+                every_step_capture[0].parameters(), sparse_capture[0].parameters()
+            ):
+                assert torch.equal(first, second)
+            assert_nested_equal(
+                every_step_capture[1].state_dict(), sparse_capture[1].state_dict()
+            )
+            assert_nested_equal(
+                every_step_capture[2].state_dict(), sparse_capture[2].state_dict()
+            )
+
+
+def test_tiller_transaction_diagnostics_do_not_change_selection_or_failures():
+    from optimizer_design._tiller import core as tiller_core
+
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(314159)
+    scores = torch.randn(32, 4, generator=generator)
+    decay_action = torch.zeros(32)
+    rows = tiller_core._every_step_rfd_gradient_ledger__every_step_rfd_gradient_rows(
+        scores,
+        decay_action,
+        None,
+        None,
+        None,
+        beta2=0.95,
+    )
+    exact = torch.rand(2, 4, generator=generator) + 0.5
+    momentum = torch.rand(2, 4, generator=generator) + 0.5
+    weights = torch.rand(4, generator=generator) + 0.5
+    layer_ids = torch.tensor([0, 0, 1, 1], dtype=torch.int64)
+    transaction = (
+        tiller_core._diagonal_completed_biatlas_metric__diagonal_completed_biatlas_transaction
+    )
+
+    with_diagnostics = transaction(
+        rows,
+        exact,
+        momentum,
+        weights,
+        layer_ids,
+        total_layers=2,
+        eta=3e-4,
+        diagnostics=True,
+    )
+    without_diagnostics = transaction(
+        rows,
+        exact,
+        momentum,
+        weights,
+        layer_ids,
+        total_layers=2,
+        eta=3e-4,
+        diagnostics=False,
+    )
+    for field in (
+        "coefficients",
+        "candidate_coefficients",
+        "accepted",
+        "multiplier",
+        "hard_case",
+        "budget_residual",
+        "parent_score",
+        "candidate_score",
     ):
-        assert torch.equal(first, second)
-    assert_nested_equal(
-        with_capture[1].state_dict(), without_capture[1].state_dict()
-    )
-    assert_nested_equal(
-        with_capture[2].state_dict(), without_capture[2].state_dict()
-    )
+        assert torch.equal(
+            getattr(with_diagnostics, field),
+            getattr(without_diagnostics, field),
+        )
+    assert with_diagnostics.factor_rank.item() > 0
+    assert without_diagnostics.factor_rank.item() == 0
+    assert without_diagnostics.diagonal_minimum.item() == 0.0
+    assert without_diagnostics.diagonal_median.item() == 0.0
+    assert without_diagnostics.diagonal_maximum.item() == 0.0
+    assert without_diagnostics.cross_layer_coupling_ratio.item() == 0.0
 
-    take_step(with_capture, input_ids, False)
-    take_step(without_capture, input_ids, False)
-    assert with_capture[1].telemetry() == {}
-    assert with_capture[2].telemetry() == {}
-
-    for first, second in zip(
-        with_capture[0].parameters(), without_capture[0].parameters()
-    ):
-        assert torch.equal(first, second)
-    assert_nested_equal(
-        with_capture[1].state_dict(), without_capture[1].state_dict()
-    )
-    assert_nested_equal(
-        with_capture[2].state_dict(), without_capture[2].state_dict()
-    )
+    nonfinite_exact = exact.clone()
+    nonfinite_exact[0, 0] = torch.nan
+    with pytest.raises(RuntimeError, match="transaction values changed"):
+        transaction(
+            rows,
+            nonfinite_exact,
+            momentum,
+            weights,
+            layer_ids,
+            total_layers=2,
+            eta=3e-4,
+            diagnostics=False,
+        )
+    with pytest.raises(RuntimeError, match="layer ID is invalid"):
+        transaction(
+            rows,
+            exact,
+            momentum,
+            weights,
+            torch.tensor([0, 0, 1, 2], dtype=torch.int64),
+            total_layers=2,
+            eta=3e-4,
+            diagnostics=False,
+        )
 
 
 @pytest.mark.parametrize("activation", train.ACTIVATIONS)
