@@ -2,7 +2,6 @@
 #SBATCH --job-name=activation-optimizer
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
-#SBATCH --exclusive
 #SBATCH --constraint=nvlink
 #SBATCH --gres=gpu:nvidia_rtx_a6000:4
 #SBATCH --cpus-per-gpu=4

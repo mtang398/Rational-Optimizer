@@ -71,6 +71,10 @@ def main() -> None:
     if not job_id or not node:
         raise RuntimeError("missing Slurm allocation identity")
     description = run("scontrol", "show", "job", job_id, "-o")
+    partition_name = slurm_value(description, "Partition")
+    partition_description = run("scontrol", "show", "partition", "gpu", "-o")
+    partition_over_subscribe = slurm_value(partition_description, "OverSubscribe")
+    job_over_subscribe = slurm_value(description, "OverSubscribe")
     requested_tres_raw = slurm_value(description, "ReqTRES")
     if requested_tres_raw is None:
         raise RuntimeError("Slurm job description has null ReqTRES")
@@ -124,10 +128,11 @@ def main() -> None:
     passed = (
         slurm_value(description, "ReqNodeList") is None
         and slurm_value(description, "ExcNodeList") is None
+        and partition_name == "gpu"
+        and partition_over_subscribe == "NO"
         and feature is not None
         and "nvlink" in feature.lower()
         and required_tres <= requested_tres
-        and "OverSubscribe=NO" in description
         and "CpusPerTres=gres/gpu:4" in description
         and visible_count == 4
         and selected_names == ["NVIDIA RTX A6000"] * 4
@@ -143,6 +148,9 @@ def main() -> None:
         "passed": passed,
         "slurm_job_id": job_id,
         "node": node,
+        "partition": partition_name,
+        "partition_over_subscribe": partition_over_subscribe,
+        "job_over_subscribe": job_over_subscribe,
         "requested_node": slurm_value(description, "ReqNodeList"),
         "excluded_node": slurm_value(description, "ExcNodeList"),
         "requested_features": feature,

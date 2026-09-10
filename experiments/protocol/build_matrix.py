@@ -212,7 +212,9 @@ def build_row(
             "TILLER" if candidate_optimizer == EXACT_OPTIMIZER_KEY else "TILLER→Muon"
         ),
         "quality_action": "selected_method_endpoint",
-        "timing_condition": "exclusive 4x RTX A6000 with NVLink and NCCL P2P",
+        "timing_condition": (
+            "4x RTX A6000 with NVLink/NCCL P2P; gpu partition OverSubscribe=NO"
+        ),
         "matched_control": control,
     }
     if candidate_optimizer == TWO_STAGE_OPTIMIZER_KEY:

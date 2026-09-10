@@ -12,10 +12,12 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from . import analyze_all
 from . import analyze_row
+from . import audit_runtime_hardware
 from . import build_source_freeze
 from . import collect_results
 from . import row_tools
@@ -157,6 +159,96 @@ class PublicReproducibilityTests(unittest.TestCase):
         hybrid = row_tools.matrix_suite_indices(phase, optimizer="tiller_then_muon_v1")
         self.assertEqual(len(hybrid), 15)
         self.assertFalse(set(hybrid) & set(row_tools.matrix_suite_indices(phase)))
+
+    def test_hardware_audit_allows_node_sharing_but_not_partition_oversubscription(self) -> None:
+        topology = """\
+        GPU0 GPU1 GPU2 GPU3
+GPU0    X    NV1  PHB  PHB
+GPU1    NV1  X    PHB  PHB
+GPU2    PHB  PHB  X    NV1
+GPU3    PHB  PHB  NV1  X
+"""
+
+        def run_case(job_over_subscribe: str, partition_over_subscribe: str) -> dict:
+            job_description = (
+                "JobId=123 Partition=gpu ReqNodeList=(null) ExcNodeList=(null) "
+                "Features=nvlink "
+                "ReqTRES=cpu=16,mem=128G,node=1,billing=16,gres/gpu=4,"
+                "gres/gpu:nvidia_rtx_a6000=4 "
+                f"OverSubscribe={job_over_subscribe} "
+                "CpusPerTres=gres/gpu:4"
+            )
+            partition_description = (
+                f"PartitionName=gpu OverSubscribe={partition_over_subscribe} State=UP"
+            )
+
+            def fake_run(*args: str) -> str:
+                if args == ("scontrol", "show", "job", "123", "-o"):
+                    return job_description
+                if args == ("scontrol", "show", "partition", "gpu", "-o"):
+                    return partition_description
+                if args == ("nvidia-smi", "topo", "-m"):
+                    return topology
+                if args == (
+                    "nvidia-smi",
+                    "--query-gpu=index,uuid",
+                    "--format=csv,noheader,nounits",
+                ):
+                    return "0, GPU-0\n1, GPU-1\n2, GPU-2\n3, GPU-3"
+                raise AssertionError(args)
+
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "hardware.json"
+                environment = {
+                    "SLURM_JOB_ID": "123",
+                    "SLURMD_NODENAME": "node-a",
+                    "CAMPAIGN_SELECTED_PHYSICAL_GPU_IDS": "0,1,2,3",
+                    "NCCL_P2P_DISABLE": "0",
+                    "NCCL_P2P_LEVEL": "NVL",
+                    "NCCL_SHM_DISABLE": "0",
+                    "RATIONAL_OPT_TORCH_FALLBACK": "0",
+                }
+                with (
+                    patch.object(sys, "argv", ["audit_runtime_hardware", "--output", str(output)]),
+                    patch.dict(os.environ, environment, clear=False),
+                    patch.object(audit_runtime_hardware, "run", side_effect=fake_run),
+                    patch.object(
+                        audit_runtime_hardware.subprocess,
+                        "run",
+                        return_value=SimpleNamespace(
+                            stdout="NVLink status fixture", returncode=0
+                        ),
+                    ),
+                    patch.object(
+                        audit_runtime_hardware.torch.cuda,
+                        "device_count",
+                        return_value=4,
+                    ),
+                    patch.object(
+                        audit_runtime_hardware.torch.cuda,
+                        "get_device_name",
+                        return_value="NVIDIA RTX A6000",
+                    ),
+                    patch.object(
+                        audit_runtime_hardware.torch.cuda,
+                        "can_device_access_peer",
+                        side_effect=lambda i, j: (i, j)
+                        in {(0, 1), (1, 0), (2, 3), (3, 2)},
+                    ),
+                    redirect_stdout(io.StringIO()),
+                ):
+                    audit_runtime_hardware.main()
+                return json.loads(output.read_text())
+
+        for job_over_subscribe in ("NO", "OK"):
+            with self.subTest(job_over_subscribe=job_over_subscribe):
+                payload = run_case(job_over_subscribe, "NO")
+                self.assertTrue(payload["passed"])
+                self.assertEqual(payload["partition_over_subscribe"], "NO")
+                self.assertEqual(payload["job_over_subscribe"], job_over_subscribe)
+
+        with self.assertRaisesRegex(RuntimeError, "contract failed"):
+            run_case("OK", "YES")
 
     def test_activation_rerun_requires_exact_row_and_source_identity(self) -> None:
         row = run_activation_row.read_row(verifier.MANIFEST, 10)

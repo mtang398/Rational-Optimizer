@@ -97,10 +97,13 @@ Run AdamW before TILLER for the 12-layer 100M-token suite, and Muon before
 TILLER for the 12-layer 300M-token suite. Allocate a longer wall limit for
 9,150-step runs.
 
-Each launch requests four RTX A6000 GPUs on an exclusive NVLink allocation
-without selecting a named node. The runner records hardware and topology,
-then measures the complete training process. TILLER consumes the completed
-matched control and records its step-1,000 comparison and final endpoint.
+Each launch requests four RTX A6000 GPUs on an NVLink-capable allocation
+without selecting a named node. The runtime audit permits node co-residency
+only while the GPU partition remains non-oversubscribed and the exact
+CPU/GPU/RAM/NVLink contract is preserved. The runner records hardware and
+topology, then measures the complete training process. TILLER consumes the
+completed matched control and records its step-1,000 comparison and final
+endpoint.
 A candidate with a negative step-1,000 lead is stopped and retained with its
 observed trajectory.
 

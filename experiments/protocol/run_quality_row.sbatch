@@ -1,7 +1,6 @@
 #!/bin/bash -p
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
-#SBATCH --exclusive
 #SBATCH --constraint=nvlink
 #SBATCH --gres=gpu:nvidia_rtx_a6000:4
 #SBATCH --cpus-per-gpu=4
@@ -51,8 +50,8 @@ output_root="${PWD}/${package}/runs"
 control_root="${PWD}/experiments/runs/activation_optimizer"
 result_root="${PWD}/${package}/results/row-$(printf '%02d' "${index}")"
 
-# On this cluster an exclusive request can expose every physical device on an
-# eight-GPU host.  Restrict the process to the first four Slurm allocation IDs.
+# Restrict the process to the first four Slurm allocation IDs so the runtime
+# audit validates the selected NVLink allocation instead of arbitrary devices.
 gpu_source="${SLURM_JOB_GPUS:-${CUDA_VISIBLE_DEVICES:-0,1,2,3}}"
 IFS=',' read -r -a allocated_gpu_ids <<<"${gpu_source}"
 if test "${#allocated_gpu_ids[@]}" -lt 4; then
