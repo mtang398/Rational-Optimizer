@@ -4432,6 +4432,11 @@ class TILLERRouter(_compiled_chord__FactorizedAdaptiveTangentChordCompiledRouter
 
     @torch.no_grad()
     def step(self, closure=None):
+        # Telemetry describes one optimizer step.  Parent implementations only
+        # replace the report when capture is enabled, so retaining the previous
+        # report would make their audit-only reductions and scalar reads run on
+        # every subsequent non-capture step.
+        self._last_telemetry = {}
         self._rfd_rows = None
         self._rfd_functional_refresh = False
         self._rfd_gradient_scale = None
@@ -4489,6 +4494,9 @@ class TILLERAttentionOptimizer(_compiled_chord__FactorizedAdaptiveTangentChordCo
 
     @torch.no_grad()
     def step(self, closure=None):
+        # Do not let a report from an earlier capture make inherited
+        # telemetry-only work execute on this step.
+        self._last_telemetry = {}
         loss = super().step(closure)
         self._last_telemetry = _retag(self._last_telemetry)
         if self._last_telemetry:

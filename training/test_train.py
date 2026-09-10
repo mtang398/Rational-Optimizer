@@ -301,6 +301,116 @@ def test_grain_training_telemetry_can_be_disabled_without_changing_math(
     assert train.collect_rlb_telemetry(models[1], disabled) == {}
 
 
+def test_tiller_telemetry_is_one_step_and_does_not_change_updates(monkeypatch):
+    monkeypatch.setenv("RATIONAL_OPT_TORCH_FALLBACK", "1")
+
+    from experiments.protocol import method_entrypoint
+    from optimizer_design._tiller import core as tiller_core
+    from optimizer_design.tiller import TILLERAttentionOptimizer, TILLERRouter
+
+    monkeypatch.setattr(
+        tiller_core, "_probe_loss_image__EXPECTED_MICROBATCHES", 1
+    )
+    monkeypatch.setattr(
+        tiller_core, "_fixed_transaction_base__import_EXPECTED_MICROBATCHES", 1
+    )
+
+    args = _model_args(train.GRAIN_ACTIVATION)
+    args.layers = 1
+    args.d_model = 16
+    args.heads = 4
+    args.ffn_dim = 32
+
+    def build():
+        torch.manual_seed(2026)
+        model = train.CausalTransformer(args, 97)
+        blocks = method_entrypoint.collect_blocks(model, args)
+        router = TILLERRouter(
+            blocks,
+            lr=3e-4,
+            weight_decay=0.1,
+            momentum=0.95,
+            ns_steps=5,
+            beta2=0.95,
+            eps=1e-8,
+        )
+        attention = TILLERAttentionOptimizer(
+            blocks,
+            router,
+            lr=3e-4,
+            weight_decay=0.1,
+            momentum=0.95,
+            ns_steps=5,
+            beta2=0.95,
+            eps=1e-8,
+            adjust_lr_fn="match_rms_adamw",
+        )
+        return model, router, attention
+
+    def take_step(bundle, input_ids, capture):
+        model, router, attention = bundle
+        model.zero_grad(set_to_none=True)
+        model(input_ids).float().square().mean().backward()
+        norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        router.record_realized_clipping(norm, 1.0)
+        router.set_telemetry_capture(capture)
+        attention.set_telemetry_capture(capture)
+        router.step()
+        attention.step()
+
+    def assert_nested_equal(first, second):
+        if torch.is_tensor(first):
+            assert torch.equal(first, second)
+        elif isinstance(first, dict):
+            assert first.keys() == second.keys()
+            for key in first:
+                assert_nested_equal(first[key], second[key])
+        elif isinstance(first, (list, tuple)):
+            assert len(first) == len(second)
+            for left, right in zip(first, second):
+                assert_nested_equal(left, right)
+        else:
+            assert first == second
+
+    with_capture = build()
+    without_capture = build()
+    input_ids = torch.arange(32, dtype=torch.long).view(4, 8) % 97
+
+    take_step(with_capture, input_ids, True)
+    take_step(without_capture, input_ids, False)
+    assert with_capture[1].telemetry()
+    assert with_capture[2].telemetry()
+    assert without_capture[1].telemetry() == {}
+    assert without_capture[2].telemetry() == {}
+
+    for first, second in zip(
+        with_capture[0].parameters(), without_capture[0].parameters()
+    ):
+        assert torch.equal(first, second)
+    assert_nested_equal(
+        with_capture[1].state_dict(), without_capture[1].state_dict()
+    )
+    assert_nested_equal(
+        with_capture[2].state_dict(), without_capture[2].state_dict()
+    )
+
+    take_step(with_capture, input_ids, False)
+    take_step(without_capture, input_ids, False)
+    assert with_capture[1].telemetry() == {}
+    assert with_capture[2].telemetry() == {}
+
+    for first, second in zip(
+        with_capture[0].parameters(), without_capture[0].parameters()
+    ):
+        assert torch.equal(first, second)
+    assert_nested_equal(
+        with_capture[1].state_dict(), without_capture[1].state_dict()
+    )
+    assert_nested_equal(
+        with_capture[2].state_dict(), without_capture[2].state_dict()
+    )
+
+
 @pytest.mark.parametrize("activation", train.ACTIVATIONS)
 @pytest.mark.parametrize(
     ("optimizer_name", "learning_rate"),
