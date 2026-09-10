@@ -813,6 +813,26 @@ def verify_manifest_launcher_contract(manifest_rows: list[dict[str, str]]) -> No
 def verify_stage_launchers() -> None:
     activation = (PACKAGE / "run_activation_optimizer_sweep.sbatch").read_text()
     tiller = (PACKAGE / "run_quality_row.sbatch").read_text()
+    transport = (PACKAGE / "run_transport_smoke.sbatch").read_text()
+    for label, script in (
+        ("activation", activation),
+        ("TILLER", tiller),
+        ("transport smoke", transport),
+    ):
+        require(
+            "#SBATCH --exclusive" not in script,
+            f"{label} launcher must not request whole-node exclusivity",
+        )
+        require(
+            'gpu_source="${SLURM_JOB_GPUS' not in script,
+            f"{label} launcher must not derive CUDA_VISIBLE_DEVICES from SLURM_JOB_GPUS",
+        )
+        require(
+            'original_cuda_visible_devices="${CUDA_VISIBLE_DEVICES:-}"' in script
+            and 'CAMPAIGN_SELECTED_VISIBLE_GPU_IDS="${CUDA_VISIBLE_DEVICES}"'
+            in script,
+            f"{label} launcher must preserve the CUDA-visible allocation namespace",
+        )
     require(
         "#SBATCH --array=0-29%3" in activation,
         "activation launcher default must be a 30-row stage with concurrency three",

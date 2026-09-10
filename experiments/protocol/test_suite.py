@@ -161,15 +161,38 @@ class PublicReproducibilityTests(unittest.TestCase):
         self.assertFalse(set(hybrid) & set(row_tools.matrix_suite_indices(phase)))
 
     def test_hardware_audit_allows_node_sharing_but_not_partition_oversubscription(self) -> None:
-        topology = """\
+        torch_uuids = [
+            "18d5b80b-03bb-a57d-4f2e-c3102aea8463",
+            "ec0281f6-aab7-d36a-ab7c-24bef411856c",
+            "8ea58d5b-8e21-c9e3-677d-96794c546098",
+            "4c08f6ff-0c8a-70a9-6736-68eca9a15311",
+        ]
+        nvidia_smi_identities = "\n".join(
+            f"{index}, GPU-{uuid.upper()}"
+            for index, uuid in enumerate(torch_uuids)
+        )
+        two_pair_topology = """\
         GPU0 GPU1 GPU2 GPU3
-GPU0    X    NV1  PHB  PHB
-GPU1    NV1  X    PHB  PHB
-GPU2    PHB  PHB  X    NV1
-GPU3    PHB  PHB  NV1  X
+GPU0    X    NV4  PHB  PHB
+GPU1    NV4  X    PHB  PHB
+GPU2    PHB  PHB  X    NV4
+GPU3    PHB  PHB  NV4  X
+"""
+        one_pair_topology = """\
+        GPU0 GPU1 GPU2 GPU3
+GPU0    X    NV4  PHB  PHB
+GPU1    NV4  X    PHB  PHB
+GPU2    PHB  PHB  X    PIX
+GPU3    PHB  PHB  PIX  X
 """
 
-        def run_case(job_over_subscribe: str, partition_over_subscribe: str) -> dict:
+        def run_case(
+            job_over_subscribe: str,
+            partition_over_subscribe: str,
+            *,
+            visible_tokens: str = "0,1,2,3",
+            topology: str = two_pair_topology,
+        ) -> dict:
             job_description = (
                 "JobId=123 Partition=gpu ReqNodeList=(null) ExcNodeList=(null) "
                 "Features=nvlink "
@@ -194,7 +217,7 @@ GPU3    PHB  PHB  NV1  X
                     "--query-gpu=index,uuid",
                     "--format=csv,noheader,nounits",
                 ):
-                    return "0, GPU-0\n1, GPU-1\n2, GPU-2\n3, GPU-3"
+                    return nvidia_smi_identities
                 raise AssertionError(args)
 
             with tempfile.TemporaryDirectory() as directory:
@@ -202,7 +225,11 @@ GPU3    PHB  PHB  NV1  X
                 environment = {
                     "SLURM_JOB_ID": "123",
                     "SLURMD_NODENAME": "node-a",
-                    "CAMPAIGN_SELECTED_PHYSICAL_GPU_IDS": "0,1,2,3",
+                    "CUDA_VISIBLE_DEVICES": visible_tokens,
+                    "SLURM_JOB_GPUS": "2,3,4,5",
+                    "CAMPAIGN_SLURM_JOB_GPUS": "2,3,4,5",
+                    "CAMPAIGN_SELECTED_VISIBLE_GPU_IDS": visible_tokens,
+                    "CAMPAIGN_SELECTED_PHYSICAL_GPU_IDS": "2,3,4,5",
                     "NCCL_P2P_DISABLE": "0",
                     "NCCL_P2P_LEVEL": "NVL",
                     "NCCL_SHM_DISABLE": "0",
@@ -231,6 +258,13 @@ GPU3    PHB  PHB  NV1  X
                     ),
                     patch.object(
                         audit_runtime_hardware.torch.cuda,
+                        "get_device_properties",
+                        side_effect=[
+                            SimpleNamespace(uuid=uuid) for uuid in torch_uuids
+                        ],
+                    ),
+                    patch.object(
+                        audit_runtime_hardware.torch.cuda,
                         "can_device_access_peer",
                         side_effect=lambda i, j: (i, j)
                         in {(0, 1), (1, 0), (2, 3), (3, 2)},
@@ -240,15 +274,37 @@ GPU3    PHB  PHB  NV1  X
                     audit_runtime_hardware.main()
                 return json.loads(output.read_text())
 
-        for job_over_subscribe in ("NO", "OK"):
-            with self.subTest(job_over_subscribe=job_over_subscribe):
-                payload = run_case(job_over_subscribe, "NO")
+        cases = (
+            ("NO", "0,1,2,3"),
+            ("OK", ",".join(torch_uuids)),
+        )
+        for job_over_subscribe, visible_tokens in cases:
+            with self.subTest(
+                job_over_subscribe=job_over_subscribe,
+                visible_tokens=visible_tokens,
+            ):
+                payload = run_case(
+                    job_over_subscribe, "NO", visible_tokens=visible_tokens
+                )
                 self.assertTrue(payload["passed"])
                 self.assertEqual(payload["partition_over_subscribe"], "NO")
                 self.assertEqual(payload["job_over_subscribe"], job_over_subscribe)
+                self.assertEqual(payload["slurm_job_gpus"], "2,3,4,5")
+                self.assertEqual(payload["selected_visible_gpu_indices"], ["0", "1", "2", "3"])
+                self.assertEqual(
+                    payload["selected_visible_gpu_token_indices"],
+                    ["0", "1", "2", "3"],
+                )
+                self.assertEqual(
+                    payload["selected_visible_gpu_uuids"],
+                    [f"GPU-{uuid.upper()}" for uuid in torch_uuids],
+                )
+                self.assertTrue(payload["selected_visible_has_two_disjoint_nvlink_pairs"])
 
         with self.assertRaisesRegex(RuntimeError, "contract failed"):
             run_case("OK", "YES")
+        with self.assertRaisesRegex(RuntimeError, "contract failed"):
+            run_case("OK", "NO", topology=one_pair_topology)
 
     def test_activation_rerun_requires_exact_row_and_source_identity(self) -> None:
         row = run_activation_row.read_row(verifier.MANIFEST, 10)

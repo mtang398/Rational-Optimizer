@@ -34,10 +34,7 @@ def slurm_value(description: str, key: str) -> str | None:
     return None if value == "(null)" else value
 
 
-def nvlink_peer_map(
-    topology: str, selected_indices: list[str]
-) -> dict[str, bool]:
-    """Return whether each selected physical GPU has a selected NVLink peer."""
+def topology_peer_values(topology: str) -> dict[str, dict[str, str]]:
     topology_rows: dict[str, list[str]] = {}
     for line in topology.splitlines():
         fields = line.split()
@@ -48,16 +45,103 @@ def nvlink_peer_map(
             continue
         topology_rows[fields[0][3:]] = fields[1:]
     topology_columns = sorted(topology_rows, key=int)
-    result: dict[str, bool] = {}
-    for physical_index in selected_indices:
-        peer_values = dict(
-            zip(topology_columns, topology_rows.get(physical_index, []))
-        )
-        result[physical_index] = any(
-            peer_values.get(other, "").startswith("NV")
+    return {
+        row_index: dict(zip(topology_columns, values))
+        for row_index, values in topology_rows.items()
+    }
+
+
+def nvlink_peer_map(topology: str, selected_indices: list[str]) -> dict[str, bool]:
+    """Return whether each selected visible GPU has a selected NVLink peer."""
+    peer_values_by_index = topology_peer_values(topology)
+    return {
+        visible_index: any(
+            peer_values_by_index.get(visible_index, {}).get(other, "").startswith("NV")
             for other in selected_indices
-            if other != physical_index
+            if other != visible_index
         )
+        for visible_index in selected_indices
+    }
+
+
+def nvlink_edges(topology: str, selected_indices: list[str]) -> list[tuple[str, str]]:
+    peer_values_by_index = topology_peer_values(topology)
+    edges: list[tuple[str, str]] = []
+    for left_position, left in enumerate(selected_indices):
+        for right in selected_indices[left_position + 1 :]:
+            if peer_values_by_index.get(left, {}).get(right, "").startswith("NV"):
+                edges.append((left, right))
+    return edges
+
+
+def has_two_disjoint_nvlink_pairs(edges: list[tuple[str, str]]) -> bool:
+    for first_index, first in enumerate(edges):
+        for second in edges[first_index + 1 :]:
+            if len({*first, *second}) == 4:
+                return True
+    return False
+
+
+def normalize_uuid(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        value = value.decode()
+    text = str(value).strip()
+    if not text:
+        return ""
+    if not text.upper().startswith("GPU-") and re.fullmatch(
+        r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-"
+        r"[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}",
+        text,
+    ):
+        text = f"GPU-{text}"
+    return text.upper()
+
+
+def torch_visible_gpu_uuids(visible_count: int) -> list[str]:
+    return [
+        normalize_uuid(getattr(torch.cuda.get_device_properties(index), "uuid", ""))
+        for index in range(visible_count)
+    ]
+
+
+def visible_uuid_to_nvidia_smi_index(identity_rows: list[str]) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for identity_row in identity_rows:
+        visible_index, uuid = (item.strip() for item in identity_row.split(",", 1))
+        mapping[normalize_uuid(uuid)] = visible_index
+    return mapping
+
+
+def split_gpu_list(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def resolve_topology_indices_from_torch_uuids(
+    torch_uuids: list[str], identity_rows: list[str]
+) -> list[str]:
+    uuid_to_index = visible_uuid_to_nvidia_smi_index(identity_rows)
+    return [
+        uuid_to_index.get(normalize_uuid(uuid), "")
+        for uuid in torch_uuids
+    ]
+
+
+def resolve_env_gpu_indices(
+    tokens: list[str], identity_rows: list[str]
+) -> list[str]:
+    uuid_to_index = visible_uuid_to_nvidia_smi_index(identity_rows)
+    known_indices = set(uuid_to_index.values())
+    result: list[str] = []
+    for token in tokens:
+        normalized = token.removeprefix("gpu:")
+        if normalized in known_indices:
+            result.append(normalized)
+        else:
+            result.append(uuid_to_index.get(normalize_uuid(normalized), ""))
     return result
 
 
@@ -100,24 +184,28 @@ def main() -> None:
         for i in range(visible_count)
     )
     topology = run("nvidia-smi", "topo", "-m")
-    selected_tokens = os.environ.get(
-        "CAMPAIGN_SELECTED_PHYSICAL_GPU_IDS", ""
-    ).split(",")
     identity_rows = run(
         "nvidia-smi", "--query-gpu=index,uuid", "--format=csv,noheader,nounits"
     ).splitlines()
-    uuid_to_index = {}
-    for identity_row in identity_rows:
-        physical_index, uuid = (item.strip() for item in identity_row.split(",", 1))
-        uuid_to_index[uuid] = physical_index
-    selected_indices = [
-        token if token.isdigit() else uuid_to_index.get(token, "")
-        for token in selected_tokens
-    ]
-    nvlink_peer_by_physical_index = nvlink_peer_map(topology, selected_indices)
-    every_physical_gpu_has_nvlink_peer = bool(selected_indices) and all(
-        selected_indices
-    ) and all(nvlink_peer_by_physical_index.values())
+    torch_gpu_uuids = torch_visible_gpu_uuids(visible_count)
+    selected_visible_indices = resolve_topology_indices_from_torch_uuids(
+        torch_gpu_uuids, identity_rows
+    )
+    selected_visible_tokens = split_gpu_list(
+        os.environ.get("CAMPAIGN_SELECTED_VISIBLE_GPU_IDS")
+        or os.environ.get("CUDA_VISIBLE_DEVICES")
+    )
+    selected_visible_token_indices = resolve_env_gpu_indices(
+        selected_visible_tokens, identity_rows
+    )
+    visible_nvlink_edges = nvlink_edges(topology, selected_visible_indices)
+    has_two_visible_nvlink_pairs = has_two_disjoint_nvlink_pairs(
+        visible_nvlink_edges
+    )
+    nvlink_peer_by_visible_index = nvlink_peer_map(topology, selected_visible_indices)
+    every_visible_gpu_has_nvlink_peer = bool(selected_visible_indices) and all(
+        selected_visible_indices
+    ) and all(nvlink_peer_by_visible_index.values())
     nvlink = subprocess.run(
         ("nvidia-smi", "nvlink", "--status"),
         check=False,
@@ -136,8 +224,15 @@ def main() -> None:
         and "CpusPerTres=gres/gpu:4" in description
         and visible_count == 4
         and selected_names == ["NVIDIA RTX A6000"] * 4
+        and len(torch_gpu_uuids) == 4
+        and all(torch_gpu_uuids)
+        and len(set(torch_gpu_uuids)) == 4
+        and len(selected_visible_indices) == 4
+        and all(selected_visible_indices)
+        and len(set(selected_visible_indices)) == 4
         and every_rank_has_peer
-        and every_physical_gpu_has_nvlink_peer
+        and every_visible_gpu_has_nvlink_peer
+        and has_two_visible_nvlink_pairs
         and os.environ.get("NCCL_P2P_DISABLE") == "0"
         and os.environ.get("NCCL_P2P_LEVEL") == "NVL"
         and os.environ.get("NCCL_SHM_DISABLE") == "0"
@@ -151,6 +246,12 @@ def main() -> None:
         "partition": partition_name,
         "partition_over_subscribe": partition_over_subscribe,
         "job_over_subscribe": job_over_subscribe,
+        "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+        "original_cuda_visible_devices": os.environ.get(
+            "CAMPAIGN_ORIGINAL_CUDA_VISIBLE_DEVICES"
+        ),
+        "slurm_job_gpus": os.environ.get("SLURM_JOB_GPUS"),
+        "campaign_slurm_job_gpus": os.environ.get("CAMPAIGN_SLURM_JOB_GPUS"),
         "requested_node": slurm_value(description, "ReqNodeList"),
         "excluded_node": slurm_value(description, "ExcNodeList"),
         "requested_features": feature,
@@ -159,10 +260,23 @@ def main() -> None:
         "selected_local_rank_gpu_names": selected_names,
         "cuda_peer_access_matrix": peer_matrix,
         "every_selected_rank_has_a_direct_peer": every_rank_has_peer,
-        "selected_physical_gpu_indices": selected_indices,
-        "nvlink_peer_by_physical_index": nvlink_peer_by_physical_index,
+        "torch_visible_gpu_uuids": torch_gpu_uuids,
+        "selected_visible_gpu_tokens": selected_visible_tokens,
+        "selected_visible_gpu_token_indices": selected_visible_token_indices,
+        "selected_visible_gpu_indices": selected_visible_indices,
+        "selected_visible_gpu_uuids": torch_gpu_uuids,
+        "selected_visible_nvlink_edges": visible_nvlink_edges,
+        "selected_visible_has_two_disjoint_nvlink_pairs": (
+            has_two_visible_nvlink_pairs
+        ),
+        "nvlink_peer_by_visible_index": nvlink_peer_by_visible_index,
+        "every_selected_visible_gpu_has_an_nvlink_peer": (
+            every_visible_gpu_has_nvlink_peer
+        ),
+        "selected_physical_gpu_indices": selected_visible_indices,
+        "nvlink_peer_by_physical_index": nvlink_peer_by_visible_index,
         "every_selected_physical_gpu_has_an_nvlink_peer": (
-            every_physical_gpu_has_nvlink_peer
+            every_visible_gpu_has_nvlink_peer
         ),
         "topology_diagnostic": topology,
         "nvlink_status_diagnostic": nvlink.stdout.strip(),
