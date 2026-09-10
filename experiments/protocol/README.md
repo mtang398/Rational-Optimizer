@@ -38,6 +38,12 @@ epsilon `1e-8`, gradient clipping `1.0`, and initialization standard deviation
 The two-stage schedule preserves compatible momentum and AdamW state at the
 switch and continues the same learning-rate schedule.
 
+For the primary endpoint runs, the paired launcher disables training-time
+GRAIN diagnostic collection for both arms. This leaves GRAIN's forward and
+backward maps and the optimizer update unchanged while excluding diagnostic
+moment and denominator probes from the measured process. Sparse TILLER
+optimizer measurements remain enabled at the prespecified checkpoints.
+
 | Dataset label | Hugging Face dataset | Configuration |
 |---|---|---|
 | DCLM | `mlfoundations/dclm-baseline-1.0` | `none` |
@@ -78,10 +84,10 @@ concurrent four-GPU runs. Submit from the repository root:
 suite=18l_1024d_100m_tokens_3050_steps
 muon_job=$(sbatch --parsable --array=0-29%3 --time=02:00:00 \
   experiments/protocol/run_activation_optimizer_sweep.sbatch muon "$suite")
-tiller_job=$(sbatch --parsable --array=0-14%3 --time=02:00:00 \
+tiller_job=$(sbatch --parsable --array=0-14%3 --time=06:00:00 \
   --dependency="afterok:$muon_job" \
   experiments/protocol/run_quality_row.sbatch "$suite" tiller_v1)
-switch_job=$(sbatch --parsable --array=0-14%3 --time=02:00:00 \
+switch_job=$(sbatch --parsable --array=0-14%3 --time=06:00:00 \
   --dependency="afterany:$tiller_job" \
   experiments/protocol/run_quality_row.sbatch "$suite" tiller_then_muon_v1)
 adamw_job=$(sbatch --parsable --array=0-29%3 --time=02:00:00 \
@@ -108,6 +114,18 @@ consumes the completed matched control and records its step-1,000 comparison
 and final endpoint.
 A candidate with a negative step-1,000 lead is stopped and retained with its
 observed trajectory.
+
+When all 30 primary Muon controls are already complete and verified, submit
+only the two candidate arrays:
+
+```bash
+suite=18l_1024d_100m_tokens_3050_steps
+tiller_job=$(sbatch --parsable --array=0-14%3 --time=06:00:00 \
+  experiments/protocol/run_quality_row.sbatch "$suite" tiller_v1)
+sbatch --array=0-14%3 --time=06:00:00 \
+  --dependency="afterany:$tiller_job" \
+  experiments/protocol/run_quality_row.sbatch "$suite" tiller_then_muon_v1
+```
 
 ## Collect results
 

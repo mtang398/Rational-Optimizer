@@ -200,7 +200,7 @@ def control_source_identity_mismatch(config: dict, row: dict) -> dict:
 def expected_config(row: dict, arm: str) -> dict:
     """Return the config fields that bind one endpoint to its matrix cell."""
 
-    return {
+    expected = {
         "activation": row[f"{'control' if arm == 'control' else 'candidate'}_activation"],
         "optimizer": row[f"{'control' if arm == 'control' else 'candidate'}_optimizer"],
         "fairness_contract": suite.contract(row),
@@ -254,6 +254,9 @@ def expected_config(row: dict, arm: str) -> dict:
         "world_size": 4,
         "params": suite.PARAMETER_COUNTS[(row["model"], arm)],
     }
+    if row["phase"] == suite.PRIMARY_PHASE and arm == "candidate":
+        expected["grain_live_stats_scope"] = "disabled"
+    return expected
 
 
 def audited(path: Path, row: dict, arm: str):
@@ -448,6 +451,8 @@ def main() -> None:
             "sha256": sha256(args.candidate_wall_clock),
         },
     }
+    if row["phase"] == suite.PRIMARY_PHASE:
+        result["campaign_stage"] = suite.CANDIDATE_STAGES[row["candidate_optimizer"]]
     if result["status"] != "complete":
         raise RuntimeError("negative step-1,000 row was not interrupted")
     rendered = json.dumps(result, indent=2, sort_keys=True) + "\n"

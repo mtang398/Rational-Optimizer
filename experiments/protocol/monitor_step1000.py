@@ -58,6 +58,11 @@ def audited_config(path: Path, row: dict, arm: str) -> dict:
             }
         )
     else:
+        if row["phase"] == suite.PRIMARY_PHASE and config.get("grain_live_stats_scope") != "disabled":
+            mismatch["grain_live_stats_scope"] = {
+                "observed": config.get("grain_live_stats_scope"),
+                "required": "disabled",
+            }
         identity = config.get("tiller_experiment_identity", {})
         for key, value in {
             "matrix_index": row["matrix_index"],

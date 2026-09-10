@@ -17,6 +17,11 @@ PACKAGE = Path(__file__).resolve().parent
 MATRIX = PACKAGE / "matrix.json"
 EXACT_OPTIMIZER_KEY = "tiller_v1"
 TWO_STAGE_OPTIMIZER_KEY = "tiller_then_muon_v1"
+PRIMARY_PHASE = "18l_1024d_100m_tokens_3050_steps"
+CANDIDATE_STAGES = {
+    EXACT_OPTIMIZER_KEY: "02_tiller_without_grain_telemetry",
+    TWO_STAGE_OPTIMIZER_KEY: "03_tiller_then_muon_without_grain_telemetry",
+}
 CANDIDATE_MODULE = (
     "experiments.protocol."
     "method_entrypoint"
@@ -176,6 +181,8 @@ def training_argv(
     for name_flag, value in values.items():
         _flag(argv, name_flag, value)
     argv.extend(("--dataset-streaming", "--no-sam-adaptive"))
+    if row["phase"] == PRIMARY_PHASE:
+        argv.append("--no-grain-training-telemetry")
     return argv
 
 
@@ -229,6 +236,7 @@ def expected_args(row: dict[str, Any], arm: str) -> dict[str, Any]:
         "probe_batch_size": row["probe_batch_size"],
         "matrix_spectrum_interval": row["matrix_spectrum_interval"],
         "telemetry_rlb_stat_every": row["telemetry_rlb_stat_every"],
+        "grain_training_telemetry": row["phase"] != PRIMARY_PHASE,
         "sam_rho": row["sam_rho"],
         "sam_adaptive": row["sam_adaptive"],
         "tokenizer": row["tokenizer"],

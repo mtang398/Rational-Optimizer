@@ -13,7 +13,10 @@ from pathlib import Path
 PACKAGE = Path(__file__).resolve().parent
 MATRIX = PACKAGE / "matrix.json"
 PRIMARY_PHASE = "18l_1024d_100m_tokens_3050_steps"
-CANDIDATE_STAGES = {"tiller_v1": "02_tiller", "tiller_then_muon_v1": "03_tiller_then_muon"}
+CANDIDATE_STAGES = {
+    "tiller_v1": "02_tiller_without_grain_telemetry",
+    "tiller_then_muon_v1": "03_tiller_then_muon_without_grain_telemetry",
+}
 
 
 def matrix_payload():
@@ -62,6 +65,7 @@ def main() -> None:
             if row["phase"] == PRIMARY_PHASE and (
                 item.get("phase") != PRIMARY_PHASE
                 or item.get("candidate_optimizer") != row["candidate_optimizer"]
+                or item.get("campaign_stage") != CANDIDATE_STAGES[row["candidate_optimizer"]]
             ):
                 raise RuntimeError(f"primary report lacks its independent suite/candidate identity: {report}")
             item["candidate_optimizer"] = row["candidate_optimizer"]

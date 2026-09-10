@@ -1074,6 +1074,8 @@ def parse_optimizer_telemetry_steps(value, total_steps):
 
 
 def enable_rlb_training_telemetry(model, args):
+    if not getattr(args, "grain_training_telemetry", True):
+        return
     if args.activation not in GRAIN_ACTIVATION_IDS:
         return
     for module in model.modules():
@@ -1131,6 +1133,8 @@ def _rlb_denominator_probe(group, points=129, probe_range=5.0):
 
 
 def collect_rlb_telemetry(model, args):
+    if not getattr(args, "grain_training_telemetry", True):
+        return {}
     if args.activation not in GRAIN_ACTIVATION_IDS:
         return {}
     groups = collect_rlb_optimizer_groups(unwrap_model(model), args)
@@ -2054,6 +2058,12 @@ def parse_args():
     )
     parser.add_argument(
         "--telemetry-denominator-probe-points", type=int, default=129
+    )
+    parser.add_argument(
+        "--grain-training-telemetry",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Collect training-time GRAIN diagnostics.",
     )
     parser.add_argument("--matrix-spectrum-interval", type=int, default=500)
     parser.add_argument("--matrix-spectrum-max-dim", type=int, default=512)

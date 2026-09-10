@@ -66,6 +66,7 @@ class IndependentEndpointCollectionTests(unittest.TestCase):
                               source_manifest_row_index=baseline["row_index"],
                               source_freeze_sha256=collector.sha256(muon_snapshot / "SOURCE_FREEZE.sha256"))
         candidate_config = dict(common, activation=collector.GRAIN_ID, optimizer=optimizer,
+                                grain_live_stats_scope="disabled",
                                 experiment_identity="tiller_matrix_v1" if optimizer == "tiller_v1" else "tiller_then_muon_matrix_v1",
                                 tiller_experiment_identity=dict(passed=True, **{
                                     key: source[key] for key in ("matrix_index", "source_manifest_row_index", "source_manifest_row_id")
@@ -88,6 +89,7 @@ class IndependentEndpointCollectionTests(unittest.TestCase):
         report = {
             "schema": "tiller_matched_endpoint_result_v1", "status": "complete", "matrix_index": index,
             "phase": source["phase"], "candidate_optimizer": optimizer, "model": source["model"],
+            "campaign_stage": stage,
             "dataset": source["dataset"], "seed": source["seed"], "steps": 3050,
             "candidate_step1000_loss": 3.9, "candidate_endpoint_loss": 3.0,
             "control_step1000_loss": 4.0, "control_endpoint_loss": 3.1,
@@ -163,6 +165,14 @@ class IndependentEndpointCollectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             fixture = self.fixture(Path(directory))
             (fixture["muon_snapshot"] / "SOURCE_FREEZE.sha256").write_text("changed fixture freeze\n")
+            with self.assertRaisesRegex(RuntimeError, "configuration mismatch"):
+                self.collect(fixture)
+
+    def test_diagnostic_grain_telemetry_cannot_publish_as_formal_timing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = self.fixture(Path(directory))
+            fixture["candidate_data"][0]["grain_live_stats_scope"] = "telemetry_only"
+            self.write_trajectory(fixture["candidate"], fixture["candidate_data"])
             with self.assertRaisesRegex(RuntimeError, "configuration mismatch"):
                 self.collect(fixture)
 

@@ -211,6 +211,7 @@ def test_public_activation_surface_and_sam_contract(monkeypatch):
     train.validate_optimizer_protocol(args)
     assert args.telemetry_rlb_stat_every == 4
     assert args.telemetry_rlb_stat_samples == 512
+    assert args.grain_training_telemetry is True
     assert args.rlb_init_gauge_log_scale == 0.0
     assert args.rlb_init_gauge_seed == 424242
     args.sam_rho = 0.1
@@ -250,6 +251,54 @@ def test_public_activation_surface_and_sam_contract(monkeypatch):
             val_token_count=1,
             parameter_count=1,
         )
+
+
+def test_grain_training_telemetry_can_be_disabled_without_changing_math(
+    monkeypatch,
+):
+    monkeypatch.setenv("RATIONAL_OPT_TORCH_FALLBACK", "1")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["train.py", "--activation", train.GRAIN_ACTIVATION,
+         "--no-grain-training-telemetry"],
+    )
+    parsed = train.parse_args()
+    assert parsed.grain_training_telemetry is False
+
+    model_args = _model_args(train.GRAIN_ACTIVATION)
+    models = []
+    for _ in range(2):
+        torch.manual_seed(2026)
+        models.append(train.CausalTransformer(model_args, 97))
+
+    telemetry = SimpleNamespace(
+        activation=train.GRAIN_ACTIVATION,
+        grain_training_telemetry=True,
+        telemetry_rlb_stat_every=4,
+        telemetry_rlb_stat_samples=512,
+    )
+    disabled = SimpleNamespace(
+        activation=train.GRAIN_ACTIVATION,
+        grain_training_telemetry=False,
+        telemetry_rlb_stat_every=4,
+        telemetry_rlb_stat_samples=512,
+    )
+    train.enable_rlb_training_telemetry(models[0], telemetry)
+    train.enable_rlb_training_telemetry(models[1], disabled)
+    assert train.rlb_live_stats_scope(models[0]) == "telemetry_only"
+    assert train.rlb_live_stats_scope(models[1]) == "disabled"
+
+    input_ids = torch.arange(16, dtype=torch.long).view(2, 8) % 97
+    outputs = [model(input_ids) for model in models]
+    assert torch.equal(outputs[0], outputs[1])
+    for output in outputs:
+        output.float().square().mean().backward()
+    first = dict(models[0].named_parameters())
+    second = dict(models[1].named_parameters())
+    assert first.keys() == second.keys()
+    assert all(torch.equal(first[name].grad, second[name].grad) for name in first)
+    assert train.collect_rlb_telemetry(models[1], disabled) == {}
 
 
 @pytest.mark.parametrize("activation", train.ACTIVATIONS)

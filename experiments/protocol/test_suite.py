@@ -20,6 +20,7 @@ from . import analyze_row
 from . import audit_runtime_hardware
 from . import build_source_freeze
 from . import collect_results
+from . import monitor_step1000
 from . import row_tools
 from . import run_activation_row
 from . import select_nvlink_gpus
@@ -115,6 +116,27 @@ class PublicReproducibilityTests(unittest.TestCase):
     def test_real_launcher_keeps_every_shared_argument_pairwise_identical(self) -> None:
         payload = verifier.verify_matrix(verifier.verify_manifest())
         verifier.verify_launcher_pairing(payload)
+
+    def test_primary_tiller_arms_disable_only_grain_diagnostics(self) -> None:
+        primary = analyze_row.suite.row_at(30)
+        self.assertEqual(primary["phase"], analyze_row.suite.PRIMARY_PHASE)
+        for arm in ("control", "candidate"):
+            argv = analyze_row.suite.training_argv(primary, arm, Path("runs"))
+            self.assertEqual(argv.count("--no-grain-training-telemetry"), 1)
+            self.assertIs(
+                analyze_row.suite.expected_args(primary, arm)["grain_training_telemetry"],
+                False,
+            )
+        historical = analyze_row.suite.row_at(0)
+        self.assertNotEqual(historical["phase"], analyze_row.suite.PRIMARY_PHASE)
+        self.assertNotIn(
+            "--no-grain-training-telemetry",
+            analyze_row.suite.training_argv(historical, "candidate", Path("runs")),
+        )
+        self.assertIs(
+            analyze_row.suite.expected_args(historical, "candidate")["grain_training_telemetry"],
+            True,
+        )
 
     def test_baseline_launcher_enables_the_row_aware_lr_wd_contract(self) -> None:
         rows = verifier.verify_manifest()
@@ -506,6 +528,43 @@ GPU3    PHB  PHB  PIX  X
             )
             with self.assertRaisesRegex(RuntimeError, "configuration mismatch"):
                 analyze_row.audited(path, row, "candidate")
+
+    def test_primary_analyzers_reject_diagnostic_grain_telemetry(self) -> None:
+        row = analyze_row.suite.row_at(30)
+        config = {
+            "event": "config",
+            **analyze_row.expected_config(row, "candidate"),
+            "grain_live_stats_scope": "telemetry_only",
+            "optimizer_lr_wd_fairness": {
+                "contract": analyze_row.suite.contract(row),
+                "passed": True,
+                "base_lr": row["lr"],
+                "minimum_lr": row["min_lr"],
+                "base_weight_decay": row["weight_decay"],
+                "groups": [],
+                "internal_lr_wd_scalars": {},
+            },
+            "tiller_experiment_identity": {
+                "passed": True,
+                "matrix_index": row["matrix_index"],
+                "source_manifest_row_index": row["source_manifest_row_index"],
+                "source_manifest_row_id": row["source_manifest_row_id"],
+            },
+        }
+        endpoint = int(row["steps"])
+        records = [
+            config,
+            {"event": "eval", "step": 1000, "val_loss": 4.2},
+            {"event": "eval", "step": endpoint, "val_loss": 4.0},
+            {"event": "summary", "completed_steps": endpoint, "stopped_early": False},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "candidate.jsonl"
+            path.write_text("".join(json.dumps(record) + "\n" for record in records))
+            with self.assertRaisesRegex(RuntimeError, "grain_live_stats_scope"):
+                analyze_row.audited(path, row, "candidate")
+            with self.assertRaisesRegex(RuntimeError, "grain_live_stats_scope"):
+                monitor_step1000.audited_config(path, row, "candidate")
 
     def test_result_tables_have_valid_schemas_statuses_and_unique_cells(self) -> None:
         results = verifier.verify_results()

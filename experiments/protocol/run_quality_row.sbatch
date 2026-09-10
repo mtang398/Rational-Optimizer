@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:nvidia_rtx_a6000:4
 #SBATCH --cpus-per-gpu=4
 #SBATCH --mem=128G
-#SBATCH --time=03:00:00
+#SBATCH --time=06:00:00
 #SBATCH --array=0-14%3
 #SBATCH --no-requeue
 #SBATCH --export=NIL

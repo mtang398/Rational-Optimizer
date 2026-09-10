@@ -20,7 +20,10 @@ DEFAULT_MANIFEST = PACKAGE / "activation_optimizer_manifest.csv"
 DEFAULT_MATRIX = PACKAGE / "matrix.json"
 PRIMARY_PHASE = "18l_1024d_100m_tokens_3050_steps"
 CANDIDATE_METHODS = {"tiller_v1": "tiller", "tiller_then_muon_v1": "tiller_then_muon"}
-CANDIDATE_STAGES = {"tiller_v1": "02_tiller", "tiller_then_muon_v1": "03_tiller_then_muon"}
+CANDIDATE_STAGES = {
+    "tiller_v1": "02_tiller_without_grain_telemetry",
+    "tiller_then_muon_v1": "03_tiller_then_muon_without_grain_telemetry",
+}
 
 GRAIN_ID = "rlb_fused_global_rational"
 PREFLIGHT_SUITE = "12l_768d_preflight_2621440_tokens_80_steps"
@@ -422,6 +425,7 @@ def validate_primary_artifact(
     expected.update(train_token_sample_sha256=token_cell["train_token_sample_sha256"],
                     val_token_sample_sha256=token_cell["validation_token_sample_sha256"])
     if candidate:
+        expected["grain_live_stats_scope"] = "disabled"
         expected["experiment_identity"] = (
             "tiller_matrix_v1" if source["candidate_optimizer"] == "tiller_v1"
             else "tiller_then_muon_matrix_v1"
@@ -629,7 +633,11 @@ def tiller_runs(
                 "seed": int(source["seed"]), "steps": int(source["steps"]),
             }
             if source["phase"] == PRIMARY_PHASE:
-                required.update(phase=PRIMARY_PHASE, candidate_optimizer=optimizer)
+                required.update(
+                    phase=PRIMARY_PHASE,
+                    candidate_optimizer=optimizer,
+                    campaign_stage=CANDIDATE_STAGES[optimizer],
+                )
             mismatch = {
                 key: (result.get(key), value)
                 for key, value in required.items()
