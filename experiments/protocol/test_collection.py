@@ -43,7 +43,7 @@ class IndependentEndpointCollectionTests(unittest.TestCase):
         token_cell = next(row for row in json.loads((collector.PACKAGE / "token_fingerprints.json").read_text())["cells"]
                           if row["dataset"] == "dclm" and row["train_tokens"] == 100_000_000)
         common = {key: source[key] for key in (
-            "seed", "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps", "grad_accum",
+            "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps", "grad_accum",
             "dataset_config", "dataset_revision", "tokenizer", "tokenizer_revision", "train_skip_tokens",
             "validation_skip_tokens", "grad_clip",
         )}
@@ -69,7 +69,7 @@ class IndependentEndpointCollectionTests(unittest.TestCase):
                                 grain_live_stats_scope="disabled",
                                 experiment_identity="tiller_matrix_v1" if optimizer == "tiller_v1" else "tiller_then_muon_matrix_v1",
                                 tiller_experiment_identity=dict(passed=True, **{
-                                    key: source[key] for key in ("matrix_index", "source_manifest_row_index", "source_manifest_row_id")
+                                    key: source[key] for key in ("matrix_index", "source_manifest_row_index", "source_manifest_row_id", "seed")
                                 }))
         def trajectory(config, early, final):
             return [config,

@@ -22,8 +22,9 @@ and the primary 18-layer, 1,024-wide model at 100M tokens and 3,050 steps. Unfin
 rows are represented with `pending` status and empty measurement fields.
 
 The primary inventory contains 225 main runs and 15 runs with TILLER for
-the first 1,000 updates followed by Muon. All 240 new rows are currently
-pending. Their measurements will be updated as runs finish.
+the first 1,000 updates followed by Muon. Its compact tables are updated
+incrementally from checksum-validated run artifacts; unfinished rows retain
+their current status until the required endpoint is available.
 
 For the 18-layer study and the 12-layer 300M-token study, the comparison is
 GRAIN + TILLER against SwiGLU + Muon. GRAIN + Muon is the activation-only

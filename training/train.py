@@ -2507,6 +2507,7 @@ def main():
         "validation_skip_documents": args.validation_skip_documents,
         "train_skip_tokens": args.train_skip_tokens,
         "validation_skip_tokens": args.validation_skip_tokens,
+        "seed": args.seed,
         "tokenizer": args.tokenizer,
         "tokenizer_revision": args.tokenizer_revision,
         "train_tokens": train_tokens.numel(),

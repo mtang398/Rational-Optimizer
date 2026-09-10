@@ -1,6 +1,6 @@
 model_scale,dataset,train_tokens,steps_required,activation,activation_display_name,optimizer,optimizer_display_name,method,method_display_name,runs_total,runs_reached_required_step,runs_stopped_early,runs_non_finite,endpoint_seed_count,validation_loss_mean,validation_loss_sample_std,matched_control_seed_count,matched_control_validation_loss_mean,lead_vs_matched_control_mean,lead_vs_matched_control_sample_std,exact_time_ratio_seed_count,exact_total_time_ratio_mean,exact_total_time_ratio_sample_std,total_seconds_mean,total_seconds_sample_std,mean_seconds_per_step,tokens_per_second_mean,status
-18l_1024d,c4_en,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,dclm,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,dolma_sample,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,fineweb,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,fineweb_edu,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,0,,,,0,,,,,,,pending
+18l_1024d,c4_en,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,3,4.321646531422933,,,0,,,,,,,pending
+18l_1024d,dclm,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,3,4.2750396728515625,,,0,,,,,,,pending
+18l_1024d,dolma_sample,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,3,4.375892798105876,,,0,,,,,,,pending
+18l_1024d,fineweb,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,3,4.362308661142985,,,0,,,,,,,pending
+18l_1024d,fineweb_edu,100000000,3050,rlb_fused_global_rational,GRAIN,tiller_then_muon_v1,TILLER→Muon,tiller_then_muon,TILLER→Muon,3,0,0,0,0,,,3,4.128942648569743,,,0,,,,,,,pending

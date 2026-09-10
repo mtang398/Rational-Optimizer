@@ -401,7 +401,7 @@ def validate_primary_artifact(
             raise RuntimeError(f"primary trajectory has observations but no config: {path}")
         return
     expected = {key: int(source[key]) for key in (
-        "seed", "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps", "grad_accum",
+        "layers", "d_model", "heads", "ffn_dim", "seq_len", "steps", "grad_accum",
     )}
     expected.update(
         activation=source["candidate_activation" if candidate else "activation"],
@@ -432,7 +432,7 @@ def validate_primary_artifact(
         )
         identity = config.get("tiller_experiment_identity", {})
         if identity.get("passed") is not True or any(identity.get(key) != source[key] for key in (
-            "matrix_index", "source_manifest_row_index", "source_manifest_row_id",
+            "matrix_index", "source_manifest_row_index", "source_manifest_row_id", "seed",
         )):
             raise RuntimeError(f"primary candidate matrix identity mismatch: {path}")
     else:
@@ -447,6 +447,9 @@ def validate_primary_artifact(
             source_freeze_sha256=sha256(snapshot / "SOURCE_FREEZE.sha256"),
         )
     fairness = config.get("optimizer_lr_wd_fairness", {})
+    logged_seed = config.get("seed")
+    if (logged_seed is not None and logged_seed != int(source["seed"])):
+        raise RuntimeError(f"primary trajectory seed mismatch: {path}")
     if (any(config.get(key) != value for key, value in expected.items())
             or fairness.get("passed") is not True or fairness.get("contract") != "exact_lr_wd_v1"):
         raise RuntimeError(f"primary trajectory configuration mismatch: {path}")
