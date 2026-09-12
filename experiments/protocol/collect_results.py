@@ -458,6 +458,7 @@ def validate_primary_artifact(
 def validate_primary_result(
     path: Path, result: dict[str, Any], source: dict[str, Any], artifact: Path,
     result_root: Path, campaign_root: Path | None,
+    candidate_source_snapshot: Path | None = None,
 ) -> None:
     data = safe_records(artifact)
     summary = unique_event(data, "summary") or {}
@@ -465,7 +466,12 @@ def validate_primary_result(
     if (summary.get("completed_steps") != 3050 or summary.get("stopped_early") is not False
             or any(finite(evaluation.get(step, {}).get("val_loss")) is None for step in (1000, 3050))):
         raise RuntimeError(f"primary result lacks a completed raw endpoint: {path}")
-    snapshot = PACKAGE if campaign_root is None else campaign_root / "source_tiller/experiments/protocol"
+    snapshot = (
+        candidate_source_snapshot
+        if candidate_source_snapshot is not None
+        else PACKAGE if campaign_root is None
+        else campaign_root / "source_tiller/experiments/protocol"
+    )
     if result.get("source_freeze_manifest_sha256") != sha256(snapshot / "SOURCE_FREEZE.sha256"):
         raise RuntimeError(f"primary result source freeze mismatch: {path}")
     checksum = path.with_suffix(path.suffix + ".sha256")
@@ -571,8 +577,15 @@ def manifest_runs(
 
 
 def tiller_runs(
-    matrix: Path, run_root: Path, analysis_root: Path, *, campaign_root: Path | None = None
+    matrix: Path,
+    run_root: Path,
+    analysis_root: Path,
+    *,
+    campaign_root: Path | None = None,
+    candidate_stages: dict[str, str] | None = None,
+    candidate_source_snapshot: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    stages = CANDIDATE_STAGES if candidate_stages is None else candidate_stages
     payload = json.loads(matrix.read_text())
     rows: list[dict[str, Any]] = []
     checkpoints: list[dict[str, Any]] = []
@@ -583,7 +596,7 @@ def tiller_runs(
         candidate_root = run_root
         result_root = analysis_root / f"row-{index:02d}"
         if campaign_root is not None and source["phase"] == PRIMARY_PHASE:
-            stage = CANDIDATE_STAGES[optimizer]
+            stage = stages[optimizer]
             candidate_root = campaign_root / "runs" / stage
             result_root = campaign_root / "results" / stage / f"matrix-{index}"
         candidate_path = (
@@ -639,7 +652,7 @@ def tiller_runs(
                 required.update(
                     phase=PRIMARY_PHASE,
                     candidate_optimizer=optimizer,
-                    campaign_stage=CANDIDATE_STAGES[optimizer],
+                    campaign_stage=stages[optimizer],
                 )
             mismatch = {
                 key: (result.get(key), value)
@@ -650,7 +663,8 @@ def tiller_runs(
                 raise RuntimeError(f"invalid paired result {result_path}: {mismatch}")
             if source["phase"] == PRIMARY_PHASE:
                 validate_primary_result(result_path, result, source, candidate_path,
-                                        result_root, campaign_root)
+                                        result_root, campaign_root,
+                                        candidate_source_snapshot)
                 if run["status"] == "stopped_early":
                     raise RuntimeError(f"stopped candidate also has a complete result: {result_path}")
             run.update(
@@ -886,6 +900,21 @@ def main() -> None:
     parser.add_argument("--campaign", type=Path,
                         help="independent 18-layer 100M campaign with source_muon/source_tiller snapshots")
     parser.add_argument(
+        "--campaign-tiller-stage",
+        default=CANDIDATE_STAGES["tiller_v1"],
+        help="campaign run/result directory containing full TILLER rows",
+    )
+    parser.add_argument(
+        "--campaign-switch-stage",
+        default=CANDIDATE_STAGES["tiller_then_muon_v1"],
+        help="campaign run/result directory containing TILLER-to-Muon rows",
+    )
+    parser.add_argument(
+        "--campaign-tiller-source",
+        type=Path,
+        help="protocol directory from the exact source snapshot used by candidate rows",
+    )
+    parser.add_argument(
         "--only-optimizer",
         choices=tuple(OUTPUT_DIRECTORIES),
         action="append",
@@ -903,8 +932,17 @@ def main() -> None:
     by_optimizer, checkpoint_rows = manifest_runs(
         args.manifest, args.activation_runs, campaign_root=args.campaign
     )
+    candidate_stages = {
+        "tiller_v1": args.campaign_tiller_stage,
+        "tiller_then_muon_v1": args.campaign_switch_stage,
+    }
     tiller, tiller_checkpoints = tiller_runs(
-        args.matrix, args.tiller_runs, args.tiller_analysis, campaign_root=args.campaign
+        args.matrix,
+        args.tiller_runs,
+        args.tiller_analysis,
+        campaign_root=args.campaign,
+        candidate_stages=candidate_stages,
+        candidate_source_snapshot=args.campaign_tiller_source,
     )
     for optimizer in CANDIDATE_METHODS:
         by_optimizer[optimizer] = [row for row in tiller if row["optimizer"] == optimizer]

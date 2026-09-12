@@ -6,6 +6,7 @@ compatible momentum and AdamW state across the switch.
 
 The suite covers the 296.87M-parameter model on five datasets and three seeds
 at approximately 100M training tokens. Its matched comparison is SwiGLU + Muon.
+All 15 dataset–seed runs have reached the 3,050-step endpoint.
 
 `runs.csv` records individual runs, `summary.csv` groups seed results, and
 `checkpoints.csv` contains validation measurements along each trajectory.

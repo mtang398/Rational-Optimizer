@@ -10,5 +10,6 @@ across the published model scales, five datasets, and three seeds.
 Both SwiGLU and GRAIN activation records use the same table schema.
 
 The 18-layer, 1,024-wide suite trains for 3,050 steps and approximately
-100M tokens. Its 30 Muon rows are currently pending. Completed 12-layer
-results remain in the same tables.
+100M tokens. All 30 rows in this suite are complete: 15 SwiGLU + Muon runs
+and their 15 GRAIN + Muon counterparts. The completed 12-layer results remain
+in the same tables.

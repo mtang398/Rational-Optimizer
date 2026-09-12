@@ -14,7 +14,7 @@ suites in one schema.
 Completed and pending rows share the same schema; pending measurements remain
 empty until their required endpoint is available.
 
-The 15 primary 18-layer, 100M-token TILLER rows run for 3,050 steps and use
-SwiGLU + Muon as their matched comparison. Their formal timing excludes
-training-time GRAIN diagnostic collection. The two-stage optimizer has its
-own directory, [tiller_then_muon](../tiller_then_muon/).
+All 15 primary 18-layer, 100M-token TILLER rows are complete. They run for
+3,050 steps and use SwiGLU + Muon as their matched comparison. Their formal
+timing excludes training-time GRAIN diagnostic collection. The two-stage
+optimizer has its own directory, [tiller_then_muon](../tiller_then_muon/).
