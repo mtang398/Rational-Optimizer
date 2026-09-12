@@ -13,23 +13,26 @@ coefficient solver and complete update algorithm.
 
 ## Compile locally
 
-Use pdfLaTeX with TeX Live 2025, matching the Overleaf project settings:
+The included PDF was built with pdfLaTeX and TeX Live 2026:
 
 ```bash
 make
 ```
 
 The build runs `latexmk -pdf` on `main.tex`. Set `LATEXMK` when the TeX Live
-2025 executable is not already on `PATH`:
+2026 executable is not already on `PATH`:
 
 ```bash
-make LATEXMK=/path/to/texlive/2025/bin/x86_64-linux/latexmk
+make LATEXMK=/path/to/texlive/2026/bin/x86_64-linux/latexmk
 ```
 
 ## Compile on Overleaf
 
 Upload the contents of this directory, set `main.tex` as the main document,
-select pdfLaTeX, and select TeX Live 2025. The bundled conference files are
+select pdfLaTeX, and select
+[TeX Live 2026](https://www.overleaf.com/blog/tex-live-2026-is-now-available).
+These are the compiler settings used for the included PDF. The bundled
+conference files are
 copied from the official ICLR 2027 style archive recorded in
 `OFFICIAL_TEMPLATE.sha256`.
 
