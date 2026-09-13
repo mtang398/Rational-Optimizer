@@ -37,3 +37,19 @@ boundary of each timing measurement: `end_to_end_process` records the full
 training process, while `training_loop` records the trainer's loop time.
 The separate `training_loop_total_seconds` column retains the loop measurement
 when full-process timing is available.
+
+## 12-layer model, 300M training tokens
+
+The 9,150-step baseline study contains 210 run records: seven optimizers,
+SwiGLU and GRAIN, five datasets, and three seeds. Individual endpoint losses,
+run outcomes, and recorded training times are available in each optimizer's
+`runs.csv`.
+
+Each baseline optimizer README also includes validation-loss means and sample
+standard deviations at steps 1,000, 2,000, 4,000, 6,000, 8,000, and 9,150:
+[AdamW](adamw/README.md), [Muon](muon/README.md), [Lion](lion/README.md),
+[SOAP](soap/README.md), [ADeMaMix](ademamix/README.md), [CAME](came/README.md),
+and [Schedule-Free AdamW](schedule_free_adamw/README.md).
+
+These checkpoint summaries retain their source's four-decimal precision and
+finite seed counts. The per-seed endpoint CSVs retain their original precision.
