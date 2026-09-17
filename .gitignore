@@ -62,6 +62,7 @@ paper/*
 !paper/Makefile
 !paper/OFFICIAL_TEMPLATE.sha256
 !paper/main.tex
+!paper/appendix.tex
 !paper/main.pdf
 !paper/references.bib
 !paper/iclr2027_conference.sty

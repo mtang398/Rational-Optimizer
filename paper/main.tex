@@ -9,6 +9,9 @@
 \usepackage{mathtools}
 \usepackage{microtype}
 \usepackage{url}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
 
 \newtheorem{proposition}{Proposition}
 \newtheorem{lemma}{Lemma}
@@ -27,28 +30,171 @@ Optimization for Transformers}
 \maketitle
 
 \begin{abstract}
+Learning an activation function changes both the represented features and
+their response to parameter updates. We introduce full TILLER (Tangents
+Informed by a Loss Ledger for Equal-budget Reweighting) and the hybrid
+TILLER--Muon, two loss-informed training methods for Transformers.
+GRAIN, Groupwise Rational Activation with Internal Normalization, learns
+rational responses in normalized feature coordinates and restores each group's
+input scale at its output. The shared TILLER update uses these learned
+responses to construct and coordinate matrix directions. It rotates Muon
+directions toward factorized adaptive
+tangents, then allocates their combined norm across groups using a compact
+history of directional loss responses. This allocation accounts for interactions
+among updates across the network. Full TILLER maintains this coordination
+throughout training; TILLER--Muon combines it with momentum-preserving Muon
+continuation. Both use learned nonlinearities to represent features and guide
+structured updates according to their joint effect on the loss.
 \end{abstract}
 
 \section{Introduction}
 
+The feed-forward blocks of a Transformer determine how intermediate features
+are transformed and recombined. Their nonlinear responses are commonly fixed
+in advance, as in GELU and the SiLU gate of SwiGLU
+\citep{hendrycks2016gelu,shazeer2020glu}. Learning these responses gives the
+network an additional way to adapt its representation. Trainable rational
+functions provide a compact family for this purpose: they can approximate
+familiar activations and learn new shapes through the same gradient updates
+used to train the surrounding weights \citep{molina2020pade}.
+Their compositional structure also supports approximation advantages over
+fixed activation families \citep{boulle2020rational,tang2026expressivity}.
+Group-shared rational functions have already made this approach practical in
+Transformer feed-forward layers \citep{yang2025kat}.
+
+A learned nonlinearity also changes the optimization problem. An update to
+the incoming projection reaches the block output through the current
+activation Jacobian; an update to the outgoing projection acts on the current
+activated features. As the rational coefficients change, both responses
+change with them. Consequently, matrix updates of the same magnitude can
+produce different feature changes at different groups or stages of training.
+Updates from separate groups can also reinforce or offset one another in
+their effect on the loss. These relationships make the activation response
+useful information for choosing an update, beyond its role in the forward
+computation.
+
+Matrix-aware optimizers offer a natural starting point for using this
+information. Shampoo preconditions gradients according to their tensor
+structure \citep{gupta2018shampoo}, while Muon approximately orthogonalizes
+momentum updates and has been developed for language-model training
+\citep{jordan2024muon,liu2025muon}. Norm-based interpretations clarify the
+geometry of such updates \citep{bernstein2024old}. Activation and derivative
+statistics also enter curvature-based methods such as K-FAC and the
+matrix surrogate of Newton--Muon \citep{martens2015kfac,du2026newtonmuon}.
+Our focus is the connection between learned nonlinear responses and the joint
+effect of structured update directions. We use that connection at two levels:
+to adjust the direction within a matrix block and to coordinate the strengths
+of those directions across the network.
+
+We develop full TILLER (Tangents Informed by a Loss Ledger for Equal-budget
+Reweighting) and the hybrid TILLER--Muon around a shared activation and
+loss-informed update construction. The activation,
+GRAIN (Groupwise Rational Activation with Internal Normalization),
+evaluates a separate learned rational function for each feature group
+in coordinates normalized by the group's root mean square. It then restores
+that scale, allowing the rational coefficients to control response shape while
+the output retains the input amplitude. This construction supplies a structured
+Jacobian that describes the feature changes induced by incoming updates.
+The activated features provide the corresponding response for outgoing updates.
+
+The shared TILLER update uses these responses to guide optimization.
+Within each matrix group,
+it constructs a norm-preserving rotation from a Muon direction toward a
+factorized adaptive direction. Response participation and departure from the
+initial response determine the rotation. Across groups, sampled directional
+loss responses form a compact temporal ledger. A quadratic model combines
+the current descent signal with the interactions recorded in this ledger to
+redistribute a fixed total update norm. The optimizer can therefore change
+where the structured update acts while retaining its overall magnitude.
+
+These components provide a joint design for learning nonlinear representations
+and optimizing the matrices around them. Full TILLER carries response-guided
+coordination through training. TILLER--Muon combines this coordination with
+ordinary Muon continuation, preserving the learned activation, matrix momentum,
+and the optimizer state of the remaining parameters. The two variants share
+the same activation and update construction; their schedules determine how
+long loss-response information guides the matrix directions.
+
 \section{Related Work}
+
+Learnable activations extend the function family available to a network
+beyond a fixed scalar response. PReLU learns a negative-input slope
+\citep{he2015rectifiers}, whereas GELU and SwiGLU specify smooth responses
+that have become common choices for feed-forward computation
+\citep{hendrycks2016gelu,shazeer2020glu}. Pad\'{e} activation units learn
+rational coefficients end to end and use a modified denominator to avoid
+real poles \citep{molina2020pade}. Rational neural networks connect the
+composition of low-degree activations to approximation efficiency
+\citep{boulle2020rational}. The paper \emph{Rational Neural Networks have
+Expressivity Advantages} extends this approximation-theoretic perspective
+to modern smooth activation families and gated and Transformer-style
+nonlinearities \citep{tang2026expressivity}. Group-shared rational functions
+in the Kolmogorov--Arnold Transformer provide the closest architectural
+precedent for learning distinct responses within a feed-forward block
+\citep{yang2025kat}. GRAIN uses an amplitude-restoring normalization within
+each learned rational response.
+
+Normalization determines the coordinates in which an activation is learned.
+Layer normalization centers and rescales within-example features
+\citep{ba2016layer}, while RMS normalization uses their root mean square
+without mean centering \citep{zhang2019rmsnorm}. For trainable rational
+activations, the interaction also involves the coefficients themselves:
+affine changes before a rational function can be absorbed into a coefficient
+reparameterization \citep{tang2026expressivity}. GRAIN ties the normalization
+scale to the current feature group and restores it after the rational map.
+Its derivative therefore combines the elementwise rational derivative with
+the response induced by a change in group scale. TILLER uses both contributions
+when relating incoming matrix directions to feature changes.
+
+Adaptive optimizers use gradient statistics to transform update directions.
+AdamW separates parameter shrinkage from the adaptive gradient step
+\citep{loshchilov2019decoupled}; Adafactor approximates gradient second
+moments with row and column factors \citep{shazeer2018adafactor}, and CAME
+adds confidence-guided scaling to factorized adaptation \citep{luo2023came}.
+Shampoo uses tensor-structured preconditioners \citep{gupta2018shampoo},
+and SOAP applies Adam in the corresponding preconditioner eigenbasis
+\citep{vyas2025soap}. Muon instead transforms matrix momentum through
+approximate orthogonalization \citep{jordan2024muon}, with connections to
+spectral-norm geometry \citep{bernstein2024old} and extensions to larger
+language-model training \citep{liu2025muon}. TILLER constructs its local
+directions from Muon and factorized adaptive updates, with the learned
+activation response controlling a rotation between them.
+
+Activation-informed optimization and low-dimensional search provide further
+context for this construction. K-FAC approximates layerwise Fisher blocks
+from activations and backpropagated derivatives \citep{martens2015kfac}.
+Newton--Muon uses a matrix quadratic surrogate to introduce input-second-moment
+preconditioning \citep{du2026newtonmuon}. Krylov Subspace Descent optimizes
+over a subspace generated from gradient and curvature information
+\citep{vinyals2012krylov}. TILLER coordinates coefficients of its selected
+group directions through their sampled loss responses. Its temporal response
+metric uses deterministic spectral sketching from Frequent Directions and
+the isotropic correction of Robust Frequent Directions
+\citep{ghashami2016frequent,luo2019robust}. The resulting quadratic model
+couples directions across groups through their joint loss effects.
+
+Training schedules offer another way to combine optimization behavior.
+SWATS transitions from Adam to SGD using a projection-based trigger
+\citep{keskar2017switching}; Schedule-Free optimization uses iterate averaging
+to alter the role of learning-rate scheduling \citep{defazio2024schedulefree}.
+TILLER--Muon combines response-guided coordination with matrix-level Muon
+continuation, transferring momentum while retaining GRAIN and the AdamW state.
 
 \section{Method}
 \label{sec:method}
 
-We introduce a learned activation and an optimizer for Transformer
-feed-forward blocks. GRAIN (Groupwise Rational Activation with Internal
-Normalization) learns a separate nonlinear response for each feature group.
-TILLER (Tangents Informed by a Loss Ledger for Equal-budget Reweighting)
-uses these responses to guide matrix updates and coordinate them across
-the network. The activation's local geometry maps parameter directions
-to feature changes and their contributions to the loss.
+Full TILLER and TILLER--Muon share a response-guided update construction
+for Transformers with GRAIN activations. Full TILLER uses this construction
+throughout training; TILLER--Muon combines it with a state-preserving Muon
+continuation. We first define their common activation, then develop the
+update rule and the two training schedules.
 
-\subsection{GRAIN: learning groupwise activation responses}
+\subsection{GRAIN: groupwise rational activations}
 
-The distribution and scale of intermediate features change during
-training. GRAIN evaluates a learned rational function in normalized
-coordinates, then restores the input scale. For a feed-forward input
+GRAIN (Groupwise Rational Activation with Internal Normalization) gives
+each feature group a learned nonlinear response. It separates response
+shape from input amplitude: a rational function acts on normalized
+features, and the group scale is restored at its output. For an input
 $x\in\mathbb R^d$, split the intermediate features into $G$ groups of width
 $w$, with incoming and outgoing projections
 $A_g\in\mathbb R^{w\times d}$ and $B_g\in\mathbb R^{d\times w}$.
@@ -69,51 +215,47 @@ $u_g$ contains the normalized features, and $\phi_g$ acts elementwise:
  \label{eq:overview-rational}
 \end{equation}
 The learned coefficients $a_{gj},b_{gj}$ control the response shape
-\citep{molina2020pade,boulle2020rational}; the denominator is at least one.
-Internal RMS normalization \citep{zhang2019rmsnorm} makes relative feature
-magnitudes the arguments of this function. Multiplication by $\rho_g$
-then carries the group's amplitude into its output. Every group starts
-from the same SiLU approximation and learns its own response.
-Setting $Gw=3H/2$ gives the two projections the same dense weight count
-as a SwiGLU block with intermediate width $H$ \citep{shazeer2020glu}.
+\citep{molina2020pade,boulle2020rational}, and the positive denominator
+excludes real poles. Internal RMS normalization \citep{zhang2019rmsnorm}
+lets the rational function operate on relative feature magnitudes as
+their absolute scale changes. Restoring $\rho_g$ preserves amplitude
+information for the outgoing projection. All groups start from a common
+SiLU approximation and subsequently learn separate shapes. With
+$Gw=3H/2$, the two projections contain the same number of dense weights
+as a SwiGLU block of intermediate width $H$ \citep{shazeer2020glu}.
 
-GRAIN also provides a direct description of how an update changes its
-features. Let $J_g=\partial h_g/\partial(A_gx)$. An incoming direction
-$q_g^A$ changes the features by $J_gq_g^Ax$, whereas an outgoing direction
-$q_g^B$ acts on the features as $q_g^Bh_g$. The Jacobian contains the
-elementwise derivative and a correction for the change in group scale:
-\begin{equation}
- J_g=\operatorname{Diag}(\phi'_g(u_g))
- +\frac{1}{w}
- \bigl[\phi_g(u_g)-u_g\odot\phi'_g(u_g)\bigr]u_g^\top,
- \label{eq:overview-jacobian}
-\end{equation}
-where $\odot$ denotes elementwise multiplication. These two response
-paths, through $J_g$ and through $h_g$, provide the information used by
-TILLER. Appendix~\ref{sec:grain} derives the Jacobian.
+The two projections expose complementary information about a proposed
+update. An incoming direction changes the features through the
+activation Jacobian $J_g=\partial h_g/\partial(A_gx)$; an outgoing
+direction acts directly on $h_g$. TILLER uses both paths to assess a
+direction in the context of the learned nonlinearity. The Jacobian and
+its interpretation are derived in Appendix~\ref{sec:grain}.
 
-\subsection{TILLER: constructing and coordinating loss-informed updates}
+\subsection{Full and hybrid TILLER optimization}
 
-TILLER first chooses a direction within each matrix block, then chooses
-how strongly the blocks should act together. Index the $C=LG$
-layer--group pairs by $i=(\ell,g)$, where $L$ is the Transformer depth.
-For either matrix role, let $g_i$ be its clipped loss gradient,
-$p_i$ its Muon direction, and $a_i$ a direction formed by rescaling the
-same momentum with factorized gradient second moments
+TILLER (Tangents Informed by a Loss Ledger for Equal-budget Reweighting)
+makes two linked choices: the orientation of each matrix update and
+the strengths with which group updates act together. Let $i=(\ell,g)$
+index the $C=LG$ layer--group pairs in a network of depth $L$.
+For either projection role, form a Muon direction $p_i$ and a
+factorized adaptive direction $a_i$ from the same momentum
 \citep{jordan2024muon,liu2025muon,shazeer2018adafactor}.
-The component
-$a_i^\perp=a_i-\inner{a_i}{p_i}p_i/\frob{p_i}^2$
-is orthogonal to the Muon direction. It supplies a tangent along which
-TILLER can rotate that direction at fixed Frobenius norm.
+The former rebalances matrix singular values; the latter uses row and
+column gradient histories to rescale coordinates. Removing the component
+of $a_i$ parallel to $p_i$ gives
+$a_i^\perp=a_i-\inner{a_i}{p_i}p_i/\frob{p_i}^2$.
+This orthogonal component provides an alternative orientation without
+changing the norm of the parent direction.
 
-The rotation depends on how the learned activation currently responds.
-A participation statistic $\pi_i$ measures how broadly response energy
-is distributed: across singular directions of $J_i$ for the incoming
-matrix, and across feature coordinates of $h_i$ for the outgoing matrix.
-A congruence statistic $\kappa_i$ measures alignment with the initial
-activation's response, evaluated at the current inputs. Both statistics
-emphasize positions with greater downstream loss sensitivity.
-With $e_i=\pi_i(1-\kappa_i^2)$, TILLER forms
+The activation response sets the amount of rotation. A participation
+statistic $\pi_i$ measures the breadth of the response, using the
+singular values of $J_i$ for an incoming update and the coordinates
+of $h_i$ for an outgoing update. A congruence statistic $\kappa_i$
+compares the learned response with its initialization at the same
+current inputs. Both emphasize positions with greater loss sensitivity.
+The fraction $e_i=\pi_i(1-\kappa_i^2)$ allocates more direction energy
+to the tangent when a broad response has departed from its initial
+geometry. The candidate is
 \begin{equation}
  \widetilde q_i=
  \sqrt{1-e_i}\,p_i+
@@ -123,37 +265,32 @@ With $e_i=\pi_i(1-\kappa_i^2)$, TILLER forms
  \sigma_i=\operatorname{sign}\inner{g_i}{a_i^\perp}.
  \label{eq:overview-chord}
 \end{equation}
-Here $e_i\in[0,1]$ is the fraction of squared direction norm assigned to
-the tangent, and $\operatorname{sign}(0)=1$ for its orientation.
-A broad response that has changed from initialization permits a larger
-rotation toward the adaptive direction.
-Orthogonality gives $\frob{\widetilde q_i}=\frob{p_i}$.
-TILLER selects this candidate when it retains positive gradient
-contraction, with the precise selection rule and response statistics
-in Appendix~\ref{sec:directions}.
+Here $g_i$ is the clipped gradient, $\operatorname{sign}(0)=1$, and
+$0\leq e_i\leq1$. The sign orients the tangent toward descent;
+orthogonality gives $\frob{\widetilde q_i}=\frob{p_i}$.
+The selected direction $q_i$ is the candidate when both it and the
+parent have positive gradient contraction, and is the parent otherwise.
+Appendix~\ref{sec:directions} specifies the statistics and selection.
 
-The selected incoming and outgoing directions, now denoted
-$q_i^A,q_i^B$, affect the loss jointly with directions in other groups.
-To measure these interactions, TILLER samples the same example--token
-positions across layers. At probe $k$, let $x_{k\ell}$ be the block input,
-$h_{ki}$ its group features, and $\xi_{k\ell}$ the downstream loss
-gradient at the block output. The group's scalar loss response is
+The resulting directions $q_i^A,q_i^B$ are then coordinated through
+their loss responses. At a shared example--token position $k$, let
+$x_{k\ell}$ be the block input, $h_{ki}$ its group features, and
+$\xi_{k\ell}$ the downstream loss derivative at the block output.
+The scalar response of the paired group direction is
 \begin{equation}
  S_{ki}=
  \inner{\xi_{k\ell}}
  {B_iJ_{ki}q_i^Ax_{k\ell}+q_i^Bh_{ki}}.
  \label{eq:overview-score}
 \end{equation}
-Each column records one group direction's responses across probes.
-For group coefficients $c$, the vector $Sc$ combines those responses;
-the cross terms in $\|Sc\|_2^2$ capture effects that reinforce or offset
-each other. Appendix~\ref{sec:loss-measurements} derives this measurement
-and its relation to the minibatch gradient.
+Each column of $S$ describes one group across the same probes. For a
+coefficient vector $c$, $Sc$ is their combined response. Its squared
+norm captures reinforcement and cancellation between group contributions,
+including contributions from different layers. TILLER retains a
+discounted history of these measurements in a loss ledger. A Robust
+Frequent Directions sketch preserves dominant response combinations
+and an isotropic remainder \citep{ghashami2016frequent,luo2019robust}.
 
-TILLER maintains a discounted second moment of these responses in a
-loss ledger, using Robust Frequent Directions to retain dominant
-response combinations and an isotropic spectral remainder
-\citep{ghashami2016frequent,luo2019robust}.
 Let $G_t$ be the resulting response metric, $r_t$ its cross term with
 decoupled weight decay, and
 $s_{t,i}=\inner{g_i^A}{q_i^A}+\inner{g_i^B}{q_i^B}$
@@ -167,25 +304,39 @@ coefficients are chosen using the quadratic surrogate
  \omega_i=\frob{q_i^A}^2+\frob{q_i^B}^2.
  \label{eq:overview-coordinate-model}
 \end{equation}
-The linear term rewards current descent, while the quadratic term
-penalizes the magnitude of the combined loss response.
-The constraint preserves the total squared norm of the structured
-direction. Thus equal-budget reweighting allocates this norm among
-groups according to their joint loss effects.
-Signed coefficients can strengthen, attenuate, or reverse a group.
+The linear term rewards current descent; the quadratic term measures
+the joint response through the ledger. The constraint redistributes
+a fixed squared direction norm across groups. Coefficients can
+strengthen, attenuate, or reverse a group according to its contribution
+to the joint proposal. The metric is applied through its sketch factor,
+and a projected solver selects coefficients that improve this surrogate
+over $c=\boldsymbol1$ while preserving layerwise descent.
 
-A projected solver proposes coefficients, which are evaluated in the
-full surrogate and checked for layerwise descent
-(Appendix~\ref{sec:transaction}). The selected coefficients update
+The selected coefficients update
 $A_i\leftarrow(1-\eta\lambda_{\rm wd})A_i-\eta c_iq_i^A$
 and analogously for $B_i$, where $\lambda_{\rm wd}$ is weight decay.
 Attention uses the same response-guided rotation with layerwise
 statistics. Rational coefficients and the remaining parameter classes
 use AdamW \citep{loshchilov2019decoupled}.
-Appendices~\ref{sec:ledger} and~\ref{app:algorithm} give the ledger,
-solver, and complete update.
+
+Let $T$ be the training horizon and $T_s\in\{1,\ldots,T\}$ the
+duration of loss-informed coordination. Full TILLER uses $T_s=T$.
+TILLER--Muon uses $T_s<T$: it applies TILLER for the first $T_s$ updates and
+then continues with ordinary Muon on the full feed-forward and attention
+matrices. The transition transfers the first-moment buffers, retains
+the AdamW state, and continues the same learning-rate schedule.
+GRAIN and its learned coefficients remain active throughout. The hybrid
+reduces ongoing coordination work while retaining the learned
+representation and gradient history. It provides a time-saving
+continuation when later-stage gains from further coordination are small.
+The switch point can be chosen for the training regime.
+Table~\ref{tab:algorithm} gives both branches in a single algorithm,
+with the ledger and coefficient solver derived in
+Appendix~\ref{sec:loss-measurements}.
 
 \section{Experiments}
+
+[TODO: Experiment section]
 
 \section{Discussion}
 
@@ -194,830 +345,12 @@ solver, and complete update.
 \subsection*{AI use statement}
 
 Generative AI tools assisted with code implementation, mathematical
-cross-checking, literature retrieval, and manuscript drafting. The authors
-reviewed the resulting material and take responsibility for the final
-content.
+cross-checking, literature retrieval, and manuscript drafting and revision.
 
 \bibliography{references}
 \bibliographystyle{iclr2027_conference}
 
 \appendix
-
-\section{GRAIN: normalized responses and their derivatives}
-\label{sec:grain}
-\label{app:grain-calculus}
-
-GRAIN learns an activation shape in coordinates defined by the input
-group's own scale. This separates two aspects of the forward map: the
-rational function determines how relative feature values are transformed,
-and the group RMS carries their amplitude through the transformation.
-The derivative of this map describes the two paths through which the
-incoming and outgoing matrix directions affect the block output.
-
-For one input $x\in\mathbb R^d$, the feed-forward block computes
-$z=Ax$, $h=\Phi(z)$, and $y=Bh$, where
-$A\in\mathbb R^{H_r\times d}$, $B\in\mathbb R^{d\times H_r}$,
-and $H_r=Gw$. A group consists of a row block $A_g$, the corresponding
-features $z_g=A_gx\in\mathbb R^w$, and a column block $B_g$.
-Its normalized input and output are
-\begin{equation}
- \rho_g=\sqrt{\|z_g\|_2^2/w+\epsilon_{\rm act}},\qquad
- u_g=z_g/\rho_g,\qquad
- h_g=\Phi_g(z_g)=\rho_g\phi_g(u_g).
- \label{eq:grain-normalize}
-\end{equation}
-The block sums the group contributions as $y=\sum_g B_gh_g$.
-Each $\phi_g$ has the rational form in
-equation~\ref{eq:overview-rational}, applied elementwise with
-group-specific coefficients. Its denominator is at least one for
-every real input, so finite coefficients introduce no real poles.
-All groups begin from a common SiLU fit and subsequently learn
-independently. Appendix~\ref{app:implementation} specifies the
-initial coefficients.
-
-An incoming update changes both $u_g$ and $\rho_g$.
-Suppressing the group index, differentiation of
-$\rho=(z^\top z/w+\epsilon_{\rm act})^{1/2}$ and $u=z/\rho$ gives
-\begin{equation}
- \nabla_z\rho=u/w,\qquad
- \frac{\partial u}{\partial z}
- =\rho^{-1}\left(I-\frac{uu^\top}{w}\right).
- \label{eq:grain-normalization-derivative}
-\end{equation}
-Let $f=\phi(u)$, $d=\phi'(u)$, and $r=f-u\odot d$.
-The product rule for $\Phi(z)=\rho\phi(u)$ now gives
-\begin{align}
- J=\frac{\partial\Phi}{\partial z}
- &=\frac{fu^\top}{w}
-   +\operatorname{Diag}(d)\left(I-\frac{uu^\top}{w}\right)
-   \nonumber\\
- &=\operatorname{Diag}(d)+\frac{ru^\top}{w}.
- \label{eq:grain-jacobian}
-\end{align}
-These identities hold wherever $\phi$ is differentiable. At zero
-coordinates, the absolute-value terms use the automatic-differentiation
-selection $\operatorname{sign}(0)=0$; $J$ denotes that selected derivative
-there.
-
-The diagonal term applies the local slope separately to each feature.
-The second term accounts for their shared change in scale.
-For a linear response $\phi(u)=a u$, $r=0$ and $J=aI$:
-the normalization and scale restoration cancel. For a nonlinear
-response, $r$ records the difference between the function value and its
-local linear contribution. Thus the same learned shape determines both
-the transformed features and their sensitivity to a perturbation.
-
-For a feature perturbation $v$ and a downstream derivative $b$, the two
-useful forms of this Jacobian are
-\begin{equation}
- Jv=d\odot v+r\,\frac{u^\top v}{w},\qquad
- J^\top b=d\odot b+u\,\frac{r^\top b}{w}.
- \label{eq:grain-jacobian-actions}
-\end{equation}
-The first maps an incoming perturbation to a feature change; the second
-maps loss sensitivity back through the activation. An update to $B_g$
-instead acts directly on $h_g$. This distinction explains why TILLER
-uses Jacobian geometry for incoming directions and feature geometry
-for outgoing directions.
-
-\section{TILLER: from activation geometry to coordinated updates}
-
-TILLER uses the activation response at two levels. Within a matrix
-block, the response determines a rotation between a Muon direction
-and a direction with adaptive coordinate scaling. Across blocks,
-loss responses determine how those directions should combine.
-The first construction supplies a direction for each group; the
-second assigns coefficients to the resulting collection.
-
-\subsection{Constructing response-guided directions}
-\label{sec:directions}
-
-Index the layer--group pairs by $i=(\ell,g)$ and the two projection
-roles by $r\in\{A,B\}$. For each role, let $g_i^r$ be the current clipped
-gradient and $m_i^r$ its Nesterov momentum. We construct a Muon direction
-$p_i^r$ from the approximate polar factor of this momentum, and an
-adaptive direction $a_i^r$ from the same momentum divided by
-factorized gradient second moments
-\citep{jordan2024muon,bernstein2024old,liu2025muon,shazeer2018adafactor}.
-The two directions retain different information: the polar map
-rebalances singular values, while the adaptive scaling reflects
-the history of individual row and column gradient magnitudes.
-Their numerical definitions are given in
-Appendix~\ref{app:implementation}.
-
-The adaptive direction can change the orientation of $p_i^r$ through
-its orthogonal component. Suppressing the role index, define
-\begin{equation}
- a_i^\perp=a_i-\frac{\inner{a_i}{p_i}}{\frob{p_i}^2}p_i,
- \qquad \frob{p_i}>0,
- \label{eq:tangent-orientation}
-\end{equation}
-where $\inner{\cdot}{\cdot}$ is the Frobenius inner product for matrices.
-This tangent determines a plane of possible rotations.
-We choose the rotation magnitude from two complementary properties
-of the learned activation: the breadth of its response and its
-departure from the initial response.
-
-Both properties are measured on shared example--token probes.
-For probe $k$, write $h_{ki}$ and $J_{ki}$ for the group features
-and activation Jacobian, and let $\xi_{k\ell}\in\mathbb R^d$ be the
-downstream loss derivative at the block output. An incoming update
-acts through $J_{ki}$, whose squared singular values describe its
-response energy. An outgoing update acts on $h_{ki}$, whose squared
-coordinates describe the available feature energy. The corresponding
-participation ratios are
-\begin{equation}
- \operatorname{pr}_A(J)
- =\frac{[\operatorname{tr}(JJ^\top)]^2}
-        {w\frob{JJ^\top}^2},\qquad
- \operatorname{pr}_B(h)=\frac{\|h\|_2^4}{w\|h\|_4^4}.
- \label{eq:response-summary-components}
-\end{equation}
-Each ratio equals $1/w$ when all energy lies in one component and
-one when it is uniform across the $w$ components. For example,
-if exactly $m$ singular directions carry equal energy,
-$\operatorname{pr}_A=m/w$. Participation therefore expresses
-response breadth on a common scale for the two matrix roles.
-
-We weight these measurements by the loss sensitivity of the
-corresponding path:
-\begin{equation}
- \alpha^A_{ki}=\|J_{ki}^\top B_i^\top\xi_{k\ell}\|_2^2/w,
- \qquad
- \alpha^B_{ki}=\|\xi_{k\ell}\|_2^2/d.
- \label{eq:response-sensitivity}
-\end{equation}
-The weighted participation is
-\begin{equation}
- \pi_i^A=
- \frac{\sum_k\alpha^A_{ki}\operatorname{pr}_A(J_{ki})}
-      {\sum_k\alpha^A_{ki}},\qquad
- \pi_i^B=
- \frac{\sum_k\alpha^B_{ki}\operatorname{pr}_B(h_{ki})}
-      {\sum_k\alpha^B_{ki}}.
- \label{eq:participation-main}
-\end{equation}
-Consequently, the rotation reflects the response at positions where
-the loss is sensitive to changes in that group.
-
-To measure learned change, compare the current response with the
-initial rational function evaluated at the same current input.
-Define response kernels
-$\Gamma^A_{ki}=J_{ki}J_{ki}^\top$ and
-$\Gamma^B_{ki}=h_{ki}h_{ki}^\top$, and let
-$\Gamma^{r,0}_{ki}$ use the initial rational coefficients.
-All other quantities, including the input and its RMS scale,
-remain at their current values. Their weighted congruence is
-\begin{equation}
- \kappa_i^r=
- \frac{\sum_k\alpha^r_{ki}
-       \inner{\Gamma^r_{ki}}{\Gamma^{r,0}_{ki}}}
- {\sqrt{\left(\sum_k\alpha^r_{ki}\frob{\Gamma^r_{ki}}^2\right)
-        \left(\sum_k\alpha^r_{ki}\frob{\Gamma^{r,0}_{ki}}^2\right)}}.
- \label{eq:congruence-main}
-\end{equation}
-This is a cosine between collections of weighted response kernels.
-It equals one when the two collections agree up to a common
-positive scale. Comparing them at the same input ties this
-measurement to the learned activation shape.
-
-Participation and congruence together set the fraction of direction
-energy assigned to the adaptive tangent:
-\begin{equation}
- e_i^r=\pi_i^r\bigl(1-(\kappa_i^r)^2\bigr).
- \label{eq:departure-energy}
-\end{equation}
-A response spread over many components permits a larger rotation
-when its geometry has changed from initialization. A concentrated
-response reduces that rotation through $\pi_i^r$; an unchanged
-response gives $e_i^r=0$ through $\kappa_i^r$.
-Both factors are evaluated separately for incoming and outgoing
-directions.
-
-\label{app:response-proof}
-The bounds needed for this construction follow directly from the
-definitions. For any nonnegative values $v_j$,
-$\sum_jv_j^2\leq(\sum_jv_j)^2\leq w\sum_jv_j^2$.
-Taking $v_j$ to be squared singular values of $J$, or squared
-coordinates of $h$, gives
-$\operatorname{pr}_A,\operatorname{pr}_B\in[1/w,1]$
-for nonzero responses. Congruence is at most one by
-Cauchy--Schwarz applied to the weighted kernels. Its numerator is
-nonnegative because
-$\inner{JJ^\top}{J^0J^{0\top}}=\frob{J^\top J^0}^2$
-and
-$\inner{hh^\top}{h^0h^{0\top}}=(h^\top h^0)^2$.
-Thus $0\leq e_i^r\leq1$. Zero-response conventions appear in
-Appendix~\ref{app:implementation}.
-
-We can now form the rotated direction. With role indices
-suppressed again, choose
-$\sigma_i=1$ when $\inner{g_i}{a_i^\perp}\geq0$ and $-1$ otherwise,
-and set
-\begin{equation}
- \widetilde q_i=
- \sqrt{1-e_i}\,p_i+
- \sigma_i\sqrt{e_i}\frac{\frob{p_i}}{\frob{a_i^\perp}}a_i^\perp.
- \label{eq:tangent-chord}
-\end{equation}
-The sign makes the tangent contribution agree with current descent.
-Writing $e_i=\sin^2\vartheta_i$ reveals the construction as a
-rotation through angle $\vartheta_i$ in the plane of $p_i$ and
-$a_i^\perp$.
-
-\begin{proposition}[Norm-preserving rotation]
-For $e_i\in[0,1]$, $p_i\neq0$, and $a_i^\perp\neq0$, the candidate
-in equation~\ref{eq:tangent-chord} satisfies
-$\frob{\widetilde q_i}=\frob{p_i}$.
-\end{proposition}
-\begin{proof}
-Equation~\ref{eq:tangent-orientation} gives
-$\inner{p_i}{a_i^\perp}=0$. Expanding the squared norm therefore yields
-\[
- \frob{\widetilde q_i}^2
- =(1-e_i)\frob{p_i}^2
- +e_i\frac{\frob{p_i}^2}{\frob{a_i^\perp}^2}
-       \frob{a_i^\perp}^2
- =\frob{p_i}^2.
-\]
-\end{proof}
-
-The selected direction $q_i$ is $\widetilde q_i$ when the candidate
-is finite and both
-$\inner{g_i}{p_i}>0$ and $\inner{g_i}{\widetilde q_i}>0$;
-otherwise it is $p_i$. A zero parent or tangent also selects $p_i$.
-\label{eq:chord-selection}
-Either selection preserves the parent norm.
-The resulting pair $(q_i^A,q_i^B)$ now defines one structured
-direction whose strength can be coordinated with the other groups.
-
-\subsection{A joint loss model for group updates}
-\label{sec:loss-measurements}
-
-The directions constructed above occupy disjoint parameter blocks,
-but their effects on the loss overlap. A coefficient chosen for one
-group therefore changes the context in which the other groups act.
-TILLER measures this interaction by evaluating all group directions
-at shared activation positions.
-
-For probe $k$ and coordinate $i=(\ell,g)$, let $x_{k\ell}$ be the
-block input, $h_{ki}=\Phi_i(A_ix_{k\ell})$ the group features, and
-$\xi_{k\ell}$ the downstream loss derivative at the block output.
-The derivative is expressed on the clipped summed-loss scale
-specified in Appendix~\ref{app:implementation}.
-Perturbing the incoming and outgoing projections along
-$(q_i^A,q_i^B)$ produces
-\begin{equation}
- \delta z_{ki}=q_i^Ax_{k\ell},\qquad
- \delta h_{ki}=J_{ki}\delta z_{ki},\qquad
- \delta y_{ki}=B_i\delta h_{ki}+q_i^Bh_{ki}.
- \label{eq:directional-path}
-\end{equation}
-The last expression follows from differentiating
-$(B_i+\alpha q_i^B)\Phi_i((A_i+\alpha q_i^A)x_{k\ell})$
-at $\alpha=0$. Its first term follows the incoming perturbation
-through the learned activation; its second term changes the
-outgoing projection of the current features. Pairing both terms
-with $\xi_{k\ell}$ gives the group's loss response:
-\begin{align}
- S_{t,ki}
- &=\inner{\xi_{k\ell}}{B_iJ_{ki}q_i^Ax_{k\ell}+q_i^Bh_{ki}}
- \nonumber\\
- &=\inner{q_i^Ax_{k\ell}}{J_{ki}^\top B_i^\top\xi_{k\ell}}
-   +\inner{q_i^Bh_{ki}}{\xi_{k\ell}}.
- \label{eq:functional-score}
-\end{align}
-The second form uses the Jacobian action in
-equation~\ref{eq:grain-jacobian-actions}.
-At differentiability points, each score is the contribution from
-one activation position to the directional loss derivative.
-Averaging over all positions recovers the clipped minibatch
-derivative. The probe matrix $S_t\in\mathbb R^{K\times C}$,
-where $C=LG$, retains $K$ such positions across all group
-directions. The exact current minibatch derivative for each
-coordinate is also available from the parameter gradients:
-\begin{equation}
- s_{t,i}=\inner{g_{t,i}^A}{q_{t,i}^A}
-        +\inner{g_{t,i}^B}{q_{t,i}^B}.
- \label{eq:current-score}
-\end{equation}
-This contraction supplies the linear descent term, while the
-probe rows describe how contributions vary together.
-
-For coefficients $c\in\mathbb R^C$, the combined probe response is
-$S_tc$. The quantity $\|S_tc\|_2^2/K$ depends on cross products
-between its columns. To illustrate what these products reveal,
-consider two probes and two group responses. Columns $(2,0)^\top$
-and $(0,2)^\top$ each have mean one, and their sum has mean squared
-response four. If both columns are $(2,0)^\top$, the individual
-means are unchanged but the combined mean squared response is
-eight. The response metric distinguishes these combinations
-through their overlap across probes.
-
-Decoupled weight decay contributes to the same output perturbation.
-Applying equation~\ref{eq:functional-score} to
-$(\lambda_{\rm wd}A_i,\lambda_{\rm wd}B_i)$ and summing over
-groups gives its probe response $a_t^{\rm dec}\in\mathbb R^K$.
-The total response penalty expands as
-\begin{equation}
- \frac1K\|S_tc+a_t^{\rm dec}\|_2^2
- =c^\top\frac{S_t^\top S_t}{K}c
-  +2c^\top\frac{S_t^\top a_t^{\rm dec}}{K}
-  +\frac{\|a_t^{\rm dec}\|_2^2}{K}.
- \label{eq:functional-response-energy}
-\end{equation}
-The last term is constant in $c$. The first two terms motivate
-a response metric $G_t$ and a score--decay cross term $r_t$.
-TILLER estimates them from a discounted history of measurements,
-as described in the next subsection.
-
-The coordination problem balances current descent against this
-joint response penalty. Let
-$\omega_i=\frob{q_i^A}^2+\frob{q_i^B}^2$ and
-$\mathcal E_0=\sum_i\omega_i$. Because the coordinates occupy
-disjoint parameter blocks, their structured update satisfies
-\[
- \|\Delta\theta(c)\|_2^2
- =\eta^2\sum_i\omega_i c_i^2,\qquad
- \Delta\theta(c)=-\eta\{c_iq_i^A,c_iq_i^B\}_{i=1}^C.
-\]
-Thus $\sum_i\omega_ic_i^2=\mathcal E_0$ preserves the squared
-norm of the uncoordinated direction $c=\boldsymbol1$.
-At learning rate $\eta>0$, TILLER uses the surrogate
-\begin{align}
- F_t(c)&=-\eta s_t^\top c+
- \frac{\eta^2}{2}\left(c^\top G_tc+2r_t^\top c\right),
- \label{eq:transaction-objective}\\
- \text{with}\quad
- &\sum_i\omega_ic_i^2=\mathcal E_0.
- \label{eq:transaction-budget}
-\end{align}
-The linear term favors combinations aligned with the current
-minibatch gradient. The quadratic term penalizes their joint
-squared loss response, including interaction with decay.
-Fixing the norm makes the choice depend on how that norm is
-distributed among groups. Signed coefficients permit a group
-to reverse when that change benefits the joint proposal.
-
-
-\subsection{Maintaining the loss ledger}
-\label{sec:ledger}
-
-The coefficient model needs both a current descent signal and
-a description of how directions interact. TILLER obtains the
-first from $s_t$ on every minibatch. It obtains the second from
-shared probes and carries those measurements forward in a
-discounted loss ledger.
-
-The shared probes are refreshed on step 1 and every eight steps
-thereafter, using $K=32$ example--token positions. Between
-refreshes, the ledger receives a rank-one measurement aligned
-with the current minibatch contraction. Let
-$\nu=\|S_{\rm ref}\|_{\rm F}/\sqrt K$ be the RMS row norm at
-the latest probe refresh. Define
-\begin{equation}
- \gamma_t=
- \begin{cases}
- \nu/\|s_t\|_2,&\|s_t\|_2>0,\\
- 0,&\|s_t\|_2=0,
- \end{cases}
- \qquad
- S_t=\boldsymbol1_K(\gamma_ts_t)^\top,\qquad
- a_t^{\rm dec}=\boldsymbol1_K\gamma_td_t^{\rm dec},
- \label{eq:trace-matched-rows}
-\end{equation}
-where $d_t^{\rm dec}$ is the current gradient contraction
-with the GRAIN decay direction.
-When $s_t\neq0$,
-$\|S_t\|_{\rm F}^2=K\gamma_t^2\|s_t\|_2^2
-=\|S_{\rm ref}\|_{\rm F}^2$.
-This preserves the trace of the latest probe second moment
-while updating its orientation to the current descent signal.
-Probe refreshes restore variation across positions; intervening
-steps supply fresh information along $s_t$.
-
-The ledger's uncompressed target is
-\begin{equation}
- G_t^\star=\beta_2G_{t-1}^\star+
- (1-\beta_2)S_t^\top S_t/K,\qquad
- G_1^\star=S_1^\top S_1/K.
- \label{eq:ledger-target}
-\end{equation}
-For any $c$, $c^\top G_t^\star c$ is a discounted average
-of squared responses of that coefficient combination.
-The recorded responses use the parameters and directions
-from their respective steps. The discount therefore gives
-greater weight to the geometry encountered more recently.
-
-TILLER represents this history using a factor $\mathcal B_t$
-and an isotropic remainder $\tau_tI$:
-\begin{equation}
- \widehat G_t=\mathcal B_t^\top\mathcal B_t/K+\tau_tI.
- \label{eq:rfd-metric}
-\end{equation}
-The factor represents dominant combinations of group responses.
-The remainder assigns a common contribution to all coefficient
-directions, including those outside the factor's span.
-Given the previous history, the current rows enter through
-\begin{equation}
- \mathcal A_t=
- \begin{bmatrix}
- \sqrt{\beta_2}\mathcal B_{t-1}\\
- \sqrt{1-\beta_2}S_t
- \end{bmatrix},\qquad
- G_t=\mathcal A_t^\top\mathcal A_t/K+\beta_2\tau_{t-1}I.
- \label{eq:current-ledger-metric}
-\end{equation}
-This $G_t$ supplies the current coefficient model.
-The cross term follows the same discount:
-\begin{equation}
- r_t=\beta_2r_{t-1}+
- (1-\beta_2)S_t^\top a_t^{\rm dec}/K.
- \label{eq:decay-cross}
-\end{equation}
-At the first step,
-$\mathcal A_1=\mathcal B_1=S_1$, $\tau_0=\tau_1=0$, and
-$r_1=S_1^\top a_1^{\rm dec}/K$.
-
-To carry the new history to the next step, TILLER compresses
-$\mathcal A_t$ with Robust Frequent Directions
-\citep{ghashami2016frequent,luo2019robust}.
-It retains at most $r=64$ singular directions and subtracts
-the largest discarded squared singular value $\Delta_t$
-from each retained squared singular value.
-The isotropic remainder then updates as
-\begin{equation}
- \tau_t=\beta_2\tau_{t-1}+\frac{\Delta_t}{2K}.
- \label{eq:rfd-tail}
-\end{equation}
-The new rows thus enter the current model at full resolution,
-and their compressed representation becomes part of the
-next step's history.
-
-The half-threshold in equation~\ref{eq:rfd-tail} has a
-geometric interpretation. After shrinkage, the omitted
-contribution lies between zero and $\Delta_t/K$ in every
-direction. Assigning the midpoint of this interval limits
-the largest absolute error. The following result quantifies
-its effect on the response metric.
-\label{app:rfd-proof}
-
-\begin{proposition}[Error of the compressed response metric]
-Let $K>0$, $0\leq\beta_2\leq1$, $\tau_{t-1}\geq0$, and
-$\mathcal A=U\operatorname{Diag}(\sigma)V^\top$,
-with singular values in nonincreasing order.
-If $\operatorname{rank}(\mathcal A)>r$, set
-$\Delta=\sigma_{r+1}^2$ and
-\begin{equation}
- \mathcal B=
- \operatorname{Diag}\!\left(
- \sqrt{\sigma_1^2-\Delta},\ldots,\sqrt{\sigma_r^2-\Delta}
- \right)V_{1:r}^\top.
- \label{eq:rfd-reconstruction}
-\end{equation}
-Otherwise set $\Delta=0$ and choose a factor with at most
-$r$ rows satisfying
-$\mathcal B^\top\mathcal B=\mathcal A^\top\mathcal A$.
-For
-\[
- G=\mathcal A^\top\mathcal A/K+\beta_2\tau_{t-1}I,\qquad
- \widehat G=\mathcal B^\top\mathcal B/K+
-       \left(\beta_2\tau_{t-1}+\frac{\Delta}{2K}\right)I,
-\]
-we have
-\begin{equation}
- \widehat G\succeq0,\qquad
- \|\widehat G-G\|_2\leq\frac{\Delta}{2K}.
- \label{eq:rfd-error}
-\end{equation}
-\end{proposition}
-
-\begin{proof}
-The retained squared singular values and the isotropic
-remainder are nonnegative, so $\widehat G$ is positive
-semidefinite. If $\Delta=0$, the two metrics coincide.
-Otherwise, on a retained right-singular direction,
-shrinkage subtracts $\Delta/K$ and the remainder adds
-$\Delta/(2K)$, for a net error of $-\Delta/(2K)$.
-On a discarded direction with squared singular value
-$\lambda\in[0,\Delta]$, the error is
-$(\Delta/2-\lambda)/K$.
-A null direction has error $\Delta/(2K)$.
-These directions form an orthonormal basis, and every
-absolute eigenvalue error is at most $\Delta/(2K)$.
-\end{proof}
-
-The bound translates directly to the penalty used for
-coordination. For any coefficient vector $c$,
-\begin{equation}
- |c^\top\widehat Gc-c^\top Gc|
- \leq\|\widehat G-G\|_2\|c\|_2^2
- \leq\frac{\Delta}{2K}\|c\|_2^2.
- \label{eq:rfd-response-error}
-\end{equation}
-It also tracks error over the discounted history.
-Writing $E_t=\widehat G_t-G_t^\star$, each compression
-adds an error $D_t$ with
-$\|D_t\|_2\leq\Delta_t/(2K)$, so
-$E_t=\beta_2E_{t-1}+D_t$ and $E_1=0$. Iteration yields
-\begin{equation}
- \|E_t\|_2\leq
- \sum_{j=2}^t\beta_2^{\,t-j}\frac{\Delta_j}{2K}.
- \label{eq:rfd-history-error}
-\end{equation}
-The same discount that emphasizes recent responses
-therefore attenuates older compression errors.
-
-\subsection{Choosing the group coefficients}
-\label{sec:transaction}
-\label{app:transaction-proof}
-
-The ledger supplies $G_t$ and $r_t$, while the current
-gradient supplies $s_t$. Coefficient selection combines these
-quantities in equation~\ref{eq:transaction-objective}.
-A change of coordinates turns the weighted norm constraint
-into a sphere and reduces the projected solution to a scalar
-multiplier equation.
-
-For $\omega_i>0$, let $W=\operatorname{Diag}(\omega)$
-and $y=W^{1/2}c$. Substituting $c=W^{-1/2}y$ and dividing
-the objective by $\eta^2$ gives
-\begin{equation}
- \begin{gathered}
- \mathcal Q_t(y)=\frac12y^\top M_ty-b_t^\top y,\quad
- \|y\|_2^2=\mathcal E_0,\\
- M_t=W^{-1/2}G_tW^{-1/2},\quad
- b_t=W^{-1/2}(s_t/\eta-r_t).
- \end{gathered}
- \label{eq:whitened-transaction}
-\end{equation}
-The coefficient construction assumes $b_t\neq0$, in addition
-to positive block energies and learning rate. Its Lagrangian is
-$\mathcal J(y,\lambda)=
-\tfrac12y^\top M_ty-b_t^\top y+
-\tfrac{\lambda}{2}(\|y\|_2^2-\mathcal E_0)$.
-Differentiation with respect to $y$ gives the stationarity
-equation $(M_t+\lambda I)y=b_t$. The multiplier controls
-the norm of the proposed update in these coordinates.
-
-TILLER constructs a proposal on the positive-multiplier
-branch in a subspace generated by $b_t$ and repeated actions
-of $M_t$. A reorthogonalized Lanczos recurrence
-\citep{lanczos1950iteration} produces a basis $Q_k$,
-with $k\leq32$. In the absence of breakdown, its span is
-$\operatorname{span}\{b_t,M_tb_t,\ldots,M_t^{k-1}b_t\}$.
-Each metric action follows directly from the ledger:
-\begin{equation}
- M_tv=
- W^{-1/2}\mathcal A_t^\top
- (\mathcal A_tW^{-1/2}v)/K+
- \beta_2\tau_{t-1}W^{-1}v.
- \label{eq:ledger-metric-action}
-\end{equation}
-Let $T_k^+$ be the positive-semidefinite projection of the
-accumulated Lanczos matrix. With $y=Q_kz$, the projected
-stationarity equation is
-\begin{equation}
- (T_k^++\lambda I)z=Q_k^\top b_t,\qquad
- \|z\|_2^2=\mathcal E_0.
- \label{eq:projected-secular}
-\end{equation}
-Diagonalizing
-$T_k^+=U\operatorname{Diag}(\theta)U^\top$
-and writing $\gamma=U^\top Q_k^\top b_t$ reduces
-the norm condition to
-\begin{equation}
- \psi(\lambda)=
- \sum_j\frac{\gamma_j^2}{(\theta_j+\lambda)^2}
- =\mathcal E_0.
- \label{eq:secular-equation}
-\end{equation}
-For $\lambda>0$, nonnegative $\theta_j$ and nonzero
-$\gamma$ give
-$\psi'(\lambda)=-2\sum_j
-\gamma_j^2/(\theta_j+\lambda)^3<0$.
-Thus bisection determines the unique positive root when
-one lies in the chosen interval. The resulting proposal is
-$c=W^{-1/2}Q_kU\operatorname{Diag}((\theta+\lambda)^{-1})
-\gamma$.
-
-The proposal is evaluated in the full objective
-$F_t$, using the ledger factor and isotropic remainder.
-It is selected when it is finite, lowers
-$F_t$ relative to $c=\boldsymbol1$, and satisfies
-\begin{equation}
- \frac{|c^\top Wc-\mathcal E_0|}
-      {\max\{\mathcal E_0,1\}}\leq10^{-8}.
- \label{eq:coefficient-norm-check}
-\end{equation}
-TILLER also requires positive aggregate contractions
-with the current gradient and Nesterov momentum in each
-layer and matrix role:
-\begin{equation}
- \sum_g c_{\ell g}
- \inner{g_{\ell g}^r}{q_{\ell g}^r}>0,\qquad
- \sum_g c_{\ell g}
- \inner{m_{\ell g}^r}{q_{\ell g}^r}>0,
- \quad r\in\{A,B\}.
- \label{eq:transaction-contractions}
-\end{equation}
-These inequalities are checked for both the proposed
-coefficients and $\boldsymbol1$.
-If the positive root is unavailable or a check fails,
-the step uses $c=\boldsymbol1$.
-The selected coefficients scale both projections of
-each group, completing the coordination of the
-response-guided directions.
-
-\section{Algorithm specification}
-\label{app:implementation}
-\label{sec:distributed}
-\label{app:algorithm}
-\label{app:numerical}
-
-A training step combines the constructions above in the following order.
-The forward and backward passes provide the clipped parameter gradients
-and, on a probe refresh, the activation values and downstream loss
-derivatives. The optimizer then constructs directions, measures their
-joint response, and applies the selected coefficients.
-
-\begin{enumerate}
- \item Update Nesterov momentum and factorized second moments for the
- GRAIN projections and attention matrices, and construct their Muon
- and adaptive directions.
- \item On a probe refresh, evaluate the participation and congruence
- statistics; otherwise reuse their latest values. Form the
- response-guided rotations and select the matrix directions.
- \item Evaluate the shared probe scores and decay responses on a
- refresh step. At other steps, use the current gradient
- contractions and equation~\ref{eq:trace-matched-rows}.
- \item Combine the current rows with the previous ledger to form
- $G_t$ and $r_t$. Construct and evaluate the coefficient proposal.
- Compress the response factor and retain the updated ledger
- for the next step.
- \item Apply the paired GRAIN updates
- \[
- A_i\leftarrow(1-\eta\lambda_{\rm wd})A_i-\eta c_iq_i^A,\qquad
- B_i\leftarrow(1-\eta\lambda_{\rm wd})B_i-\eta c_iq_i^B.
- \]
- Apply the response-guided directions to attention, and update the
- rational coefficients and remaining parameter classes with AdamW
- \citep{loshchilov2019decoupled}.
-\end{enumerate}
-
-For the activation, the group width is $w=256$ and
-$\epsilon_{\rm act}=10^{-6}$. The expanded width is $H_r=Gw$.
-All groups begin from the same SiLU fit. In ascending powers, the coefficients
-are
-\begin{align}
-  (a^{\rm init}_0,\ldots,a^{\rm init}_5)
-  ={}&(2.4915714620520875\!\times\!10^{-5},\
-  0.5000668663485823,\ 0.2499441908995771,\nonumber\\
-  &0.0526200910151016,\ 0.005525765640115002,\
-  0.00024199321178747251),\\
-  (b^{\rm init}_1,\ldots,b^{\rm init}_4)
-  ={}&(0.00022554017910995938,\ 0.10511420350691994,\nonumber\\
-  &2.8656992394109812\!\times\!10^{-5},\
-  0.0004816962110562025).
-\end{align}
-The ten coefficients subsequently learn independently in every group.
-
-
-The matrix directions use the same momentum in their polar and
-adaptive constructions.
-Let $g_t$ denote the parameter gradient after microbatch accumulation,
-distributed averaging, and global-norm clipping.
-For each pair of group blocks $i=(\ell,g)$ and role
-$r\in\{A,B\}$, \tiller{} starts from a Nesterov--Muon direction $p_i^r$:
-with $\beta_1=0.95$, it forms
-\begin{equation}
-  v_{t,i}^r=\beta_1v_{t-1,i}^r+(1-\beta_1)g_{t,i}^r,
-  \qquad
-  m_{t,i}^r=\beta_1v_{t,i}^r+(1-\beta_1)g_{t,i}^r,
-  \label{eq:nesterov-momentum}
-\end{equation}
-followed by a five-step Newton--Schulz polar map
-applied independently to each group block and Muon's role-dependent RMS
-adjustment \citep{jordan2024muon,bernstein2024old,liu2025muon}. To set the groupwise polar directions on the nominal Frobenius scale
-of their full projection matrix, we apply
-\begin{equation}
-  \chi_{\rm grp}
-  =\sqrt{\frac{\min\{H_r,d\}}{G\min\{w,d\}}},
-  \label{eq:group-polar-calibration}
-\end{equation}
-Writing $\mathcal P_5$ for this blockwise polar map, Muon's adjustment is
-$\mu_{\rm mlp}=0.2\sqrt{\max\{H_r,d\}}$ for either GRAIN matrix role. The
-parent group direction is
-$p_{t,i}^r=\mu_{\rm mlp}\chi_{\rm grp}\mathcal P_5(m_{t,i}^r)$.
-In parallel, \tiller{} maintains
-factorized row and column second moments, in the spirit of memory-efficient
-factored adaptation \citep{shazeer2018adafactor}. For a grouped matrix with
-gradient $g_i$ and Nesterov momentum $m_i$, suppressing role indices,
-\begin{align}
-  R_t&=\beta_2 R_{t-1}+(1-\beta_2)\operatorname{rowsum}(g_i^2),\\
-  C_t&=\beta_2 C_{t-1}+(1-\beta_2)\operatorname{colsum}(g_i^2),\\
-  V_{t,jk}&=\frac{R_{t,j}C_{t,k}}
-  {\max\{\sum_sR_{t,s},\delta_{\rm fp}\}}\frac{1}{1-\beta_2^t},
-  \qquad
-  a_i=\mu_{\rm mlp}\frac{m_i}{\sqrt{V_t}+\epsilon_{\rm opt}}.
-  \label{eq:factored-direction}
-\end{align}
-Here $\operatorname{rowsum}$ and $\operatorname{colsum}$ sum squared
-entries over the columns and rows, respectively. We set $\beta_2=0.95$,
-$\epsilon_{\rm opt}=10^{-8}$, and
-$\delta_{\rm fp}=\operatorname{finfo}(\texttt{float32}).\operatorname{tiny}$. The same $\beta_2$ sets the time scale of the loss ledger. When the row-moment total is zero, $V_t=0$.
-
-
-The approximate polar map $\mathcal P_5$ transposes a tall
-input and casts the working matrix to bfloat16. Its Frobenius
-norm is accumulated in float32, lower bounded by $10^{-7}$,
-and cast to bfloat16 for normalization.
-With $(a,b,c)=(3.4445,-4.775,2.0315)$, its five iterations are
-\begin{equation}
- X_{j+1}=aX_j+b(X_jX_j^\top)X_j+
- c(X_jX_j^\top)^2X_j.
- \label{eq:newton-schulz-map}
-\end{equation}
-The iterations run in bfloat16, after which the original
-orientation is restored. Factorized second moments are
-maintained in float32.
-
-The response statistics use deterministic shared probes at
-steps $1,9,17,\ldots$. All quantities in a probe row refer
-to the same example--token position. If the backward pass
-averages over $R$ positions per microbatch and $M$ accumulated
-microbatches, a captured output derivative $\bar\xi_{k\ell}$
-is converted to
-\begin{equation}
- \xi_{k\ell}=RM\chi_{\rm clip}\bar\xi_{k\ell},
- \label{eq:cotangent-rescaling}
-\end{equation}
-where $\chi_{\rm clip}$ is the realized global gradient-clipping
-factor. This is the derivative of the summed microbatch loss,
-scaled by $\chi_{\rm clip}$. The clipping factor is held fixed
-when forming the directional measurements.
-For zero responses,
-$\operatorname{pr}_A(0)=\operatorname{pr}_B(0)=0$.
-If either role has zero total sensitivity, both participation
-values are set to one. If either kernel-congruence denominator
-vanishes, both congruence values are set to one.
-Congruence is also set to one when the rational coefficients
-equal their initialization. These conventions select zero
-departure when the response comparison is undefined.
-
-Attention uses the same rotation construction with statistics
-aggregated within its layer. Let
-$\overline\pi_\ell^r=G^{-1}\sum_g\pi_{\ell g}^r$.
-For each role, obtain $\kappa_\ell^r$ by summing the numerator
-and the two squared-norm sums in
-equation~\ref{eq:congruence-main} over groups before
-normalization. Then
-\begin{equation}
- \pi_\ell^{\rm att}
- =\sqrt{\overline\pi_\ell^A\overline\pi_\ell^B},\qquad
- \kappa_\ell^{\rm att}=\sqrt{\kappa_\ell^A\kappa_\ell^B},\qquad
- e_\ell^{\rm att}=\pi_\ell^{\rm att}
-       \left[1-(\kappa_\ell^{\rm att})^2\right].
- \label{eq:attention-response}
-\end{equation}
-The participation term combines the breadth of both projection
-roles, while the congruence term allows a change in either
-response to affect the attention rotation.
-This fraction guides the QKV and attention-output matrices.
-The 16 attention heads are partitioned into blocks of four
-for the polar map; the stacked QKV direction is scaled by
-$1/\sqrt3$ for its three constituent projections.
-The adaptive tangent uses matrix-level factorized moments.
-The group coefficients $c_i$ apply to the paired GRAIN
-projections; attention receives its layerwise rotation.
-Rational coefficients, embeddings, normalization parameters,
-and remaining tensors use AdamW.
-
-The coefficient solver uses double precision. Its Lanczos
-recurrence performs two reorthogonalization passes per basis
-vector. At an early breakdown, a deterministic cosine vector
-is reorthogonalized against the existing basis to start a new
-block, with zero coupling between blocks. The basis is checked
-for orthogonality before use.
-If $\bar T_k=U\operatorname{Diag}(\bar\theta)U^\top$ is the
-accumulated projected matrix, the solver sets
-$T_k^+=U\operatorname{Diag}((\bar\theta)_+)U^\top$.
-The positive multiplier is bracketed by
-\begin{equation}
- \lambda_{\rm lo}=\epsilon_{\rm mach}C,\qquad
- \lambda_{\rm hi}=
- \frac{\|b_t\|_2}{\sqrt{\mathcal E_0}}
- +\lambda_{\max}(T_k^+)+\lambda_{\rm lo}.
- \label{eq:multiplier-bracket}
-\end{equation}
-Since $\theta_j\geq0$,
-$\psi(\lambda_{\rm hi})\leq
-\|b_t\|_2^2/\lambda_{\rm hi}^2\leq\mathcal E_0$.
-When $\psi(\lambda_{\rm lo})\geq\mathcal E_0$,
-the interval contains the positive root and the solver
-takes 64 bisection steps.
-Otherwise the step retains $c=\boldsymbol1$.
-The returned proposal is checked in the full ledger
-objective as specified in Appendix~\ref{sec:transaction}.
+\input{appendix}
 
 \end{document}

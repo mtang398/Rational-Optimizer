@@ -4,12 +4,13 @@ This directory is a self-contained ICLR 2027 manuscript project. It includes
 the official conference style, bibliography style, and bundled compatibility
 files, together with the paper source and a rendered PDF.
 
-Read the [paper](main.pdf) or edit [the LaTeX source](main.tex). The method
-section has two parts: GRAIN's learned group responses and TILLER's
-construction and coordination of update directions. The appendices explain
-the geometry behind the activation response and structured updates, derive
-the shared loss measurements and spectral approximation, and specify the
-coefficient solver and complete update algorithm.
+Read the [paper](main.pdf) or edit [the main text](main.tex) and
+[appendix](appendix.tex). The paper develops full TILLER and TILLER–Muon
+for Transformers with GRAIN activations. The main text introduces their
+shared response-guided update construction and their training schedules.
+The appendix derives the activation geometry, matrix directions, loss
+ledger, and coefficient selection, and presents both schedules in one
+algorithm.
 
 ## Compile locally
 
@@ -19,11 +20,11 @@ The included PDF was built with pdfLaTeX and TeX Live 2026:
 make
 ```
 
-The build runs `latexmk -pdf` on `main.tex`. Set `LATEXMK` when the TeX Live
-2026 executable is not already on `PATH`:
+The build runs `latexmk -pdf` on `main.tex`. Add the TeX Live 2026
+binary directory to `PATH` when it is not already available:
 
 ```bash
-make LATEXMK=/path/to/texlive/2026/bin/x86_64-linux/latexmk
+PATH=/path/to/texlive/2026/bin/x86_64-linux:$PATH make
 ```
 
 ## Compile on Overleaf
@@ -46,4 +47,7 @@ Verify the bundled files with:
 sha256sum -c OFFICIAL_TEMPLATE.sha256
 ```
 
-The submission switch `\iclrfinalcopy` remains disabled for anonymous review.
+The project uses the anonymous review mode of the official style.
+The [ICLR 2027 author guidelines](https://iclr.cc/Conferences/2027/AuthorGuidelines)
+allow nine main-text pages for the initial submission, with references
+and appendices following the main text.
