@@ -1,1 +1,0 @@
-run_index,model_scale,dataset,seed,activation,activation_display_name,optimizer,optimizer_display_name,method,method_display_name,step,validation_loss,validation_perplexity,active_seconds_at_validation

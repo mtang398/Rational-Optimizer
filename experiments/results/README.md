@@ -21,10 +21,21 @@ The tables cover the 12-layer, 768-wide model at 100M and 300M training tokens
 and the primary 18-layer, 1,024-wide model at 100M tokens and 3,050 steps. Unfinished endpoint
 rows are represented with `pending` status and empty measurement fields.
 
-The primary inventory contains 225 main runs and 15 runs with TILLER for
-the first 1,000 updates followed by Muon. Its compact tables are updated
-incrementally from checksum-validated run artifacts; unfinished rows retain
-their current status until the required endpoint is available.
+## 18-layer model, 100M training tokens
+
+All 180 published runs have reached the 3,050-step endpoint. Each directory
+contains endpoint losses, per-run timing, seed summaries, and validation
+trajectories from step 1 through step 3,050.
+
+| Optimizer | Activations | Completed runs |
+|---|---|---:|
+| [Muon](muon/) | SwiGLU, GRAIN | 30 |
+| [TILLER](tiller/) | GRAIN | 15 |
+| [TILLER followed by Muon](tiller_then_muon/) | GRAIN | 15 |
+| [AdamW](adamw/) | SwiGLU, GRAIN | 30 |
+| [SOAP](soap/) | SwiGLU, GRAIN | 30 |
+| [CAME](came/) | SwiGLU, GRAIN | 30 |
+| [Schedule-Free AdamW](schedule_free_adamw/) | SwiGLU, GRAIN | 30 |
 
 For the 18-layer study and the 12-layer 300M-token study, the comparison is
 GRAIN + TILLER against SwiGLU + Muon. GRAIN + Muon is the activation-only
@@ -40,14 +51,14 @@ when full-process timing is available.
 
 ## 12-layer model, 300M training tokens
 
-The 9,150-step baseline study contains 210 run records: seven optimizers,
+The published 9,150-step baseline tables contain 180 run records: six optimizers,
 SwiGLU and GRAIN, five datasets, and three seeds. Individual endpoint losses,
 run outcomes, and recorded training times are available in each optimizer's
 `runs.csv`.
 
 Each baseline optimizer README also includes validation-loss means and sample
 standard deviations at steps 1,000, 2,000, 4,000, 6,000, 8,000, and 9,150:
-[AdamW](adamw/README.md), [Muon](muon/README.md), [Lion](lion/README.md),
+[AdamW](adamw/README.md), [Muon](muon/README.md),
 [SOAP](soap/README.md), [ADeMaMix](ademamix/README.md), [CAME](came/README.md),
 and [Schedule-Free AdamW](schedule_free_adamw/README.md).
 

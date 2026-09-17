@@ -15,6 +15,9 @@ CANDIDATE_OPTIMIZERS = ("tiller_v1", "tiller_then_muon_v1")
 BASELINE_STAGES = {
     "muon": {"muon"},
     "adamw": {"adamw"},
+    "published_remaining": {
+        "soap_adamw", "adafactor_came", "schedule_free_adamw",
+    },
     "remaining": {
         "lion", "soap_adamw", "ademamix", "adafactor_came",
         "schedule_free_adamw",

@@ -10,5 +10,4 @@ All 15 dataset–seed runs have reached the 3,050-step endpoint.
 
 `runs.csv` records individual runs, `summary.csv` groups seed results, and
 `checkpoints.csv` contains validation measurements along each trajectory.
-Pending rows receive measurements as the runs finish. The exact commands are
-in [the reproduction protocol](../../protocol/README.md).
+The exact commands are in [the reproduction protocol](../../protocol/README.md).

@@ -8,11 +8,11 @@ suites in one schema.
 - `summary.csv`: fifteen model–budget–dataset cells aggregated from recorded
   finite endpoints.
 - `checkpoints.csv`: recorded validation checkpoints along the available
-  trajectories, including the complete 12-layer studies and the primary
-  18-layer runs as they are collected.
+  trajectories: the completed 12-layer 100M-token study and all 15 primary
+  18-layer runs.
 
-Completed and pending rows share the same schema; pending measurements remain
-empty until their required endpoint is available.
+The 15 rows for the 12-layer 300M-token study remain pending, with empty
+measurement fields.
 
 All 15 primary 18-layer, 100M-token TILLER rows are complete. They run for
 3,050 steps and use SwiGLU + Muon as their matched comparison. Their formal

@@ -19,13 +19,3 @@ model_scale,dataset,train_tokens,steps_required,activation,activation_display_na
 12l_768d,fineweb_edu,100000000,3050,silu,SwiGLU,ademamix,ADeMaMix,silu_ademamix,SwiGLU + ADeMaMix,3,3,0,0,3,242.85369633333335,242.01215538988882,0,,,,0,,,1668.538648508198,510.1492581777858,0.5293483185070196,67381.73205912916,complete
 12l_768d,fineweb_edu,300000000,9150,rlb_fused_global_rational,GRAIN,ademamix,ADeMaMix,rlb_ademamix,GRAIN + ADeMaMix,3,0,3,3,0,,,0,,,,0,,,283.1039084919418,22.78759090518419,0.4285504637217558,76584.79674991775,non_finite
 12l_768d,fineweb_edu,300000000,9150,silu,SwiGLU,ademamix,ADeMaMix,silu_ademamix,SwiGLU + ADeMaMix,3,3,0,3,0,,,0,,,,0,,,5309.269116561986,641.8569950183715,0.4762467264709331,70175.39499567907,non_finite
-18l_1024d,c4_en,100000000,3050,rlb_fused_global_rational,GRAIN,ademamix,ADeMaMix,rlb_ademamix,GRAIN + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,c4_en,100000000,3050,silu,SwiGLU,ademamix,ADeMaMix,silu_ademamix,SwiGLU + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,dclm,100000000,3050,rlb_fused_global_rational,GRAIN,ademamix,ADeMaMix,rlb_ademamix,GRAIN + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,dclm,100000000,3050,silu,SwiGLU,ademamix,ADeMaMix,silu_ademamix,SwiGLU + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,dolma_sample,100000000,3050,rlb_fused_global_rational,GRAIN,ademamix,ADeMaMix,rlb_ademamix,GRAIN + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,dolma_sample,100000000,3050,silu,SwiGLU,ademamix,ADeMaMix,silu_ademamix,SwiGLU + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,fineweb,100000000,3050,rlb_fused_global_rational,GRAIN,ademamix,ADeMaMix,rlb_ademamix,GRAIN + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,fineweb,100000000,3050,silu,SwiGLU,ademamix,ADeMaMix,silu_ademamix,SwiGLU + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,fineweb_edu,100000000,3050,rlb_fused_global_rational,GRAIN,ademamix,ADeMaMix,rlb_ademamix,GRAIN + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending
-18l_1024d,fineweb_edu,100000000,3050,silu,SwiGLU,ademamix,ADeMaMix,silu_ademamix,SwiGLU + ADeMaMix,3,0,0,0,0,,,0,,,,0,,,,,,,pending

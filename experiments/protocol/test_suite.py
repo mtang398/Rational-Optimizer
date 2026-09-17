@@ -183,6 +183,19 @@ class PublicReproducibilityTests(unittest.TestCase):
         self.assertEqual(len(hybrid), 15)
         self.assertFalse(set(hybrid) & set(row_tools.matrix_suite_indices(phase)))
 
+    def test_published_remaining_stage_selects_recorded_baselines(self) -> None:
+        indices = row_tools.manifest_stage_indices(
+            verifier.MANIFEST, verifier.SUITE_100M_LARGE, "published_remaining"
+        )
+        rows = verifier.verify_manifest()
+        selected = [row for row in rows if int(row["row_index"]) in indices]
+        self.assertEqual(len(indices), 90)
+        self.assertEqual(len(selected), 90)
+        self.assertEqual(
+            {row["optimizer"] for row in selected},
+            {"soap_adamw", "adafactor_came", "schedule_free_adamw"},
+        )
+
     @staticmethod
     def _gpu_topology(count: int, pairs: set[tuple[int, int]]) -> str:
         header = "        " + " ".join(f"GPU{index}" for index in range(count))

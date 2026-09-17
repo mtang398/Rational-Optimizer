@@ -68,10 +68,11 @@ sbatch --array=0-29%3 \
 ```
 
 The complete five-stage submission commands are in
-[experiments/protocol](experiments/protocol/). This suite contains 225 main
-runs and 15 runs of the two-stage optimizer across five datasets and three
-seeds. The 12-layer, 768-wide studies at 100M and 300M tokens are available
-alongside the primary suite.
+[experiments/protocol](experiments/protocol/). The published suite contains
+180 completed runs across five datasets and three seeds: 150 baseline
+activation–optimizer runs, 15 full TILLER runs, and 15 two-stage runs.
+The 12-layer, 768-wide studies at 100M and 300M tokens are available alongside
+the primary suite.
 
 Each TILLER row reuses the completed control selected by `matrix.json` and runs
 the candidate under the same four-GPU RTX A6000/NVLink execution standard.

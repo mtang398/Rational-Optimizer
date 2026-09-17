@@ -16,6 +16,23 @@ from . import collect_results as collector
 
 
 class IndependentEndpointCollectionTests(unittest.TestCase):
+    def test_published_baseline_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            rows, checkpoints = collector.manifest_runs(
+                collector.DEFAULT_MANIFEST, Path(directory)
+            )
+        self.assertEqual(
+            set(rows),
+            {"adamw", "muon", "soap_adamw", "ademamix",
+             "adafactor_came", "schedule_free_adamw"},
+        )
+        self.assertEqual(len(rows["ademamix"]), 60)
+        self.assertTrue(all(row["model_scale"] == "12l_768d" for row in rows["ademamix"]))
+        primary = [row for group in rows.values() for row in group
+                   if row["source_phase"] == collector.PRIMARY_PHASE]
+        self.assertEqual(len(primary), 150)
+        self.assertTrue(all(not values for values in checkpoints.values()))
+
     def fixture(self, root: Path, optimizer: str = "tiller_v1") -> dict:
         manifest = manifest_builder.build_rows()
         baseline = next(row for row in manifest if row["phase"] == collector.PRIMARY_PHASE
@@ -218,7 +235,7 @@ class IndependentEndpointCollectionTests(unittest.TestCase):
             self.assertEqual(checkpoints, previous_checkpoints, folder)
             total_rows += len(merged)
             total_checkpoints += len(checkpoints)
-        self.assertEqual((total_rows, total_checkpoints), (450, 930))
+        self.assertEqual((total_rows, total_checkpoints), (390, 930))
 
 
 if __name__ == "__main__":

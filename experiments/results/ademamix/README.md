@@ -1,7 +1,8 @@
 # ADeMaMix results
 
 This directory contains the SwiGLU/GRAIN activation comparison with ADeMaMix
-across the published model scales, five datasets, and three seeds.
+for the 12-layer, 768-wide model at 100M and 300M training tokens, across five
+datasets and three seeds.
 
 - `runs.csv`: run-level endpoint and timing records.
 - `summary.csv`: unique dataset–budget–activation cells.

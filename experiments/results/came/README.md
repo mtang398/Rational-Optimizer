@@ -9,6 +9,11 @@ across the published model scales, five datasets, and three seeds.
 
 Both SwiGLU and GRAIN activation records use the same table schema.
 
+All 30 runs of the 18-layer, 1,024-wide study are complete at 3,050 steps
+and approximately 100M training tokens. Their endpoint losses and full-process
+times are in [runs.csv](runs.csv); [checkpoints.csv](checkpoints.csv) records
+validation loss at step 1 and every 50 steps through the final evaluation.
+
 
 ## 12-layer model, 300M training tokens
 

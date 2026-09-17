@@ -12,8 +12,8 @@ training command, checkpoints, endpoint loss, and measured training time.
 | `18l_1024d_100m_tokens_3050_steps` | 18 layers, width 1024, 16 heads, intermediate width 3072 | 100M | 3,050 | SwiGLU + Muon |
 
 Each endpoint suite covers DCLM, FineWeb-Edu, FineWeb, Dolma sample, and C4,
-with seeds 1337, 2027, and 3407. The primary 18-layer suite contains 210 runs
-of SwiGLU/GRAIN with seven baseline optimizers, 15 full TILLER runs, and
+with seeds 1337, 2027, and 3407. The published primary 18-layer suite contains
+150 runs of SwiGLU/GRAIN with five baseline optimizers, 15 full TILLER runs, and
 15 runs using TILLER for updates 1–1,000 followed by Muon for updates
 1,001–3,050.
 
@@ -93,11 +93,13 @@ switch_job=$(sbatch --parsable --array=0-14%3 --time=06:00:00 \
 adamw_job=$(sbatch --parsable --array=0-29%3 --time=02:00:00 \
   --dependency="afterany:$switch_job" \
   experiments/protocol/run_activation_optimizer_sweep.sbatch adamw "$suite")
-sbatch --array=0-149%3 --time=03:00:00 \
+sbatch --array=0-89%3 --time=03:00:00 \
   --dependency="afterany:$adamw_job" \
-  experiments/protocol/run_activation_optimizer_sweep.sbatch remaining "$suite"
+  experiments/protocol/run_activation_optimizer_sweep.sbatch published_remaining "$suite"
 ```
 
+The `published_remaining` stage selects SOAP, CAME, and Schedule-Free AdamW
+from the manifest, preserving each row's configuration and identifier.
 The 12-layer suites use the same launchers with their suite identifiers.
 Run AdamW before TILLER for the 12-layer 100M-token suite, and Muon before
 TILLER for the 12-layer 300M-token suite. Allocate a longer wall limit for
@@ -140,7 +142,9 @@ sbatch --array=0-14%3 --time=06:00:00 \
 Each optimizer directory contains `runs.csv`, `summary.csv`, and
 `checkpoints.csv`. Model size, token budget, dataset, seed, activation, and
 optimizer identify every result. The collector retains the published
-12-layer results while updating new runs.
+12-layer results while updating new runs. Published optimizer tables cover
+AdamW, Muon, SOAP, CAME, Schedule-Free AdamW, TILLER, and TILLER followed by
+Muon; ADeMaMix tables cover the two 12-layer studies.
 
 The main implementation files are `run_activation_row.py` (baseline command
 construction), `suite.py` (paired command construction),

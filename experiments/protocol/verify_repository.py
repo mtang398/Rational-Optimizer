@@ -101,7 +101,6 @@ CHECKPOINT_FIELDS = [
 OPTIMIZERS = {
     "adamw": ("adamw", "AdamW", "adamw"),
     "muon": ("muon", "Muon", "muon"),
-    "lion": ("lion", "Lion", "lion"),
     "soap": ("soap_adamw", "SOAP", "soap"),
     "ademamix": ("ademamix", "ADeMaMix", "ademamix"),
     "came": ("adafactor_came", "CAME", "came"),
@@ -1423,13 +1422,18 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
     for folder, tables in loaded.items():
         if folder in {"tiller", "tiller_then_muon"}:
             continue
-        require(len(tables["runs"]) == 90, f"results/{folder}: expected 90 run rows")
-        require(len(tables["summary"]) == 30, f"results/{folder}: expected 30 summary rows")
+        expected_runs = 60 if folder == "ademamix" else 90
+        require(len(tables["runs"]) == expected_runs,
+                f"results/{folder}: expected {expected_runs} run rows")
+        require(len(tables["summary"]) == expected_runs // 3,
+                f"results/{folder}: expected {expected_runs // 3} summary rows")
         for model, tokens, steps in (
             (SMALL_MODEL, "100000000", "3050"),
             (SMALL_MODEL, "300000000", "9150"),
             (LARGE_MODEL, "100000000", "3050"),
         ):
+            if folder == "ademamix" and model == LARGE_MODEL:
+                continue
             subset = [
                 row for row in tables["runs"]
                 if row["model_scale"] == model
@@ -1484,7 +1488,7 @@ def verify_results() -> dict[str, dict[str, list[dict[str, str]]]]:
         and row["train_tokens"] == "100000000"
         and row["steps_required"] == "3050"
     ]
-    require(len(primary_rows) == 240, "primary 18-layer result inventory changed")
+    require(len(primary_rows) == 180, "primary 18-layer result inventory changed")
     primary_status = Counter(row["status"] for row in primary_rows)
     require(
         set(primary_status) <= RUN_STATUSES,

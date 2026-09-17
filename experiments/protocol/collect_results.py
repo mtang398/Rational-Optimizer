@@ -42,7 +42,6 @@ OPTIMIZER_NAMES = {
 OUTPUT_DIRECTORIES = {
     "adamw": "adamw",
     "muon": "muon",
-    "lion": "lion",
     "soap_adamw": "soap",
     "ademamix": "ademamix",
     "adafactor_came": "came",
@@ -538,6 +537,11 @@ def manifest_runs(
     pairs: dict[tuple[Any, ...], dict[str, dict[str, Any]]] = defaultdict(dict)
     for row in source:
         if row["phase"] == PREFLIGHT_SUITE:
+            continue
+        if row["optimizer"] not in OUTPUT_DIRECTORIES:
+            continue
+        # ADeMaMix has results only in the two 12-layer studies.
+        if row["phase"] == PRIMARY_PHASE and row["optimizer"] == "ademamix":
             continue
         path = (
             run_root
