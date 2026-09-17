@@ -5,9 +5,9 @@ the official conference style, bibliography style, and bundled compatibility
 files, together with the paper source and a rendered PDF.
 
 Read the [paper](main.pdf) or edit [the main text](main.tex) and
-[appendix](appendix.tex). The paper develops full TILLER and TILLER–Muon
-for Transformers with GRAIN activations. The main text introduces their
-shared response-guided update construction and their training schedules.
+[appendix](appendix.tex). The paper develops GRAIN activations and TILLER
+optimization for Transformer training. The main text introduces the
+response-guided update construction and its full-horizon and staged use.
 The appendix derives the activation geometry, matrix directions, loss
 ledger, and coefficient selection, and presents both schedules in one
 algorithm.
