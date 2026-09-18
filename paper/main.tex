@@ -37,23 +37,18 @@ matched training-token budgets. Our approach uses the model's learned
 nonlinear responses to guide both the construction of matrix updates and
 their joint allocation across groups and layers. \textbf{GRAIN},
 \textbf{G}roupwise \textbf{R}ational \textbf{A}ctivation with \textbf{I}nternal
-\textbf{N}ormalization, learns group-specific rational nonlinearities in
-normalized feature coordinates and restores the group scale at its output.
+\textbf{N}ormalization, learns a rational activation function for each
+feature group in normalized coordinates, allowing different groups to
+adapt their nonlinear response shapes during training.
 \textbf{TILLER}, \textbf{T}angent-\textbf{I}nformed \textbf{L}oss
-\textbf{L}edger for \textbf{E}qual-budget \textbf{R}eweighting, uses departures
-from the initial activation function's response to rotate matrix update directions.
-The activation features and their derivatives also provide first-order loss
-responses at token positions shared across layers. These measurements reveal
-how the responses of different directions reinforce or offset one another,
-relationships that their individual average descent scores do not determine.
-A compact loss ledger retains these relationships as the nonlinearities
-and directions evolve, providing a history-based measure of a joint update's
-size through its loss responses. TILLER uses this measure to balance
-current-gradient descent against the magnitude of the combined first-order
-responses across sampled positions.
-Its allocation redistributes each step's feed-forward direction norm across
-groups and layers, allowing individual directions to be amplified,
-attenuated, or reversed while preserving their combined norm.
+\textbf{L}edger for \textbf{E}qual-budget \textbf{R}eweighting, uses these
+learned responses to shape matrix updates and estimate their first-order effects on
+the loss. Measuring these effects together reveals how the loss responses
+of different updates reinforce or offset one another, relationships that
+their individual descent scores do not capture. A compact loss ledger
+tracks these relationships as the activations evolve. TILLER combines
+this history with current gradients to coordinate update strengths
+across groups and layers.
 The gains hold across every tested corpus and model size with both SwiGLU
 and GRAIN baseline models, demonstrating improvements beyond activation
 replacement alone.
