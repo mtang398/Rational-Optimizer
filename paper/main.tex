@@ -43,12 +43,12 @@ adapt their nonlinear response shapes during training.
 \textbf{TILLER}, \textbf{T}angent-\textbf{I}nformed \textbf{L}oss
 \textbf{L}edger for \textbf{E}qual-budget \textbf{R}eweighting, uses these
 learned responses to shape matrix updates and estimate their first-order effects on
-the loss. Measuring these effects together reveals how the loss responses
-of different updates reinforce or offset one another, relationships that
-their individual descent scores do not capture. A compact loss ledger
-tracks these relationships as the activations evolve. TILLER combines
-this history with current gradients to coordinate update strengths
-across groups and layers.
+the loss. Measuring these effects jointly reveals how the loss-response patterns of
+different updates reinforce or offset one another, information that their
+individual average descent scores do not capture. TILLER maintains a
+running summary of these cross-update relationships and combines it with
+current gradients to determine the relative strengths of updates across
+groups and layers.
 The gains hold across every tested corpus and model size with both SwiGLU
 and GRAIN baseline models, demonstrating improvements beyond activation
 replacement alone.
