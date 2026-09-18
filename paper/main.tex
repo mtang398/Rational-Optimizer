@@ -56,123 +56,133 @@ replacement alone.
 
 \section{Introduction}
 
-Learning an activation function gives a Transformer control over both its
-feature representation and the response of those features to weight updates.
-Fixed nonlinearities such as GELU and the SiLU gate in SwiGLU provide
-effective transformations \citep{hendrycks2016gelu,shazeer2020glu}.
-Rational activations make the response shape trainable
-\citep{molina2020pade}, with approximation advantages that motivate their
-use as expressive neural representations
-\citep{boulle2020rational,tang2026expressivity}. Group-shared rational
-functions bring this flexibility to Transformer feed-forward blocks
-\citep{yang2025kat}. The changing response also supplies information for
-optimizing the matrices around it: learning the nonlinearity changes how
-an update propagates through the network.
+Activation design and optimization offer two routes to improving
+Transformer pretraining at a fixed training-token budget. Nonlinearities
+such as GELU and SwiGLU improve the transformations available to a model
+\citep{hendrycks2016gelu,shazeer2020glu}, while matrix-aware optimizers
+such as SOAP and Muon improve the updates used to learn them
+\citep{vyas2025soap,liu2025muon}. These choices are connected by the
+activation function: its shape determines both the features a layer
+produces and how changes to the surrounding weights propagate through
+the network. Learning that shape therefore creates an opportunity to
+improve the representation and guide its optimization together.
 
-The incoming and outgoing projections expose two complementary paths.
-An incoming update changes features through the activation Jacobian;
-an outgoing update recombines the activated features. Relating
-these changes to the downstream loss gives a functional description of
-each matrix direction. The interaction between directions is equally
-important. Two groups can have the same average descent signal while
-their loss responses reinforce or offset one another at shared
-activation positions. Separate descent scores leave these relationships
-unresolved. Measuring the responses together makes them available for
-choosing the strengths of simultaneous updates.
+Trainable rational activations provide a concrete basis for this approach.
+A small set of coefficients specifies a flexible nonlinear curve that can
+be learned jointly with the network weights \citep{molina2020pade}.
+Their expressive power is supported by approximation-theoretic
+separations from ReLU and bounded-parameter smooth-activation networks
+\citep{boulle2020rational,tang2026expressivity}, and group sharing brings
+them into Transformer feed-forward blocks \citep{yang2025kat}.
+The learned features and their derivatives describe how a proposed
+matrix update changes a feed-forward block. Combining this change with
+the downstream loss derivative gives its first-order loss response.
+This response provides a common basis for comparing updates to groups
+whose activation shapes and sensitivities evolve differently during
+training.
 
-We introduce GRAIN, Groupwise Rational Activation with Internal
-Normalization, as the learned representation for this construction.
-Each feature group evaluates its own rational function on
-RMS-normalized coordinates and multiplies the result by the same
-normalization scale \citep{zhang2019rmsnorm}. The learned coefficients
-control the response to relative feature magnitudes, while the output
-retains a dependence on input amplitude. Its Jacobian describes both
-the local rational slope and the effect of changing the group scale.
-The features and their derivatives provide the two response paths used
-to guide optimization.
+Individual descent scores leave an important allocation decision
+unresolved. A score summarizes a direction's first-order effect on the
+average loss, but averages discard how its responses vary across
+example--token positions. Directions with equally favorable scores can
+reinforce one another at the same positions or have responses that
+partly offset. Their average descent can be the same even when the
+magnitudes of their combined responses differ. Measuring the directions
+at shared positions preserves these relationships across groups and
+layers. An optimizer can then balance current descent against the
+magnitude of the joint response when choosing their relative strengths.
 
-Matrix-aware optimization uses matrix structure and activation sensitivity
-to shape updates \citep{martens2015kfac,vyas2025soap,liu2025muon}.
-TILLER, Tangent-Informed Loss Ledger for Equal-budget Reweighting,
-uses the learned responses to construct matrix directions and coordinate
-their joint effect on the loss. It uses the response
-geometry to rotate an orthogonalized momentum direction along a
-factorized adaptive tangent, with orientation selected by the gradient
-\citep{shazeer2018adafactor}. It then records
-the selected feed-forward directions' loss responses at shared
-positions in a compact temporal ledger. Together with the current
-gradients, this history defines a joint model for allocating update
-strength across groups and layers. The allocation preserves the
-combined norm of that step's feed-forward directions, so the ledger
-changes where the update acts according to the responses it produces.
+We introduce a joint activation--optimizer design that uses this
+information to construct a training step. GRAIN, Groupwise Rational
+Activation with Internal Normalization, learns a separate rational curve
+for each feature group in normalized coordinates and restores the input
+scale at its output. TILLER, Tangent-Informed Loss Ledger for Equal-budget
+Reweighting, uses the learned features and their derivatives to shape
+matrix update directions. It maintains a compact running summary of
+the joint loss responses of paired incoming and outgoing feed-forward
+directions and combines this history with current gradients to allocate update strength across
+groups and layers. The allocation preserves the combined norm of the
+feed-forward directions before weight decay while redistributing their
+relative strengths according to the response model.
 
-This construction gives two training methods. Full TILLER continually
-adapts directions and their joint allocation throughout training.
-The staged method applies TILLER for an initial interval, then continues
-from the learned model with a chosen optimizer. GRAIN remains trainable in both
-methods. Full TILLER maintains loss-response coordination along the
-complete trajectory; staged training combines a coordinated training stage
-with the update rule and computational cost of its continuation
-optimizer.
+We develop full-horizon and staged training from the same TILLER update.
+Full-horizon training continuously adapts directions and their allocation
+as the representation evolves. Staged training limits response
+collection and joint allocation to an initial interval, then continues
+from the learned model with a chosen optimizer. After the transition,
+matrix updates use the rule and computational cost of that optimizer.
+GRAIN remains trainable throughout both protocols.
 
-Across five pretraining corpora and both evaluated model sizes, GRAIN
-with full TILLER achieves the lowest mean validation loss among the
-tested activation--optimizer configurations at matched token budgets.
-The comparisons include AdamW, Muon, SOAP, and factorized adaptive
-optimizers. At the larger model size, the evaluated staged
-configuration also achieves lower mean validation loss than every
-baseline, while using less total training time than full TILLER on
-every corpus.
+We evaluate Transformer pretraining on five corpora at two model sizes,
+with three seeds and 100M training tokens per run. GRAIN with
+full-horizon TILLER achieves lower mean validation loss than AdamW,
+Muon, SOAP, CAME \citep{luo2023came}, and Schedule-Free AdamW
+\citep{defazio2024schedulefree} with either SwiGLU or GRAIN
+on every corpus at both sizes. At the larger model size, the evaluated
+staged configuration also achieves lower mean validation loss than all
+five baseline optimizers under
+both activations and takes less total training time than full-horizon
+TILLER on every corpus. The gains over GRAIN baselines show that the
+improvements extend beyond activation replacement alone.
 
 [TODO: Experiment section]
 
 \section{Related Work}
 
-Pad\'{e} Activation Units learn rational curves jointly with network weights
-\citep{molina2020pade}. Kolmogorov--Arnold Transformer (KAT) implements
-group-shared rational functions followed by linear maps; its reported
-configuration shares numerator coefficients across groups \citep{yang2025kat}.
-GRAIN evaluates each group's rational function in RMS-normalized
-coordinates \citep{zhang2019rmsnorm} and restores the group scale at its
-output. It retains group sharing while learning both numerator and
-denominator coefficients independently for each group.
+Learned activations expand the nonlinear transformations available within
+a fixed network architecture. PReLU learns the negative slope of a
+rectifier \citep{he2015rectifiers}, while Pad\'{e} Activation Units learn
+the numerator and denominator of a rational curve \citep{molina2020pade}.
+Kolmogorov--Arnold Transformer brings this flexibility to Transformer
+blocks through group-shared rational functions; its reported
+configuration shares numerator coefficients across groups
+\citep{yang2025kat}. GRAIN learns both numerator and denominator
+coefficients independently for each group.
 
-Approximation theory establishes parameter-efficiency separations between
-rational and ReLU networks \citep{boulle2020rational}.
-\emph{Rational Neural Networks have Expressivity Advantages}, by Maosen Tang
-and Alex Townsend, extends these comparisons to bounded-parameter
-smooth-activation networks and analyzes coefficient redundancy under
-learned affine normalization
-\citep{tang2026expressivity}. GRAIN uses an internal normalization--rescaling
-map with no additional learned affine transform.
+Approximation theory provides a complementary motivation for rational
+activations. Rational networks admit parameter-efficiency separations
+from ReLU networks \citep{boulle2020rational}, with subsequent results
+extending the comparison to bounded-parameter smooth-activation networks
+and to gated and Transformer-style constructions. The accompanying
+normalization analysis identifies redundant degrees of freedom between
+rational coefficients and learned affine transforms
+\citep{tang2026expressivity}. Layer Normalization and
+RMSNorm control feature scale \citep{ba2016layer,zhang2019rmsnorm}.
+GRAIN uses the group RMS internally and restores it after the rational
+transform, without additional learned affine parameters. The nonlinear
+curve thus acts on relative feature magnitudes while its output retains
+input-amplitude information.
 
-Muon orthogonalizes momentum \citep{jordan2024muon}, while Adafactor
-estimates gradient second moments from row and column statistics
-\citep{shazeer2018adafactor}. TILLER combines these direction constructions
-using the learned activation response. Loss-weighted features and Jacobians
-determine the extent of a rotation from the polar direction along an
-adaptive tangent, with its orientation selected by the current gradient.
+Structured optimizers exploit the organization of neural-network
+parameters to construct update directions. Adafactor estimates second
+moments from row and column statistics \citep{shazeer2018adafactor}, and
+CAME refines factored adaptation using confidence in the update
+\citep{luo2023came}. Shampoo uses matrix-valued preconditioners
+\citep{gupta2018shampoo}; SOAP combines this structure with Adam updates
+in the preconditioner's eigenbasis \citep{vyas2025soap}. Muon instead
+orthogonalizes matrix momentum \citep{jordan2024muon,liu2025muon}, a
+construction related to steepest descent under matrix norms
+\citep{bernstein2024old}. TILLER builds on orthogonalized and factorized
+adaptive directions, using learned activation responses to guide a
+norm-preserving rotation.
 
-Joint update models differ in their search directions and the information
-used to compare them. K-FAC constructs parameter-space Fisher approximations from activation and
-backpropagated-derivative moments, including cross-layer blocks
-\citep{martens2015kfac}. Newton--Muon derives input-second-moment
-preconditioning from a matrix quadratic surrogate \citep{du2026newtonmuon}.
-Krylov Subspace Descent optimizes the nonlinear objective over a
-curvature-generated Krylov subspace \citep{vinyals2012krylov}.
-TILLER places its quadratic model on coefficients multiplying selected
-pairs of incoming and outgoing group directions. Current gradients supply
-the linear term. A discounted history of shared-position response probes,
-augmented between probes by current-gradient information, supplies the
-quadratic penalty. Its cross terms couple coefficients across groups
-and layers; the allocation preserves
-the combined feed-forward direction norm before weight decay.
+Functional sensitivity also informs optimization through curvature and
+restricted search spaces. K-FAC approximates Fisher blocks using moments
+of activations and backpropagated derivatives, including cross-layer
+blocks \citep{martens2015kfac}. Newton--Muon incorporates input
+second moments through a quadratic model of a matrix perturbation
+\citep{du2026newtonmuon}. Krylov Subspace Descent optimizes the training
+objective within a subspace generated using gradient and curvature
+information \citep{vinyals2012krylov}. TILLER places its joint model on
+coefficients of paired feed-forward directions. Products of their
+first-order loss responses at shared positions supply a quadratic
+penalty on simultaneous updates.
 
-Optimizer switching combines update rules along a training trajectory.
-SWATS selects an Adam-to-SGD transition using a projection-based trigger
-\citep{keskar2017switching}. Our staged method applies TILLER until a chosen
-step, then continues with a selected optimizer while retaining the learned
-parameters and trainable GRAIN activations.
+Optimizer switching combines update rules at different stages of
+training. SWATS uses a projection-based criterion to transition from
+Adam to SGD \citep{keskar2017switching}. Staged TILLER treats the duration
+of response-based coordination and the choice of continuation optimizer
+as separate training-protocol choices.
 
 
 
