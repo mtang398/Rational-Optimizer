@@ -31,20 +31,27 @@ with Learned Rational Activations}
 \maketitle
 
 \begin{abstract}
-We improve Transformer pretraining by using learned activation responses
-to coordinate matrix updates. GRAIN, \textbf{G}roupwise \textbf{R}ational
+Learning an activation changes both the features a network represents and
+how those features respond to weight updates. We use this evolving response
+to improve Transformer pretraining through loss-informed coordination of
+matrix updates. \textbf{GRAIN}, \textbf{G}roupwise \textbf{R}ational
 \textbf{A}ctivation with \textbf{I}nternal \textbf{N}ormalization, learns
-rational nonlinearities on normalized feature groups and restores the
-group scale at its output. TILLER, \textbf{T}angent-\textbf{I}nformed
-\textbf{L}oss \textbf{L}edger for \textbf{E}qual-budget
-\textbf{R}eweighting, uses the resulting features and their derivatives
-to orient matrix update directions. A compact loss ledger tracks how
-their first-order loss responses reinforce or offset one another at shared
-token positions. TILLER combines this history with current gradients to
-allocate update strength jointly across groups and layers. At matched
-training-token budgets, GRAIN with TILLER achieves the lowest mean
+group-specific rational nonlinearities in normalized feature coordinates
+and restores the group scale at its output. \textbf{TILLER}, \textbf{T}angent-\textbf{I}nformed
+\textbf{L}oss \textbf{L}edger for \textbf{E}qual-budget \textbf{R}eweighting,
+uses the learned features and their derivatives to orient matrix directions
+and measure their first-order loss responses at token positions shared across layers.
+These measurements reveal how the loss responses of different directions
+reinforce or offset one another, relationships not determined by their
+average descent scores. A compact loss ledger retains this joint response
+history as the activations and update directions evolve. TILLER combines
+the descent predicted by current gradients with this response history
+to allocate update strength jointly across groups and layers, preserving
+the combined norm of the feed-forward directions at each step. In
+language-model pretraining, GRAIN with TILLER achieves the lowest mean
 validation loss among the evaluated adaptive and matrix-based optimizer
-baselines across every tested corpus and model size.
+baselines across every tested corpus and model size at matched training-token
+budgets.
 \end{abstract}
 
 \section{Introduction}
