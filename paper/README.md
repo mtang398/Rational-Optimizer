@@ -8,9 +8,9 @@ Read the [paper](main.pdf) or edit [the main text](main.tex) and
 [appendix](appendix.tex). The paper develops GRAIN activations and TILLER
 optimization for Transformer training. The main text introduces the
 response-guided update construction and its full-horizon and staged use.
-The appendix derives the activation geometry, matrix directions, loss
-ledger, and coefficient selection, and presents both schedules in one
-algorithm.
+The appendix derives the activation Jacobian, fixed-norm allocation,
+response-history approximation, and direction geometry. A compact
+algorithm presents full-horizon and staged training in one loop.
 
 ## Compile locally
 
