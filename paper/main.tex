@@ -222,117 +222,130 @@ activation and its dependence on input scale.
 \subsection{TILLER}
 
 TILLER (Tangent-Informed Loss Ledger for Equal-budget Reweighting)
-redistributes a fixed update norm using current descent scores and
-the joint loss responses of matrix directions.
-For an $L$-layer model with $G$ groups per layer, let
-$i=(\ell,g)$ index the $C=LG$ pairs. Given directions
-$(q_i^A,q_i^B)$, constructed below, coefficient $c_i$ multiplies
-both members of pair $i$. Define their current descent scores
-$s_{t,i}=\inner{g_i^A}{q_i^A}+\inner{g_i^B}{q_i^B}$ and squared
-norms $\omega_i=\frob{q_i^A}^2+\frob{q_i^B}^2$, where
-$g_i^A,g_i^B$ are the accumulated, averaged, clipped gradients.
-Let $G_t$ be the positive semidefinite metric of accumulated
-directional loss responses and $r_t$ its cross term with weight
-decay. With learning rate $\eta_t>0$,
-we seek coefficients that minimize the response model
+uses the learned activation response to construct matrix directions and
+allocate their strengths jointly. For an $L$-layer model, let
+$i=(\ell,g)$ index the $C=LG$ feed-forward groups. Each group receives
+incoming and outgoing directions $(q_i^A,q_i^B)$ and a shared coefficient
+$c_i$. The directions determine how each group changes; the coefficients
+coordinate these changes across the model.
+
+For either matrix in a pair, a calibrated polar direction $p$ and a
+factorized adaptive direction $a$ transform the same momentum
+\citep{jordan2024muon,liu2025muon,shazeer2018adafactor}. Write
+$a^\perp=a-\inner{a}{p}p/\frob p^2$.
+
+The incoming direction is guided by the activation Jacobian,
+and the outgoing direction by the activated features.
+For each role, loss-weighted participation $\pi\in[0,1]$ measures
+the spread of this response. Congruence $\kappa\in[0,1]$ compares
+its response kernel with that of the initial rational curve
+at the same current inputs. These summaries set the rotation:
 \begin{equation}
- \begin{gathered}
- F_t(c)=-\eta_ts_t^\top c+
- \frac{\eta_t^2}{2}(c^\top G_tc+2r_t^\top c),\\
- \sum_i\omega_ic_i^2=\sum_i\omega_i.
- \end{gathered}
- \label{eq:overview-coordinate-model}
+ \widetilde q=\sqrt{1-e}\,p+
+ \sigma\sqrt e\frac{\frob p}{\frob{a^\perp}}a^\perp,
+ \qquad e=\pi(1-\kappa^2),
+ \label{eq:overview-rotation}
 \end{equation}
-The linear term rewards descent predicted by the current gradients, while the quadratic
-term penalizes the combined response of the selected directions and
-weight decay. The constraint fixes the total feed-forward direction
-norm at that of the reference allocation $c=\boldsymbol1$, before decay.
+where $\sigma$ makes the tangent's gradient contraction nonnegative.
+The rotation preserves the parent norm.
+An unchanged response kernel retains $p$; broader responses permit
+larger rotations for a given departure from initialization.
+We retain $p$ for a degenerate or nonfinite rotation, or when the
+parent $p$ or candidate $\widetilde q$ has nonpositive gradient
+contraction. Matrix-size scaling of the selected direction gives $q$.
+Appendix~\ref{sec:directions} defines the summaries, selection
+conditions, and norm-preserving geometry.
 
-For positive group energies, write $W=\operatorname{Diag}(\omega)$.
-The stationary equation is
-$(G_t+\lambda_cW)c=s_t/\eta_t-r_t$.
-We seek a coefficient proposal on its positive-multiplier branch
-in a Krylov subspace. A finite proposal is accepted if it
-reduces $F_t$ relative to $\boldsymbol1$, satisfies the norm tolerance,
-and meets the layerwise gradient and momentum contraction conditions.
-Otherwise the unit allocation is retained.
-Appendix~\ref{sec:transaction} derives the projected stationarity
-equation and states the acceptance conditions.
-
-We measure directional loss responses at $K$ example--token positions
-shared across layers. For block input $x_{k\ell}$, activated features
-$h_{ki}$, and activation Jacobian $J_{ki}=\partial h_{ki}/\partial z_{ki}$,
-the paired response is
+To coordinate these directions, periodic probes measure their loss
+responses at $K$ example--token positions shared across layers.
+The probes also refresh $\pi$ and $\kappa$; between probes, directions
+are recomputed from current moments using the latest response summaries.
+For block input
+$x_{k\ell}$, activated features $h_{ki}$, and activation Jacobian
+$J_{ki}=\partial h_{ki}/\partial z_{ki}$, the paired response is
 \begin{equation}
  S_{t,ki}=\inner{\xi_{k\ell}}
  {B_iJ_{ki}q_i^Ax_{k\ell}+q_i^Bh_{ki}},
  \label{eq:overview-score}
 \end{equation}
-where $\xi_{k\ell}$ is the derivative of the summed minibatch
-loss at the block output, multiplied by the gradient-clipping factor.
-The vector $S_tc$ contains the combined sampled loss responses.
+where $\xi_{k\ell}$ is the derivative of the summed minibatch loss at
+the block output, multiplied by the gradient-clipping factor.
+The combined response is $S_tc$: its squared norm includes cross
+terms between different groups and layers.
 Appendix~\ref{sec:loss-measurements} derives this differential and
-the quadratic response model.
+its relation to current-gradient descent.
 
-The ledger retains a discounted second moment of the response rows.
-Periodic probes measure positional variation; between probes, current
-gradient contractions supply repeated rows at the latest measured response
-scale. A Robust Frequent Directions sketch stores a row factor and
-an isotropic remainder \citep{ghashami2016frequent,luo2019robust}.
-The current metric includes new rows before compression.
-Appendix~\ref{sec:ledger} gives the metric's spectral approximation
-and bounds its effect on the coefficient model.
+A response matrix contributes the Gram metric $S_t^\top S_t/K$,
+whose off-diagonal entries measure interactions between pairs.
+The response $a_t^{\rm dec}$ to feed-forward weight decay contributes
+the cross term $S_t^\top a_t^{\rm dec}/K$.
+Their discounted histories supply the current metric $G_t$ and
+cross term $r_t$. Between probes, current gradient contractions
+supply repeated rows calibrated to the latest measured response scale.
+A Robust Frequent Directions sketch retains this history as a row
+factor and an isotropic remainder
+\citep{ghashami2016frequent,luo2019robust}.
+The newest rows enter the metric before compression.
+Appendix~\ref{sec:ledger} gives the ledger construction and its
+approximation bounds.
 
-For either matrix in a pair, a calibrated polar direction $p$ and
-a factorized adaptive direction $a$ transform the same momentum
-\citep{jordan2024muon,liu2025muon,shazeer2018adafactor}.
-Let $a^\perp$ be the component of $a$ orthogonal to $p$. TILLER
-uses loss-weighted summaries of the GRAIN response to set the rotation:
-participation $\pi$ measures spread within the group's Jacobian or
-activated features, and congruence $\kappa$ measures alignment with
-the initial response kernels at the same current inputs. An unchanged
-kernel retains the polar direction; departure from it permits a rotation
-whose magnitude increases with participation. The candidate is
+Let $g_i^A,g_i^B$ be the accumulated, averaged, clipped gradients,
+$s_{t,i}=\inner{g_i^A}{q_i^A}+\inner{g_i^B}{q_i^B}$ their descent
+score, and $\omega_i=\frob{q_i^A}^2+\frob{q_i^B}^2$.
+The allocation balances current descent against the joint loss response:
 \begin{equation}
- \widetilde q=\sqrt{1-e}\,p+
- \sigma\sqrt e\frac{\frob p}{\frob{a^\perp}}a^\perp,
- \qquad e=\pi(1-\kappa^2).
- \label{eq:overview-rotation}
+ \begin{gathered}
+ F_t(c)=-\eta_ts_t^\top c+
+ \frac{\eta_t^2}{2}(c^\top G_tc+2r_t^\top c),\\
+ \sum_i\omega_ic_i^2=\sum_i\omega_i,
+ \end{gathered}
+ \label{eq:overview-coordinate-model}
 \end{equation}
-The sign $\sigma$ makes the tangent's gradient contraction
-nonnegative. A finite, nondegenerate candidate is selected when both
-its gradient contraction and the parent's are positive; otherwise
-$p$ is retained. Matrix-size scaling of the selection gives $q$.
-Appendix~\ref{sec:directions} defines these quantities and derives
-the rotation's norm and angle identities.
+where $\eta_t$ is the learning rate.
+The linear term rewards current descent; the quadratic term penalizes
+the joint response of the directions and feed-forward weight decay.
+The constraint preserves the combined feed-forward direction norm of
+$c=\boldsymbol1$, before decay, while permitting signed coefficients.
+A coefficient proposal is used when
+it improves this model and satisfies the norm and layerwise
+contraction conditions; otherwise $c=\boldsymbol1$.
+Appendix~\ref{sec:transaction} gives the projected solver and acceptance
+conditions.
+
+With decay rate $\lambda_{\rm wd}$, the resulting step applies
+\[
+ A_i\leftarrow(1-\eta_t\lambda_{\rm wd})A_i-\eta_tc_iq_i^A,
+ \qquad
+ B_i\leftarrow(1-\eta_t\lambda_{\rm wd})B_i-\eta_tc_iq_i^B.
+\]
+The coefficients jointly allocate these feed-forward pairs.
+An attention matrix $D$ uses a response-guided direction $q^D$ formed
+from its own moments and layerwise GRAIN summaries, with update
+$D\leftarrow(1-\eta_t\lambda_{\rm wd})D-\eta_tq^D$.
+Rational coefficients and all remaining parameters use AdamW
+\citep{loshchilov2019decoupled}.
+Tables~\ref{tab:notation} and~\ref{tab:algorithm} collect the notation
+and the complete training loop.
 
 \subsubsection{Full-horizon TILLER}
 
-Full-horizon training recomputes directions and allocations at every
-update. With decay rate $\lambda_{\rm wd}$, it applies
-$A_i\leftarrow(1-\eta_t\lambda_{\rm wd})A_i-\eta_tc_iq_i^A$
-and the corresponding update to $B_i$. Attention matrices use
-response-guided rotations with layerwise GRAIN summaries and their
-own moments; their directions are applied directly. Rational
-coefficients and remaining parameters use AdamW
-\citep{loshchilov2019decoupled}.
+For training horizon $T$, full-horizon TILLER applies this common
+update at every step. It continually adapts the matrix directions
+and their joint allocation as GRAIN's nonlinearities evolve.
 
 \subsubsection{Staged training}
 
-For training horizon $T$ and transition $T_s<T$, staged training
-uses TILLER through update $T_s$ and a selected continuation
-optimizer $\mathcal U$ afterward. Its state initializer $\mathcal I$
-carries over first-moment histories compatible with the continuation's
-recurrence and matrix grouping. Additional statistics use the
-initialization of $\mathcal U$. The first continuation
-update acts on the learned feed-forward and attention matrices
-at $T_s+1$.
-
+For a chosen transition $T_s<T$, staged training applies the same
+TILLER update through $T_s$ and then continues the feed-forward and
+attention updates with an optimizer $\mathcal U$.
+Its state initializer $\mathcal I$ transfers stored first-moment
+histories compatible with the continuation's recurrence and matrix
+grouping; additional statistics use $\mathcal U$'s initialization.
+The first continuation update acts on the learned matrices at $T_s+1$.
 Model parameters and the learning-rate schedule continue across
-the transition. GRAIN's rational coefficients remain trainable
-and retain their AdamW state. Response collection and ledger
-updates end at $T_s$. Table~\ref{tab:algorithm} presents the
-training loop for both forms.
+the transition. Rational coefficients and remaining parameters retain
+their AdamW state, and GRAIN remains trainable.
+Response collection and ledger updates end at $T_s$.
 
 \section{Experiments}
 

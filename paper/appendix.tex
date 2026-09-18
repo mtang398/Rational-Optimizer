@@ -1,3 +1,122 @@
+\section{Notation and algorithm}
+\label{sec:algorithm-overview}
+
+Table~\ref{tab:notation} summarizes the quantities used by TILLER.
+Table~\ref{tab:algorithm} combines the shared update with its
+full-horizon and staged training protocols. The subsequent sections
+develop the activation differential, direction geometry, response
+history, and coefficient allocation in this order.
+
+\begin{table}[!htbp]
+\caption{Principal notation and response expressions.
+The index $i=(\ell,g)$ identifies one of $C=LG$ feed-forward pairs,
+and $k$ identifies one of $K$ sampled example--token positions.
+Superscripts $A$ and $B$ distinguish incoming and outgoing matrix roles.}
+\label{tab:notation}
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}l >{\raggedright\arraybackslash}X@{}}
+\toprule
+Quantity & Interpretation\\
+\midrule
+$\pi,\kappa$ & $\pi$ measures loss-weighted response participation;
+$\kappa$ compares the response kernel with that of the initial
+rational curve at the same current inputs.\\
+$\widetilde q$ & Norm-preserving rotated candidate, before selection
+and matrix-size scaling.\\
+$q$ & Selected, matrix-size-scaled direction; feed-forward directions
+are subsequently multiplied by $c_i$.\\
+$c_i$ & Signed coefficient shared by the incoming and outgoing
+directions of pair $i$.\\
+\addlinespace[3pt]
+$B_iJ_{ki}q_i^Ax_{k\ell}$ & Incoming-matrix contribution to the block-output
+differential: the preactivation change passes through the activation
+Jacobian and outgoing projection.\\
+$q_i^Bh_{ki}$ & Outgoing-matrix contribution to the block-output
+differential, acting directly on the current activated features.\\
+$\xi_{k\ell}$ & Block-output derivative of the summed minibatch loss,
+multiplied by the gradient-clipping factor.\\
+$S_t\in\mathbb R^{K\times C}$ & Paired loss responses. On probes, each
+entry contracts the sum of the two output differentials with $\xi_{k\ell}$;
+between probes, rows are modeled from current-gradient contractions.\\
+$S_tc\in\mathbb R^K$ & Combined loss-response vector after weighting
+all feed-forward pairs by $c$, before adding the decay response.\\
+$s_{t,i}$ & Descent score of pair $i$ at unit allocation, computed
+from the current accumulated, averaged, clipped minibatch gradients.\\
+\addlinespace[3pt]
+$a_t^{\rm dec}\in\mathbb R^K$ & Response to feed-forward weight decay,
+using the same measured or modeled construction as the paired responses.\\
+$r_t\in\mathbb R^C$ & Discounted cross term between the paired responses
+and the feed-forward decay response.\\
+$G_t$ & Metric used for the current allocation: discounted retained
+metric plus the Gram contribution of current response rows, before compression.\\
+$\widehat G_t$ & Compressed response metric retained after step $t$
+for subsequent updates.\\
+$G_t^\star$ & Uncompressed reference metric formed from measured and
+modeled responses, used to analyze approximation error.\\
+$\omega_i$ & Paired squared direction norm
+$\frob{q_i^A}^2+\frob{q_i^B}^2$; the combined feed-forward direction has squared
+norm $\sum_i\omega_ic_i^2$ before learning-rate scaling and decay.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\clearpage
+
+\begin{table}[!htbp]
+\caption{TILLER training. Set $T_s=T$ for full-horizon training,
+or choose $T_s<T$ and continuation optimizer $\mathcal U$ for staged
+training. Probe at the first step and periodically thereafter;
+reuse the latest response summaries between probes.
+Initialize model parameters, zero gradient moments, and
+$\widehat G_0=0$, $r_0=0$.}
+\label{tab:algorithm}
+\label{app:algorithm}
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}r >{\raggedright\arraybackslash}X@{}}
+\toprule
+1 & For $t=1,\ldots,T$, compute the minibatch loss and clipped gradients $g_t$.\\
+2 & If $t>T_s$, initialize continuation state with $\mathcal I$ at
+$T_s+1$, update the feed-forward and attention matrices with
+$\mathcal U$, and proceed to line 9.\\
+3 & Update matrix moments. On probes, evaluate features $h$, Jacobians $J$,
+loss-weighted participation $\pi$, and congruence $\kappa$ with the
+initial activation at the current inputs. Form polar parents $p$,
+adaptive directions $a$, and tangents $a^\perp=a-\inner ap\,p/\frob p^2$.\\
+4 & Set $e=\pi(1-\kappa^2)$ for feed-forward roles and
+$e=\sqrt{\bar\pi^A\bar\pi^B}(1-\kappa^A\kappa^B)$ for attention,
+using layerwise summaries. Choose $\sigma$ for a nonnegative tangent--gradient contraction
+and form $\widetilde q=\sqrt{1-e}\,p+
+\sigma\sqrt e\,\frob p\,a^\perp/\frob{a^\perp}$.
+Retain $p$ unless the rotation is finite and nondegenerate and both
+$\inner gp$ and $\inner g{\widetilde q}$ are positive.
+Apply matrix-size scaling to obtain $q$.\\
+5 & Set $s_i=\inner{g_i^A}{q_i^A}+\inner{g_i^B}{q_i^B}$ and
+$\omega_i=\frob{q_i^A}^2+\frob{q_i^B}^2$.
+On probes, measure $S_{ki}=\inner{\xi_{k\ell}}{B_iJ_{ki}q_i^Ax_{k\ell}+q_i^Bh_{ki}}$;
+between probes, repeat the current-gradient row at the latest measured
+response scale. For $a^{\rm dec}$, apply the same measured or
+current-gradient response model to directions
+$(\lambda_{\rm wd}A_i,\lambda_{\rm wd}B_i)$ and sum over pairs.\\
+6 & Use $\delta_t=0$ at $t=1$ and $\delta_t=\beta$ afterward. Form
+$G_t=\delta_t\widehat G_{t-1}+(1-\delta_t)S_t^\top S_t/K$ and
+$r_t=\delta_tr_{t-1}+(1-\delta_t)S_t^\top a_t^{\rm dec}/K$.\\
+7 & Propose $c$ in a Krylov subspace to reduce
+$F_t(c)=-\eta_ts_t^\top c+\frac{\eta_t^2}{2}(c^\top G_tc+2r_t^\top c)$
+under $\sum_i\omega_ic_i^2=\sum_i\omega_i$.
+Use $c=\boldsymbol1$ unless the proposal is finite, improves $F_t$,
+meets the norm tolerance, and both allocations have positive
+layer--role gradient and momentum contractions.\\
+8 & Apply $(A_i,B_i)\leftarrow(1-\eta_t\lambda_{\rm wd})(A_i,B_i)
+-\eta_tc_i(q_i^A,q_i^B)$ and
+$D\leftarrow(1-\eta_t\lambda_{\rm wd})D-\eta_tq^D$ for each attention matrix $D$.
+Retain the compressed metric $\widehat G_t$ using Robust Frequent Directions.\\
+9 & Update rational coefficients and remaining parameters with AdamW.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
 \section{Differential properties of GRAIN}
 \label{sec:grain}
 \label{app:grain-calculus}
@@ -49,96 +168,152 @@ Thus both the forward response to a perturbation and the backward
 loss sensitivity retain the effect of normalization. Each action
 uses one inner product in addition to coordinatewise products.
 
-\section{The fixed-norm allocation problem}
-\label{sec:transaction}
+\section{Geometry of response-guided directions}
+\label{sec:directions}
 
-Consider prescribed paired directions $(q_i^A,q_i^B)$. Their parameter
-blocks are disjoint, so the feed-forward update before weight decay has
-norm
+TILLER constructs a polar parent and an adaptive tangent from the
+same momentum, then uses the activation response to set the rotation
+between them. For a clipped matrix gradient $g_t$, the stored
+first moment and the Nesterov momentum are
+\[
+ \bar m_t=\beta_m\bar m_{t-1}+(1-\beta_m)g_t,\qquad
+ m_t=(1-\beta_m)g_t+\beta_m\bar m_t.
+\]
+The history $\bar m_t$ is the state carried to a compatible
+continuation optimizer in staged training.
+
+The adaptive direction uses row and column sums $R_t,C_t$ of the
+exponentially averaged squared gradients. Summation commutes with
+exponential averaging, so these marginals have the recurrences
+$R_t=\beta_2R_{t-1}+(1-\beta_2)(g_t\odot g_t)\boldsymbol1$ and
+$C_t=\beta_2C_{t-1}+(1-\beta_2)(g_t\odot g_t)^\top\boldsymbol1$.
+With zero-initialized moments, the adaptive transformation is
 \begin{equation}
- \|\Delta\theta(c)\|_2^2
- =\eta_t^2\sum_i c_i^2\left(\frob{q_i^A}^2+\frob{q_i^B}^2\right)
- =\eta_t^2c^\top Wc,
- \qquad W=\operatorname{Diag}(\omega).
- \label{eq:allocation-norm}
+ V_t=\frac{R_tC_t^\top}{(\boldsymbol1^\top R_t)(1-\beta_2^t)},
+ \qquad a_t=\frac{m_t}{\sqrt{V_t}+\epsilon_{\rm opt}}.
+ \label{eq:factored-direction}
 \end{equation}
-The constraint $c^\top Wc=\mathcal E_0$, where
-$\mathcal E_0=\boldsymbol1^\top W\boldsymbol1$, therefore fixes
-the direction norm at its unit-allocation value. A shared coefficient
-preserves the relative scaling of each group's incoming and outgoing
-directions, including when that coefficient is negative.
+All operations in the second expression are entrywise. For positive
+total second moment, the normalized outer product is the rank-one
+approximation determined by its row and column marginals
+\citep{shazeer2018adafactor}.
 
-For positive $\omega_i$ and $\eta_t$, substitute $y=W^{1/2}c$
-in the objective. This gives
+The group calibration follows from the norm of an exact polar factor.
+The parent is $p=\chi\mathcal P_5(m)$, where $\mathcal P_5$ is the
+five-iteration Newton--Schulz polar approximation
+\citep{jordan2024muon,liu2025muon}. For $G$ groups of width $w$
+and total intermediate width $H_r=Gw$,
+$\chi=\sqrt{\min(H_r,d)/(G\min(w,d))}$.
+An exact full-rank polar factor of a group matrix has squared
+Frobenius norm $\min(w,d)$; hence this calibration makes the sum
+over groups equal the whole-projection value $\min(H_r,d)$.
+The selected feed-forward direction also receives the usual
+whole-matrix multiplier $\mu=0.2\sqrt{\max(H_r,d)}$.
+
+The rotation is specified by the learned response geometry.
+For nonzero $J$ and $h$, define
 \begin{equation}
- \begin{gathered}
- \frac{F_t(c)}{\eta_t^2}
- =\mathcal Q_t(y)=\tfrac12 y^\top M_ty-b_t^\top y,
- \qquad \|y\|_2^2=\mathcal E_0,\\
- M_t=W^{-1/2}G_tW^{-1/2},\qquad
- b_t=W^{-1/2}(s_t/\eta_t-r_t).
- \end{gathered}
- \label{eq:whitened-transaction}
+ \operatorname{pr}_A(J)=
+ \frac{\operatorname{tr}(JJ^\top)^2}{w\|JJ^\top\|_{\rm F}^2},
+ \qquad \operatorname{pr}_B(h)=\frac{\|h\|_2^4}{w\|h\|_4^4}.
+ \label{eq:response-summary-components}
 \end{equation}
-Differentiating the Lagrangian
-$\mathcal Q_t(y)+\lambda(\|y\|_2^2-\mathcal E_0)/2$
-yields $(M_t+\lambda I)y=b_t$, the relation stated in the Method.
-The positive semidefiniteness of $G_t$ makes $M_t+\lambda I$
-positive definite for $\lambda>0$.
-
-TILLER represents this relation in a Lanczos-generated Krylov subspace
-\citep{lanczos1950iteration}. Let $Q_k$ be its orthonormal basis and
-let $T_k$ be the Lanczos tridiagonal model. Clipping negative
-numerical eigenvalues gives $T_k^+=U\operatorname{Diag}(\theta)U^\top$.
-For $\gamma=U^\top Q_k^\top b_t$, projected stationarity gives
+Both are normalized participation ratios. The first applies to squared
+singular values of the Jacobian and the second to squared feature
+coordinates. Equal energy in $m$ nonzero components gives $m/w$;
+the ratios lie in $[1/w,1]$ by Cauchy--Schwarz.
+Their weighted averages, denoted $\pi_i^A$ and $\pi_i^B$, use
+$\alpha_{ki}^A=\|J_{ki}^\top B_i^\top\xi_{k\ell}\|_2^2/w$
+and $\alpha_{ki}^B=\|\xi_{k\ell}\|_2^2/d$:
 \begin{equation}
- y=Q_kU\operatorname{Diag}((\theta+\lambda)^{-1})\gamma,
+ \pi_i^r=\frac{\sum_k\alpha_{ki}^r\operatorname{pr}_r(\mathcal R_{ki}^r)}
+ {\sum_k\alpha_{ki}^r},\qquad
+ \mathcal R_{ki}^A=J_{ki},\quad\mathcal R_{ki}^B=h_{ki}.
+ \label{eq:participation-main}
+\end{equation}
+Zero responses contribute zero participation. The vector
+$J_{ki}^\top B_i^\top\xi_{k\ell}$ is the loss sensitivity at the
+group preactivation; $\xi_{k\ell}$ is the sensitivity at the block
+output. Their squared norms weight the incoming and outgoing paths.
+When either role has zero total weight, both group participations
+are set to one.
+
+To compare the learned response with its initialization, define
+$\Gamma_{ki}^A=J_{ki}J_{ki}^\top$ and
+$\Gamma_{ki}^B=h_{ki}h_{ki}^\top$.
+The first Gram matrix records inner products between rows of the
+activation Jacobian; the second records products of activated
+feature coordinates. They describe the response patterns compared
+with initialization.
+A superscript $0$ denotes the same evaluation with initial rational
+coefficients, at the current inputs and scales. For either role,
+\begin{equation}
+ \kappa_i^r=
+ \frac{\sum_k\alpha_{ki}^r\inner{\Gamma_{ki}^r}{\Gamma_{ki}^{r,0}}}
+ {\sqrt{\sum_k\alpha_{ki}^r\|\Gamma_{ki}^r\|_{\rm F}^2}
+  \sqrt{\sum_k\alpha_{ki}^r\|\Gamma_{ki}^{r,0}\|_{\rm F}^2}}.
+ \label{eq:congruence-main}
+\end{equation}
+This is a cosine in the space of weighted kernel collections.
+Positive semidefiniteness and Cauchy--Schwarz give $0\leq\kappa_i^r\leq1$.
+If either congruence denominator vanishes, both group congruences
+are set to one, giving zero feed-forward rotation.
+Using the same current inputs in both collections isolates the change
+in the learned activation. If $\psi=\arccos\kappa$, the fraction
+$e=\pi(1-\kappa^2)=\pi\sin^2\psi$ combines the kernel angle with
+the breadth of its response.
+
+For a nonzero parent and tangent, the corresponding matrix rotation is
+\begin{equation}
+ a^\perp=a-\frac{\inner{a}{p}}{\frob{p}^2}p,
+ \qquad \widetilde q=
+ \sqrt{1-e}\,p+\sigma\sqrt e\frac{\frob{p}}{\frob{a^\perp}}a^\perp,
+ \label{eq:tangent-chord}
+\end{equation}
+where $\sigma$ makes $\sigma\inner{g}{a^\perp}\geq0$.
+Orthogonality gives
+\begin{equation}
+ \frob{\widetilde q}^2=\frob p^2,
  \qquad
- \psi(\lambda)=\sum_j\frac{\gamma_j^2}{(\theta_j+\lambda)^2}
- =\mathcal E_0.
- \label{eq:secular-equation}
+ \inner{g}{\widetilde q}
+ =\sqrt{1-e}\inner{g}{p}
+ +\sqrt e\frac{\frob p}{\frob{a^\perp}}
+ |\inner{g}{a^\perp}|.
+ \label{eq:rotation-property}
 \end{equation}
-The scalar equation enforces the norm of the projected point. Its
-positive branch has the following characterization.
+The angle $\vartheta$ between $p$ and $\widetilde q$ therefore
+satisfies $\sin^2\vartheta=\pi\sin^2\psi$.
+Broad responses admit larger rotations for the same kernel departure;
+an unchanged kernel gives zero rotation. The common multiplier $\mu$
+preserves the angle and multiplies both squared norms by $\mu^2$.
+The rotated candidate is selected when the parent and tangent are
+nonzero, the computed quantities are finite, and both
+$\inner gp$ and $\inner g{\widetilde q}$ are positive.
+Otherwise the parent is retained.
 
-\begin{proposition}[Positive-multiplier allocation]
-\label{prop:allocation}
-Let $T_k^+\succeq0$, $Q_k^\top Q_k=I$, and $\gamma\ne0$.
-Equation~\ref{eq:secular-equation} has at most one root with
-$\lambda>0$. If such a root exists, its projected coordinates are
-the unique minimizer of the clipped projected quadratic on the sphere
-of squared radius $\mathcal E_0$.
-\end{proposition}
-\begin{proof}
-For positive $\lambda$,
-$\psi'(\lambda)=-2\sum_j\gamma_j^2/(\theta_j+\lambda)^3<0$,
-which proves uniqueness of the root. Put $b_k=Q_k^\top b_t$ and
-$z_*=(T_k^++\lambda I)^{-1}b_k$.
-For any $z$ on the same sphere, stationarity and equality of norms give
-\begin{equation}
- \left(\tfrac12z^\top T_k^+z-b_k^\top z\right)
- -\left(\tfrac12z_*^\top T_k^+z_*-b_k^\top z_*\right)
- =\tfrac12(z-z_*)^\top(T_k^++\lambda I)(z-z_*).
- \label{eq:projected-model-difference}
-\end{equation}
-The right side is positive unless $z=z_*$.
-\end{proof}
+For attention, the polar parent is assembled from head groups.
+Apply $\mathcal P_5$ separately to each group of rows in the query,
+key, and value projections and to each corresponding group of
+columns in the output projection. The stacked query--key--value
+parent is scaled by $1/\sqrt3$; the output parent is unscaled.
+The adaptive direction and tangent are then formed for each assembled
+matrix using its own moments. For a matrix of size $n\times m$,
+the final direction multiplier is $0.2\sqrt{\max(n,m)}$.
 
-The mapped coefficients $c=W^{-1/2}y$ supply a proposal for $F_t$.
-Its improvement is evaluated with the current metric $G_t$;
-acceptance also requires the prescribed norm tolerance.
+The attention rotation uses the layer's two response roles jointly. Let
+$\overline\pi_\ell^A,\overline\pi_\ell^B$ be group-averaged
+participation, and let $\kappa_\ell^A,\kappa_\ell^B$ use kernel
+inner products and squared norms aggregated across groups.
+Its rotation fraction is
+$e_\ell^{\rm att}=\sqrt{\overline\pi_\ell^A\overline\pi_\ell^B}
+(1-\kappa_\ell^A\kappa_\ell^B)$.
+All four role statistics lie in $[0,1]$, so this layerwise fraction
+also lies in $[0,1]$.
+It is set to zero when either aggregated congruence denominator vanishes.
 
-Norm preservation permits sign changes within a layer. Their aggregate
-effect on a layer and matrix role is measured by
-\begin{equation}
- \sum_g c_{\ell g}\inner{g_{\ell g}^r}{q_{\ell g}^r},\qquad
- \sum_g c_{\ell g}\inner{m_{\ell g}^r}{q_{\ell g}^r},
- \qquad r\in\{A,B\}.
- \label{eq:transaction-contractions}
-\end{equation}
-Requiring these contractions to be positive for both the proposal and
-the unit allocation constrains the whole incoming and outgoing updates,
-while allowing individual group coefficients to be negative.
+These summaries are refreshed on probe steps. Between probes,
+the moments and directions continue to change at every update while
+the latest response summaries determine the rotation fractions.
 
 \section{The joint loss-response model}
 \label{sec:loss-measurements}
@@ -198,7 +373,8 @@ its orientation follows the current gradient contractions and its
 trace equals the measured $\nu^2$. For $s_t=0$, set $\gamma_t=0$, giving zero rows.
 The corresponding decay rows are
 $a_t^{\rm dec}=\boldsymbol1_K\gamma_td_t^{\rm dec}$, with
-$d_t^{\rm dec}$ the gradient contraction with the decay direction.
+$d_t^{\rm dec}=\lambda_{\rm wd}\sum_i
+(\inner{g_i^A}{A_i}+\inner{g_i^B}{B_i})$.
 
 For the resulting sequence of measured and modeled responses, with
 the second-moment decay $\beta=\beta_2$, define
@@ -227,16 +403,16 @@ compression.
 The Robust Frequent Directions approximation
 \citep{ghashami2016frequent,luo2019robust} has a direct spectral
 description. Let $\sigma_j$ and $v_j$ be the singular values and
-right singular vectors of $\mathcal A_t$. For a retained rank $r$,
-set $\Delta_t=\sigma_{r+1}^2$, or zero if that singular value is
+right singular vectors of $\mathcal A_t$. For a retained rank $r_{\rm sk}$,
+set $\Delta_t=\sigma_{r_{\rm sk}+1}^2$, or zero if that singular value is
 absent. The retained factor has rows
-$\sqrt{\sigma_j^2-\Delta_t}\,v_j^\top$ for the available $j\leq r$,
+$\sqrt{\sigma_j^2-\Delta_t}\,v_j^\top$ for the available $j\leq r_{\rm sk}$,
 and $\tau_t=\beta\tau_{t-1}+\Delta_t/(2K)$.
 The isotropic increment centers the error from spectral shrinkage.
 
 \begin{proposition}[Error in the response metric]
 \label{prop:ledger-error}
-For finite response rows, $K>0$, $r\geq K$, $0\leq\beta\leq1$, and
+For finite response rows, $K>0$, $r_{\rm sk}\geq K$, $0\leq\beta\leq1$, and
 $\tau_{t-1}\geq0$, $\widehat G_t$ is positive semidefinite and
 \begin{equation}
  \|\widehat G_t-G_t\|_2\leq\frac{\Delta_t}{2K},\qquad
@@ -274,159 +450,97 @@ at most $\eta_t^2\varepsilon_t\mathcal E_0/(2\min_i\omega_i)$,
 where $\mathcal E_0=\sum_i\omega_i$.
 
 
-\section{Geometry of response-guided directions}
-\label{sec:directions}
+\section{The fixed-norm allocation problem}
+\label{sec:transaction}
 
-The factorized direction is determined by the marginals of the full
-gradient second-moment history. Let $R_t$ and $C_t$ denote its row
-and column sums, and let $m_t$ be the shared momentum. Since summation
-commutes with exponential averaging, these marginals can be represented
-by their own histories. With zero-initialized moments, the adaptive
-transformation is
+Consider prescribed paired directions $(q_i^A,q_i^B)$. Their parameter
+blocks are disjoint, so the feed-forward update before weight decay has
+norm
 \begin{equation}
- V_t=\frac{R_tC_t^\top}{(\boldsymbol1^\top R_t)(1-\beta_2^t)},
- \qquad a_t=\frac{m_t}{\sqrt{V_t}+\epsilon_{\rm opt}}.
- \label{eq:factored-direction}
+ \|\Delta\theta(c)\|_2^2
+ =\eta_t^2\sum_i c_i^2\left(\frob{q_i^A}^2+\frob{q_i^B}^2\right)
+ =\eta_t^2c^\top Wc,
+ \qquad W=\operatorname{Diag}(\omega).
+ \label{eq:allocation-norm}
 \end{equation}
-All operations in the second expression are entrywise. For positive
-total second moment, the normalized outer product is the rank-one
-approximation determined by its row and column marginals
-\citep{shazeer2018adafactor}.
+The constraint $c^\top Wc=\mathcal E_0$, where
+$\mathcal E_0=\boldsymbol1^\top W\boldsymbol1$, therefore fixes
+the direction norm at its unit-allocation value. A shared coefficient
+preserves the relative scaling of each group's incoming and outgoing
+directions, including when that coefficient is negative.
 
-The group calibration follows from the norm of an exact polar factor.
-The parent is $p=\chi\mathcal P_5(m)$, where $\mathcal P_5$ is the
-five-iteration Newton--Schulz polar approximation
-\citep{jordan2024muon,liu2025muon}. For $G$ groups of width $w$
-and total intermediate width $H_r=Gw$,
-$\chi=\sqrt{\min(H_r,d)/(G\min(w,d))}$.
-An exact full-rank polar factor of a group matrix has squared
-Frobenius norm $\min(w,d)$; hence this calibration makes the sum
-over groups equal the whole-projection value $\min(H_r,d)$.
-The selected feed-forward direction also receives the usual
-whole-matrix multiplier $\mu=0.2\sqrt{\max(H_r,d)}$.
+For positive $\omega_i$ and $\eta_t$, substitute $y=W^{1/2}c$
+in the objective. This gives
+\begin{equation}
+ \begin{gathered}
+ \frac{F_t(c)}{\eta_t^2}
+ =\mathcal Q_t(y)=\tfrac12 y^\top M_ty-b_t^\top y,
+ \qquad \|y\|_2^2=\mathcal E_0,\\
+ M_t=W^{-1/2}G_tW^{-1/2},\qquad
+ b_t=W^{-1/2}(s_t/\eta_t-r_t).
+ \end{gathered}
+ \label{eq:whitened-transaction}
+\end{equation}
+Differentiating the Lagrangian
+$\mathcal Q_t(y)+\lambda_c(\|y\|_2^2-\mathcal E_0)/2$
+yields $(M_t+\lambda_c I)y=b_t$.
+The positive semidefiniteness of $G_t$ makes $M_t+\lambda_c I$
+positive definite for $\lambda_c>0$.
 
-The rotation is specified by the learned response geometry.
-For nonzero $J$ and $h$, define
+TILLER represents this relation in a Lanczos-generated Krylov subspace
+\citep{lanczos1950iteration}. For $b_t\ne0$, the starting vector is
+$b_t/\|b_t\|_2$, with orthogonal completion on numerical breakdown.
+Let $Q_k$ be the resulting orthonormal basis and
+let $T_k$ be the Lanczos tridiagonal model. Clipping negative
+numerical eigenvalues gives $T_k^+=U\operatorname{Diag}(\theta)U^\top$.
+For $\gamma=U^\top Q_k^\top b_t$, projected stationarity gives
 \begin{equation}
- \operatorname{pr}_A(J)=
- \frac{\operatorname{tr}(JJ^\top)^2}{w\|JJ^\top\|_{\rm F}^2},
- \qquad \operatorname{pr}_B(h)=\frac{\|h\|_2^4}{w\|h\|_4^4}.
- \label{eq:response-summary-components}
-\end{equation}
-Both are normalized participation ratios. The first applies to squared
-singular values of the Jacobian and the second to squared feature
-coordinates. Equal energy in $m$ nonzero components gives $m/w$;
-the ratios lie in $[1/w,1]$ by Cauchy--Schwarz.
-Their weighted averages, denoted $\pi_i^A$ and $\pi_i^B$, use
-$\alpha_{ki}^A=\|J_{ki}^\top B_i^\top\xi_{k\ell}\|_2^2/w$
-and $\alpha_{ki}^B=\|\xi_{k\ell}\|_2^2/d$:
-\begin{equation}
- \pi_i^r=\frac{\sum_k\alpha_{ki}^r\operatorname{pr}_r(\mathcal R_{ki}^r)}
- {\sum_k\alpha_{ki}^r},\qquad
- \mathcal R_{ki}^A=J_{ki},\quad\mathcal R_{ki}^B=h_{ki}.
- \label{eq:participation-main}
-\end{equation}
-Zero responses contribute zero participation. The weights are the
-squared loss sensitivities of the incoming and outgoing paths.
-
-To compare the learned response with its initialization, define
-$\Gamma_{ki}^A=J_{ki}J_{ki}^\top$ and
-$\Gamma_{ki}^B=h_{ki}h_{ki}^\top$.
-A superscript $0$ denotes the same evaluation with initial rational
-coefficients, at the current inputs and scales. For either role,
-\begin{equation}
- \kappa_i^r=
- \frac{\sum_k\alpha_{ki}^r\inner{\Gamma_{ki}^r}{\Gamma_{ki}^{r,0}}}
- {\sqrt{\sum_k\alpha_{ki}^r\|\Gamma_{ki}^r\|_{\rm F}^2}
-  \sqrt{\sum_k\alpha_{ki}^r\|\Gamma_{ki}^{r,0}\|_{\rm F}^2}}.
- \label{eq:congruence-main}
-\end{equation}
-This is a cosine in the space of weighted kernel collections.
-Positive semidefiniteness and Cauchy--Schwarz give $0\leq\kappa_i^r\leq1$.
-These weighted ratios apply when their denominators are positive;
-otherwise the group's rotation fractions are zero.
-Using the same current inputs in both collections isolates the change
-in the learned activation. If $\psi=\arccos\kappa$, the fraction
-$e=\pi(1-\kappa^2)=\pi\sin^2\psi$ combines the kernel angle with
-the breadth of its response.
-
-For a nonzero parent and tangent, the corresponding matrix rotation is
-\begin{equation}
- a^\perp=a-\frac{\inner{a}{p}}{\frob{p}^2}p,
- \qquad \widetilde q=
- \sqrt{1-e}\,p+\sigma\sqrt e\frac{\frob{p}}{\frob{a^\perp}}a^\perp,
- \label{eq:tangent-chord}
-\end{equation}
-where $\sigma$ makes $\sigma\inner{g}{a^\perp}\geq0$.
-Orthogonality gives
-\begin{equation}
- \frob{\widetilde q}^2=\frob p^2,
+ y=Q_kU\operatorname{Diag}((\theta+\lambda_c)^{-1})\gamma,
  \qquad
- \inner{g}{\widetilde q}
- =\sqrt{1-e}\inner{g}{p}
- +\sqrt e\frac{\frob p}{\frob{a^\perp}}
- |\inner{g}{a^\perp}|.
- \label{eq:rotation-property}
+ \psi(\lambda_c)=\sum_j\frac{\gamma_j^2}{(\theta_j+\lambda_c)^2}
+ =\mathcal E_0.
+ \label{eq:secular-equation}
 \end{equation}
-The angle $\vartheta$ between $p$ and $\widetilde q$ therefore
-satisfies $\sin^2\vartheta=\pi\sin^2\psi$.
-Broad responses admit larger rotations for the same kernel departure;
-an unchanged kernel gives zero rotation. The common multiplier $\mu$
-preserves the angle and multiplies both squared norms by $\mu^2$.
+The scalar equation enforces the norm of the projected point.
+If its positive-multiplier branch does not yield a norm-feasible
+proposal, TILLER retains $c=\boldsymbol1$.
+The positive branch has the following characterization.
 
-Attention uses the layer's two response roles jointly. Let
-$\overline\pi_\ell^A,\overline\pi_\ell^B$ be group-averaged
-participation, and let $\kappa_\ell^A,\kappa_\ell^B$ use kernel
-inner products and squared norms aggregated across groups.
-Its rotation fraction is
-$e_\ell^{\rm att}=\sqrt{\overline\pi_\ell^A\overline\pi_\ell^B}
-(1-\kappa_\ell^A\kappa_\ell^B)$.
-All four role statistics lie in $[0,1]$, so this layerwise fraction
-also lies in $[0,1]$.
+\begin{proposition}[Positive-multiplier allocation]
+\label{prop:allocation}
+Let $T_k^+\succeq0$, $Q_k^\top Q_k=I$, and $\gamma\ne0$.
+Equation~\ref{eq:secular-equation} has at most one root with
+$\lambda_c>0$. If such a root exists, its projected coordinates are
+the unique minimizer of the clipped projected quadratic on the sphere
+of squared radius $\mathcal E_0$.
+\end{proposition}
+\begin{proof}
+For positive $\lambda_c$,
+$\psi'(\lambda_c)=-2\sum_j\gamma_j^2/(\theta_j+\lambda_c)^3<0$,
+which proves uniqueness of the root. Put $b_k=Q_k^\top b_t$ and
+$z_*=(T_k^++\lambda_c I)^{-1}b_k$.
+For any $z$ on the same sphere, stationarity and equality of norms give
+\begin{equation}
+ \left(\tfrac12z^\top T_k^+z-b_k^\top z\right)
+ -\left(\tfrac12z_*^\top T_k^+z_*-b_k^\top z_*\right)
+ =\tfrac12(z-z_*)^\top(T_k^++\lambda_c I)(z-z_*).
+ \label{eq:projected-model-difference}
+\end{equation}
+The right side is positive unless $z=z_*$.
+\end{proof}
 
-\begin{table}[t]
-\caption{TILLER training. Set $T_s=T$ for full-horizon training;
-otherwise use continuation optimizer $\mathcal U$ and state initializer
-$\mathcal I$ after $T_s$. Here $\xi$ is the summed-loss derivative at a block output, scaled
-by the clipping factor. Probe at the first update, then periodically;
-reuse the latest response summaries between probes.}
-\label{tab:algorithm}
-\label{app:algorithm}
-\centering
-\begin{tabularx}{\linewidth}{@{}r X@{}}
-\toprule
-& Initialize the GRAIN model, gradient moments, and response ledger.\\
-1 & For $t=1,\ldots,T$, compute the minibatch loss and clipped gradient $g_t$.\\
-2 & If $t>T_s$: initialize continuation state with $\mathcal I$ at $T_s+1$,
-update matrices with $\mathcal U$, and proceed to line 11.\\
-3 & On probe steps, evaluate GRAIN features $h$, Jacobians $J$, and
-loss-weighted participation $\pi$ and reference-kernel congruence $\kappa$.\\
-4 & Update gradient moments; form polar parents $p$ and
-factorized adaptive directions $a$; let $a^\perp=a-\inner{a}{p}p/\frob p^2$.\\
-5 & For feed-forward roles set $e=\pi(1-\kappa^2)$; for attention use
-$e=\sqrt{\bar\pi^A\bar\pi^B}(1-\kappa^A\kappa^B)$ with layerwise summaries.
-Orient $a^\perp$ with the gradient.
-Rotate by $\widetilde q=\sqrt{1-e}\,p+\sigma\sqrt e\,\frob p\,a^\perp/\frob{a^\perp}$;
-retain $p$ unless the candidate is finite, nondegenerate, and both
-directions have positive gradient contractions. Apply matrix-size scaling to obtain $q$.\\
-6 & Form $s_i=\inner{g_i^A}{q_i^A}+\inner{g_i^B}{q_i^B}$ and
-$\omega_i=\frob{q_i^A}^2+\frob{q_i^B}^2$.\\
-7 & On probes, measure
-$S_{ki}=\inner{\xi_{k\ell}}{B_iJ_{ki}q_i^Ax_{k\ell}+q_i^Bh_{ki}}$;
-between probes use repeated current-gradient rows at the latest measured scale.
-Evaluate the corresponding weight-decay responses.\\
-8 & Discount the retained ledger and add current responses to obtain metric $G$
-and decay cross term $r$.\\
-9 & Propose $c$ in a Krylov subspace for
-$F(c)=-\eta_ts^\top c+\frac{\eta_t^2}{2}(c^\top Gc+2r^\top c)$
-subject to $\sum_i\omega_ic_i^2=\sum_i\omega_i$.
-Accept a finite proposal if it improves $F$, meets the norm tolerance,
-and both the proposal and $\boldsymbol1$ have positive layerwise gradient/momentum contractions;
-otherwise set $c=\boldsymbol1$.\\
-10 & Apply $A_i\leftarrow(1-\eta_t\lambda_{\rm wd})A_i-\eta_tc_iq_i^A$
-and the same rule to $B_i$; update attention with its layer-guided $q$.
-Compress the ledger by Robust Frequent Directions.\\
-11 & Update rational coefficients and remaining parameters with AdamW.\\
-\bottomrule
-\end{tabularx}
-\end{table}
+The mapped coefficients $c=W^{-1/2}y$ supply a proposal for $F_t$.
+Its improvement is evaluated with the current metric $G_t$;
+acceptance also requires the prescribed norm tolerance.
+
+Norm preservation permits sign changes within a layer. Their aggregate
+effect on a layer and matrix role is measured by
+\begin{equation}
+ \sum_g c_{\ell g}\inner{g_{\ell g}^r}{q_{\ell g}^r},\qquad
+ \sum_g c_{\ell g}\inner{m_{\ell g}^r}{q_{\ell g}^r},
+ \qquad r\in\{A,B\}.
+ \label{eq:transaction-contractions}
+\end{equation}
+Requiring these contractions to be positive for both the proposal and
+the unit allocation constrains the whole incoming and outgoing updates,
+while allowing individual group coefficients to be negative.
