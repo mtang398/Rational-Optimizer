@@ -31,22 +31,20 @@ with Learned Rational Activations}
 \maketitle
 
 \begin{abstract}
-Learning an activation changes how weight updates propagate through a network.
-We use this evolving response to improve Transformer pretraining through
-loss-informed coordination of matrix updates.
-GRAIN (Groupwise Rational Activation with Internal Normalization) learns
-rational response shapes in normalized feature coordinates and restores the
-group scale at its output. TILLER (Tangent-Informed Loss Ledger for
-Equal-budget Reweighting) uses these learned responses to orient matrix
-directions and measure their loss contributions at shared activation positions.
-A compact loss ledger retains a history of these responses, capturing how
-directions reinforce or offset one another at common positions. Combining
-this information with current gradients, TILLER jointly allocates update
-strength across groups and layers while preserving the combined direction
-norm of the feed-forward updates at each step. In language-model pretraining, GRAIN with TILLER achieves
-the lowest mean validation loss among the evaluated adaptive and matrix-based
-optimizer baselines across every tested corpus and model size at matched
-training-token budgets.
+We improve Transformer pretraining by using learned activation responses
+to coordinate matrix updates. GRAIN, \textbf{G}roupwise \textbf{R}ational
+\textbf{A}ctivation with \textbf{I}nternal \textbf{N}ormalization, learns
+rational nonlinearities on normalized feature groups and restores the
+group scale at its output. TILLER, \textbf{T}angent-\textbf{I}nformed
+\textbf{L}oss \textbf{L}edger for \textbf{E}qual-budget
+\textbf{R}eweighting, uses the resulting features and their derivatives
+to orient matrix update directions. A compact loss ledger tracks how
+their first-order loss responses reinforce or offset one another at shared
+token positions. TILLER combines this history with current gradients to
+allocate update strength jointly across groups and layers. At matched
+training-token budgets, GRAIN with TILLER achieves the lowest mean
+validation loss among the evaluated adaptive and matrix-based optimizer
+baselines across every tested corpus and model size.
 \end{abstract}
 
 \section{Introduction}
