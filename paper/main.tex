@@ -31,26 +31,32 @@ with Learned Rational Activations}
 \maketitle
 
 \begin{abstract}
-A learned activation can guide how a network learns as well as what it
-represents. We design the activation and optimizer together for Transformer
-pretraining, using the activation's evolving response to coordinate matrix
-updates across groups and layers. \textbf{GRAIN}, \textbf{G}roupwise \textbf{R}ational
-\textbf{A}ctivation with \textbf{I}nternal \textbf{N}ormalization, learns
-group-specific rational nonlinearities in normalized feature coordinates
-and restores the group scale at its output. \textbf{TILLER}, \textbf{T}angent-\textbf{I}nformed
-\textbf{L}oss \textbf{L}edger for \textbf{E}qual-budget \textbf{R}eweighting,
-uses the learned features and their derivatives to orient matrix directions
-and measure their first-order loss responses at token positions shared across layers.
-These measurements reveal how the loss responses of different directions
-reinforce or offset one another, relationships not determined by their
-average descent scores. A compact loss ledger retains this joint response
-history as the activations and update directions evolve. TILLER combines
-the descent predicted by current gradients with this response history
-to allocate update strength jointly across groups and layers, preserving
-the combined norm of the feed-forward directions at each step. At matched
-training-token budgets, GRAIN with TILLER achieves lower mean validation loss
-than AdamW, Muon, and SOAP across the tested corpora and model sizes,
-including comparisons in which those optimizers use the same GRAIN activation.
+We introduce a joint activation--optimizer design that achieves lower mean
+validation loss than AdamW, Muon, and SOAP in Transformer pretraining at
+matched training-token budgets. Our approach uses the model's learned
+nonlinear responses to guide both the construction of matrix updates and
+their joint allocation across groups and layers. \textbf{GRAIN},
+\textbf{G}roupwise \textbf{R}ational \textbf{A}ctivation with \textbf{I}nternal
+\textbf{N}ormalization, learns group-specific rational nonlinearities in
+normalized feature coordinates and restores the group scale at its output.
+\textbf{TILLER}, \textbf{T}angent-\textbf{I}nformed \textbf{L}oss
+\textbf{L}edger for \textbf{E}qual-budget \textbf{R}eweighting, uses departures
+from the initial activation function's response to rotate matrix update directions.
+The activation features and their derivatives also provide first-order loss
+responses at token positions shared across layers. These measurements reveal
+how the responses of different directions reinforce or offset one another,
+relationships that their individual average descent scores do not determine.
+A compact loss ledger retains these relationships as the nonlinearities
+and directions evolve, providing a history-based measure of a joint update's
+size through its loss responses. TILLER uses this measure to balance
+current-gradient descent against the magnitude of the combined first-order
+responses across sampled positions.
+Its allocation redistributes each step's feed-forward direction norm across
+groups and layers, allowing individual directions to be amplified,
+attenuated, or reversed while preserving their combined norm.
+The gains hold across every tested corpus and model size with both SwiGLU
+and GRAIN baseline models, demonstrating improvements beyond activation
+replacement alone.
 \end{abstract}
 
 \section{Introduction}
