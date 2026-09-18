@@ -31,10 +31,10 @@ with Learned Rational Activations}
 \maketitle
 
 \begin{abstract}
-Learning an activation changes both the features a network represents and
-how those features respond to weight updates. We use this evolving response
-to improve Transformer pretraining through loss-informed coordination of
-matrix updates. \textbf{GRAIN}, \textbf{G}roupwise \textbf{R}ational
+A learned activation can guide how a network learns as well as what it
+represents. We design the activation and optimizer together for Transformer
+pretraining, using the activation's evolving response to coordinate matrix
+updates across groups and layers. \textbf{GRAIN}, \textbf{G}roupwise \textbf{R}ational
 \textbf{A}ctivation with \textbf{I}nternal \textbf{N}ormalization, learns
 group-specific rational nonlinearities in normalized feature coordinates
 and restores the group scale at its output. \textbf{TILLER}, \textbf{T}angent-\textbf{I}nformed
@@ -47,11 +47,10 @@ average descent scores. A compact loss ledger retains this joint response
 history as the activations and update directions evolve. TILLER combines
 the descent predicted by current gradients with this response history
 to allocate update strength jointly across groups and layers, preserving
-the combined norm of the feed-forward directions at each step. In
-language-model pretraining, GRAIN with TILLER achieves the lowest mean
-validation loss among the evaluated adaptive and matrix-based optimizer
-baselines across every tested corpus and model size at matched training-token
-budgets.
+the combined norm of the feed-forward directions at each step. At matched
+training-token budgets, GRAIN with TILLER achieves lower mean validation loss
+than AdamW, Muon, and SOAP across the tested corpora and model sizes,
+including comparisons in which those optimizers use the same GRAIN activation.
 \end{abstract}
 
 \section{Introduction}
