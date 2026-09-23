@@ -1,0 +1,905 @@
+{
+  "checkpoint": {
+    "path": "campaign/runs/swiglu_tiller_mha_2bparam/jobs/swiglu_2bparam_3bt_suite-c0000-a1/checkpoint-3815-benchmark/manifest.json",
+    "sha256": "cf7c07f56d306f20709e1b4a2e8afb433baa81bf2d7060825a6d7bcd95d447cb"
+  },
+  "counters": {
+    "boundary_adjustments": 0,
+    "left_truncated_requests": 0,
+    "left_truncated_tokens": 0,
+    "requests": 67572,
+    "scored_tokens": 1336319
+  },
+  "elapsed_seconds": 645.0564840240404,
+  "evaluation_manifest_sha256": "1a4c8376963c358fe554fbf5aae5ecd48bea78d851e3a5ca4f5ce29e3ad988c3",
+  "identity": {
+    "accumulation": 16,
+    "condition": "swiglu_tiller_mha_2bparam",
+    "config_sha256": "b63001fd27cdcf8bc2b84721dbfbca8f06c71e9d8f6251c783d746fb7364f6df",
+    "continuation_manifest_sha256": "bf7a4950f474991866ce48fd6f02195475a7ac938b86cb98037f7cfa85209f6d",
+    "data_sha256": "311f5ee32e5bb50836db44204cff66dc6243871b306b08ae296f75596224ac4b",
+    "environment_manifest_sha256": "23b2982cbd9007d087f9fbc403f67c7f286b6200b512cf29c6483c0761de608c",
+    "microbatch": 2,
+    "optimizer_manifest_sha256": "bb1c8670950b3575370c47572674d15d25b22c6cb21538675af6a35d630b6bb3",
+    "optimizer_version": "tiller_swiglu_fixed_v1",
+    "schedule_horizon": 45776,
+    "seed": 1337,
+    "source_tree_sha256": "c89781e84d0bc6e481bfc27be07447ab4943cc3fb1790bf8a99d896fe8cf96d8"
+  },
+  "model": {
+    "config": {
+      "architectures": [
+        "Qwen3ForCausalLM"
+      ],
+      "attention_bias": false,
+      "attention_dropout": 0.0,
+      "bos_token_id": 151643,
+      "eos_token_id": 151643,
+      "head_dim": 128,
+      "hidden_act": "silu",
+      "hidden_size": 2048,
+      "initializer_range": 0.02,
+      "intermediate_size": 6144,
+      "max_position_embeddings": 32768,
+      "max_window_layers": 32,
+      "model_type": "qwen3",
+      "num_attention_heads": 16,
+      "num_hidden_layers": 32,
+      "num_key_value_heads": 16,
+      "rms_norm_eps": 1e-06,
+      "rope_scaling": null,
+      "rope_theta": 1000000,
+      "sliding_window": null,
+      "tie_word_embeddings": true,
+      "torch_dtype": "bfloat16",
+      "transformers_version": "4.51.0",
+      "use_cache": true,
+      "use_sliding_window": false,
+      "vocab_size": 151936
+    },
+    "grain": false
+  },
+  "protocol": {
+    "allocated_gpus": 4,
+    "boundary": "joint tokenization; trailing whitespace moves to continuation; crossing BPE token scored in full",
+    "chat_template": false,
+    "context": 2048,
+    "distributed_scoring": true,
+    "harness_revision": "ad8737ae7fad24cf64e50fc7fc31397bff586b9e",
+    "limit": null,
+    "per_example_outputs": false,
+    "request_partition": "index_mod_world_size",
+    "scoring_gpus": 4,
+    "token_position": 1000079360,
+    "truncation": "left-context-only; reject answer >= context",
+    "zero_shot": true
+  },
+  "results": {
+    "configs": {
+      "arc_easy": {
+        "dataset_name": "ARC-Easy",
+        "dataset_path": "allenai/ai2_arc",
+        "description": "",
+        "doc_to_choice": "{{choices.text}}",
+        "doc_to_decontamination_query": "Question: {{question}}\nAnswer:",
+        "doc_to_target": "{{choices.label.index(answerKey)}}",
+        "doc_to_text": "Question: {{question}}\nAnswer:",
+        "fewshot_config": {
+          "doc_to_choice": "{{choices.text}}",
+          "doc_to_target": "{{choices.label.index(answerKey)}}",
+          "doc_to_text": "Question: {{question}}\nAnswer:",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          },
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc_norm"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "tag": [
+          "ai2_arc"
+        ],
+        "target_delimiter": " ",
+        "task": "arc_easy",
+        "test_split": "test",
+        "unsafe_code": false
+      },
+      "boolq": {
+        "dataset_name": "boolq",
+        "dataset_path": "aps/super_glue",
+        "description": "",
+        "doc_to_choice": [
+          "no",
+          "yes"
+        ],
+        "doc_to_decontamination_query": "passage",
+        "doc_to_target": "label",
+        "doc_to_text": "{{passage}}\nQuestion: {{question}}?\nAnswer:",
+        "fewshot_config": {
+          "doc_to_choice": [
+            "no",
+            "yes"
+          ],
+          "doc_to_target": "label",
+          "doc_to_text": "{{passage}}\nQuestion: {{question}}?\nAnswer:",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 2.0
+        },
+        "metric_list": [
+          {
+            "metric": "acc"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "tag": [
+          "super-glue-lm-eval-v1"
+        ],
+        "target_delimiter": " ",
+        "task": "boolq",
+        "unsafe_code": false,
+        "validation_split": "validation"
+      },
+      "hellaswag": {
+        "dataset_path": "Rowan/hellaswag",
+        "description": "",
+        "doc_to_choice": "choices",
+        "doc_to_target": "{{label}}",
+        "doc_to_text": "{{query}}",
+        "fewshot_config": {
+          "doc_to_choice": "choices",
+          "doc_to_target": "{{label}}",
+          "doc_to_text": "{{query}}",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": "lm_eval.tasks.hellaswag.utils.process_docs",
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          },
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc_norm"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "process_docs": "def process_docs(dataset: datasets.Dataset) -> datasets.Dataset:\n    def _process_doc(doc):\n        ctx = doc[\"ctx_a\"] + \" \" + doc[\"ctx_b\"].capitalize()\n        out_doc = {\n            \"query\": preprocess(doc[\"activity_label\"] + \": \" + ctx),\n            \"choices\": [preprocess(ending) for ending in doc[\"endings\"]],\n            \"gold\": int(doc[\"label\"]),\n        }\n        return out_doc\n\n    return dataset.map(_process_doc)\n",
+        "repeats": 1,
+        "should_decontaminate": false,
+        "tag": [
+          "multiple_choice"
+        ],
+        "target_delimiter": " ",
+        "task": "hellaswag",
+        "unsafe_code": false,
+        "validation_split": "validation"
+      },
+      "lambada_openai": {
+        "dataset_name": "default",
+        "dataset_path": "EleutherAI/lambada_openai",
+        "description": "",
+        "doc_to_decontamination_query": "{{text}}",
+        "doc_to_target": "{{' '+text.split(' ')[-1]}}",
+        "doc_to_text": "{{text.split(' ')[:-1]|join(' ')}}",
+        "fewshot_config": {
+          "doc_to_choice": null,
+          "doc_to_target": "{{' '+text.split(' ')[-1]}}",
+          "doc_to_text": "{{text.split(' ')[:-1]|join(' ')}}",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "perplexity",
+            "higher_is_better": false,
+            "metric": "perplexity"
+          },
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "loglikelihood",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "tag": [
+          "lambada"
+        ],
+        "target_delimiter": " ",
+        "task": "lambada_openai",
+        "test_split": "test",
+        "unsafe_code": false
+      },
+      "piqa": {
+        "dataset_path": "baber/piqa",
+        "description": "",
+        "doc_to_choice": "{{[sol1, sol2]}}",
+        "doc_to_decontamination_query": "goal",
+        "doc_to_target": "label",
+        "doc_to_text": "Question: {{goal}}\nAnswer:",
+        "fewshot_config": {
+          "doc_to_choice": "{{[sol1, sol2]}}",
+          "doc_to_target": "label",
+          "doc_to_text": "Question: {{goal}}\nAnswer:",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          },
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc_norm"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "target_delimiter": " ",
+        "task": "piqa",
+        "unsafe_code": false,
+        "validation_split": "validation"
+      },
+      "winogrande": {
+        "dataset_name": "winogrande_xl",
+        "dataset_path": "allenai/winogrande",
+        "description": "",
+        "doc_to_choice": "def doc_to_choice(doc):\n    idx = doc[\"sentence\"].index(\"_\")\n    options = [doc[\"option1\"], doc[\"option2\"]]\n    return [doc[\"sentence\"][:idx] + opt for opt in options]\n",
+        "doc_to_decontamination_query": "sentence",
+        "doc_to_target": "def doc_to_target(doc):\n    idx = doc[\"sentence\"].index(\"_\") + 1\n    return doc[\"sentence\"][idx:].strip()\n",
+        "doc_to_text": "def doc_to_text(doc):\n    answer_to_num = {\"1\": 0, \"2\": 1}\n    return answer_to_num[doc[\"answer\"]]\n",
+        "fewshot_config": {
+          "doc_to_choice": "lm_eval.tasks.winogrande.preprocess_winogrande.doc_to_choice",
+          "doc_to_target": "lm_eval.tasks.winogrande.preprocess_winogrande.doc_to_target",
+          "doc_to_text": "lm_eval.tasks.winogrande.preprocess_winogrande.doc_to_text",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "target_delimiter": " ",
+        "task": "winogrande",
+        "unsafe_code": false,
+        "validation_split": "validation"
+      }
+    },
+    "group_subtasks": {},
+    "higher_is_better": {
+      "arc_easy": {
+        "acc": true,
+        "acc_norm": true
+      },
+      "boolq": {
+        "acc": true
+      },
+      "hellaswag": {
+        "acc": true,
+        "acc_norm": true
+      },
+      "lambada_openai": {
+        "acc": true,
+        "perplexity": false
+      },
+      "piqa": {
+        "acc": true,
+        "acc_norm": true
+      },
+      "winogrande": {
+        "acc": true
+      }
+    },
+    "n-samples": {
+      "arc_easy": {
+        "effective": 2376,
+        "original": 2376
+      },
+      "boolq": {
+        "effective": 3270,
+        "original": 3270
+      },
+      "hellaswag": {
+        "effective": 10042,
+        "original": 10042
+      },
+      "lambada_openai": {
+        "effective": 5153,
+        "original": 5153
+      },
+      "piqa": {
+        "effective": 1838,
+        "original": 1838
+      },
+      "winogrande": {
+        "effective": 1267,
+        "original": 1267
+      }
+    },
+    "n-shot": {
+      "arc_easy": 0,
+      "boolq": 0,
+      "hellaswag": 0,
+      "lambada_openai": 0,
+      "piqa": 0,
+      "winogrande": 0
+    },
+    "results": {
+      "arc_easy": {
+        "acc,none": 0.5303030303030303,
+        "acc_norm,none": 0.46885521885521886,
+        "acc_norm_stderr,none": "N/A",
+        "acc_stderr,none": "N/A",
+        "alias": "arc_easy",
+        "name": "arc_easy",
+        "sample_len": 2376
+      },
+      "boolq": {
+        "acc,none": 0.6085626911314985,
+        "acc_stderr,none": "N/A",
+        "alias": "boolq",
+        "name": "boolq",
+        "sample_len": 3270
+      },
+      "hellaswag": {
+        "acc,none": 0.29794861581358295,
+        "acc_norm,none": 0.33648675562636926,
+        "acc_norm_stderr,none": "N/A",
+        "acc_stderr,none": "N/A",
+        "alias": "hellaswag",
+        "name": "hellaswag",
+        "sample_len": 10042
+      },
+      "lambada_openai": {
+        "acc,none": 0.2520861633999612,
+        "acc_stderr,none": "N/A",
+        "alias": "lambada_openai",
+        "name": "lambada_openai",
+        "perplexity,none": 126.36687073107736,
+        "perplexity_stderr,none": "N/A",
+        "sample_len": 5153
+      },
+      "piqa": {
+        "acc,none": 0.6371055495103374,
+        "acc_norm,none": 0.6338411316648531,
+        "acc_norm_stderr,none": "N/A",
+        "acc_stderr,none": "N/A",
+        "alias": "piqa",
+        "name": "piqa",
+        "sample_len": 1838
+      },
+      "winogrande": {
+        "acc,none": 0.5335438042620363,
+        "acc_stderr,none": "N/A",
+        "alias": "winogrande",
+        "name": "winogrande",
+        "sample_len": 1267
+      }
+    },
+    "versions": {
+      "arc_easy": 1.0,
+      "boolq": 2.0,
+      "hellaswag": 1.0,
+      "lambada_openai": 1.0,
+      "piqa": 1.0,
+      "winogrande": 1.0
+    }
+  },
+  "task_counters": {
+    "arc_easy": {
+      "boundary_adjustments": 0,
+      "left_truncated_requests": 0,
+      "left_truncated_tokens": 0,
+      "requests": 9501,
+      "scored_tokens": 42762
+    },
+    "boolq": {
+      "boundary_adjustments": 0,
+      "left_truncated_requests": 0,
+      "left_truncated_tokens": 0,
+      "requests": 6540,
+      "scored_tokens": 6540
+    },
+    "hellaswag": {
+      "boundary_adjustments": 0,
+      "left_truncated_requests": 0,
+      "left_truncated_tokens": 0,
+      "requests": 40168,
+      "scored_tokens": 1182755
+    },
+    "lambada_openai": {
+      "boundary_adjustments": 0,
+      "left_truncated_requests": 0,
+      "left_truncated_tokens": 0,
+      "requests": 5153,
+      "scored_tokens": 6496
+    },
+    "piqa": {
+      "boundary_adjustments": 0,
+      "left_truncated_requests": 0,
+      "left_truncated_tokens": 0,
+      "requests": 3676,
+      "scored_tokens": 83560
+    },
+    "winogrande": {
+      "boundary_adjustments": 0,
+      "left_truncated_requests": 0,
+      "left_truncated_tokens": 0,
+      "requests": 2534,
+      "scored_tokens": 14206
+    }
+  },
+  "tasks": {
+    "arc_easy": {
+      "asset": {
+        "examples": 2376,
+        "path": "campaign/data/evaluation/arc_easy.parquet",
+        "repo": "allenai/ai2_arc",
+        "revision": "210d026faf9955653af8916fad021475a3f00453",
+        "sha256": "4160597d618ae851c7eb04e281574f3f654776216ac6b6641588d64527b47177",
+        "source_file": "ARC-Easy/test-00000-of-00001.parquet",
+        "split": "test"
+      },
+      "effective_config": {
+        "dataset_name": "ARC-Easy",
+        "dataset_path": "allenai/ai2_arc",
+        "description": "",
+        "doc_to_choice": "{{choices.text}}",
+        "doc_to_decontamination_query": "Question: {{question}}\nAnswer:",
+        "doc_to_target": "{{choices.label.index(answerKey)}}",
+        "doc_to_text": "Question: {{question}}\nAnswer:",
+        "fewshot_config": {
+          "doc_to_choice": "{{choices.text}}",
+          "doc_to_target": "{{choices.label.index(answerKey)}}",
+          "doc_to_text": "Question: {{question}}\nAnswer:",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          },
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc_norm"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "tag": [
+          "ai2_arc"
+        ],
+        "target_delimiter": " ",
+        "task": "arc_easy",
+        "test_split": "test",
+        "unsafe_code": false
+      },
+      "schema_adapter": null,
+      "task_helpers": [],
+      "yaml": "campaign/releases/lm-evaluation-harness-ad8737ae7fad24cf64e50fc7fc31397bff586b9e/lm_eval/tasks/arc/arc_easy.yaml",
+      "yaml_sha256": "96da1d9efe1df88659481cedc13985cb347dc068554a2eae561303fa39bfab3f"
+    },
+    "boolq": {
+      "asset": {
+        "examples": 3270,
+        "path": "campaign/data/evaluation/boolq.parquet",
+        "repo": "google/boolq",
+        "revision": "35b264d03638db9f4ce671b711558bf7ff0f80d5",
+        "sha256": "52355d11524b4b874a9b9dcc278feb10f672d52c4f4eff9872e695ede59820f8",
+        "source_file": "data/validation-00000-of-00001.parquet",
+        "split": "validation"
+      },
+      "effective_config": {
+        "dataset_name": "boolq",
+        "dataset_path": "aps/super_glue",
+        "description": "",
+        "doc_to_choice": [
+          "no",
+          "yes"
+        ],
+        "doc_to_decontamination_query": "passage",
+        "doc_to_target": "label",
+        "doc_to_text": "{{passage}}\nQuestion: {{question}}?\nAnswer:",
+        "fewshot_config": {
+          "doc_to_choice": [
+            "no",
+            "yes"
+          ],
+          "doc_to_target": "label",
+          "doc_to_text": "{{passage}}\nQuestion: {{question}}?\nAnswer:",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 2.0
+        },
+        "metric_list": [
+          {
+            "metric": "acc"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "tag": [
+          "super-glue-lm-eval-v1"
+        ],
+        "target_delimiter": " ",
+        "task": "boolq",
+        "unsafe_code": false,
+        "validation_split": "validation"
+      },
+      "schema_adapter": "answer_bool_to_label_int",
+      "task_helpers": [],
+      "yaml": "campaign/releases/lm-evaluation-harness-ad8737ae7fad24cf64e50fc7fc31397bff586b9e/lm_eval/tasks/super_glue/boolq/default.yaml",
+      "yaml_sha256": "1956532a93f62ed476665d09a4b8c19e701534433bcdc4b56cd6f867876a47de"
+    },
+    "hellaswag": {
+      "asset": {
+        "examples": 10042,
+        "path": "campaign/data/evaluation/hellaswag.parquet",
+        "repo": "Rowan/hellaswag",
+        "revision": "218ec52e09a7e7462a5400043bb9a69a41d06b76",
+        "sha256": "899813071e1e95efafec90f856e1987d2150fa4d020fc005df6962c259f660cd",
+        "source_file": "data/validation-00000-of-00001.parquet",
+        "split": "validation"
+      },
+      "effective_config": {
+        "dataset_path": "Rowan/hellaswag",
+        "description": "",
+        "doc_to_choice": "choices",
+        "doc_to_target": "{{label}}",
+        "doc_to_text": "{{query}}",
+        "fewshot_config": {
+          "doc_to_choice": "choices",
+          "doc_to_target": "{{label}}",
+          "doc_to_text": "{{query}}",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": "lm_eval.tasks.hellaswag.utils.process_docs",
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          },
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc_norm"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "process_docs": "def process_docs(dataset: datasets.Dataset) -> datasets.Dataset:\n    def _process_doc(doc):\n        ctx = doc[\"ctx_a\"] + \" \" + doc[\"ctx_b\"].capitalize()\n        out_doc = {\n            \"query\": preprocess(doc[\"activity_label\"] + \": \" + ctx),\n            \"choices\": [preprocess(ending) for ending in doc[\"endings\"]],\n            \"gold\": int(doc[\"label\"]),\n        }\n        return out_doc\n\n    return dataset.map(_process_doc)\n",
+        "repeats": 1,
+        "should_decontaminate": false,
+        "tag": [
+          "multiple_choice"
+        ],
+        "target_delimiter": " ",
+        "task": "hellaswag",
+        "unsafe_code": false,
+        "validation_split": "validation"
+      },
+      "schema_adapter": null,
+      "task_helpers": [
+        {
+          "path": "campaign/releases/lm-evaluation-harness-ad8737ae7fad24cf64e50fc7fc31397bff586b9e/lm_eval/tasks/hellaswag/utils.py",
+          "sha256": "07d23b60b28f2a4f658dcf8440623a63fe6644854ce9b846a114dde980dc1214"
+        }
+      ],
+      "yaml": "campaign/releases/lm-evaluation-harness-ad8737ae7fad24cf64e50fc7fc31397bff586b9e/lm_eval/tasks/hellaswag/hellaswag.yaml",
+      "yaml_sha256": "e9ef8ac3fed02bf283777d946ae76cbf906152e9c92533c9794e5a9dad78d1cf"
+    },
+    "lambada_openai": {
+      "asset": {
+        "examples": 5153,
+        "path": "campaign/data/evaluation/lambada_openai.parquet",
+        "repo": "EleutherAI/lambada_openai",
+        "revision": "900124bf3b8235c6daf21033af9948b3f07346c4",
+        "sha256": "99d8a9e54cda761c6340ddd4fa6feda7f846ffb0e716afa52968dea75495eea7",
+        "source_file": "default/test/default.parquet",
+        "split": "test"
+      },
+      "effective_config": {
+        "dataset_name": "default",
+        "dataset_path": "EleutherAI/lambada_openai",
+        "description": "",
+        "doc_to_decontamination_query": "{{text}}",
+        "doc_to_target": "{{' '+text.split(' ')[-1]}}",
+        "doc_to_text": "{{text.split(' ')[:-1]|join(' ')}}",
+        "fewshot_config": {
+          "doc_to_choice": null,
+          "doc_to_target": "{{' '+text.split(' ')[-1]}}",
+          "doc_to_text": "{{text.split(' ')[:-1]|join(' ')}}",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "perplexity",
+            "higher_is_better": false,
+            "metric": "perplexity"
+          },
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "loglikelihood",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "tag": [
+          "lambada"
+        ],
+        "target_delimiter": " ",
+        "task": "lambada_openai",
+        "test_split": "test",
+        "unsafe_code": false
+      },
+      "schema_adapter": null,
+      "task_helpers": [],
+      "yaml": "campaign/releases/lm-evaluation-harness-ad8737ae7fad24cf64e50fc7fc31397bff586b9e/lm_eval/tasks/lambada/lambada_openai.yaml",
+      "yaml_sha256": "96dee2fe378666b6b5411958a25ad5c83f5b43eb6b3c830f4b0fd485f9adb6a5"
+    },
+    "piqa": {
+      "asset": {
+        "examples": 1838,
+        "path": "campaign/data/evaluation/piqa.parquet",
+        "repo": "ybisk/piqa",
+        "revision": "142c51238b3ca2bc61e9a075913871b8b600e8e1",
+        "sha256": "40e1677bba609c8801deacc171d76f3e24c083f365c95a1cbda7520c923dfea2",
+        "source_file": "plain_text/validation/0000.parquet",
+        "split": "validation"
+      },
+      "effective_config": {
+        "dataset_path": "baber/piqa",
+        "description": "",
+        "doc_to_choice": "{{[sol1, sol2]}}",
+        "doc_to_decontamination_query": "goal",
+        "doc_to_target": "label",
+        "doc_to_text": "Question: {{goal}}\nAnswer:",
+        "fewshot_config": {
+          "doc_to_choice": "{{[sol1, sol2]}}",
+          "doc_to_target": "label",
+          "doc_to_text": "Question: {{goal}}\nAnswer:",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          },
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc_norm"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "target_delimiter": " ",
+        "task": "piqa",
+        "unsafe_code": false,
+        "validation_split": "validation"
+      },
+      "schema_adapter": null,
+      "task_helpers": [],
+      "yaml": "campaign/releases/lm-evaluation-harness-ad8737ae7fad24cf64e50fc7fc31397bff586b9e/lm_eval/tasks/piqa/piqa.yaml",
+      "yaml_sha256": "e874f7956ccac325b888d4a5dc600bad867b79fba2bd358fe8761ab8263270fb"
+    },
+    "winogrande": {
+      "asset": {
+        "examples": 1267,
+        "path": "campaign/data/evaluation/winogrande.parquet",
+        "repo": "allenai/winogrande",
+        "revision": "01e74176c63542e6b0bcb004dcdea22d94fb67b5",
+        "sha256": "f9d914d1818c0aba98cabdf8af2bc4bd943c462b9c5e7062647e05c2ce3315d1",
+        "source_file": "winogrande_xl/validation-00000-of-00001.parquet",
+        "split": "validation"
+      },
+      "effective_config": {
+        "dataset_name": "winogrande_xl",
+        "dataset_path": "allenai/winogrande",
+        "description": "",
+        "doc_to_choice": "def doc_to_choice(doc):\n    idx = doc[\"sentence\"].index(\"_\")\n    options = [doc[\"option1\"], doc[\"option2\"]]\n    return [doc[\"sentence\"][:idx] + opt for opt in options]\n",
+        "doc_to_decontamination_query": "sentence",
+        "doc_to_target": "def doc_to_target(doc):\n    idx = doc[\"sentence\"].index(\"_\") + 1\n    return doc[\"sentence\"][idx:].strip()\n",
+        "doc_to_text": "def doc_to_text(doc):\n    answer_to_num = {\"1\": 0, \"2\": 1}\n    return answer_to_num[doc[\"answer\"]]\n",
+        "fewshot_config": {
+          "doc_to_choice": "lm_eval.tasks.winogrande.preprocess_winogrande.doc_to_choice",
+          "doc_to_target": "lm_eval.tasks.winogrande.preprocess_winogrande.doc_to_target",
+          "doc_to_text": "lm_eval.tasks.winogrande.preprocess_winogrande.doc_to_text",
+          "fewshot_delimiter": "\n\n",
+          "fewshot_indices": null,
+          "gen_prefix": null,
+          "process_docs": null,
+          "sampler": "default",
+          "samples": null,
+          "split": null,
+          "target_delimiter": " "
+        },
+        "fewshot_delimiter": "\n\n",
+        "metadata": {
+          "version": 1.0
+        },
+        "metric_list": [
+          {
+            "aggregation": "mean",
+            "higher_is_better": true,
+            "metric": "acc"
+          }
+        ],
+        "num_fewshot": 0,
+        "output_type": "multiple_choice",
+        "repeats": 1,
+        "should_decontaminate": true,
+        "target_delimiter": " ",
+        "task": "winogrande",
+        "unsafe_code": false,
+        "validation_split": "validation"
+      },
+      "schema_adapter": null,
+      "task_helpers": [
+        {
+          "path": "campaign/releases/lm-evaluation-harness-ad8737ae7fad24cf64e50fc7fc31397bff586b9e/lm_eval/tasks/winogrande/preprocess_winogrande.py",
+          "sha256": "e55327629264a98f1d383fda24645b6779afb53fa0bce2150042b9416b1ae006"
+        }
+      ],
+      "yaml": "campaign/releases/lm-evaluation-harness-ad8737ae7fad24cf64e50fc7fc31397bff586b9e/lm_eval/tasks/winogrande/default.yaml",
+      "yaml_sha256": "7a73c28f1c760f1f54b4185f21f8df5927c1fe7278a8520f38ee03cc7f40d9e7"
+    }
+  },
+  "source_file_sha256": "a9215d9561081d2f6e8c84f1de8773e853719e72fb683bed89da46bd4cfe4cf4"
+}

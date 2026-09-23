@@ -1,0 +1,14 @@
+{
+  "experiments/stampede3_qwen06b/tiller_swiglu.py": {
+    "swiglu-ablation-1b-suite-001": "3ffdb5196b66617640f6283ac2812acbe7df7ad7e4f86e05f31ad0949f17e4c7",
+    "swiglu-2bparam-3bt-suite-001": "3ffdb5196b66617640f6283ac2812acbe7df7ad7e4f86e05f31ad0949f17e4c7"
+  },
+  "optimizer_design/_tiller/core.py": {
+    "swiglu-ablation-1b-suite-001": "333e7b57579f395709efbd820b553b41288d0c5a73a20fc885d651d1919f5256",
+    "swiglu-2bparam-3bt-suite-001": "333e7b57579f395709efbd820b553b41288d0c5a73a20fc885d651d1919f5256"
+  },
+  "experiments/stampede3_qwen06b/TILLER_SWIGLU.md": {
+    "swiglu-ablation-1b-suite-001": "d64a496ab8bdd2512b0061b3e5d9ccd2f625279da718a5a750d681a3c3ce304a",
+    "swiglu-2bparam-3bt-suite-001": "d64a496ab8bdd2512b0061b3e5d9ccd2f625279da718a5a750d681a3c3ce304a"
+  }
+}

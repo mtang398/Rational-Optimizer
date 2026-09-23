@@ -1,0 +1,878 @@
+[
+  {
+    "id": "old-optimizer-new-norm-2024",
+    "title": "Old Optimizer, New Norm: An Anthology",
+    "arxivUrl": "https://arxiv.org/abs/2409.20325",
+    "githubUrl": ""
+  },
+  {
+    "id": "scalable-optimization-modular-norm-2024",
+    "title": "Scalable Optimization in the Modular Norm",
+    "arxivUrl": "https://arxiv.org/abs/2405.14813",
+    "githubUrl": ""
+  },
+  {
+    "id": "automatic-gradient-descent-2023",
+    "title": "Automatic Gradient Descent: Deep Learning without Hyperparameters",
+    "arxivUrl": "https://arxiv.org/abs/2304.05187",
+    "githubUrl": ""
+  },
+  {
+    "id": "optimisation-generalisation-networks-neurons-2022",
+    "title": "Optimisation & Generalisation in Networks of Neurons",
+    "arxivUrl": "https://arxiv.org/abs/2210.10101",
+    "githubUrl": ""
+  },
+  {
+    "id": "hyperparameter-transfer-matrix-preconditioned-2025",
+    "title": "Hyperparameter Transfer Enables Consistent Gains of Matrix-Preconditioned Optimizers Across Scales",
+    "arxivUrl": "https://arxiv.org/abs/2512.05620",
+    "githubUrl": "https://github.com/charliezchen/scaling-matrix-preconditioning"
+  },
+  {
+    "id": "stabilizing-rl-llms-2025",
+    "title": "Stabilizing Reinforcement Learning with LLMs: Formulation and Practices",
+    "arxivUrl": "https://arxiv.org/abs/2512.01374",
+    "githubUrl": ""
+  },
+  {
+    "id": "universal-weight-subspace-2025",
+    "title": "The Universal Weight Subspace Hypothesis",
+    "arxivUrl": "https://arxiv.org/abs/2512.05117",
+    "githubUrl": ""
+  },
+  {
+    "id": "learning-rate-decay-curriculum-2025",
+    "title": "How Learning Rate Decay Wastes Your Best Data in Curriculum-Based LLM Pretraining",
+    "arxivUrl": "https://arxiv.org/abs/2511.18903",
+    "githubUrl": ""
+  },
+  {
+    "id": "adaptive-optimizers-quantization-2025",
+    "title": "A Convergence Analysis of Adaptive Optimizers under Floating-point Quantization",
+    "arxivUrl": "https://arxiv.org/abs/2510.21314",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-simplified-bias-correction-2025",
+    "title": "Adam Simplified: Bias Correction Debunked",
+    "arxivUrl": "https://arxiv.org/abs/2511.20516",
+    "githubUrl": ""
+  },
+  {
+    "id": "understanding-generalization-adam-2021",
+    "title": "Understanding the Generalization of Adam in Learning Neural Networks with Proper Regularization",
+    "arxivUrl": "https://arxiv.org/abs/2108.11371",
+    "githubUrl": ""
+  },
+  {
+    "id": "towards-practical-adam-2021",
+    "title": "Towards Practical Adam: Non-Convexity, Convergence Theory, and Mini-Batch Acceleration",
+    "arxivUrl": "https://arxiv.org/abs/2101.05471",
+    "githubUrl": ""
+  },
+  {
+    "id": "lotion-quantized-training-2025",
+    "title": "LOTION: Smoothing the Optimization Landscape for Quantized Training",
+    "arxivUrl": "https://arxiv.org/abs/2510.08757",
+    "githubUrl": ""
+  },
+  {
+    "id": "second-order-llm-gauss-newton-2025",
+    "title": "The Potential of Second-Order Optimization for LLMs: A Study with Full Gauss-Newton",
+    "arxivUrl": "https://arxiv.org/abs/2510.09378",
+    "githubUrl": ""
+  },
+  {
+    "id": "optimizer-bias-model-merging-2024",
+    "title": "How Does the Optimizer Implicitly Bias the Model Merging Loss Landscape?",
+    "arxivUrl": "https://arxiv.org/pdf/2510.04686",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-convergence-chen-2018",
+    "title": "On the Convergence of A Class of Adam-Type Algorithms for Non-Convex Optimization",
+    "arxivUrl": "https://arxiv.org/abs/1808.02941",
+    "githubUrl": ""
+  },
+  {
+    "id": "optimization-deep-learning-sun-2019",
+    "title": "Optimization for deep learning: theory and algorithms",
+    "arxivUrl": "https://arxiv.org/abs/1912.08957",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-converge-without-modification-2022",
+    "title": "Adam Can Converge Without Any Modification On Update Rules",
+    "arxivUrl": "https://proceedings.neurips.cc/paper_files/paper/2022/hash/b6260ae5566442da053e5ab5d691067a-Abstract-Conference.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "how-sam-minimize-sharpness-2022",
+    "title": "How Does Sharpness-Aware Minimization Minimize Sharpness?",
+    "arxivUrl": "https://arxiv.org/abs/2211.05729",
+    "githubUrl": ""
+  },
+  {
+    "id": "sharpness-minimization-generalization-2023",
+    "title": "Sharpness Minimization Algorithms Do Not Only Minimize Sharpness To Achieve Better Generalization",
+    "arxivUrl": "https://proceedings.neurips.cc/paper_files/paper/2023/hash/0354767c6386386be17cabe4fc59711b-Abstract-Conference.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "transformers-need-adam-hessian-2024",
+    "title": "Why Transformers Need Adam: A Hessian Perspective",
+    "arxivUrl": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/ee0e45ff4de76cbfdf07015a7839f339-Abstract-Conference.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "fantastic-pretraining-optimizers-2025",
+    "title": "Fantastic Pretraining Optimizers and Where to Find Them",
+    "arxivUrl": "https://arxiv.org/abs/2509.02046",
+    "githubUrl": ""
+  },
+  {
+    "id": "fine-tuning-distort-features-2022",
+    "title": "Fine-Tuning can Distort Pretrained Features and Underperform Out-of-Distribution",
+    "arxivUrl": "https://arxiv.org/abs/2202.10054",
+    "githubUrl": ""
+  },
+  {
+    "id": "foundation-models-opportunities-risks-2021",
+    "title": "On the Opportunities and Risks of Foundation Models",
+    "arxivUrl": "https://arxiv.org/abs/2108.07258",
+    "githubUrl": ""
+  },
+  {
+    "id": "regularization-large-lr-2019",
+    "title": "Towards Explaining the Regularization Effect of Initial Large Learning Rate in Training Neural Networks",
+    "arxivUrl": "https://proceedings.neurips.cc/paper/2019/hash/bce9abf229ffd7e570818476ee5d7dde-Abstract.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "regularization-matters-kernel-2019",
+    "title": "Regularization Matters: Generalization and Optimization of Neural Nets v.s. their Induced Kernel",
+    "arxivUrl": "https://proceedings.neurips.cc/paper/2019/hash/8744cf92c88433f8cb04a02e6db69a0d-Abstract.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "optimal-regularization-double-descent-2020",
+    "title": "Optimal Regularization Can Mitigate Double Descent",
+    "arxivUrl": "https://arxiv.org/abs/2003.01897",
+    "githubUrl": ""
+  },
+  {
+    "id": "label-noise-sgd-flat-minima-2021",
+    "title": "Label Noise SGD Provably Prefers Flat Global Minimizers",
+    "arxivUrl": "https://proceedings.neurips.cc/paper/2021/hash/e6af401c28c1790eaef7d55c92ab6ab6-Abstract.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "dropout-regularization-effects-2020",
+    "title": "The Implicit and Explicit Regularization Effects of Dropout",
+    "arxivUrl": "https://proceedings.mlr.press/v119/wei20d.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "gradient-descent-in-context-learner-2023",
+    "title": "One Step of Gradient Descent is Provably the Optimal In-Context Learner with One Layer of Linear Self-Attention",
+    "arxivUrl": "https://arxiv.org/abs/2307.03576",
+    "githubUrl": ""
+  },
+  {
+    "id": "noise-covariance-implicit-bias-2021",
+    "title": "Shape Matters: Understanding the Implicit Bias of the Noise Covariance",
+    "arxivUrl": "https://proceedings.mlr.press/v134/haochen21a.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "pretraining-loss-downstream-bias-2023",
+    "title": "Same Pre-training Loss, Better Downstream: Implicit Bias Matters for Language Models",
+    "arxivUrl": "https://proceedings.mlr.press/v202/liu23ao.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "online-eigenvector-learning-2015",
+    "title": "Online Learning of Eigenvectors",
+    "arxivUrl": "https://proceedings.mlr.press/v37/garberb15.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "neural-networks-expressivity-rl-2020",
+    "title": "On the Expressivity of Neural Networks for Deep Reinforcement Learning",
+    "arxivUrl": "https://proceedings.mlr.press/v119/dong20d.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "composed-fine-tuning-2021",
+    "title": "Composed Fine-Tuning: Freezing Pre-Trained Denoising Autoencoders for Improved Generalization",
+    "arxivUrl": "https://proceedings.mlr.press/v139/xie21f.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "warmup-stable-decay-lr-2024",
+    "title": "Understanding Warmup-Stable-Decay Learning Rates: A River Valley Loss Landscape Perspective",
+    "arxivUrl": "https://arxiv.org/abs/2410.05192",
+    "githubUrl": ""
+  },
+  {
+    "id": "blockwise-adaptivity-2019",
+    "title": "Blockwise Adaptivity: Faster Training and Better Generalization in Deep Learning",
+    "arxivUrl": "https://arxiv.org/abs/1905.09899",
+    "githubUrl": ""
+  },
+  {
+    "id": "deconstructing-optimizer-language-models-2024",
+    "title": "Deconstructing What Makes a Good Optimizer for Language Models",
+    "arxivUrl": "https://arxiv.org/abs/2407.07972",
+    "githubUrl": ""
+  },
+  {
+    "id": "gradient-clipping-adaptivity-2019",
+    "title": "Why gradient clipping accelerates training: A theoretical justification for adaptivity",
+    "arxivUrl": "https://arxiv.org/abs/1905.11881",
+    "githubUrl": ""
+  },
+  {
+    "id": "batch-size-algorithmic-choices-2019",
+    "title": "Which Algorithmic Choices Matter at Which Batch Sizes? Insights From a Noisy Quadratic Model",
+    "arxivUrl": "https://arxiv.org/abs/1907.04164",
+    "githubUrl": ""
+  },
+  {
+    "id": "hessian-large-batch-training-2018",
+    "title": "Hessian-based Analysis of Large Batch Training and Robustness to Adversaries",
+    "arxivUrl": "https://arxiv.org/abs/1802.08241",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-adaptivity-nonuniform-smoothness-2022",
+    "title": "Provable Adaptivity of Adam under Non-uniform Smoothness",
+    "arxivUrl": "https://arxiv.org/abs/2208.09900",
+    "githubUrl": ""
+  },
+  {
+    "id": "proximal-policy-optimization-2017",
+    "title": "Proximal Policy Optimization Algorithms",
+    "arxivUrl": "https://arxiv.org/abs/1707.06347",
+    "githubUrl": ""
+  },
+  {
+    "id": "hessian-eigenspectrum-regularization-2020",
+    "title": "A Deeper Look at the Hessian Eigenspectrum of Deep Neural Networks and its Applications to Regularization",
+    "arxivUrl": "https://arxiv.org/abs/2012.03801",
+    "githubUrl": ""
+  },
+  {
+    "id": "empirical-hessian-overparametrized-2017",
+    "title": "Empirical Analysis of the Hessian of Over-Parametrized Neural Networks",
+    "arxivUrl": "https://arxiv.org/abs/1706.04454",
+    "githubUrl": ""
+  },
+  {
+    "id": "hessian-eigenvalues-singularity-2016",
+    "title": "Eigenvalues of the Hessian in Deep Learning: Singularity and Beyond",
+    "arxivUrl": "https://arxiv.org/abs/1611.07476",
+    "githubUrl": ""
+  },
+  {
+    "id": "zero-infinity-gpu-memory-2021",
+    "title": "ZeRO-Infinity: Breaking the GPU Memory Wall for Extreme Scale Deep Learning",
+    "arxivUrl": "https://arxiv.org/abs/2104.07857",
+    "githubUrl": ""
+  },
+  {
+    "id": "zero-memory-optimizations-2019",
+    "title": "ZeRO: Memory Optimizations Toward Training Trillion Parameter Models",
+    "arxivUrl": "https://arxiv.org/abs/1910.02054",
+    "githubUrl": ""
+  },
+  {
+    "id": "optimal-diagonal-preconditioning-2022",
+    "title": "Optimal Diagonal Preconditioning",
+    "arxivUrl": "https://arxiv.org/abs/2209.00809v2",
+    "githubUrl": ""
+  },
+  {
+    "id": "memory-efficient-adaptive-optimization-2019",
+    "title": "Memory-Efficient Adaptive Optimization",
+    "arxivUrl": "https://arxiv.org/abs/1901.11150",
+    "githubUrl": ""
+  },
+  {
+    "id": "three-level-hierarchical-hessian-2019",
+    "title": "Measurements of Three-Level Hierarchical Structure in the Outliers in the Spectrum of Deepnet Hessians",
+    "arxivUrl": "https://arxiv.org/abs/1901.08244",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-ftrl-disguise-2024",
+    "title": "Understanding Adam Optimizer via Online Learning of Updates: Adam is FTRL in Disguise",
+    "arxivUrl": "https://arxiv.org/abs/2402.01567",
+    "githubUrl": ""
+  },
+  {
+    "id": "hessian-spectrum-scale-2018",
+    "title": "The Full Spectrum of Deepnet Hessians at Scale: Dynamics with SGD Training and Sample Size",
+    "arxivUrl": "https://arxiv.org/abs/1811.07062",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-sgd-transformers-2023",
+    "title": "Toward Understanding Why Adam Converges Faster Than SGD for Transformers",
+    "arxivUrl": "https://arxiv.org/abs/2306.00204",
+    "githubUrl": ""
+  },
+  {
+    "id": "decoupled-weight-decay-2017",
+    "title": "Decoupled Weight Decay Regularization",
+    "arxivUrl": "https://arxiv.org/abs/1711.05101",
+    "githubUrl": ""
+  },
+  {
+    "id": "neural-architecture-aware-optimization-2021",
+    "title": "Learning by Turning: Neural Architecture Aware Optimisation",
+    "arxivUrl": "https://arxiv.org/abs/2102.07227",
+    "githubUrl": ""
+  },
+  {
+    "id": "hessian-eigenspectra-realistic-2021",
+    "title": "Hessian Eigenspectra of More Realistic Nonlinear Models",
+    "arxivUrl": "https://arxiv.org/abs/2103.01519",
+    "githubUrl": ""
+  },
+  {
+    "id": "memory-efficient-4bit-2023",
+    "title": "Memory Efficient Optimizers with 4-bit States",
+    "arxivUrl": "https://arxiv.org/abs/2309.01507",
+    "githubUrl": ""
+  },
+  {
+    "id": "heavy-tailed-class-imbalance-2024",
+    "title": "Heavy-Tailed Class Imbalance and Why Adam Outperforms Gradient Descent on Language Models",
+    "arxivUrl": "https://arxiv.org/abs/2402.19449",
+    "githubUrl": ""
+  },
+  {
+    "id": "noise-sgd-adam-transformers-2023",
+    "title": "Noise Is Not the Main Factor Behind the Gap Between SGD and Adam on Transformers, but Sign Descent Might Be",
+    "arxivUrl": "https://arxiv.org/abs/2304.13960",
+    "githubUrl": ""
+  },
+  {
+    "id": "adaptive-optimization-geometry-2022",
+    "title": "How Does Adaptive Optimization Impact Local Neural Network Geometry?",
+    "arxivUrl": "https://arxiv.org/abs/2211.02254",
+    "githubUrl": ""
+  },
+  {
+    "id": "continual-pretraining-llm-2024",
+    "title": "Simple and Scalable Strategies to Continually Pre-train Large Language Models",
+    "arxivUrl": "https://arxiv.org/abs/2403.08763",
+    "githubUrl": ""
+  },
+  {
+    "id": "scaling-laws-compute-optimal-2024",
+    "title": "Scaling Laws and Compute-Optimal Training Beyond Fixed Training Durations",
+    "arxivUrl": "https://papers.nips.cc/paper_files/paper/2024/hash/8b970e15a89bf5d12542810df8eae8fc-Abstract-Conference.html",
+    "githubUrl": ""
+  },
+  {
+    "id": "gradient-descent-tiny-subspace-2018",
+    "title": "Gradient Descent Happens in a Tiny Subspace",
+    "arxivUrl": "https://arxiv.org/abs/1812.04754",
+    "githubUrl": ""
+  },
+  {
+    "id": "hessian-eigenvalue-density-2019",
+    "title": "An Investigation into Neural Net Optimization via Hessian Eigenvalue Density",
+    "arxivUrl": "https://arxiv.org/abs/1901.10159",
+    "githubUrl": ""
+  },
+  {
+    "id": "best-conditioned-matrices-1955",
+    "title": "ON BEST CONDITIONED MATRICES",
+    "arxivUrl": "https://www.ams.org/journals/proc/1955-006-03/S0002-9939-1955-0069585-4/S0002-9939-1955-0069585-4.pdf",
+    "githubUrl": ""
+  },
+  {
+    "id": "adaptive-subgradient-methods-2011",
+    "title": "Adaptive Subgradient Methods for Online Learning and Stochastic Optimization",
+    "arxivUrl": "https://jmlr.org/papers/volume12/duchi11a/duchi11a.pdf",
+    "githubUrl": ""
+  },
+  {
+    "id": "8bit-optimizers-2021",
+    "title": "8-bit Optimizers via Block-wise Quantization",
+    "arxivUrl": "https://arxiv.org/abs/2110.02861",
+    "githubUrl": ""
+  },
+  {
+    "id": "road-less-scheduled-2024",
+    "title": "The Road Less Scheduled",
+    "arxivUrl": "https://arxiv.org/abs/2405.15682",
+    "githubUrl": ""
+  },
+  {
+    "id": "neglected-hessian-component-2024",
+    "title": "Neglected Hessian component explains mysteries in Sharpness regularization",
+    "arxivUrl": "https://arxiv.org/abs/2401.10809",
+    "githubUrl": ""
+  },
+  {
+    "id": "quantifying-adam-preconditioning-2024",
+    "title": "Towards Quantifying the Preconditioning Effect of Adam",
+    "arxivUrl": "https://arxiv.org/abs/2402.07114",
+    "githubUrl": ""
+  },
+  {
+    "id": "symbolic-discovery-optimization-2023",
+    "title": "Symbolic Discovery of Optimization Algorithms",
+    "arxivUrl": "https://arxiv.org/abs/2302.06675",
+    "githubUrl": ""
+  },
+  {
+    "id": "sublinear-memory-cost-2016",
+    "title": "Training Deep Nets with Sublinear Memory Cost",
+    "arxivUrl": "https://arxiv.org/abs/1604.06174",
+    "githubUrl": ""
+  },
+  {
+    "id": "entropy-sgd-2016",
+    "title": "Entropy-SGD: Biasing Gradient Descent Into Wide Valleys",
+    "arxivUrl": "https://arxiv.org/abs/1611.01838",
+    "githubUrl": ""
+  },
+  {
+    "id": "spike-no-more-2023",
+    "title": "Spike No More: Stabilizing the Pre-training of Large Language Models",
+    "arxivUrl": "https://arxiv.org/abs/2312.16903",
+    "githubUrl": ""
+  },
+  {
+    "id": "adaptive-restart-accelerated-gradient-2013",
+    "title": "Adaptive Restart for Accelerated Gradient Schemes",
+    "arxivUrl": "https://link.springer.com/article/10.1007/s10208-013-9150-3",
+    "githubUrl": ""
+  },
+  {
+    "id": "transformers-without-tears-2019",
+    "title": "Transformers without Tears: Improving the Normalization of Self-Attention",
+    "arxivUrl": "https://arxiv.org/abs/1910.05895",
+    "githubUrl": ""
+  },
+  {
+    "id": "gradient-methods-memory-2022",
+    "title": "Gradient Methods with Memory for Minimizing Composite Functions",
+    "arxivUrl": "https://arxiv.org/abs/2203.07318",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-instability-theory-2023",
+    "title": "A Theory on Adam Instability in Large-Scale Machine Learning",
+    "arxivUrl": "https://arxiv.org/abs/2304.09871",
+    "githubUrl": ""
+  },
+  {
+    "id": "outlier-weighted-sampling-2024",
+    "title": "Outlier-weighed Layerwise Sampling for LLM Fine-tuning",
+    "arxivUrl": "https://arxiv.org/abs/2405.18380",
+    "githubUrl": ""
+  },
+  {
+    "id": "transformer-initialization-2022",
+    "title": "Improving transformer optimization through better initialization",
+    "arxivUrl": "https://dl.acm.org/doi/10.5555/3524938.3525354",
+    "githubUrl": ""
+  },
+  {
+    "id": "parnes-2009",
+    "title": "PARNES: A rapidly convergent algorithm for accurate recovery of sparse and approximately sparse signals",
+    "arxivUrl": "https://arxiv.org/abs/0911.0492",
+    "githubUrl": ""
+  },
+  {
+    "id": "layerwise-adaptive-moments-2019",
+    "title": "Stochastic Gradient Methods with Layer-wise Adaptive Moments for Training of Deep Networks",
+    "arxivUrl": "https://arxiv.org/abs/1905.11286",
+    "githubUrl": ""
+  },
+  {
+    "id": "gradient-descent-edge-stability-2021",
+    "title": "Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability",
+    "arxivUrl": "https://arxiv.org/abs/2103.00065",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-regret-analysis-2020",
+    "title": "A new regret analysis for Adam-type algorithms",
+    "arxivUrl": "https://arxiv.org/abs/2003.09729",
+    "githubUrl": ""
+  },
+  {
+    "id": "modular-duality-2024",
+    "title": "Modular Duality in Deep Learning",
+    "arxivUrl": "https://arxiv.org/abs/2410.21265",
+    "githubUrl": ""
+  },
+  {
+    "id": "slowmo-2019",
+    "title": "SlowMo: Improving Communication-Efficient Distributed SGD with Slow Momentum",
+    "arxivUrl": "https://arxiv.org/abs/1910.00643",
+    "githubUrl": ""
+  },
+  {
+    "id": "grokfast-2024",
+    "title": "Grokfast: Accelerated Grokking by Amplifying Slow Gradients",
+    "arxivUrl": "https://arxiv.org/abs/2405.20233",
+    "githubUrl": ""
+  },
+  {
+    "id": "bidirectional-looking-2023",
+    "title": "Bidirectional Looking with A Novel Double Exponential Moving Average to Adaptive and Non-adaptive Momentum Optimizers",
+    "arxivUrl": "https://arxiv.org/abs/2307.00631",
+    "githubUrl": ""
+  },
+  {
+    "id": "gradients-increase-end-training-2025",
+    "title": "Why Gradients Rapidly Increase Near the End of Training",
+    "arxivUrl": "https://arxiv.org/abs/2506.02285",
+    "githubUrl": ""
+  },
+  {
+    "id": "muon-scalable-llm-2025",
+    "title": "Muon is Scalable for LLM Training",
+    "arxivUrl": "https://arxiv.org/abs/2502.16982",
+    "githubUrl": ""
+  },
+  {
+    "id": "polargrad-matrix-gradient-optimizers-2025",
+    "title": "PolarGrad: A Class of Matrix-Gradient Optimizers from a Unifying Preconditioning Perspective",
+    "arxivUrl": "https://arxiv.org/abs/2505.21799",
+    "githubUrl": ""
+  },
+  {
+    "id": "isotropic-curvature-model-2025",
+    "title": "Isotropic Curvature Model for Understanding Deep Learning Optimization: Is Gradient Orthogonalization Optimal?",
+    "arxivUrl": "https://arxiv.org/abs/2511.00674",
+    "githubUrl": ""
+  },
+  {
+    "id": "batch-size-large-scale-pretraining-2026",
+    "title": "How to Set the Batch Size for Large-Scale Pre-training?",
+    "arxivUrl": "https://arxiv.org/abs/2601.05034",
+    "githubUrl": ""
+  },
+  {
+    "id": "adaptive-memory-momentum-2025",
+    "title": "Adaptive Memory Momentum via a Model-Based Framework for Deep Learning Optimization",
+    "arxivUrl": "https://arxiv.org/abs/2510.04988",
+    "githubUrl": ""
+  },
+  {
+    "id": "hybrid-architectures-language-models-2025",
+    "title": "Hybrid Architectures for Language Models: Systematic Analysis and Design Insights",
+    "arxivUrl": "https://arxiv.org/abs/2510.04800",
+    "githubUrl": ""
+  },
+  {
+    "id": "optimizer-bias-model-merging-2025",
+    "title": "How does the optimizer implicitly bias the model merging loss landscape?",
+    "arxivUrl": "https://arxiv.org/abs/2510.04686",
+    "githubUrl": ""
+  },
+  {
+    "id": "optimal-scaling-optimal-norm-2025",
+    "title": "Optimal Scaling Needs Optimal Norm",
+    "arxivUrl": "https://arxiv.org/abs/2510.03871",
+    "githubUrl": ""
+  },
+  {
+    "id": "reg-regularization-optimizer-2025",
+    "title": "REG: A Regularization Optimizer for Robust Training Dynamics",
+    "arxivUrl": "https://arxiv.org/abs/2510.03691",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-beta-parameters-online-learning-2025",
+    "title": "How to Set β1,β2 in Adam: An Online Learning Perspective",
+    "arxivUrl": "https://arxiv.org/abs/2510.03478",
+    "githubUrl": ""
+  },
+  {
+    "id": "warmup-theoretical-perspective-2025",
+    "title": "Why Do We Need Warm-up? A Theoretical Perspective",
+    "arxivUrl": "https://arxiv.org/abs/2510.03164",
+    "githubUrl": ""
+  },
+  {
+    "id": "pome-post-optimization-model-edit-2025",
+    "title": "POME: Post Optimization Model Edit via Muon-style Projection",
+    "arxivUrl": "https://arxiv.org/abs/2510.06627",
+    "githubUrl": ""
+  },
+  {
+    "id": "seesaw-accelerating-training-2025",
+    "title": "Seesaw: Accelerating Training by Balancing Learning Rate and Batch Size Scheduling",
+    "arxivUrl": "https://arxiv.org/abs/2510.14717v1",
+    "githubUrl": ""
+  },
+  {
+    "id": "switch-ema-2024",
+    "title": "Switch EMA: A Free Lunch for Better Flatness and Sharpness",
+    "arxivUrl": "https://arxiv.org/abs/2402.09240",
+    "githubUrl": "https://github.com/Westlake-AI/SEMA"
+  },
+  {
+    "id": "backbone-optimizer-coupling-bias-2024",
+    "title": "Unveiling the Backbone-Optimizer Coupling Bias in Visual Representation Learning",
+    "arxivUrl": "https://arxiv.org/abs/2410.06373",
+    "githubUrl": ""
+  },
+  {
+    "id": "rethinking-generalization-2016",
+    "title": "Understanding deep learning requires rethinking generalization",
+    "arxivUrl": "https://arxiv.org/abs/1611.03530",
+    "githubUrl": ""
+  },
+  {
+    "id": "loss-surfaces-multilayer-2014",
+    "title": "The Loss Surfaces of Multilayer Networks",
+    "arxivUrl": "https://arxiv.org/abs/1412.0233",
+    "githubUrl": ""
+  },
+  {
+    "id": "loss-surface-deep-linear-2018",
+    "title": "The loss surface of deep linear networks viewed through the algebraic geometry lens",
+    "arxivUrl": "https://arxiv.org/abs/1810.07716",
+    "githubUrl": ""
+  },
+  {
+    "id": "asymmetric-valleys-2019",
+    "title": "Asymmetric Valleys: Beyond Sharp and Flat Local Minima",
+    "arxivUrl": "https://papers.nips.cc/paper/2019/file/01d8bae291b1e4724443375634ccfa0e-Paper.pdf",
+    "githubUrl": ""
+  },
+  {
+    "id": "simple-weight-decay-1992",
+    "title": "A Simple Weight Decay Can Improve Generalization",
+    "arxivUrl": "https://papers.nips.cc/paper/1991/file/8eefcfdf5990e441f0fb6f3fad709e21-Paper.pdf",
+    "githubUrl": ""
+  },
+  {
+    "id": "generalization-error-deep-learning-2018",
+    "title": "Generalization Error in Deep Learning",
+    "arxivUrl": "https://arxiv.org/abs/1808.01174",
+    "githubUrl": ""
+  },
+  {
+    "id": "eco-quantized-training-2026",
+    "title": "ECO: Quantized Training without Full-Precision Master Weights",
+    "arxivUrl": "https://arxiv.org/abs/2601.22101",
+    "githubUrl": ""
+  },
+  {
+    "id": "transformers-token-association-2026",
+    "title": "How Do Transformers Learn to Associate Tokens: Gradient Leading Terms Bring Mechanistic Interpretability",
+    "arxivUrl": "https://arxiv.org/abs/2601.19208",
+    "githubUrl": ""
+  },
+  {
+    "id": "muon-convergence-rates-2026",
+    "title": "Improved Convergence Rates of Muon Optimizer for Nonconvex Optimization",
+    "arxivUrl": "https://arxiv.org/abs/2601.19400",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-secret-sauce-2025",
+    "title": "",
+    "arxivUrl": "https://arxiv.org/abs/2505.21829",
+    "githubUrl": ""
+  },
+  {
+    "id": "large-lookup-layers-2026",
+    "title": "L3: Large Lookup Layers",
+    "arxivUrl": "https://arxiv.org/abs/2601.21461",
+    "githubUrl": ""
+  },
+  {
+    "id": "manifold-constrained-steepest-descent-2026",
+    "title": "Manifold Constrained Steepest Descent",
+    "arxivUrl": "https://arxiv.org/abs/2601.21487",
+    "githubUrl": ""
+  },
+  {
+    "id": "embedding-topk-retrieval-2026",
+    "title": "R^{2k} is Theoretically Large Enough for Embedding-based Top-k Retrieval",
+    "arxivUrl": "https://arxiv.org/abs/2601.20844",
+    "githubUrl": ""
+  },
+  {
+    "id": "scalable-power-sampling-2026",
+    "title": "Scalable Power Sampling: Unlocking Efficient, Training-Free Reasoning for LLMs via Distribution Sharpening",
+    "arxivUrl": "https://arxiv.org/abs/2601.21590",
+    "githubUrl": ""
+  },
+  {
+    "id": "depth-delusion-transformers-2026",
+    "title": "The Depth Delusion: Why Transformers Should Be Wider, Not Deeper",
+    "arxivUrl": "https://arxiv.org/abs/2601.20994",
+    "githubUrl": ""
+  },
+  {
+    "id": "adam-beta1-equals-beta2-2026",
+    "title": "Why Adam Works Better with beta1 = beta2: The Missing Gradient Scale Invariance Principle",
+    "arxivUrl": "https://arxiv.org/abs/2601.21739",
+    "githubUrl": ""
+  },
+  {
+    "id": "completed-hyperparameter-transfer-2025",
+    "title": "Completed Hyperparameter Transfer across Modules, Width, Depth, Batch and Duration",
+    "arxivUrl": "https://arxiv.org/abs/2512.22382",
+    "githubUrl": ""
+  },
+  {
+    "id": "test-time-training-long-context-2025",
+    "title": "",
+    "arxivUrl": "https://arxiv.org/abs/2512.13898",
+    "githubUrl": ""
+  },
+  {
+    "id": "flatness-generalization-sgd-2026",
+    "title": "Leveraging Flatness to Improve Information-Theoretic Generalization Bounds for SGD",
+    "arxivUrl": "https://arxiv.org/abs/2601.01465",
+    "githubUrl": ""
+  },
+  {
+    "id": "sliding-window-recurrences-2025",
+    "title": "Sliding Window Recurrences for Sequence Models",
+    "arxivUrl": "https://arxiv.org/abs/2512.13921",
+    "githubUrl": ""
+  },
+  {
+    "id": "affine-divergence-normalisation-2025",
+    "title": "The Affine Divergence: Aligning Activation Updates Beyond Normalisation",
+    "arxivUrl": "https://arxiv.org/abs/2512.22247",
+    "githubUrl": ""
+  },
+  {
+    "id": "dimension-free-diffusion-error-2025",
+    "title": "Dimension-free Error Estimate for Diffusion Model and Optimal Scheduling",
+    "arxivUrl": "https://arxiv.org/abs/2512.01820",
+    "githubUrl": ""
+  },
+  {
+    "id": "context-parameter-equivalence-transformers-2025",
+    "title": "Equivalence of Context and Parameter Updates in Modern Transformer Blocks",
+    "arxivUrl": "https://arxiv.org/abs/2511.17864",
+    "githubUrl": ""
+  },
+  {
+    "id": "let-optimizers-optimize-themselves-2025",
+    "title": "Let the Optimizers Optimize Themselves",
+    "arxivUrl": "https://arxiv.org/abs/2512.06370",
+    "githubUrl": ""
+  },
+  {
+    "id": "provable-benefit-sign-descent-2025",
+    "title": "Provable Benefit of Sign Descent: A Minimal Model Under Heavy-Tailed Class Imbalance",
+    "arxivUrl": "https://arxiv.org/abs/2512.00763",
+    "githubUrl": ""
+  },
+  {
+    "id": "masking-updates-adaptive-optimizers-2026",
+    "title": "On Surprising Effectiveness of Masking Updates in Adaptive Optimizers",
+    "arxivUrl": "https://arxiv.org/abs/2602.15322",
+    "githubUrl": ""
+  },
+  {
+    "id": "spectral-gradient-updates-2025",
+    "title": "When Do Spectral Gradient Updates Help in Deep Learning?",
+    "arxivUrl": "https://arxiv.org/abs/2512.04299",
+    "githubUrl": ""
+  },
+  {
+    "id": "soap-muon-iterative-whitening-2025",
+    "title": "Improving SOAP using Iterative Whitening and Muon",
+    "arxivUrl": "https://nikhilvyas.github.io/SOAP_Muon.pdf",
+    "githubUrl": ""
+  },
+  {
+    "id": "aro-matrix-optimization-2026",
+    "title": "ARO: A New Lens On Matrix Optimization For Large Models",
+    "arxivUrl": "https://arxiv.org/abs/2602.09006",
+    "githubUrl": ""
+  },
+  {
+    "id": "convex-dominance-deep-learning-2026",
+    "title": "Convex Dominance in Deep Learning I: A Scaling Law of Loss and Learning Rate",
+    "arxivUrl": "https://arxiv.org/abs/2602.07145",
+    "githubUrl": ""
+  },
+  {
+    "id": "teon-tensorized-orthonormalization-2025",
+    "title": "TEON: Tensorized Orthonormalization Beyond Layer-Wise Muon for Large Language Model Pre-Training",
+    "arxivUrl": "https://arxiv.org/abs/2601.23261",
+    "githubUrl": ""
+  },
+  {
+    "id": "robust-scaling-laws-optimizers-2026",
+    "title": "Towards Robust Scaling Laws for Optimizers",
+    "arxivUrl": "https://arxiv.org/abs/2602.07712",
+    "githubUrl": ""
+  },
+  {
+    "id": "decoupling-variance-adaptive-gradient-2026",
+    "title": "Decoupling Variance and Scale-Invariant Updates in Adaptive Gradient Descent for Unified Vector and Matrix Optimization",
+    "arxivUrl": "https://arxiv.org/abs/2602.06880",
+    "githubUrl": ""
+  },
+  {
+    "id": "orthogonal-matrices-optimization-scale-2026",
+    "title": "An Embarrassingly Simple Way to Optimize Orthogonal Matrices at Scale",
+    "arxivUrl": "https://arxiv.org/abs/2602.14656",
+    "githubUrl": ""
+  },
+  {
+    "id": "width-scaling-operator-norms-moga-2026",
+    "title": "On the Width Scaling of Neural Optimizers Under Matrix Operator Norms I: Row/Column Normalization and Hyperparameter Transfer",
+    "arxivUrl": "https://arxiv.org/abs/2603.09952",
+    "githubUrl": ""
+  },
+  {
+    "id": "enhancing-llm-training-spectral-clipping-2026",
+    "title": "Enhancing LLM Training via Spectral Clipping",
+    "arxivUrl": "https://arxiv.org/pdf/2603.14315",
+    "githubUrl": ""
+  },
+  {
+    "id": "sharp-capacity-scaling-spectral-optimizers-2026",
+    "title": "Sharp Capacity Scaling of Spectral Optimizers in Learning Associative Memory",
+    "arxivUrl": "https://arxiv.org/abs/2603.26554",
+    "githubUrl": ""
+  },
+  {
+    "id": "high-dimensional-theory-two-phase-optimizers-2026",
+    "title": "High dimensional theory of two-phase optimizers",
+    "arxivUrl": "https://arxiv.org/abs/2603.26954",
+    "githubUrl": ""
+  },
+  {
+    "id": "newton-muon-optimizer-2026",
+    "title": "The Newton-Muon Optimizer",
+    "arxivUrl": "https://arxiv.org/pdf/2604.01472",
+    "githubUrl": ""
+  },
+  {
+    "id": "evolution-optimization-methods-2026",
+    "title": "Evolution of Optimization Methods: Algorithms, Scenarios, and Evaluations",
+    "arxivUrl": "https://arxiv.org/abs/2604.12968",
+    "githubUrl": ""
+  },
+  {
+    "id": "explaining-neural-scaling-laws-2024",
+    "title": "Explaining Neural Scaling Laws",
+    "arxivUrl": "https://arxiv.org/abs/2102.06701",
+    "githubUrl": ""
+  }
+]

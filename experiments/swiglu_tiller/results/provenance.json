@@ -1,0 +1,75 @@
+{
+  "snapshot_date": "2026-09-23",
+  "scope": "Preliminary single-seed research snapshot; both reported runs completed the 3B-token target.",
+  "parameter_count": 2056136704,
+  "final_update": 11445,
+  "final_loss_tokens": 3000238080,
+  "checkpoint_verification": "Checkpoint manifest content hashes verified; large model/optimizer tensor files were not rehashed during this publication.",
+  "path_policy": "Absolute cluster paths in benchmark metadata rewritten to logical campaign/ paths. source_file_sha256 identifies the original unedited benchmark file.",
+  "runs": {
+    "muon": {
+      "condition": "swiglu_muon_mha_2bparam",
+      "artifacts": [
+        {
+          "name": "metrics.jsonl",
+          "sha256": "c819cf7d722613c10841d851144b4ecc2a01dc81245c2e97c4a569152f9d8ea9"
+        },
+        {
+          "name": "validation.jsonl",
+          "sha256": "2b9740af51952013d58b39d6212141b4bb676b2b74a6ae3e7596bf4f5a235d2e"
+        },
+        {
+          "name": "report.json",
+          "sha256": "23a8a623b0e81cc85e5f47467a7f403221cb557b6254031d6dcd47c9b7355a1e"
+        }
+      ],
+      "identity": {
+        "accumulation": 16,
+        "condition": "swiglu_muon_mha_2bparam",
+        "config_sha256": "71d4a0e86535a696dc3965f5d0dc638d6c386f7eb93f6660bad62f0f791403eb",
+        "continuation_manifest_sha256": "206dd9881e04f49d5c46f1ec1b57d360433abd8cf8358baf0246e34a1978e815",
+        "data_sha256": "311f5ee32e5bb50836db44204cff66dc6243871b306b08ae296f75596224ac4b",
+        "environment_manifest_sha256": "23b2982cbd9007d087f9fbc403f67c7f286b6200b512cf29c6483c0761de608c",
+        "microbatch": 2,
+        "optimizer_manifest_sha256": "0275d071229a54828f06cd1be8c07410a699045473ef46000f1f21ef02daf1f2",
+        "optimizer_version": "tiller_mha_reference_v1",
+        "schedule_horizon": 45776,
+        "seed": 1337,
+        "source_tree_sha256": "461123b5fb75415bf20ba1e72e3fe712396129980f14d0367be56cb3a88a2645"
+      },
+      "initial_shared_sha256": "06510096ce1d4a6cbbd1fbbcd9bd1a6053057c69cb3d04dd78fd6a9ab071e2f9"
+    },
+    "tiller": {
+      "condition": "swiglu_tiller_mha_2bparam",
+      "artifacts": [
+        {
+          "name": "metrics.jsonl",
+          "sha256": "fdc1daa34ac484cfe400ca44e5dc5f201e9ff01e91001c179dd2cad26a637a9c"
+        },
+        {
+          "name": "validation.jsonl",
+          "sha256": "a7664508983eb941658f470f1d2606f7dd873adfac8f352468c08fa67d6ddb49"
+        },
+        {
+          "name": "report.json",
+          "sha256": "24e2c9e530505b0f25edb11bb3bc9d5b9030713020bdcd4b08ce7c75113c9339"
+        }
+      ],
+      "identity": {
+        "accumulation": 16,
+        "condition": "swiglu_tiller_mha_2bparam",
+        "config_sha256": "b63001fd27cdcf8bc2b84721dbfbca8f06c71e9d8f6251c783d746fb7364f6df",
+        "continuation_manifest_sha256": "bf7a4950f474991866ce48fd6f02195475a7ac938b86cb98037f7cfa85209f6d",
+        "data_sha256": "311f5ee32e5bb50836db44204cff66dc6243871b306b08ae296f75596224ac4b",
+        "environment_manifest_sha256": "23b2982cbd9007d087f9fbc403f67c7f286b6200b512cf29c6483c0761de608c",
+        "microbatch": 2,
+        "optimizer_manifest_sha256": "bb1c8670950b3575370c47572674d15d25b22c6cb21538675af6a35d630b6bb3",
+        "optimizer_version": "tiller_swiglu_fixed_v1",
+        "schedule_horizon": 45776,
+        "seed": 1337,
+        "source_tree_sha256": "c89781e84d0bc6e481bfc27be07447ab4943cc3fb1790bf8a99d896fe8cf96d8"
+      },
+      "initial_shared_sha256": "06510096ce1d4a6cbbd1fbbcd9bd1a6053057c69cb3d04dd78fd6a9ab071e2f9"
+    }
+  }
+}

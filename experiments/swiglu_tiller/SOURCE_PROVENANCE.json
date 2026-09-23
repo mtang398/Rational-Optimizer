@@ -1,0 +1,66 @@
+{
+  "production_release": "swiglu-2bparam-3bt-suite-001",
+  "production_source_tree_sha256": "c89781e84d0bc6e481bfc27be07447ab4943cc3fb1790bf8a99d896fe8cf96d8",
+  "files": [
+    {
+      "file": "core.py",
+      "original": "releases/swiglu-2bparam-3bt-suite-001/optimizer_design/_tiller/core.py",
+      "original_sha256": "333e7b57579f395709efbd820b553b41288d0c5a73a20fc885d651d1919f5256",
+      "changes": "Byte-identical frozen public numerical core."
+    },
+    {
+      "file": "tiller_swiglu.py",
+      "original": "releases/swiglu-2bparam-3bt-suite-001/experiments/stampede3_qwen06b/tiller_swiglu.py",
+      "original_sha256": "3ffdb5196b66617640f6283ac2812acbe7df7ad7e4f86e05f31ad0949f17e4c7",
+      "changes": "Only two import paths changed; all executed optimizer mathematics unchanged."
+    },
+    {
+      "file": "packing.py",
+      "original": "releases/swiglu-2bparam-3bt-suite-001/experiments/stampede3_qwen06b/tiller_gqa_v1.py",
+      "original_sha256": "4450fafe62f66be7f3444fdf4c6bff88a37add88bfafbbca8e8a525299260e4b",
+      "changes": "Only the unchanged AttentionLayout and QKVBundle classes extracted; no GQA numerical update."
+    },
+    {
+      "file": "model.py",
+      "original": "releases/swiglu-2bparam-3bt-suite-001/experiments/stampede3_qwen06b/model.py",
+      "original_sha256": "1f9ab77e5a9990c804ce032c50c5b4df4706f1dcd7c1301877280a9e1553eca2",
+      "changes": "SwiGLU forward/init unchanged; unused GRAIN class removed and its branch rejected; modern MHA alias/documentation added."
+    },
+    {
+      "file": "checkpoint.py",
+      "original": "Rational-Optimizer/experiments/mha_1b_tokens/checkpoint.py",
+      "original_sha256": "50c1c1f2d72e46b1ca0ad22295a62ef490d728928b05d49f09ea63bb40d52ed1",
+      "changes": "Byte-identical existing portable support code."
+    },
+    {
+      "file": "data.py",
+      "original": "Rational-Optimizer/experiments/mha_1b_tokens/data.py",
+      "original_sha256": "a94f9001cbc66818cb242fa65f4eafe9620859f692cd5391e236bfe35eabdbe3",
+      "changes": "Byte-identical existing portable support code."
+    },
+    {
+      "file": "evaluation_state.py",
+      "original": "Rational-Optimizer/experiments/mha_1b_tokens/evaluation_state.py",
+      "original_sha256": "d490258b3f526711bcd06d4c7d277eceed8fa6a6ee073e117af7b2852d93100d",
+      "changes": "Byte-identical existing portable support code."
+    },
+    {
+      "file": "io.py",
+      "original": "Rational-Optimizer/experiments/mha_1b_tokens/io.py",
+      "original_sha256": "3fd545f467fe8a81953eeb23d883c422a1793920260fa77ef695acb785646b09",
+      "changes": "Portable support code; source identity narrowed to this package."
+    },
+    {
+      "file": "prepare.py",
+      "original": "Rational-Optimizer/experiments/mha_1b_tokens/prepare.py",
+      "original_sha256": "6df3aa5a1a8f79a61304143f76d2219f6fc2cbc4bee8164ba04f9ed60d35b568",
+      "changes": "Byte-identical existing portable support code."
+    },
+    {
+      "file": "test_tiller_swiglu.py",
+      "original": "releases/swiglu-2bparam-3bt-suite-001/experiments/stampede3_qwen06b/test_tiller_swiglu.py",
+      "original_sha256": "cf8a50f5344636408953848da38e808b10e76742470db30f5492e1b3b81a877d",
+      "changes": "Only package import paths changed; original 16 CPU contracts including four-rank test retained."
+    }
+  ]
+}

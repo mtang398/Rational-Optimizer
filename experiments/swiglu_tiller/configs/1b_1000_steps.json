@@ -1,0 +1,63 @@
+{
+  "accumulation": 8,
+  "checkpoint_every": 250,
+  "checkpoint_keep_recent": 2,
+  "context": 2048,
+  "dataset_revision": "87f09149ef4734204d70ed1d046ddc9ca3f2b8f9",
+  "harness_revision": "ad8737ae7fad24cf64e50fc7fc31397bff586b9e",
+  "loss_tokens_per_condition": 262144000,
+  "loss_tokens_per_update": 262144,
+  "microbatch": 4,
+  "min_lr_ratio": 0.1,
+  "model": {
+    "architectures": [
+      "ModernMHADecoder"
+    ],
+    "attention_bias": false,
+    "attention_dropout": 0.0,
+    "bos_token_id": 151643,
+    "eos_token_id": 151643,
+    "head_dim": 96,
+    "hidden_act": "silu",
+    "hidden_size": 1536,
+    "initializer_range": 0.02,
+    "intermediate_size": 4608,
+    "max_position_embeddings": 32768,
+    "max_window_layers": 28,
+    "model_type": "custom_mha",
+    "num_attention_heads": 16,
+    "num_hidden_layers": 28,
+    "num_key_value_heads": 16,
+    "rms_norm_eps": 1e-06,
+    "rope_scaling": null,
+    "rope_theta": 1000000,
+    "sliding_window": null,
+    "tie_word_embeddings": true,
+    "torch_dtype": "bfloat16",
+    "transformers_version": "4.51.0",
+    "use_cache": true,
+    "use_sliding_window": false,
+    "vocab_size": 151936
+  },
+  "schedule_horizon_updates": 45776,
+  "seed": 1337,
+  "small_validation_tokens": 131072,
+  "tokenizer_revision": "da87bfb608c14b7cf20ba1ce41287e8de496c0cd",
+  "updates": 1000,
+  "validation_every": 100,
+  "warmup_updates": 200,
+  "world_size": 4,
+  "group_width": 256,
+  "name": "modern MHA decoder: fixed-SwiGLU TILLER versus Muon",
+  "conditions": {
+    "swiglu_muon": {
+      "lr": 0.0003
+    },
+    "swiglu_tiller": {
+      "lr": 0.0003
+    }
+  },
+  "tokenizer_id": "Qwen/Qwen3-0.6B-Base",
+  "dataset_id": "HuggingFaceFW/fineweb-edu",
+  "dataset_config": "sample-100BT"
+}

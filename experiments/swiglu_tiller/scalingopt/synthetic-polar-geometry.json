@@ -1,0 +1,24 @@
+{
+  "scope": "Synthetic CPU float64 exact-polar illustration only; neither production gradients nor NS5/BF16 parity or training evidence",
+  "seed": 1337,
+  "results": [
+    {
+      "shape": [
+        8,
+        32
+      ],
+      "row_norm_spread": 7.771561172376096e-16,
+      "post_row_relative_change": 3.2788375707219085e-16,
+      "pre_row_relative_change": 0.2154388942403031
+    },
+    {
+      "shape": [
+        32,
+        8
+      ],
+      "row_norm_spread": 0.9426456252891021,
+      "post_row_relative_change": 0.6791719157151452,
+      "pre_row_relative_change": 0.7428953677647111
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+[
+  {
+    "repo": "zichongli5/NorMuon",
+    "commit": "c6989a8354730695d9f5a9faa6c55eeb24865209",
+    "path": "normuon.py",
+    "url": "https://raw.githubusercontent.com/zichongli5/NorMuon/c6989a8354730695d9f5a9faa6c55eeb24865209/normuon.py",
+    "sha256": "706c1a35fb35342f6ff207f8310b814a1c8f55c6ffba0e843537db434a696141",
+    "bytes": 13062
+  },
+  {
+    "repo": "zichongli5/NorMuon",
+    "commit": "c6989a8354730695d9f5a9faa6c55eeb24865209",
+    "path": "README.md",
+    "url": "https://raw.githubusercontent.com/zichongli5/NorMuon/c6989a8354730695d9f5a9faa6c55eeb24865209/README.md",
+    "sha256": "cac761557745301078925564d2915cd86795db04c42ca9baebd95f596e68d5e8",
+    "bytes": 2872
+  },
+  {
+    "repo": "K1seki221/MuonPlus",
+    "commit": "8a9ace123afedaab8ba75ea0b19315594ae1da7c",
+    "path": "utils/optim/muon_plus.py",
+    "url": "https://raw.githubusercontent.com/K1seki221/MuonPlus/8a9ace123afedaab8ba75ea0b19315594ae1da7c/utils/optim/muon_plus.py",
+    "sha256": "665ea6cb1f6f631f7839c430f2f2c8cbd62dd7e6b8a24fb752f1211c57ab2cab",
+    "bytes": 12894
+  },
+  {
+    "repo": "K1seki221/MuonPlus",
+    "commit": "8a9ace123afedaab8ba75ea0b19315594ae1da7c",
+    "path": "README.md",
+    "url": "https://raw.githubusercontent.com/K1seki221/MuonPlus/8a9ace123afedaab8ba75ea0b19315594ae1da7c/README.md",
+    "sha256": "b3dcd33718c627fd8e613b2cbb29c1577bf7daa019f728e2de65c9ca9e30a2bc",
+    "bytes": 5834
+  },
+  {
+    "repo": "MaeChd/muon-eq",
+    "commit": "99b6c8b8f6d8b7d3424e85606d76302a71a8ea79",
+    "path": "llm-opt-baseline-gpu/llm-baselines/src/optim/muoneq.py",
+    "url": "https://raw.githubusercontent.com/MaeChd/muon-eq/99b6c8b8f6d8b7d3424e85606d76302a71a8ea79/llm-opt-baseline-gpu/llm-baselines/src/optim/muoneq.py",
+    "sha256": "d6e9188909861dafc7aa47787fde02d0925530b2db3f20eaace2b2c87633b106",
+    "bytes": 11255
+  },
+  {
+    "repo": "MaeChd/muon-eq",
+    "commit": "99b6c8b8f6d8b7d3424e85606d76302a71a8ea79",
+    "path": "README.md",
+    "url": "https://raw.githubusercontent.com/MaeChd/muon-eq/99b6c8b8f6d8b7d3424e85606d76302a71a8ea79/README.md",
+    "sha256": "80f54b5c9e6aa0f6c79fa9eee4e828d614e5ee40d2ec1e12b9b64acdea49cfa3",
+    "bytes": 7386
+  },
+  {
+    "repo": "nikhilvyas/SOAP_MUON",
+    "commit": "3035e10c6cc1ec644010029f1e1832f85e942570",
+    "path": "nanogpt_optimizer.py",
+    "url": "https://raw.githubusercontent.com/nikhilvyas/SOAP_MUON/3035e10c6cc1ec644010029f1e1832f85e942570/nanogpt_optimizer.py",
+    "sha256": "84b9ad3c55ad8d639bc24109a2019bc35df6e8e5ae884c38a8478f938b1f2c99",
+    "bytes": 20035
+  },
+  {
+    "repo": "nikhilvyas/SOAP_MUON",
+    "commit": "3035e10c6cc1ec644010029f1e1832f85e942570",
+    "path": "olmo_optimimzer.py",
+    "url": "https://raw.githubusercontent.com/nikhilvyas/SOAP_MUON/3035e10c6cc1ec644010029f1e1832f85e942570/olmo_optimimzer.py",
+    "sha256": "fe92ea5d4ad04996b28783d1452a0bd532f8ba9b9631e884c9724815f6678104",
+    "bytes": 22247
+  },
+  {
+    "repo": "nikhilvyas/SOAP_MUON",
+    "commit": "3035e10c6cc1ec644010029f1e1832f85e942570",
+    "path": "README.md",
+    "url": "https://raw.githubusercontent.com/nikhilvyas/SOAP_MUON/3035e10c6cc1ec644010029f1e1832f85e942570/README.md",
+    "sha256": "467639baf7f2eff4d31b02c589b929c49131307e1cc343753ec8e33bca97aa39",
+    "bytes": 830
+  },
+  {
+    "repo": "AGI-Arena/MARS",
+    "commit": "4831e28eba863a4e69d7e9474ff8e73bc1b410fe",
+    "path": "MARS_M/optimizers/mars_m.py",
+    "url": "https://raw.githubusercontent.com/AGI-Arena/MARS/4831e28eba863a4e69d7e9474ff8e73bc1b410fe/MARS_M/optimizers/mars_m.py",
+    "sha256": "a5368fd8d567fad1be6757d038a19ba8f9f6adf7c75a42d689e127dd316a9fd3",
+    "bytes": 9839
+  },
+  {
+    "repo": "AGI-Arena/MARS",
+    "commit": "4831e28eba863a4e69d7e9474ff8e73bc1b410fe",
+    "path": "MARS_M/optimizers/mars_m_efficient.py",
+    "url": "https://raw.githubusercontent.com/AGI-Arena/MARS/4831e28eba863a4e69d7e9474ff8e73bc1b410fe/MARS_M/optimizers/mars_m_efficient.py",
+    "sha256": "502361d28bdf1e1bb3598e1f5de41e869ed1d06672cbcab366e9cd97d99b1828",
+    "bytes": 6888
+  },
+  {
+    "repo": "AGI-Arena/MARS",
+    "commit": "4831e28eba863a4e69d7e9474ff8e73bc1b410fe",
+    "path": "MARS_M/README.md",
+    "url": "https://raw.githubusercontent.com/AGI-Arena/MARS/4831e28eba863a4e69d7e9474ff8e73bc1b410fe/MARS_M/README.md",
+    "sha256": "1acdbb595533d325308d3467b05d626dcd226ff5f51c0f7c2c3d01e9908308a8",
+    "bytes": 13680
+  },
+  {
+    "repo": "tilde-research/aurora-release",
+    "commit": "12e30810e1a2226fba77dcb7d6e23f3c4c79726b",
+    "path": "src/aurora.py",
+    "url": "https://raw.githubusercontent.com/tilde-research/aurora-release/12e30810e1a2226fba77dcb7d6e23f3c4c79726b/src/aurora.py",
+    "sha256": "2bb68ad2afe225c56dcd8a09eb00ecfed427b6d2d28dca07e757a54f585b33f8",
+    "bytes": 2393
+  },
+  {
+    "repo": "tilde-research/aurora-release",
+    "commit": "12e30810e1a2226fba77dcb7d6e23f3c4c79726b",
+    "path": "src/polar.py",
+    "url": "https://raw.githubusercontent.com/tilde-research/aurora-release/12e30810e1a2226fba77dcb7d6e23f3c4c79726b/src/polar.py",
+    "sha256": "25bb03233265aa4b1241a70521bfc3bcd4d7fa32c0f44d65d3726f484f65f7d3",
+    "bytes": 1623
+  },
+  {
+    "repo": "tilde-research/aurora-release",
+    "commit": "12e30810e1a2226fba77dcb7d6e23f3c4c79726b",
+    "path": "README.md",
+    "url": "https://raw.githubusercontent.com/tilde-research/aurora-release/12e30810e1a2226fba77dcb7d6e23f3c4c79726b/README.md",
+    "sha256": "daeee5871519ffad5a2ad2d1218687ddc4efc67d3adf52cb30a21d933e0859e5",
+    "bytes": 2209
+  }
+]
